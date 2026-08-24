@@ -59,7 +59,9 @@ class BaseAgent:
         if previous_error_reflexion:
             full_prompt += f"\n\n[SALEHA SELF-HEALING INSTRUCTION]:\n{previous_error_reflexion}"
 
-        provider_result = self.provider.generate(model=selected_model, prompt=full_prompt)
+        temp = getattr(self, "temperature", None)
+        options = {"temperature": temp} if temp is not None else None
+        provider_result = self.provider.generate(model=selected_model, prompt=full_prompt, options=options)
         response_time = provider_result.response_time or (time.time() - start_time)
 
         if self.router:
@@ -112,9 +114,16 @@ class BaseAgent:
 
         stream_fn = getattr(self.provider, "stream_generate", None)
         if callable(stream_fn):
-            provider_result = stream_fn(model=selected_model, prompt=full_prompt, callback=on_token)
+            stream_temp = getattr(self, "temperature", None)
+            stream_opts = {"temperature": stream_temp} if stream_temp is not None else None
+            provider_result = stream_fn(model=selected_model, prompt=full_prompt,
+                                        callback=on_token, options=stream_opts)
         else:
-            provider_result = self.provider.generate(model=selected_model, prompt=full_prompt)
+            # Profile-set temperature ho to provider options me jao (v1.4 wiring);
+            # warna provider apne defaults use karta hai.
+            temp = getattr(self, "temperature", None)
+            options = {"temperature": temp} if temp is not None else None
+            provider_result = self.provider.generate(model=selected_model, prompt=full_prompt, options=options)
 
         response_time = provider_result.response_time or (time.time() - start_time)
 

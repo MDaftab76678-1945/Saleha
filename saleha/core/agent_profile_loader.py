@@ -188,20 +188,64 @@ class AgentProfileRegistry:
 
 
 class ProfileAgent(BaseAgent):
-    """An agent that adopts a specific AgentProfile persona."""
+    """An agent that adopts a specific AgentProfile persona.
+
+    v1.4 wiring: profile ki ``llm_routing`` metadata ab REAL effect deti hai --
+      - role ke hisaab se SmartRouter me minimum complexity floor
+        (security/sde roles flagship tiers pe route hongi)
+      - llm_routing.temperature provider options me jaata hai
+    """
+
+    # profile-id keyword -> min complexity floor (router candidate tier gate)
+    ROLE_COMPLEXITY_FLOOR = (
+        ("security", 8.0),
+        ("compliance", 7.0),
+        ("sre", 7.0),
+        ("sde", 6.0),
+        ("software_engineer", 6.0),
+        ("architect", 5.0),
+        ("designer", 5.0),
+        ("data", 5.0),
+        ("ai_engineer", 6.0),
+        ("devops", 4.0),
+        ("performance", 4.0),
+        ("test", 3.0),
+        ("product_manager", 2.0),
+        ("project_manager", 2.0),
+        ("business_analyst", 2.0),
+        ("scrum", 1.0),
+    )
 
     def __init__(self, profile: AgentProfile, model: str = "auto"):
         super().__init__(role=profile.name, model=model)
         self.profile = profile
 
+        # Role-tier floor: id ke keywords se derive
+        pid = profile.id.lower()
+        self.complexity_floor = 0.0
+        for keyword, floor in self.ROLE_COMPLEXITY_FLOOR:
+            if keyword in pid:
+                self.complexity_floor = floor
+                break
+
+        # Temperature: llm_routing.temperature (cloud-era metadata) ab real
+        # provider option hai -- clamp 0.05..0.9
+        raw_temp = (profile.llm_routing or {}).get("temperature")
+        try:
+            t = float(raw_temp)
+            self.temperature = max(0.05, min(0.9, t))
+        except (TypeError, ValueError):
+            self.temperature = None  # provider default use hoga
+
     def think(self, prompt: str, previous_error_reflexion: Optional[str] = None,
               complexity_score: float = 0.0) -> AgentResponse:
         persona_context = self.profile.format_persona_prompt()
         enhanced_prompt = f"{persona_context}\n\n[USER TASK]:\n{prompt}"
+        effective_complexity = max(complexity_score, self.complexity_floor)
         return super().think(
             prompt=enhanced_prompt,
             previous_error_reflexion=previous_error_reflexion,
-            complexity_score=complexity_score
+            complexity_score=effective_complexity
         )
 
 

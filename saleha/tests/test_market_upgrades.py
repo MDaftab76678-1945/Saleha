@@ -315,3 +315,42 @@ class ComplexityWiringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfileRoleRoutingTests(unittest.TestCase):
+    """v1.4: llm_routing metadata ab real routing/temperature effect deti hai."""
+
+    def test_role_complexity_floors(self):
+        from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
+
+        sec = ProfileAgent(profile=profile_registry.get("agent_security_engineer"), model="m")
+        self.assertGreaterEqual(sec.complexity_floor, 8.0)
+        sde = ProfileAgent(profile=profile_registry.get("agent_sde"), model="m")
+        self.assertGreaterEqual(sde.complexity_floor, 6.0)
+        qa = ProfileAgent(profile=profile_registry.get("agent_test_automation_engineer"), model="m")
+        self.assertLessEqual(qa.complexity_floor, 3.0)
+
+    def test_temperature_from_llm_routing_flows_to_provider(self):
+        from saleha.agents.base_agent import BaseAgent
+        agent = BaseAgent(role="T", model="fixed-model")
+        agent.temperature = 0.15
+        captured = {}
+
+        def fake_generate(model, prompt, options=None):
+            captured["options"] = options
+            return MagicMock(success=True, content="ok", error_message="", response_time=0.01, tokens_used=3)
+
+        with patch.object(agent.provider, "generate", side_effect=fake_generate):
+            resp = agent.think("hello")
+        self.assertTrue(resp.success)
+        self.assertEqual(captured["options"], {"temperature": 0.15})
+
+    def test_sde_profile_reads_routing_temperature(self):
+        from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
+
+        sde = profile_registry.get("agent_sde")
+        if not (sde.llm_routing and sde.llm_routing.get("temperature")):
+            self.skipTest("profile file lacks temperature metadata")
+        agent = ProfileAgent(profile=sde, model="m")
+        self.assertIsNotNone(agent.temperature)
+        self.assertLessEqual(agent.temperature, 0.9)
