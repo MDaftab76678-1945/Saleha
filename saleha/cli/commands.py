@@ -1856,6 +1856,75 @@ def edit(goal, root_dir, model, apply, as_json):
         raise click.exceptions.Exit(1)
 
 # ==============================================================================
+# PROFILE COMMAND - Hardware Telemetry Profiler (v1.6)
+# ==============================================================================
+
+@cli.command(name='profile')
+@click.option('--watch', '-w', default=0, type=int, help='Live refresh: N seconds tak sample karo')
+@click.option('--top', default=5, type=int, help='Top processes to show')
+@click.option('--json', 'as_json', is_flag=True, help='Machine-readable snapshot')
+def profile_cmd(watch, top, as_json):
+    """Hardware telemetry: CPU/mem/disk/net + top processes (GPU if nvidia-smi)."""
+    from saleha.core.hardware_profiler import get_profiler
+
+    profiler = get_profiler()
+    if profiler is None:
+        console.print("[red]psutil unavailable -- hardware profiling needs psutil[/]")
+        raise click.exceptions.Exit(1)
+
+    snap = profiler.record_window(seconds=watch) if watch > 0 else profiler.snapshot()
+
+    payload = {
+        "cpu_percent": snap.cpu_percent,
+        "cpu_per_core": snap.cpu_per_core,
+        "cpu_freq_mhz": snap.cpu_freq_mhz,
+        "mem_used_mb": snap.mem_used_mb,
+        "mem_total_mb": snap.mem_total_mb,
+        "mem_percent": snap.mem_percent,
+        "swap_percent": snap.swap_percent,
+        "disk_write_mb_s": snap.disk_write_mb_s,
+        "net_recv_kb_s": snap.net_recv_kb_s,
+        "gpu": snap.gpu,
+        "top_processes": snap.top_processes[:top],
+    }
+    if as_json:
+        import json as _json
+        click.echo(_json.dumps(payload, ensure_ascii=True, default=str))
+        return
+
+    core_bars = " ".join(
+        f"[{'green' if c < 60 else 'yellow' if c < 85 else 'red'}]{int(c):>3}[/]"
+        for c in snap.cpu_per_core[:16]
+    )
+    console.print(Panel(
+        f"[bold cyan]CPU:[/] {snap.cpu_percent}%   "
+        f"[cyan]Freq:[/] {snap.cpu_freq_mhz or '-'} MHz\n"
+        f"Per-core: {core_bars}\n"
+        f"[bold cyan]RAM:[/] {snap.mem_used_mb}/{snap.mem_total_mb} MB "
+        f"({snap.mem_percent}%)\n"
+        f"[bold cyan]Swap:[/] {snap.swap_percent}%   "
+        f"[cyan]Disk W:[/] {snap.disk_write_mb_s} MB/s   "
+        f"[cyan]Net RX:[/] {snap.net_recv_kb_s} KB/s\n"
+        + (f"[magenta]GPU:[/] {snap.gpu['name']} util={snap.gpu['util_percent']}% mem={snap.gpu['mem_used_mb']}MB\n"
+           if snap.gpu else "")
+        ,
+        title="[bold green]🖥️ Saleha Hardware Profile[/]",
+        border_style="green"
+    ))
+
+    from rich.table import Table
+    tp = Table(title=f"Top Processes (self pid={snap.self_pid})")
+    tp.add_column("PID", justify="right", style="dim")
+    tp.add_column("Name")
+    tp.add_column("CPU%", justify="right")
+    tp.add_column("MEM%", justify="right")
+    for p in snap.top_processes[:top]:
+        marker = " ← saleha" if p["pid"] == snap.self_pid else ""
+        tp.add_row(str(p["pid"]), str(p.get("name")) + marker,
+                   str(p.get("cpu")), str(p.get("mem_pct")))
+    console.print(tp)
+
+# ==============================================================================
 # METRICS COMMAND - Structured Run Observability (B3)
 # ==============================================================================
 

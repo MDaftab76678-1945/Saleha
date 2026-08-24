@@ -33,6 +33,7 @@ from saleha.core.sre_responder import sre_responder
 from saleha.core.load_tester import load_tester
 from saleha.harness.core import harness
 from saleha.harness.reporter import reporter as harness_reporter
+from saleha.core.collab import CollabError, collab_store
 
 
 # ==============================================================================
@@ -653,6 +654,9 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self._reject_unauthorized()
             return
 
+        if self._handle_collab_get(path, parsed):
+            return
+
         if path == "/api/status":
             self._send_json(200, {
                 "status": "healthy",
@@ -741,6 +745,77 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "Endpoint not found"})
 
+    def _collab_error(self, err: CollabError):
+        code_map = {"not_found": 404, "conflict": 409, "not_joined": 409,
+                    "limit": 429, "too_large": 413}
+        self._send_json(code_map.get(err.code, 400),
+                        {"error": str(err), "code": err.code})
+
+    def _handle_collab_get(self, path: str, parsed) -> bool:
+        """GET /api/collab/list | poll | state -- True agar route handle hua."""
+        if path == "/api/collab/list":
+            self._send_json(200, {"rooms": collab_store.list_rooms()})
+            return True
+        if path == "/api/collab/poll":
+            query = urllib.parse.parse_qs(parsed.query)
+            room_id = (query.get("room_id") or [""])[0]
+            since = int((query.get("since") or ["0"])[0])
+            try:
+                self._send_json(200, collab_store.poll(room_id, since))
+            except CollabError as err:
+                self._collab_error(err)
+            return True
+        if path == "/api/collab/state":
+            query = urllib.parse.parse_qs(parsed.query)
+            room_id = (query.get("room_id") or [""])[0]
+            try:
+                self._send_json(200, collab_store.get_state(room_id))
+            except CollabError as err:
+                self._collab_error(err)
+            return True
+        return False
+
+    def _handle_collab_post(self, path: str, payload: dict) -> bool:
+        user = payload.get("user", "anonymous")
+        try:
+            if path == "/api/collab/create":
+                room = collab_store.create_room(
+                    doc_name=payload.get("doc_name", "untitled"),
+                    initial_content=payload.get("content", ""),
+                    creator=user,
+                )
+                self._send_json(200, {
+                    "room_id": room.room_id, "doc_name": room.doc_name,
+                    "version": room.version,
+                })
+                return True
+            if path == "/api/collab/join":
+                room = collab_store.join(payload.get("room_id", ""), user,
+                                         int(payload.get("cursor_line", 0)))
+                self._send_json(200, {
+                    "joined": user, "room_id": room.room_id,
+                    "current_version": room.version,
+                    "content": room.content[:2000],
+                })
+                return True
+            if path == "/api/collab/update":
+                out = collab_store.update_content(
+                    payload.get("room_id", ""), user,
+                    payload.get("content", ""),
+                    int(payload.get("base_version", -1)),
+                    int(payload.get("cursor_line", 0)),
+                )
+                self._send_json(200, {"saved": True, **out})
+                return True
+            if path == "/api/collab/leave":
+                left = collab_store.leave(payload.get("room_id", ""), user)
+                self._send_json(200, {"left": left})
+                return True
+        except CollabError as err:
+            self._collab_error(err)
+            return True
+        return False
+
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -764,6 +839,9 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             payload = json.loads(body) if body else {}
         except Exception:
             payload = {}
+
+        if self._handle_collab_post(path, payload):
+            return
 
         if path == "/api/scan":
             scan_path = payload.get("path", ".")

@@ -4,6 +4,19 @@ All notable changes to **Saleha AI** are documented in this file.
 
 ---
 
+## [1.6.0] - 2026-08-25 (Collab & Telemetry Release)
+
+### 👥 Collaborative Editing Rooms (real implementation)
+- **`saleha/core/collab.py`**: versioned multi-user document rooms with optimistic concurrency (stale base_version -> 409 conflict), participant presence + cursor tracking, inactivity TTL, room caps.
+- **Web API** (token-gated): `/api/collab/create | join | update | poll | state | list | leave` — polling-based sync jo LAN ke doosre browsers/machines pe bhi kaam karta hai.
+
+### 🖥️ Hardware Profiler (deep telemetry)
+- **`saleha/core/hardware_profiler.py`**: CPU (per-core, freq), RAM/swap, disk & net throughput deltas, top-processes (Saleha self-highlighted), optional nvidia-smi GPU probe.
+- Rolling history ring-buffer + windowed report aggregation.
+- **Naya command `saleha profile [--watch N] [--json]`** — live Rich table output.
+
+---
+
 ## [1.5.0] - 2026-08-25 (Profile Quality Release)
 
 ### 🎭 Agent Profiles: 19/20 THIN -> 20/20 RICH
