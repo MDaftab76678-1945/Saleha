@@ -2860,12 +2860,45 @@ def pr_review_cmd(base_branch, output_file, as_json):
 
 
 @cli.command(name='voice')
-@click.argument('prompt', required=False, default="Create a health check endpoint in FastAPI")
+@click.argument('prompt', required=False, default=None)
+@click.option('--audio', '-a', default=None, type=click.Path(exists=True),
+              help='Audio file (wav/mp3/flac) -- faster-whisper se LOCAL transcription hogi')
+@click.option('--whisper-model', default='base', type=click.Choice(['tiny', 'base', 'small', 'medium']),
+              help='Whisper model size (default: base)')
+@click.option('--speak', '-s', is_flag=True, help='Result summary ko loudly bolo (pyttsx3 TTS)')
 @click.option('--model', '-m', default='auto', help='Model to execute task with')
-def voice_cmd(prompt, model):
-    """Hands-free voice prompt listener and autonomous code synthesizer."""
+def voice_cmd(prompt, audio, whisper_model, speak, model):
+    """Voice task: audio -> text -> autonomous pipeline -> (optional) spoken result.
+
+    Text mode:   saleha voice "create a login endpoint"
+    Audio mode:  saleha voice --audio note.wav
+    Speak back:  saleha voice --audio note.wav --speak
+
+    Requires [voice] extra for audio: pip install saleha[voice]
+    """
     from saleha.core.voice_assistant import voice_assistant
-    console.print(f"[bold green]🎙️ Voice Assistant Active — Captured Prompt:[/] [cyan]\"{prompt}\"[/]")
+
+    if audio:
+        from saleha.core.speech import WhisperSTT
+        if not WhisperSTT.available():
+            console.print("[red]❌ faster-whisper installed nahi hai.[/]")
+            console.print("[dim]Install: pip install saleha[voice][/]")
+            raise click.exceptions.Exit(1)
+        console.print(f"[cyan]🎧 Transcribing[/] {os.path.basename(audio)} (whisper:{whisper_model})...")
+        stt = WhisperSTT(model_size=whisper_model)
+        tr = stt.transcribe(audio)
+        if not tr.success or not tr.text:
+            console.print(f"[red]❌ Transcription failed:[/] {tr.error or 'empty audio'}")
+            raise click.exceptions.Exit(1)
+        prompt = tr.text
+        console.print(f"[green]✅ Heard ({tr.language}, {tr.duration_sec}s):[/] "
+                      f"[cyan]\"{prompt}\"[/]")
+    elif not prompt:
+        console.print("[yellow]PROMPT ya --audio/<file> dijiye.[/] "
+                      "[dim]Example: saleha voice \"build rate limiter\" ya --audio note.wav[/]")
+        raise click.exceptions.Exit(2)
+
+    console.print(f"[bold green]🎙️ Voice Assistant — Executing:[/] [cyan]\"{prompt}\"[/]")
     res = voice_assistant.process_voice_prompt(prompt, auto_execute=True)
     if res.success:
         console.print(Panel(
@@ -2873,6 +2906,15 @@ def voice_cmd(prompt, model):
             title="[bold green]✅ Voice Task Output[/]",
             border_style="green"
         ))
+        if speak:
+            from saleha.core.speech import PyttsxTTS
+            tts = PyttsxTTS()
+            if not tts.available():
+                console.print("[yellow]⚠️ TTS ke liye pyttsx3 chahiye: pip install saleha[voice][/]")
+            else:
+                spoken = (res.execution_result or "Task completed")[:280]
+                ok = tts.speak(spoken)
+                console.print("[green]🔊 Spoken.[/]" if ok else "[red]🔊 TTS failed.[/]")
     else:
         console.print(f"[bold red]❌ Task failed:[/] {res.error}")
 

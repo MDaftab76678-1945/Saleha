@@ -4,6 +4,19 @@ All notable changes to **Saleha AI** are documented in this file.
 
 ---
 
+## [1.4.0] - 2026-08-25 (Voice & Community Release)
+
+### 🎙️ Real Voice (STT + TTS)
+- **`saleha/core/speech.py`**: faster-whisper local transcription (CPU int8, model cache, language detect) + pyttsx3 offline TTS.
+- **CLI**: `saleha voice --audio note.wav [--speak]` — audio → text → autonomous pipeline → spoken summary. Whisper model choice: `--whisper-model tiny|base|small|medium`.
+- Optional `[voice]` extra; missing deps = clear install guidance (koi silent stub nahi).
+
+### 🤝 Community
+- GitHub **issue templates** (bug report with env checklist + feature request format).
+- **CONTRIBUTING.md rewritten**: setup, extras policy, sandbox/security rules for PRs, project layout map, cross-platform path guidelines.
+
+---
+
 ## [1.3.0] - 2026-08-25 (Tree-sitter Context Ranking)
 
 ### 🗺️ Aider-level Context Engine (optional `[codeintel]` extra)
