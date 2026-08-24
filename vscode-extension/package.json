@@ -2,7 +2,7 @@
   "name": "saleha-ai-vscode",
   "displayName": "Saleha AI - Autonomous Multi-Agent Engineering Studio",
   "description": "Local-first Autonomous AI Software Engineering Studio with Ghost-Text Autocomplete, SAST Quick-Fix, and 5-Agent Swarm.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "saleha-ai",
   "engines": {
     "vscode": "^1.80.0"

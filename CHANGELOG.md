@@ -4,6 +4,18 @@ All notable changes to **Saleha AI** are documented in this file.
 
 ---
 
+## [1.5.0] - 2026-08-25 (Profile Quality Release)
+
+### 🎭 Agent Profiles: 19/20 THIN -> 20/20 RICH
+- Har profile ab **role-specific goals (>=3), constraints (>=2), allowed_tools, llm_routing.temperature** carry karti hai -- pehle average persona ~80 words with zero structure tha.
+- **Quality gate tests** (`test_profile_quality_gate.py`): richness bar enforce hota hai -- koi profile wapas thin ho to CI fail.
+- `allowed_tools` vocabulary normalized (run_code/read_file/... known names).
+
+### 🔧 allowed_tools Ab REAL
+- **AgentLoop `allowed_tools` filter**: profile ke declared tools se agent ka toolset restrict hota hai (`saleha agent` + swarm agents). Khali intersection = graceful full-set fallback.
+
+---
+
 ## [1.4.0] - 2026-08-25 (Voice & Community Release)
 
 ### 🎙️ Real Voice (STT + TTS)

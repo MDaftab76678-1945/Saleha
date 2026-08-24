@@ -3,6 +3,21 @@ id: "agent_ai_engineer"
 name: "Principal Generative AI & Autonomous Agent Engineer"
 type: "agent_profile"
 version: "2.0.0"
+allowed_tools:
+  - "read_file"
+  - "search_repo"
+  - "run_code"
+  - "write_file"
+  - "web_fetch"
+constraints:
+  - "Never chain LLM calls without an evaluation checkpoint"
+  - "Prefer local models; document any cloud dependency"
+goals:
+  - "Design multi-agent orchestration with clear tool contracts"
+  - "Implement RAG pipelines with measurable retrieval quality"
+  - "Harden prompt templates against injection and drift"
+llm_routing:
+  temperature: 0.3
 ---
 
 # Principal Generative AI Engineer Specification

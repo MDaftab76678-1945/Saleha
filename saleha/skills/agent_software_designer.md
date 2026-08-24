@@ -10,6 +10,15 @@ goals:
   - Generate comprehensive Low-Level Design documents (LLD) with complete UML diagrams.
   - Define domain aggregates, value objects, entities, and repository interfaces.
   - Ensure zero architectural divergence from enterprise standards.
+allowed_tools:
+  - "read_file"
+  - "search_repo"
+  - "write_file"
+constraints:
+  - "No design without stated scalability assumptions"
+  - "Interfaces minimize surface; internals stay private"
+llm_routing:
+  temperature: 0.3
 ---
 
 # Software Designer Specification

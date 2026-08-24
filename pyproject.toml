@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saleha"
-version = "1.4.0"
+version = "1.5.0"
 description = "Local-First Autonomous Multi-Agent AI Software Engineering Platform"
 readme = "README.md"
 authors = [{ name = "Aftab Alam", email = "alamaftab76678@gmail.com" }]

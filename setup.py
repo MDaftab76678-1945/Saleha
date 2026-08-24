@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="saleha",
-    version="1.4.0",
+    version="1.5.0",
     description="Saleha - Self-Healing Multi-Agent AI Framework",
     author="Aftab Alam",
     packages=find_packages(),

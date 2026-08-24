@@ -94,11 +94,15 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
     def __init__(self, agent: BaseAgent, root_dir: str = ".",
                  max_steps: int = 12, allow_write: bool = False,
-                 code_executor=None):
+                 code_executor=None,
+                 allowed_tools: Optional[List[str]] = None):
         self.agent = agent
         self.root_dir = os.path.abspath(root_dir)
         self.max_steps = max_steps
         self.allow_write = allow_write
+        # Profile-driven tool restriction (v1.5): agar diya gaya to sirf ye
+        # tools available honge (intersection with built-ins).
+        self.allowed_tools = set(allowed_tools) if allowed_tools else None
         self._executor = code_executor  # lazy init in _tool_run_code
 
     # ------------------------------------------------------------------
@@ -217,6 +221,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # taaki model ko clear "BLOCKED" observation mile (silent absence se behtar)
             "write_file": self._tool_write_file,
         }
+
+        # Profile-driven restriction: allowed_tools diya gaya to intersection
+        # use karo (khali result par sab wapas -- dead-end se bachne ke liye).
+        if self.allowed_tools:
+            filtered = {k: v for k, v in tools.items() if k in self.allowed_tools}
+            if filtered:
+                tools = filtered
 
         system = self.SYSTEM_PROMPT.replace("{tool_names}", ", ".join(tools))
         transcript_parts: List[str] = []

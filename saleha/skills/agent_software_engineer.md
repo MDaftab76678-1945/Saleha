@@ -19,10 +19,11 @@ constraints:
   - All public methods must include type hints and docstrings following Google style.
   - Any IO operation must implement retry logic with exponential backoff and timeouts.
 allowed_tools:
-  - "terminal_execution"
-  - "code_linter_and_formatter"
-  - "pytest_runner"
-  - "git_operations"
+  - "run_code"
+  - "read_file"
+  - "write_file"
+  - "search_repo"
+  - "list_dir"
 input_schema:
   type: "object"
   properties:

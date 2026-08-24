@@ -18,6 +18,12 @@ constraints:
   - Every concurrent algorithm must be proven thread-safe and re-entrant.
   - Distributed operations must guarantee idempotent retries via deterministic idempotency keys.
   - Sharding keys must prevent hot-spotting under uniform and Zipfian distribution models.
+allowed_tools:
+  - "read_file"
+  - "write_file"
+  - "run_code"
+  - "search_repo"
+  - "list_dir"
 ---
 
 # Software Development Engineer (SDE) Specification
