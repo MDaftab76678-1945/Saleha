@@ -1,0 +1,6 @@
+click>=8.1
+rich>=13.0
+requests>=2.31
+psutil>=5.9
+PyYAML>=6.0
+setuptools>=61
