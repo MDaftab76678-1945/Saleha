@@ -1,4 +1,4 @@
-name: 🧠 Saleha AI PR Reviewer Bot
+name: ???? Saleha AI PR Reviewer Bot
 
 on:
   pull_request:
@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -32,7 +32,7 @@ jobs:
           saleha pr review main --output-file review.md
 
       - name: Post PR Review Comment
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
