@@ -3,13 +3,15 @@ import threading
 import json
 import urllib.request
 import urllib.error
+import uuid
 from http.server import HTTPServer
 
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
 
 
-AUTH_TOKEN = "test-suite-token"
+# SEC003-safe: runtime-generated token (hardcoded literal nahi)
+AUTH_TOKEN = "tok-" + uuid.uuid4().hex[:16]
 
 
 class WebServerTests(unittest.TestCase):

@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
 import hashlib
-
 INSTALL_PROBE_TTL_SEC = 60.0
 _OLLAMA_TAGS_URL = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434") + "/api/tags"
 _probe_cache: Dict[str, object] = {"at": 0.0, "models": frozenset()}
@@ -220,7 +219,7 @@ class SmartRouter:
 
     def _get_task_hash(self, task: str, complexity: float) -> str:
         task_key = f"{task[:100]}_{complexity}"
-        return hashlib.md5(task_key.encode()).hexdigest()
+        return hashlib.sha256(task_key.encode()).hexdigest()
 
     def _get_thermal_state(self) -> str:
         try:

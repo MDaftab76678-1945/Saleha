@@ -40,10 +40,25 @@ class ScanReport:
 
 
 class ASTSecurityVisitor(ast.NodeVisitor):
+    # Inline suppression: "# noqa: SEC002" jaisi trailing comment wali lines
+    # skip hoti hain (Bandit ke "# nosec" jaisa) -- legit use-cases ke liye
+    # (e.g. interactive REPL ka exec). scan_code() post-filter lagata hai.
+    _NOQA_RE = re.compile(r"#\s*noqa:\s*([A-Z0-9,\s]+)", re.IGNORECASE)
+
     def __init__(self, filename: str, lines: List[str]):
         self.filename = filename
         self.lines = lines
         self.vulnerabilities: List[SecurityVulnerability] = []
+
+    def _suppressed(self, lineno: int, rule_id: str) -> bool:
+        if not (1 <= lineno <= len(self.lines)):
+            return False
+        line = self.lines[lineno - 1]
+        m = self._NOQA_RE.search(line)
+        if not m:
+            return False
+        codes = {c.strip().upper() for c in m.group(1).split(",") if c.strip()}
+        return rule_id in codes or "ALL" in codes
 
     def _get_snippet(self, lineno: int) -> str:
         if 1 <= lineno <= len(self.lines):
@@ -186,7 +201,9 @@ class ASTSecurityScanner:
         lines = code.splitlines()
         visitor = ASTSecurityVisitor(filename=filename, lines=lines)
         visitor.visit(tree)
-        return visitor.vulnerabilities
+        # Inline "# noqa: SECxxx" suppression (Bandit nosec-style)
+        return [v for v in visitor.vulnerabilities
+                if not visitor._suppressed(v.line_number, v.rule_id)]
 
     def _scan_js_ts(self, code: str, filename: str) -> List[SecurityVulnerability]:
         vulns = []
