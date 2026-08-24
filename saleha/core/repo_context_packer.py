@@ -20,7 +20,7 @@ import ast
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from saleha.core.path_utils import safe_relpath
 
 # Skip dirs -- indexer conventions se aligned
@@ -94,10 +94,26 @@ def _tokenize(text: str) -> set:
 
 class RepoContextPacker:
     def __init__(self, root_dir: str = ".", max_files: int = 400,
-                 excerpt_lines: int = 40):
+                 excerpt_lines: int = 40,
+                 symbol_ranker: Optional[object] = None):
         self.root_dir = os.path.abspath(root_dir)
         self.max_files = max_files
         self.excerpt_lines = excerpt_lines
+        # B1.5: tree-sitter ranker -- diya gaya to use karo, warna ek hi baar
+        # lazy probe (grammars installed na hon to False -> legacy path)
+        if symbol_ranker is not None:
+            self.ranker = symbol_ranker
+        else:
+            self.ranker = self._default_ranker()
+
+    @staticmethod
+    def _default_ranker():
+        try:
+            from saleha.core.tree_context_ranker import TreeContextRanker
+            ranker = TreeContextRanker()
+            return ranker if ranker.available else False
+        except Exception:
+            return False
 
     # ------------------------------------------------------------------
     # Scanning & scoring
@@ -131,21 +147,37 @@ class RepoContextPacker:
         except OSError:
             return 0.0, []
 
-        # A3: Python files ke liye AST-accurate symbols (+ docstring signal);
-        # baaki languages regex fallback.
-        sym_entries: List[Tuple[int, str, str, str]] = []
-        if path.lower().endswith(".py"):
-            sym_entries = _python_symbols(path)
-        if not sym_entries:
-            names = _SYMBOL_RE.findall(content)[:60]
-            sym_entries = [(0, "def", n, "") for n in names]
+        # A3+C: symbol extraction priority --
+        #   1) tree-sitter ranker (multi-lang, jab [codeintel] extra installed ho)
+        #   2) Python built-in ast
+        #   3) regex fallback (baaki languages)
+        ext = os.path.splitext(path)[1].lower()
+        display_symbols: List[str] = []
+        symbol_name_list: List[str] = []
+        doc_list: List[str] = []
 
-        display_symbols = [
-            f"{kind} {name} (L{lineno})" if lineno else f"{kind} {name}"
-            for (lineno, kind, name, _doc) in sym_entries
-        ]
-        symbol_tokens = _tokenize(" ".join(name for (_, _, name, _) in sym_entries))
-        doc_tokens = _tokenize(" ".join(doc for (_, _, _, doc) in sym_entries))
+        ranker = self.ranker or None
+        if ranker is not None and ranker.supported(ext):
+            if ranker.index_file(rel, content) is not None:
+                for (lineno, label) in ranker.extract_symbols(rel, content):
+                    display_symbols.append(f"{label} (L{lineno})")
+                    symbol_name_list.append(label.split(" ", 1)[1])
+
+        if not display_symbols and path.lower().endswith(".py"):
+            sym_entries = _python_symbols(path)
+            for (lineno, kind, name, doc) in sym_entries:
+                display_symbols.append(f"{kind} {name} (L{lineno})" if lineno else f"{kind} {name}")
+                symbol_name_list.append(name)
+                if doc:
+                    doc_list.append(doc)
+
+        if not display_symbols:
+            names = _SYMBOL_RE.findall(content)[:60]
+            display_symbols = [f"def {n}" for n in names]
+            symbol_name_list.extend(names)
+
+        symbol_tokens = _tokenize(" ".join(symbol_name_list))
+        doc_tokens = _tokenize(" ".join(doc_list))
         content_head = content[:8000]
 
         score = 0.0
@@ -194,6 +226,17 @@ class RepoContextPacker:
             ))
 
         scored.sort(key=lambda sf: sf.score, reverse=True)
+
+        # C+: tree-sitter hub-popularity boost (jab ranker available ho) --
+        # shared symbols define karne wali "hub" files ko up-rank karta hai.
+        if self.ranker:
+            try:
+                boosts = self.ranker.popularity_boost()
+                for sf in scored:
+                    sf.score += boosts.get(sf.path, 0.0)
+                scored.sort(key=lambda sf: sf.score, reverse=True)
+            except Exception:
+                pass
 
         lines: List[str] = ["## Repository Context (auto-packed by Saleha)", ""]
         used = sum(len(l) + 1 for l in lines)

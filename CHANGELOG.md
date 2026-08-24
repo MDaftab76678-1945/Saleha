@@ -4,6 +4,23 @@ All notable changes to **Saleha AI** are documented in this file.
 
 ---
 
+## [1.3.0] - 2026-08-25 (Tree-sitter Context Ranking)
+
+### 🗺️ Aider-level Context Engine (optional `[codeintel]` extra)
+- **`saleha/core/tree_context_ranker.py`**: tree-sitter based multi-language symbol extraction -- JS/TS ab bhi real AST se (regex guess nahi), line numbers ke saath.
+- **Symbol-popularity hub boost**: jo files shared symbols define karti hain jinhe doosri files reference karti hain, wo up-rank hoti hain (Aider repo-map ka core signal).
+- **Zero-dependency graceful fallback**: grammars na hon to packer apne existing keyword/AST path pe chalta hai; CI core install untouched.
+- Install: `pip install saleha[codeintel]`
+
+### 📚 Docs
+- **Auto-generated `docs/CLI_REFERENCE.md`** (`scripts/gen_cli_docs.py`) -- Click introspection se, ab CLI docs kabhi stale nahi honge.
+- 🏷️ GitHub Release v1.2.0 published.
+
+### Fixed
+- UTF-8 BOM strip (pyproject/setup/package.json) jo fresh CI installs todta tha.
+
+---
+
 ## [1.2.0] - 2026-08-25 (Streaming & Observability Release)
 
 ### ⚡ Token Accounting (end-to-end)
