@@ -21,6 +21,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
+from saleha.core.path_utils import safe_relpath
 
 # Skip dirs -- indexer conventions se aligned
 SKIP_DIRS = {
@@ -123,7 +124,7 @@ class RepoContextPacker:
         return found
 
     def _score_file(self, path: str, task_tokens: set) -> Tuple[float, List[str]]:
-        rel = os.path.relpath(path, self.root_dir).replace("\\", "/")
+        rel = safe_relpath(path, self.root_dir).replace("\\", "/")
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
@@ -186,7 +187,7 @@ class RepoContextPacker:
         for path in files[: self.max_files * 4]:
             score, symbols = self._score_file(path, task_tokens)
             scored.append(ScoredFile(
-                path=os.path.relpath(path, self.root_dir).replace("\\", "/"),
+                path=safe_relpath(path, self.root_dir).replace("\\", "/"),
                 score=score,
                 size_chars=os.path.getsize(path),
                 symbols=symbols,

@@ -9,6 +9,7 @@ import ast
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
+from saleha.core.path_utils import safe_relpath
 
 
 @dataclass
@@ -33,14 +34,14 @@ class AutoDocGenerator:
         mermaid_nodes = ["flowchart TD"]
 
         for root, _, files in os.walk(root_dir):
-            rel_parts = os.path.relpath(root, root_dir).split(os.sep)
+            rel_parts = safe_relpath(root, root_dir).split(os.sep)
             if any((p.startswith(".") and p not in (".", "..")) or p in ("node_modules", "venv", "__pycache__", "build", "dist", ".git") for p in rel_parts):
                 continue
 
             for f in files:
                 if f.endswith(".py"):
                     full_path = os.path.join(root, f)
-                    rel_path = os.path.relpath(full_path, root_dir).replace("\\", "/")
+                    rel_path = safe_relpath(full_path, root_dir).replace("\\", "/")
                     try:
                         with open(full_path, "r", encoding="utf-8", errors="ignore") as pyf:
                             code = pyf.read()

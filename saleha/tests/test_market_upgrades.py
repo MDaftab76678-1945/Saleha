@@ -196,7 +196,8 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.assertIn("degraded", reason.lower())
 
     def test_docker_command_is_hardened(self):
-        cmd = build_docker_command(r"C:\tmp\x\script.py")
+        # POSIX-style path use karo -- Linux CI pe backslash basename nahi hota
+        cmd = build_docker_command("/tmp/work/script.py")
         joined = " ".join(cmd)
         self.assertIn("--network none", joined)
         self.assertIn("--memory", joined)

@@ -12,6 +12,7 @@ import re
 import difflib
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Set, Any
+from saleha.core.path_utils import safe_relpath
 
 
 @dataclass
@@ -71,7 +72,7 @@ class CodebaseIndexer:
             for f in filenames:
                 if f.endswith(".py"):
                     full_path = os.path.join(root, f)
-                    rel_path = os.path.relpath(full_path, self.root_dir)
+                    rel_path = safe_relpath(full_path, self.root_dir)
                     file_index = self._parse_file(full_path, rel_path)
                     self.files[rel_path] = file_index
                     self._register_symbols(rel_path, file_index)

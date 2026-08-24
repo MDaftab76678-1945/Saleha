@@ -11,6 +11,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional, Any
+from saleha.core.path_utils import safe_relpath
 
 
 @dataclass
@@ -118,14 +119,14 @@ class CodebaseDependencyGraph:
         self.files_indexed.clear()
 
         for root, _, files in os.walk(self.root_dir):
-            rel_parts = os.path.relpath(root, self.root_dir).split(os.sep)
+            rel_parts = safe_relpath(root, self.root_dir).split(os.sep)
             if any((p.startswith(".") and p not in (".", "..")) or p in ("node_modules", "venv", "__pycache__", "build", "dist", ".git") for p in rel_parts):
                 continue
 
             for f in files:
                 if f.endswith(".py"):
                     full_path = os.path.join(root, f)
-                    rel_path = os.path.relpath(full_path, self.root_dir).replace("\\", "/")
+                    rel_path = safe_relpath(full_path, self.root_dir).replace("\\", "/")
                     self._index_file(full_path, rel_path)
 
         return {
@@ -163,7 +164,7 @@ class CodebaseDependencyGraph:
 
     def get_impacted_files(self, file_path: str) -> List[str]:
         """Identifies downstream files that import or reference symbols defined in this file."""
-        rel_path = os.path.relpath(file_path, self.root_dir).replace("\\", "/")
+        rel_path = safe_relpath(file_path, self.root_dir).replace("\\", "/")
         defined_symbols = set()
         for sym, locs in self.definitions.items():
             if any(l.file_path == rel_path for l in locs):

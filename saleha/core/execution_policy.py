@@ -165,8 +165,10 @@ def build_docker_command(
     network band, resources capped, aur privilege-escalation blocked rehta hai.
     """
     chosen_image = os.getenv("SALEHA_DOCKER_IMAGE") or image
-    host_dir = os.path.dirname(os.path.abspath(host_script_path))
-    script_name = os.path.basename(host_script_path)
+    # Backslash/forwardslash dono accept karo (Linux pe Windows-style input bhi)
+    normalized = host_script_path.replace("\\", "/")
+    host_dir = os.path.dirname(os.path.abspath(normalized)) or "."
+    script_name = normalized.rsplit("/", 1)[-1]
 
     return [
         "docker", "run", "--rm",

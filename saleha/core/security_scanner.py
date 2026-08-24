@@ -14,6 +14,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
+from saleha.core.path_utils import safe_relpath
 
 
 @dataclass
@@ -280,7 +281,7 @@ class ASTSecurityScanner:
     def scan_directory(self, dir_path: str = ".") -> ScanReport:
         report = ScanReport()
         for root, _, files in os.walk(dir_path):
-            rel_parts = os.path.relpath(root, dir_path).split(os.sep)
+            rel_parts = safe_relpath(root, dir_path).split(os.sep)
             if any((p.startswith(".") and p not in (".", "..")) or p in ("node_modules", "venv", "__pycache__", "build", "dist", ".git", "target", "vendor") for p in rel_parts):
                 continue
             for f in files:

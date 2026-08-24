@@ -9,6 +9,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Set, Optional, Any
+from saleha.core.path_utils import safe_relpath
 
 
 @dataclass
@@ -75,7 +76,7 @@ class PolyglotIndexer:
 
         lines = content.splitlines()
         summary = PolyglotFileSummary(
-            file_path=os.path.relpath(file_path, self.root_dir),
+            file_path=safe_relpath(file_path, self.root_dir),
             language=lang,
             lines_of_code=len(lines),
         )
@@ -213,7 +214,7 @@ class PolyglotIndexer:
         total_symbols = 0
 
         for root, _, files in os.walk(scan_dir):
-            rel_parts = os.path.relpath(root, scan_dir).split(os.sep)
+            rel_parts = safe_relpath(root, scan_dir).split(os.sep)
             if any((p.startswith(".") and p not in (".", "..")) or p in ("node_modules", "venv", "__pycache__", "build", "dist", "target", "vendor") for p in rel_parts):
                 continue
             for f in files:

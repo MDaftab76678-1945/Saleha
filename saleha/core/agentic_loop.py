@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.core.path_utils import safe_relpath
 
 MAX_OBSERVATION_CHARS = 3000
 MAX_FILE_READ_CHARS = 4000
@@ -158,7 +159,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     with open(full, "r", encoding="utf-8", errors="replace") as f:
                         for i, line in enumerate(f, 1):
                             if rx.search(line):
-                                rel = os.path.relpath(full, self.root_dir)
+                                rel = safe_relpath(full, self.root_dir)
                                 hits.append(f"{rel}:{i}: {line.strip()[:160]}")
                                 break  # ek file se 1 hit kaafi (breadth first)
                 except OSError:
