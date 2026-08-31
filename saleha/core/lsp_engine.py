@@ -127,3 +127,4 @@ class LSPEngine:
 
 # Global default instance
 lsp_engine = LSPEngine()
+

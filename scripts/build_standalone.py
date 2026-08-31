@@ -71,3 +71,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     build_binary(clean=args.clean, use_nuitka=args.nuitka)
+
