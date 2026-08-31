@@ -14,13 +14,15 @@ Naya vs pehle:
    direct SmartRouter use karne wala behavior deterministic rahe.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time
 import urllib.request
 import psutil
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any, Tuple
 from collections import defaultdict
 import hashlib
 INSTALL_PROBE_TTL_SEC = 60.0
