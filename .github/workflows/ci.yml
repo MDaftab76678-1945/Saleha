@@ -47,9 +47,9 @@ jobs:
       run: |
         python scratch/check_type_hints.py
 
-    - name: Run Full Test Suite (105+ Suites)
+    - name: Run Full Test Suite (110+ Suites)
       env:
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
         PYTHONFAULTHANDLER: "1"
       run: |
-        python -m pytest saleha/tests -v --tb=long --durations=15 -p no:warnings
+        python -m pytest saleha/tests -v --tb=short --junitxml=test-results-${{ matrix.os }}-${{ matrix.python-version }}.xml -p no:warnings

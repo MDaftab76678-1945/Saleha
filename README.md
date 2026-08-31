@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-465%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-547%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,7 +13,13 @@
 
 | Capability | Detail |
 |---|---|
-| 🤖 **Multi-OS GitHub Actions CI/CD** | `.github/workflows/ci.yml` runs full 465+ test suite across Ubuntu, Windows, macOS on Python 3.9 - 3.14 |
+| 🔍 **AI-Powered Code Review Dashboard** | `saleha review-ai . --html` scans OWASP Top-10, code smells, performance bottlenecks, and generates HTML report |
+| 🧠 **Per-Project Episodic Agent Memory** | `saleha memory-project --recall "<query>"` persists decisions, fixes, and architecture choices across sessions |
+| 🚀 **Local LoRA Fine-Tuning Pipeline** | `saleha tune --model qwen2.5-coder:1.5b` auto-collects dataset and fine-tunes local models for $0 |
+| ✂️ **Surgical Diff Preview & Blast Radius** | `saleha diff-preview old.py new.py` shows AST blast radius, hunk breakdown, and 1-10 risk scoring |
+| 🏆 **Public SWE-bench Leaderboard** | `saleha benchmark-public` evaluates local models on SWE-bench tasks and compares vs Devin (13.86%) |
+| 👀 **Real-Time Watch-AI Suggester** | `saleha watch-ai .` monitors file saves and emits instant inline syntax, security, and fix suggestions |
+| 🤖 **Multi-OS GitHub Actions CI/CD** | `.github/workflows/ci.yml` runs full 547+ test suite across Ubuntu, Windows, macOS on Python 3.10 - 3.14 |
 | 📚 **Searchable HTML Documentation** | `saleha docs --build` synthesizes responsive static HTML documentation portal (`docs/site/index.html`) |
 | ⏱️ **Performance & Memory Profiler** | `saleha profile "<snippet>"` measures execution latency, peak RAM memory allocations, and GC overhead |
 | 🔐 **Ephemeral Secret & Env Sync** | `saleha env list` securely bridges decrypted Vault secrets to subprocess memory without disk leakage |

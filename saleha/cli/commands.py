@@ -4490,6 +4490,199 @@ def web_cmd(port):
         console.print("\n[yellow]Web dashboard stopped.[/]")
 
 
+
+# ==============================================================================
+# SALEHA V2.0 MAJOR SYSTEMS
+# ==============================================================================
+
+@cli.command(name='review-ai')
+@click.argument('path', default='.')
+@click.option('--html', is_flag=True, help='Generate HTML review dashboard')
+@click.option('--out', default='review_report.html', help='Output HTML report path')
+def review_ai_cmd(path, html, out):
+    """
+    Run AI-Powered Deep Code Review (OWASP Top-10, Code Smells, Security).
+    
+    Example: saleha review-ai . --html
+    """
+    from saleha.core.ai_reviewer import ai_reviewer
+    from saleha.core.review_reporter import review_reporter
+
+    reports = []
+    if os.path.isfile(path):
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        reports.append(ai_reviewer.review_file(path, content))
+    else:
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [d for d in dirs if d not in ('__pycache__', '.git', '.venv', 'node_modules')]
+            for f in files:
+                if f.endswith('.py'):
+                    fpath = os.path.join(root, f)
+                    try:
+                        with open(fpath, 'r', encoding='utf-8', errors='replace') as fp:
+                            c = fp.read()
+                        reports.append(ai_reviewer.review_file(fpath, c))
+                    except OSError:
+                        pass
+
+    if not reports:
+        console.print("[yellow]No Python files found to review.[/]")
+        return
+
+    from rich.table import Table
+    table = Table(title="🔍 Saleha AI Code Review Summary", border_style="cyan")
+    table.add_column("File", style="cyan")
+    table.add_column("Score", justify="right")
+    table.add_column("Issues", justify="right")
+    table.add_column("Critical", style="bold red", justify="right")
+    table.add_column("High", style="bold yellow", justify="right")
+
+    for r in reports:
+        sc_style = "bold green" if r.score >= 80 else "bold yellow" if r.score >= 60 else "bold red"
+        table.add_row(
+            os.path.relpath(r.file_path, path) if os.path.isdir(path) else r.file_path,
+            f"[{sc_style}]{r.score}/100[/]",
+            str(len(r.issues)),
+            str(r.critical_count),
+            str(r.high_count),
+        )
+
+    console.print(table)
+
+    if html:
+        saved = review_reporter.save_report(reports, output_path=out)
+        console.print(f"[bold green]📊 HTML Review Report saved to:[/] [cyan]{saved}[/]")
+
+
+@cli.command(name='memory-project')
+@click.option('--project', default='current', help='Project identifier')
+@click.option('--recall', 'query', default=None, help='Search memory query')
+@click.option('--remember', 'new_fact', default=None, help='Store new memory fact')
+@click.option('--cat', default='fact', help='Memory category (fact/decision/fix)')
+def memory_project_cmd(project, query, new_fact, cat):
+    """
+    Manage Per-Project Persistent Agent Memory (Decisions, Fixes, Facts).
+    
+    Example: saleha memory-project --remember "Use SQLite for session" --cat decision
+    """
+    from saleha.core.project_memory import get_project_memory
+    mem = get_project_memory(project)
+
+    if new_fact:
+        entry = mem.remember(new_fact, category=cat)
+        console.print(f"[bold green]🧠 Remembered for [{project}]:[/] {entry.content} [dim]({entry.category})[/]")
+        return
+
+    if query:
+        results = mem.recall(query)
+        if not results:
+            console.print(f"[yellow]No memories found matching '{query}' in project '{project}'.[/]")
+            return
+        console.print(f"[bold cyan]🧠 Memories for [{project}] matching '{query}':[/]")
+        for r in results:
+            console.print(f"  • [[bold yellow]{r.category}[/]] {r.content} [dim]({r.timestamp})[/]")
+        return
+
+    stats = mem.stats()
+    console.print(f"[bold cyan]🧠 Project Memory Stats for [{project}]:[/]")
+    console.print(f"  Total Entries: [bold green]{stats['total_entries']}[/]")
+    for c, count in stats.get('categories', {}).items():
+        console.print(f"    • {c}: {count}")
+
+
+@cli.command(name='tune')
+@click.option('--model', default='qwen2.5-coder:1.5b', help='Base model to fine-tune')
+@click.option('--epochs', default=3, help='Training epochs')
+@click.option('--name', default='saleha-custom', help='Output model name')
+def tune_cmd(model, epochs, name):
+    """
+    Run Local LoRA Fine-Tuning Pipeline on collected codebase data.
+    
+    Example: saleha tune --model qwen2.5-coder:1.5b --epochs 3
+    """
+    from saleha.core.lora_tuner import lora_tuner, TuningConfig
+    cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=name)
+    console.print(f"[bold cyan]🚀 Starting Local LoRA Fine-Tuning on {model}...[/]")
+    result = lora_tuner.fine_tune(cfg)
+    if result.success:
+        console.print(f"[bold green]✅ Fine-Tuning Completed Successfully![/]")
+        console.print(f"  Model: [bold cyan]{result.output_model}[/]")
+        console.print(f"  Samples: {result.samples_used} | Time: {result.training_time_sec}s")
+        console.print(f"  Score: {result.before_score} → [bold green]{result.after_score}[/] (+{result.improvement_pct}%)")
+    else:
+        console.print(f"[bold red]❌ Fine-Tuning failed:[/] {result.error}")
+
+
+@cli.command(name='diff-preview')
+@click.argument('file_path')
+@click.argument('new_file_path')
+def diff_preview_cmd(file_path, new_file_path):
+    """
+    Preview Surgical Unified Diff with AST Blast Radius & Risk Score.
+    
+    Example: saleha diff-preview old.py new.py
+    """
+    from saleha.core.diff_engine import diff_engine
+    from saleha.core.change_impact import change_impact
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        old_code = f.read()
+    with open(new_file_path, 'r', encoding='utf-8') as f:
+        new_code = f.read()
+
+    diff = diff_engine.compute_diff(file_path, old_code, new_code)
+    impact = change_impact.analyze(old_code, new_code, file_path)
+
+    console.print(diff_engine.format_rich_preview(diff))
+    console.print(f"\n[bold magenta]💥 AST Impact Analysis:[/] {impact.summary}")
+    console.print(f"  Blast Radius: [bold {'red' if impact.blast_radius > 50 else 'green'}]{impact.blast_radius}/100[/] ({impact.risk_level.upper()} RISK)")
+
+
+@cli.command(name='benchmark-public')
+@click.option('--suite', default='swe_bench', help='Benchmark suite')
+def benchmark_public_cmd(suite):
+    """
+    Run SWE-bench Leaderboard Evaluation and compare against Devin/GPT-4o.
+    
+    Example: saleha benchmark-public
+    """
+    from saleha.core.swe_leaderboard import swe_leaderboard
+    console.print("[bold cyan]🏁 Running SWE-bench Local Leaderboard Suite...[/]")
+    run = swe_leaderboard.run_suite(use_llm=False)
+    console.print(f"[bold green]Solved {run.solved}/{run.total_tasks} tasks ({run.score_pct}% pass@1)[/]")
+    console.print(swe_leaderboard.leaderboard_text())
+
+
+@cli.command(name='watch-ai')
+@click.argument('directory', default='.')
+def watch_ai_cmd(directory):
+    """
+    Start Real-Time File Watcher with instant inline syntax & security hints.
+    
+    Example: saleha watch-ai .
+    """
+    from saleha.core.realtime_watcher import RealtimeWatcher
+    watcher = RealtimeWatcher(root_dir=directory)
+    console.print(f"[bold green]👀 Saleha Watch-AI is actively monitoring:[/] [cyan]{os.path.abspath(directory)}[/]")
+    console.print("[dim]Edit any .py/.js/.ts file to see real-time suggestions. Press Ctrl+C to stop.[/]")
+
+    def on_event(ev):
+        if ev.suggestions:
+            console.print(f"\n[bold yellow]⚡ File changed:[/] {ev.path}")
+            for s in ev.suggestions:
+                console.print(f"  {s.format()}")
+
+    watcher.on_change(on_event)
+    watcher.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        watcher.stop()
+        console.print("\n[yellow]Watch-AI stopped.[/]")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
