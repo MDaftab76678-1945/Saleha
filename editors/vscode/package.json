@@ -1,0 +1,52 @@
+{
+  "name": "saleha-vscode",
+  "displayName": "Saleha AI - Autonomous Multi-Agent AI Engineer",
+  "description": "Local-first, self-healing Autonomous AI Engineering Platform powered by Ollama",
+  "version": "1.5.0",
+  "publisher": "saleha-ai",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Machine Learning"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "saleha.fix",
+        "title": "Saleha: Auto-Heal Active Test / Build Errors",
+        "category": "Saleha AI"
+      },
+      {
+        "command": "saleha.search",
+        "title": "Saleha: Hybrid Semantic Codebase Search",
+        "category": "Saleha AI"
+      },
+      {
+        "command": "saleha.refactor",
+        "title": "Saleha: Atomic Multi-File Symbol Rename",
+        "category": "Saleha AI"
+      },
+      {
+        "command": "saleha.hud",
+        "title": "Saleha: Open Real-Time Terminal HUD",
+        "category": "Saleha AI"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "saleha.fix",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f"
+      },
+      {
+        "command": "saleha.search",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      }
+    ]
+  }
+}

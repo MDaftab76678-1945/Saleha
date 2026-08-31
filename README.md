@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-437%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-445%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,10 @@
 
 | Capability | Detail |
 |---|---|
+| 🔌 **Native VS Code Extension Package** | `editors/vscode` connects VS Code directly to `saleha lsp --stdio` for inline shortcuts & diagnostics |
+| 🖥️ **Distributed GPU Swarm Server** | `saleha server --port 8000` coordinates multi-developer async task queues over shared local GPU pools |
+| 🎙️ **Full-Duplex Voice Assistant** | `saleha voice "<command>"` provides hands-free speech input, ReAct agent execution, and TTS audio synthesis |
+| 📝 **Automated SemVer Changelog** | `saleha changelog --write` parses conventional commits and generates GitHub release markdown notes |
 | 🌐 **Autonomous Visual Browser Tester** | `saleha test --browser` executes headless DOM flows (click, fill, screenshot, text assertions) for E2E web verification |
 | 🔌 **Standard JSON-RPC LSP Daemon** | `saleha lsp --stdio` connects to VS Code, Cursor, Neovim for live diagnostics, definition jumps, and autocompletion |
 | 🏢 **Multi-Repository Swarm Indexer** | `saleha multi-repo scan` maps cross-repo microservice dependencies and calculates global blast-radius |

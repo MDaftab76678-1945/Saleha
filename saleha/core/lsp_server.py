@@ -176,3 +176,4 @@ class SalehaLSPServer:
 
 # Global instance
 lsp_server = SalehaLSPServer()
+

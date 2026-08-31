@@ -162,3 +162,4 @@ class AutonomousBrowserTester:
 
 # Global instance
 browser_tester = AutonomousBrowserTester()
+

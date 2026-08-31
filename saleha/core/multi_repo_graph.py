@@ -106,3 +106,4 @@ class MultiRepoDependencyGraph:
 
 # Global instance
 multi_repo_graph = MultiRepoDependencyGraph()
+

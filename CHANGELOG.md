@@ -1,3 +1,40 @@
+# Changelog
+
+All notable changes to Saleha AI Framework are documented here.
+
+## [1.5.0] - 2026-09-01
+
+### 🚀 Features & Enhancements
+- Implement 4 Expansion Pillars - Visual Browser UI Tester (saleha test --browser), JSON-RPC LSP Daemon (saleha lsp --stdio), Multi-Repo Swarm (saleha multi-repo), and Live Graph Visualizer (saleha graph)
+- Implement 5 Major Frontiers - Multi-File Refactorer (saleha refactor), Dynamic Skill Synthesizer (saleha learn), Token Analytics (saleha budget), Architecture Debater (saleha debate), and Polyglot AST Engine
+- Implement 4 Next-Gen Pillars - Self-Healing Loop (saleha fix), Hybrid BM25+Vector Search (saleha search), Ensemble Reviewer (saleha review --ensemble), and Real-Time HUD (saleha hud)
+- Implement 4 Final Frontiers - Compiler LSP, CloudDeployer, DBOptimizer audit, and Standalone Packager
+- Add 5 Next-Gen Pillars - RepoWatcher, InteractiveDiff, SWE-bench suite, MemoryCompactor & Supercharged REPL
+- Add saleha doctor diagnostic suite with auto-repair and JSON output
+- Add /api/agent/run and /api/diff/patch REST endpoints to Web Studio gateway
+- Add saleha agent autonomous ReAct CLI entrypoint with surgical AST tools
+- Speculative task tier classifier & fast model cascading in SmartRouter
+- Git Worktree isolated agent execution & universal installer enhancements
+- DeepSeek-R1 reasoning parser, agentic surgical tools & downstream graph intelligence
+- Aider-style search-replace, fuzzy line matching & surgical patching
+- collaborative rooms + hardware profiler (v1.6)
+- enrich all 20 agent profiles + quality gate + allowed_tools wiring
+- profile llm_routing is now real (role complexity floors + temperature)
+- real voice STT/TTS (faster-whisper + pyttsx3) + community files
+- tree-sitter context ranking (codeintel extra) + auto-generated CLI docs
+- Saleha v1.2.0 - autonomous multi-agent AI engineering platform
+
+### 🩹 Bug Fixes & Resilience
+- Implement 5 enterprise resilience fixes - atomic writes, RLock thread-safety, atexit worktree cleanup, timeout deadline, GraphRAG path normalization
+- Fix Tuple import in codebase_indexer and modernize python -m pytest in CI workflow
+- Add Any and Tuple imports to smart_router.py for Python 3.11/3.12 compatibility
+- Fix invalid GitHub Action versions (v5->v4, v6->v5, v8->v7) and use pytest runner
+- pytest collection, dependency sync, polyglot fallback & repo URL updates
+- eliminate last SEC101 self-scan findings in extension.js
+- resolve SAST findings flagged by our own review bot (self-dogfood)
+- cross-drive relpath crash + docker cmd path normalization (CI)
+- strip UTF-8 BOM from pyproject/setup/package.json (broke pip install in CI)
+
 # 📜 Changelog
 
 All notable changes to **Saleha AI** are documented in this file.
@@ -288,4 +325,3 @@ All notable changes to **Saleha AI** are documented in this file.
 - 20 specialized domain agent profiles.
 - Dual MCP Protocol Server & Client.
 - Dark-mode Web Studio (`saleha serve`) and Terminal TUI (`saleha tui`).
-

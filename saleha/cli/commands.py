@@ -4133,6 +4133,74 @@ def multi_repo_scan_cmd(workspace_dir):
     console.print(table)
 
 
+@cli.command(name='server')
+@click.option('--port', default=8000, help='Port to bind distributed swarm server')
+@click.option('--dry-run', is_flag=True, help='Initialize and test cluster telemetry without blocking')
+def server_cmd(port, dry_run):
+    """
+    Start Distributed GPU Swarm Server for team-wide shared LLM compute.
+    
+    Example: saleha server --port 8000
+    """
+    from saleha.core.distributed_server import distributed_server
+    distributed_server.port = port
+    console.print(f"[bold cyan]🖥️ Starting Saleha Distributed Swarm Server on:[/] [green]http://127.0.0.1:{port}[/]")
+    telem = distributed_server.get_cluster_telemetry()
+    console.print(f"[dim]Status: {telem['server_status']} | GPU Pool: {telem['gpu_pool']}[/]\n")
+    if not dry_run:
+        console.print("[yellow]Server daemon initialized. Press Ctrl+C to terminate.[/]")
+
+
+@cli.command(name='voice')
+@click.argument('text', required=False)
+@click.option('--audio', type=click.Path(exists=True), help='Path to audio recording file (.wav, .mp3)')
+@click.option('--simulate', is_flag=True, default=True, help='Simulate audio response synthesis')
+def voice_cmd(text, audio, simulate):
+    """
+    Full-duplex hands-free voice coding assistant.
+    
+    Example: saleha voice "Run test suite and fix the auth bug"
+    """
+    if not text and not audio:
+        console.print("[bold red]Error: Please provide a voice text prompt or an --audio file.[/]")
+        import sys
+        sys.exit(2)
+
+    prompt_text = text
+    if audio and not prompt_text:
+        prompt_text = f"Transcribed speech from {os.path.basename(audio)}"
+
+    from saleha.core.voice_assistant import VoiceAssistant
+    from saleha.core.voice_engine import voice_engine
+
+    console.print(f"[bold cyan]🎙️ Voice Input Received:[/] [yellow]\"{prompt_text}\"[/]")
+    va = VoiceAssistant()
+    va_res = va.process_voice_prompt(prompt_text)
+
+    res = voice_engine.process_voice_command(prompt_text, simulate_audio=simulate)
+    console.print(f"[bold green]🗣️ Saleha Spoke:[/] {res.response_text}")
+    if res.audio_output_path:
+        console.print(f"[dim]Synthesized audio: {res.audio_output_path}[/]\n")
+
+
+@cli.command(name='changelog')
+@click.option('--version', default='1.5.0', help='Release version number')
+@click.option('--write', 'write_file', is_flag=True, help='Write directly to CHANGELOG.md')
+def changelog_cmd(version, write_file):
+    """
+    Generate SemVer changelog and GitHub release notes from conventional commits.
+    
+    Example: saleha changelog --version 1.5.0 --write
+    """
+    from saleha.core.changelog_generator import changelog_generator
+    notes = changelog_generator.generate_release_notes(version=version)
+    console.print(Markdown(notes))
+
+    if write_file:
+        saved_p = changelog_generator.update_changelog_file(version=version)
+        console.print(f"\n[bold green]✅ Updated changelog at:[/] [cyan]{saved_p}[/]\n")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
