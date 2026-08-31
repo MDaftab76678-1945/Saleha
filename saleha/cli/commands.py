@@ -4804,6 +4804,122 @@ def sandbox_cmd(script_path, timeout, memory, json_output):
         console.print(res.error)
 
 
+@cli.command(name='council')
+@click.argument('problem')
+def council_cmd(problem):
+    """
+    Assemble Multi-Agent Architectural Council to debate & synthesize optimal solution.
+    
+    Example: saleha council "Design a high-throughput distributed caching layer"
+    """
+    from saleha.core.agent_council import agent_council
+    console.print(f"[bold cyan]👥 Assembling Multi-Agent Architectural Council for:[/] [yellow]{problem}[/]\n")
+    res = agent_council.debate_and_synthesize(problem)
+
+    for p in res.proposals:
+        console.print(f"[bold magenta]{p.persona_name}[/] — [italic]{p.perspective}[/] (Score: {p.overall_score}/100)")
+        for arg in p.key_arguments:
+            console.print(f"  • {arg}")
+        console.print()
+
+    console.print(f"[bold green]🏆 Consensus Winner:[/] {res.winning_persona} (Consensus Score: {res.total_consensus_score}/100)")
+    console.print(f"\n[bold cyan]Synthesized Consensus Code:[/]\n{res.consensus_code}")
+
+
+@cli.command(name='debate')
+@click.option('--problem', '-p', required=True, help='Problem statement to debate')
+def debate_cmd(problem):
+    """
+    Alias for multi-agent council architectural debate.
+    
+    Example: saleha debate -p "Distributed Rate Limiter"
+    """
+    from saleha.core.agent_council import agent_council
+    console.print(f"[bold cyan]⚔️ Multi-Agent Architectural Debate started for:[/] [yellow]{problem}[/]\n")
+    res = agent_council.debate_and_synthesize(problem)
+    console.print(f"[bold green]Consensus Winner:[/] {res.winning_persona}")
+    console.print(res.trade_off_analysis)
+
+
+@cli.command(name='resolve-conflicts')
+@click.argument('path', default='.')
+@click.option('--auto-stage', is_flag=True, help='Automatically git add resolved files')
+def resolve_conflicts_cmd(path, auto_stage):
+    """
+    Autonomously detect and resolve Git merge conflicts with AST semantic analysis.
+    
+    Example: saleha resolve-conflicts . --auto-stage
+    """
+    from saleha.core.conflict_resolver import conflict_resolver
+    console.print(f"[bold cyan]🔀 Scanning for Git merge conflicts in:[/] [yellow]{os.path.abspath(path)}[/]")
+
+    files_to_check = []
+    if os.path.isfile(path):
+        files_to_check.append(path)
+    else:
+        for root, _, files in os.walk(path):
+            if any(p.startswith(".") or p == "node_modules" for p in root.split(os.sep)):
+                continue
+            for f in files:
+                if f.endswith((".py", ".js", ".ts", ".json", ".md", ".txt", ".go", ".rs")):
+                    files_to_check.append(os.path.join(root, f))
+
+    resolved_count = 0
+    for fpath in files_to_check:
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception:
+            continue
+
+        if conflict_resolver.has_conflicts(content):
+            res = conflict_resolver.resolve_file(fpath, auto_save=True)
+            if res.status == "RESOLVED":
+                console.print(f"[bold green]✅ Resolved Conflicts in:[/] {fpath} ({res.summary})")
+                resolved_count += 1
+                if auto_stage:
+                    subprocess.run(["git", "add", fpath])
+            else:
+                console.print(f"[bold yellow]⚠️ Manual Review Needed:[/] {fpath} ({res.summary})")
+
+    if resolved_count == 0:
+        console.print("[green]No merge conflicts found in workspace.[/]")
+    else:
+        console.print(f"\n[bold green]🎉 Successfully resolved {resolved_count} conflicted file(s)![/]")
+
+
+@cli.command(name='migrate')
+@click.argument('target_path')
+@click.option('--from', 'source_fw', required=True, help='Source language/framework (e.g. js, flask, unittest)')
+@click.option('--to', 'target_fw', required=True, help='Target language/framework (e.g. ts, fastapi, pytest)')
+@click.option('--inplace', is_flag=True, help='Overwrite original files with migrated code')
+def migrate_cmd(target_path, source_fw, target_fw, inplace):
+    """
+    Autonomously migrate legacy codebases (js->ts, flask->fastapi, unittest->pytest).
+    
+    Example: saleha migrate app.py --from flask --to fastapi
+    """
+    from saleha.core.code_migrator import code_migrator
+    if not os.path.isfile(target_path):
+        console.print(f"[bold red]Error:[/] Target file not found: {target_path}")
+        return
+
+    with open(target_path, "r", encoding="utf-8") as f:
+        code = f.read()
+
+    res = code_migrator.migrate(code, source=source_fw, target=target_fw)
+    console.print(f"[bold cyan]🔄 Codebase Migration:[/] [yellow]{source_fw} ➔ {target_fw}[/]")
+    console.print(f"[dim]{res.summary}[/]\n")
+
+    if inplace:
+        with open(target_path, "w", encoding="utf-8") as f:
+            f.write(res.migrated_code)
+        console.print(f"[bold green]✅ Saved migrated code in-place to:[/] {target_path}")
+    else:
+        console.print("[bold green]Migrated Code Preview:[/]")
+        console.print(res.migrated_code)
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
