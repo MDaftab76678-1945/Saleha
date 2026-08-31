@@ -4201,6 +4201,102 @@ def changelog_cmd(version, write_file):
         console.print(f"\n[bold green]✅ Updated changelog at:[/] [cyan]{saved_p}[/]\n")
 
 
+@cli.command(name='chaos')
+@click.option('--iterations', default=10, help='Number of randomized fault injection iterations')
+def chaos_cmd(iterations):
+    """
+    Run autonomous Chaos Engineering fault injection probes to test resilience.
+    
+    Example: saleha chaos --iterations 10
+    """
+    from saleha.core.chaos_engine import chaos_engine
+    console.print(f"[bold cyan]💥 Running Chaos Fault Injection Probe ({iterations} iterations)...[/]")
+
+    def mock_target_flow():
+        # Simulated database/network transaction
+        time.sleep(0.005)
+        return True
+
+    res = chaos_engine.probe_resilience(mock_target_flow, iterations=iterations)
+
+    score_color = "green" if res.resilience_score >= 0.8 else "yellow"
+    console.print(f"\n[bold white]Chaos Probe Completed:[/] Resilience Score: [{score_color}]{int(res.resilience_score * 100)}%[/]")
+    console.print(f"  • Total Iterations: {res.total_iterations}")
+    console.print(f"  • Injected Faults Handled: [green]{res.handled_cleanly}[/]")
+    console.print(f"  • Unhandled Crashes: [red]{res.unhandled_crashes}[/]\n")
+
+
+@cli.command(name='mock')
+@click.option('--port', default=8080, help='Port for in-memory mock API server')
+def mock_cmd(port):
+    """
+    Start zero-config Synthetic Mock API Server with realistic schemas.
+    
+    Example: saleha mock --port 8080
+    """
+    from saleha.core.mock_server import mock_server
+    console.print(f"[bold cyan]🎭 Synthetic Mock API Server initialized on port:[/] [green]{port}[/]")
+    routes = mock_server.list_routes()
+
+    table = Table(title="🎭 Active Synthetic Mock Endpoints", show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("HTTP Method", style="bold yellow")
+    table.add_column("Endpoint Path", style="cyan")
+    table.add_column("Status Code", style="green")
+
+    for r in routes:
+        table.add_row(r.method, r.path, str(r.status_code))
+
+    console.print(table)
+
+
+@cli.command(name='threat')
+@click.option('--output', default='docs/threat_model.md', help='Output path for STRIDE matrix markdown')
+def threat_cmd(output):
+    """
+    Generate automated Microsoft STRIDE Threat Modeling Security Matrix.
+    
+    Example: saleha threat --output docs/threat_model.md
+    """
+    from saleha.core.threat_modeler import threat_modeler
+    console.print(f"[bold cyan]🛡️ Synthesizing STRIDE Threat Model Matrix...[/]")
+    rep = threat_modeler.analyze_workspace()
+    saved = threat_modeler.save_report(rep, output_path=output)
+    console.print(Markdown(rep.markdown_matrix))
+    console.print(f"\n[bold green]✅ STRIDE Threat Model saved to:[/] [cyan]{saved}[/]\n")
+
+
+@cli.command(name='debt')
+@click.option('--threshold', default=10, help='Cyclomatic complexity hotspot threshold')
+@click.option('--dir', 'target_dir', default='.', help='Directory to analyze')
+def debt_cmd(threshold, target_dir):
+    """
+    Analyze Cognitive & Cyclomatic Complexity and flag Technical Debt hotspots.
+    
+    Example: saleha debt --threshold 10
+    """
+    from saleha.core.tech_debt_analyzer import tech_debt_analyzer
+    console.print(f"[bold cyan]📉 Auditing codebase Technical Debt & Cognitive Complexity for:[/] [yellow]{target_dir}[/]")
+    rep = tech_debt_analyzer.analyze_workspace(root_dir=target_dir, threshold=threshold)
+
+    console.print(f"\n[bold white]Functions Analyzed:[/] {rep.total_functions_analyzed} | [bold white]Average Cyclomatic:[/] {rep.average_cyclomatic} | [bold white]Hotspots Flagged:[/] [yellow]{rep.hotspots_count}[/]\n")
+
+    if rep.hotspots:
+        table = Table(title=f"⚠️ Maintainability Hotspots (Complexity >= {threshold})", show_header=True, header_style="bold red", expand=True)
+        table.add_column("Location", style="cyan")
+        table.add_column("Function", style="bold white")
+        table.add_column("Cyclomatic", style="yellow")
+        table.add_column("Cognitive", style="red")
+        table.add_column("Refactor Recommendation", style="green")
+
+        for h in rep.hotspots[:15]:
+            loc_str = f"{h.file_path}:{h.line_number}"
+            table.add_row(loc_str, f"{h.function_name}()", str(h.cyclomatic_complexity), str(h.cognitive_complexity), h.refactor_suggestion or "Extract helper functions")
+
+        console.print(table)
+    else:
+        console.print("[bold green]✨ Clean Codebase! Zero functions exceed the complexity threshold.[/]\n")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

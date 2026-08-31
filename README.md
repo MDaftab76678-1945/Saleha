@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-445%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-454%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,10 @@
 
 | Capability | Detail |
 |---|---|
+| 💥 **Autonomous Chaos Engineering** | `saleha chaos --iterations 10` injects synthetic network delays, connection drops, and null payloads to probe resilience |
+| 🎭 **Synthetic Mock API Server** | `saleha mock --port 8080` launches zero-config in-memory mock JSON servers from codebase models |
+| 🛡️ **STRIDE Threat Modeling Engine** | `saleha threat` auto-audits auth boundaries and entrypoints to synthesize standard Microsoft STRIDE matrices |
+| 📉 **Technical Debt & Complexity Analyzer** | `saleha debt --threshold 10` computes Cyclomatic & Cognitive Complexity and flags God Objects / spaghetti loops |
 | 🔌 **Native VS Code Extension Package** | `editors/vscode` connects VS Code directly to `saleha lsp --stdio` for inline shortcuts & diagnostics |
 | 🖥️ **Distributed GPU Swarm Server** | `saleha server --port 8000` coordinates multi-developer async task queues over shared local GPU pools |
 | 🎙️ **Full-Duplex Voice Assistant** | `saleha voice "<command>"` provides hands-free speech input, ReAct agent execution, and TTS audio synthesis |

@@ -80,3 +80,4 @@ Explain the action you will take to solve their request."""
 
 # Global instance
 voice_engine = VoiceAssistantEngine()
+
