@@ -33,6 +33,8 @@ if sys.platform == "win32":
 
 console = Console(safe_box=True)
 
+from saleha.cli.dashboard import render_dashboard
+
 # ==============================================================================
 # LAZY IMPORTS (PEP 562)
 # Pehle ye file top-level par poora codebase import karti thi -- CLI startup
@@ -4391,6 +4393,101 @@ def pull_cmd(model_name, benchmark):
                     console.print(f"  [green]⚡ Speed:[/] {bench.tokens_per_sec} tokens/sec ({bench.tokens_generated} tokens in {bench.duration_sec}s)")
         else:
             console.print(f"[bold yellow]⚠️ {msg}[/]")
+
+
+@cli.command(name='docs')
+@click.option('--build', 'build_site', is_flag=True, default=True, help='Build static HTML documentation site')
+@click.option('--output', default='docs/site/index.html', help='Output path for docs')
+def docs_cmd(build_site, output):
+    """
+    Build searchable static HTML documentation portal.
+    
+    Example: saleha docs --output docs/site/index.html
+    """
+    from saleha.core.docs_generator import docs_generator
+    console.print("[bold cyan]📚 Building Saleha static documentation website...[/]")
+    out_p = docs_generator.build_docs_site(output_path=output)
+    console.print(f"[bold green]✅ Documentation built at:[/] [cyan]{out_p}[/]\n")
+
+
+@cli.command(name='profile')
+@click.argument('code_snippet')
+def profile_cmd(code_snippet):
+    """
+    Profile execution latency, memory footprint, and GC overhead.
+    
+    Example: saleha profile "sum([i**2 for i in range(100000)])"
+    """
+    from saleha.core.performance_profiler import performance_profiler
+    console.print(f"[bold cyan]⏱️ Profiling snippet:[/] [yellow]{code_snippet}[/]")
+
+    def target_exec():
+        exec(code_snippet, {})
+
+    _, m = performance_profiler.profile_callable(target_exec)
+    if m.success:
+        console.print(f"\n[bold green]✅ Execution Profile Completed:[/]")
+        console.print(f"  • Duration: [cyan]{m.duration_ms} ms[/]")
+        console.print(f"  • Peak Memory: [yellow]{m.peak_memory_mb} MB[/]")
+        console.print(f"  • Current Memory: {m.current_memory_mb} MB")
+        console.print(f"  • GC Collections: {m.gc_collections}\n")
+    else:
+        console.print(f"[bold red]❌ Execution failed:[/] {m.error}\n")
+
+
+@cli.group(name='env')
+def env_group():
+    """
+    Ephemeral Secret & Process Environment Sync.
+    """
+    pass
+
+
+@env_group.command(name='list')
+def env_list_cmd():
+    """
+    List decrypted environment keys from Vault.
+    
+    Example: saleha env list
+    """
+    from saleha.core.env_sync import env_sync
+    secrets = env_sync.get_vault_env()
+    console.print(f"[bold cyan]🔐 Vault Environment Variables ({len(secrets)} active):[/]")
+    for k in secrets:
+        console.print(f"  • [green]{k}[/]=******")
+
+
+@cli.command(name='dashboard')
+def dashboard_cmd():
+    """Launch terminal rich operations dashboard."""
+    render_dashboard()
+
+
+@cli.command(name='ui')
+def ui_cmd():
+    """Launch terminal dashboard (alias)."""
+    render_dashboard()
+
+
+@cli.command(name='web')
+@click.option('--port', default=3000, help='Port for Web Dashboard')
+def web_cmd(port):
+    """
+    Launch interactive Web Browser Dashboard.
+    
+    Example: saleha web --port 3000
+    """
+    from saleha.core.web_dashboard import WebDashboardServer
+    srv = WebDashboardServer(port=port)
+    srv.start_background()
+    console.print(f"[bold green]🌐 Saleha Web Dashboard live at:[/] [cyan]http://localhost:{port}[/]")
+    console.print("[dim]Press Ctrl+C to exit dashboard.[/]")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        srv.stop()
+        console.print("\n[yellow]Web dashboard stopped.[/]")
 
 
 # ==============================================================================

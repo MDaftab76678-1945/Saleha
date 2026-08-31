@@ -102,3 +102,4 @@ timeout_sec = 300
 
 # Global instance
 project_initializer = ProjectInitializer()
+

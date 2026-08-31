@@ -38,3 +38,4 @@ echo -e "\n\033[1;36m===========================================================
 echo -e "\033[1;32m🎉 Saleha AI successfully installed!\033[0m"
 echo -e "\033[1;33mRun 'saleha --version' or 'saleha hud' to launch.\033[0m"
 echo -e "\033[1;36m============================================================\033[0m"
+

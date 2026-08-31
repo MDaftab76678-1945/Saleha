@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-460%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-465%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,11 @@
 
 | Capability | Detail |
 |---|---|
+| 🤖 **Multi-OS GitHub Actions CI/CD** | `.github/workflows/ci.yml` runs full 465+ test suite across Ubuntu, Windows, macOS on Python 3.9 - 3.14 |
+| 📚 **Searchable HTML Documentation** | `saleha docs --build` synthesizes responsive static HTML documentation portal (`docs/site/index.html`) |
+| ⏱️ **Performance & Memory Profiler** | `saleha profile "<snippet>"` measures execution latency, peak RAM memory allocations, and GC overhead |
+| 🔐 **Ephemeral Secret & Env Sync** | `saleha env list` securely bridges decrypted Vault secrets to subprocess memory without disk leakage |
+| 🌐 **Interactive Local Web Dashboard** | `saleha web --port 3000` serves live browser telemetry, agent swarms, memory search, and token metrics |
 | 🪄 **Interactive Project Onboarding** | `saleha init` auto-detects stack, configures `.saleharules`, and indexes baseline AST dependency graphs |
 | 🪝 **Git Pre-Commit Security Guard** | `saleha hook install` prevents commits containing broken AST syntax or leaked `.env`/API tokens |
 | 📥 **Model Manager & Speed Profiler** | `saleha pull recommended --benchmark` downloads models and benchmarks local inference speed (tokens/sec) |

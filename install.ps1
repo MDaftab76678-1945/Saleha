@@ -36,3 +36,4 @@ Write-Host "`n============================================================" -For
 Write-Host "🎉 Saleha AI successfully installed!" -ForegroundColor Green
 Write-Host "Run 'saleha --version' or 'saleha hud' to get started." -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
+

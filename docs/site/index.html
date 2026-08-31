@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saleha AI Documentation - v1.5.0</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --primary: #58a6ff;
+            --accent: #238636;
+            --text: #c9d1d9;
+            --heading: #f0f6fc;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 24px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            margin: 0;
+            color: var(--heading);
+            font-size: 24px;
+        }
+        .version {
+            background-color: var(--accent);
+            color: #ffffff;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 24px;
+        }
+        .card {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+        .card h3 {
+            margin-top: 0;
+            color: var(--primary);
+            font-size: 18px;
+        }
+        .code-box {
+            background-color: #040d21;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            color: #79c0ff;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        h2 {
+            color: var(--heading);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 Saleha AI Framework Documentation</h1>
+        <span class="version">v1.5.0 Local-First</span>
+    </div>
+    <div class="container">
+        <h2>⚡ Quick Start CLI Commands</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>🪄 Project Onboarding</h3>
+                <p>Auto-detect stack and build baseline AST dependencies.</p>
+                <div class="code-box">saleha init</div>
+            </div>
+            <div class="card">
+                <h3>🩹 Autonomous Self-Healing</h3>
+                <p>Parse stacktrace, patch surgically, and verify with auto-commit.</p>
+                <div class="code-box">saleha fix "pytest"</div>
+            </div>
+            <div class="card">
+                <h3>📊 Live Terminal HUD</h3>
+                <p>Interactive 4-quadrant real-time TUI telemetry.</p>
+                <div class="code-box">saleha hud</div>
+            </div>
+            <div class="card">
+                <h3>🛡️ STRIDE Threat Modeler</h3>
+                <p>Automated security matrix & threat mitigations.</p>
+                <div class="code-box">saleha threat</div>
+            </div>
+        </div>
+
+        <h2>👥 Multi-Agent Swarm Personas (20 Available)</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>Principal Generative AI & Autonomous Agent Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_ai_engineer</code></p>
+                <p>Design multi-agent orchestration with clear tool contracts</p>
+            </div>
+            <div class="card">
+                <h3>Senior Business Systems Analyst</h3>
+                <p><strong>ID:</strong> <code>agent_business_analyst</code></p>
+                <p>Translate business needs into testable acceptance criteria</p>
+            </div>
+            <div class="card">
+                <h3>Principal Cloud Solutions Architect</h3>
+                <p><strong>ID:</strong> <code>agent_cloud_architect</code></p>
+                <p>Design scalable, cost-aware cloud topologies</p>
+            </div>
+            <div class="card">
+                <h3>Chief Compliance & Data Privacy Officer</h3>
+                <p><strong>ID:</strong> <code>agent_compliance_officer</code></p>
+                <p>Map controls to regulations (GDPR/SOC2/ISO-27001 clauses)</p>
+            </div>
+            <div class="card">
+                <h3>Senior Data & Distributed Pipeline Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_data_engineer</code></p>
+                <p>Build idempotent, replayable ETL/ELT pipelines</p>
+            </div>
+            <div class="card">
+                <h3>Lead DevOps & GitOps Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_devops_engineer</code></p>
+                <p>Codify infrastructure as reviewable, versioned definitions</p>
+            </div>
+            <div class="card">
+                <h3>Principal Hardware Systems Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_hardware_engineer</code></p>
+                <p>Define interface contracts between hardware blocks</p>
+            </div>
+            <div class="card">
+                <h3>Senior PCB Layout & Signal Integrity Specialist</h3>
+                <p><strong>ID:</strong> <code>agent_pcb_designer</code></p>
+                <p>Optimize layer stackup and impedance-controlled routing</p>
+            </div>
+            <div class="card">
+                <h3>Performance & Stress Testing Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_performance_tester</code></p>
+                <p>Design load profiles that mirror real traffic shapes</p>
+            </div>
+            <div class="card">
+                <h3>Principal Product Manager</h3>
+                <p><strong>ID:</strong> <code>agent_product_manager</code></p>
+                <p>Write PRDs with Given/When/Then acceptance criteria</p>
+            </div>
+            <div class="card">
+                <h3>Core Programmer & Code Synthesizer</h3>
+                <p><strong>ID:</strong> <code>agent_programmer</code></p>
+                <p>Convert precise specifications into runnable code</p>
+            </div>
+            <div class="card">
+                <h3>Technical Project Manager</h3>
+                <p><strong>ID:</strong> <code>agent_project_manager</code></p>
+                <p>Maintain an accurate dependency-aware delivery plan</p>
+            </div>
+            <div class="card">
+                <h3>Agile Coach & Scrum Master</h3>
+                <p><strong>ID:</strong> <code>agent_scrum_master</code></p>
+                <p>Facilitate ceremonies with timeboxed, outcome-driven agendas</p>
+            </div>
+            <div class="card">
+                <h3>Software Development Engineer (Core Distributed Systems)</h3>
+                <p><strong>ID:</strong> <code>agent_sde</code></p>
+                <p>Architect and implement distributed consensus, partitioning, and lock-free execution engines.</p>
+            </div>
+            <div class="card">
+                <h3>Principal Application & Cloud Security Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_security_engineer</code></p>
+                <p>Threat-model every new attack surface before merge</p>
+            </div>
+            <div class="card">
+                <h3>Software Designer & LLD Architect</h3>
+                <p><strong>ID:</strong> <code>agent_software_designer</code></p>
+                <p>Generate comprehensive Low-Level Design documents (LLD) with complete UML diagrams.</p>
+            </div>
+            <div class="card">
+                <h3>Senior Software Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_software_engineer</code></p>
+                <p>Deliver highly reliable, clean, and maintainable application code.</p>
+            </div>
+            <div class="card">
+                <h3>Principal Site Reliability Engineer</h3>
+                <p><strong>ID:</strong> <code>agent_sre</code></p>
+                <p>Define SLOs with error budgets per user journey</p>
+            </div>
+            <div class="card">
+                <h3>Senior Test Automation Architect</h3>
+                <p><strong>ID:</strong> <code>agent_test_automation_engineer</code></p>
+                <p>Cover normal, boundary, and adversarial cases per function</p>
+            </div>
+            <div class="card">
+                <h3>Principal Design Systems Architect</h3>
+                <p><strong>ID:</strong> <code>agent_ui_ux_designer</code></p>
+                <p>Define interaction flows with explicit state coverage</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
