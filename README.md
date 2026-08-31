@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-454%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-460%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,10 @@
 
 | Capability | Detail |
 |---|---|
+| 🪄 **Interactive Project Onboarding** | `saleha init` auto-detects stack, configures `.saleharules`, and indexes baseline AST dependency graphs |
+| 🪝 **Git Pre-Commit Security Guard** | `saleha hook install` prevents commits containing broken AST syntax or leaked `.env`/API tokens |
+| 📥 **Model Manager & Speed Profiler** | `saleha pull recommended --benchmark` downloads models and benchmarks local inference speed (tokens/sec) |
+| ⚡ **In-Chat REPL Slash Suite** | `/fix`, `/search`, `/debt`, `/threat`, `/budget`, `/hud` commands directly accessible inside `saleha chat` |
 | 💥 **Autonomous Chaos Engineering** | `saleha chaos --iterations 10` injects synthetic network delays, connection drops, and null payloads to probe resilience |
 | 🎭 **Synthetic Mock API Server** | `saleha mock --port 8080` launches zero-config in-memory mock JSON servers from codebase models |
 | 🛡️ **STRIDE Threat Modeling Engine** | `saleha threat` auto-audits auth boundaries and entrypoints to synthesize standard Microsoft STRIDE matrices |

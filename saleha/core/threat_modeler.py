@@ -142,3 +142,4 @@ class ThreatModeler:
 
 # Global instance
 threat_modeler = ThreatModeler()
+

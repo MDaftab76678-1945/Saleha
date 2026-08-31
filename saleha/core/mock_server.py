@@ -81,3 +81,4 @@ class SyntheticMockServer:
 
 # Global instance
 mock_server = SyntheticMockServer()
+

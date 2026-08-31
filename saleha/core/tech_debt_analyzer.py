@@ -178,3 +178,4 @@ class TechDebtAnalyzer:
 
 # Global instance
 tech_debt_analyzer = TechDebtAnalyzer()
+

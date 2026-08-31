@@ -4297,6 +4297,102 @@ def debt_cmd(threshold, target_dir):
         console.print("[bold green]✨ Clean Codebase! Zero functions exceed the complexity threshold.[/]\n")
 
 
+@cli.command(name='init')
+@click.option('--force', is_flag=True, help='Overwrite existing .saleharules file')
+def init_cmd(force):
+    """
+    Interactively onboard and initialize project for Saleha AI.
+    
+    Example: saleha init
+    """
+    from saleha.core.project_initializer import project_initializer
+    console.print("[bold cyan]🪄 Initializing Saleha AI for current workspace...[/]")
+    res = project_initializer.initialize_workspace(force=force)
+    console.print(f"\n[bold green]✅ Project Initialized Successfully![/]")
+    console.print(f"  • Stack: [cyan]{', '.join(res.detected_languages)}[/]")
+    console.print(f"  • Rules: [yellow]{res.rules_file_created}[/]")
+    console.print(f"  • Indexed AST Symbols: [green]{res.ast_symbols_indexed}[/]\n")
+
+
+@cli.group(name='hook')
+def hook_group():
+    """
+    Git Pre-Commit & Security Guardrail Hooks.
+    """
+    pass
+
+
+@hook_group.command(name='install')
+def hook_install_cmd():
+    """
+    Install Git pre-commit hook in .git/hooks.
+    
+    Example: saleha hook install
+    """
+    from saleha.core.git_hooks import git_hook_manager
+    ok, msg = git_hook_manager.install_hooks()
+    if ok:
+        console.print(f"[bold green]✅ {msg}[/]")
+    else:
+        console.print(f"[bold red]❌ {msg}[/]")
+
+
+@hook_group.command(name='uninstall')
+def hook_uninstall_cmd():
+    """
+    Remove Git pre-commit hook.
+    
+    Example: saleha hook uninstall
+    """
+    from saleha.core.git_hooks import git_hook_manager
+    ok, msg = git_hook_manager.uninstall_hooks()
+    console.print(f"[yellow]{msg}[/]")
+
+
+@hook_group.command(name='run')
+def hook_run_cmd():
+    """
+    Execute pre-commit security and AST syntax scan on staged files.
+    
+    Example: saleha hook run
+    """
+    from saleha.core.git_hooks import git_hook_manager
+    passed, errors = git_hook_manager.run_pre_commit_check()
+    if passed:
+        console.print("[bold green]✅ Pre-commit verification passed. 0 syntax errors or secret leaks.[/]")
+    else:
+        console.print("[bold red]❌ Pre-commit validation failed:[/]")
+        for e in errors:
+            console.print(f"  • [red]{e}[/]")
+        import sys
+        sys.exit(1)
+
+
+@cli.command(name='pull')
+@click.argument('model_name', default='recommended')
+@click.option('--benchmark', is_flag=True, help='Benchmark local inference speed after pulling')
+def pull_cmd(model_name, benchmark):
+    """
+    Download and benchmark recommended Ollama models.
+    
+    Example: saleha pull recommended --benchmark
+    """
+    from saleha.core.model_manager import model_manager, RECOMMENDED_MODELS
+    targets = [RECOMMENDED_MODELS["fast"], RECOMMENDED_MODELS["reasoning"]] if model_name == "recommended" else [model_name]
+
+    for m in targets:
+        console.print(f"[bold cyan]📥 Pulling model:[/] [yellow]{m}[/]...")
+        ok, msg = model_manager.pull_model(m)
+        if ok:
+            console.print(f"[bold green]✅ {msg}[/]")
+            if benchmark:
+                bench = model_manager.benchmark_model(m)
+                if bench.success:
+                    console.print(f"  [green]⚡ Speed:[/] {bench.tokens_per_sec} tokens/sec ({bench.tokens_generated} tokens in {bench.duration_sec}s)")
+        else:
+            console.print(f"[bold yellow]⚠️ {msg}[/]")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

@@ -150,11 +150,57 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /exec <python_code>[/]")
                 return True
-            res = self.sandbox.run_in_sandbox(arg)
+            res = self.sandbox.run(arg)
             if res.success:
-                console.print(f"[green]Output:[/]\n{res.output}")
+                console.print(Panel(res.stdout or "[dim](No output)[/]", title="[green]Execution Result[/]"))
             else:
-                console.print(f"[red]Error:[/]\n{res.error}")
+                console.print(Panel(res.stderr or res.error, title="[red]Execution Failed[/]", border_style="red"))
+            return True
+
+        if cmd == "/fix":
+            if not arg:
+                console.print("[red]Usage: /fix <failing_command_or_test>[/]")
+                return True
+            from saleha.core.self_healer import self_healer
+            console.print(f"[cyan]🩹 Running Autonomous Self-Healer on:[/] [yellow]{arg}[/]")
+            res = self_healer.auto_heal(arg)
+            if res.success:
+                console.print(f"[bold green]✅ Fixed and verified in {res.attempts_used} attempts![/] Commit: {res.commit_hash}")
+            else:
+                console.print(f"[bold red]❌ Could not auto-heal:[/] {res.error}")
+            return True
+
+        if cmd == "/search":
+            if not arg:
+                console.print("[red]Usage: /search <natural_language_query>[/]")
+                return True
+            from saleha.core.semantic_search import semantic_search
+            results = semantic_search.search(arg, limit=3)
+            for r in results:
+                console.print(f"  • [cyan]{r.file_path}:{r.line_number}[/] [{r.symbol_type}] (Score: {r.score}) - {r.snippet}")
+            return True
+
+        if cmd == "/debt":
+            from saleha.core.tech_debt_analyzer import tech_debt_analyzer
+            rep = tech_debt_analyzer.analyze_workspace()
+            console.print(f"[cyan]Technical Debt:[/] {rep.total_functions_analyzed} functions, Avg Cyclomatic: {rep.average_cyclomatic}, Hotspots: {rep.hotspots_count}")
+            return True
+
+        if cmd == "/threat":
+            from saleha.core.threat_modeler import threat_modeler
+            rep = threat_modeler.analyze_workspace()
+            console.print(f"[cyan]STRIDE Threat Model:[/] {rep.total_threats} identified risks (High: {rep.high_threats}, Med: {rep.medium_threats})")
+            return True
+
+        if cmd == "/budget":
+            from saleha.core.token_analytics import token_analytics
+            s = token_analytics.get_summary()
+            console.print(f"[green]💰 Token Economics:[/] Invocations: {s['total_invocations']} | Saved vs Claude: {s['claude_equivalent_saved']}")
+            return True
+
+        if cmd == "/hud":
+            from saleha.cli.terminal_hud import terminal_hud
+            terminal_hud.render_once()
             return True
 
         if cmd == "/outline":
