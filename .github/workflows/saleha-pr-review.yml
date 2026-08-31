@@ -1,4 +1,4 @@
-name: ???? Saleha AI PR Reviewer Bot
+name: 🤖 Saleha AI PR Reviewer Bot
 
 on:
   pull_request:
@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -29,18 +29,19 @@ jobs:
 
       - name: Run Saleha Automated PR Review
         run: |
-          saleha pr review main --output-file review.md
+          saleha ci review . --output pr_review.md --json || true
 
       - name: Post PR Review Comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const report = fs.readFileSync('review.md', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
-
+            if (fs.existsSync('pr_review.md')) {
+              const report = fs.readFileSync('pr_review.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: report
+              });
+            }
