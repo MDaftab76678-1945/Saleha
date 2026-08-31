@@ -1,11 +1,11 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-327%20Passed%20(100%25)-brightgreen.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-386%20Passed%20(100%25)-brightgreen.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
 
-**Saleha** is a local-first, self-healing **Autonomous Multi-Agent AI Engineering Platform** powered by Ollama. Five specialized agents (Product Manager → Software Designer → Senior SDE → Security Engineer → QA Architect) collaborate through parallel task DAGs, run **real sandboxed test-verification loops**, perform AST-based SAST security audits, expose a dual MCP engine, and ship with a ReAct-style autonomous agent loop — **100% local, $0 API cost**.
+**Saleha** is a local-first, self-healing **Autonomous Multi-Agent AI Engineering Platform** powered by Ollama. Five specialized agents (Product Manager → Software Designer → Senior SDE → Security Engineer → QA Architect) collaborate through parallel task DAGs, run **real sandboxed test-verification loops**, perform AST-based SAST security audits, expose a dual MCP engine, and ship with a ReAct-style autonomous agent loop with surgical Aider-style diffing — **100% local, $0 API cost**.
 
 ---
 
@@ -13,21 +13,18 @@
 
 | Capability | Detail |
 |---|---|
-| 🔒 **Enforced Sandboxing** | Generated code runs via Docker (`--network none`, CPU/mem caps) or hardened subprocess blocklist. `SALEHA_SANDBOX=require-docker` = fail-closed strict mode |
-| 🤖 **Autonomous Agent Loop (ReAct)** | `saleha agent "goal"` — model thinks, calls tools (read/search/run_code/write), iterates until done |
+| 🧠 **DeepSeek-R1 CoT Reasoning** | Extracts and streams `<think>...</think>` internal model reasoning tokens without JSON corruption |
+| ✂️ **Surgical Aider-Style Diffing** | `<<<<<<< SEARCH ... ======= ... >>>>>>>` block diffs with 3-tier fuzzy indentation-tolerant search (90% token reduction) |
+| 🌲 **Git Worktree Isolation** | Swarm agents run in parallel ephemeral Git worktree branches (`saleha/task-...`) keeping the main workspace pristine |
+| 🌐 **GraphRAG & Blast Radius** | AST symbol call hierarchy traces + downstream impacted files analysis before applying code changes |
+| 🔒 **Enforced Sandboxing** | Generated code runs via Docker (`--network none`, CPU/mem caps) or hardened polyglot subprocess blocklist (Python, JS, TS, Go, Java, Rust) |
+| 🤖 **Autonomous Agent Loop (ReAct)** | `saleha agent "goal"` — model thinks, calls tools (`read_file`, `find_symbols`, `get_file_outline`, `patch_file`, `run_code`), iterates until done |
 | ✏️ **Multi-File Editor** | `saleha edit "goal" --dir ./repo --apply` — structured JSON plans, unified diff previews, atomic apply + rollback |
 | 🧪 **Real Test-Driven Healing** | `--tests` generates a unittest suite; the self-healing loop runs it in the sandbox and fixes real failures (not just syntax checks) |
+| ⚡ **Speculative Fast Tier Router** | Sub-5ms task tier classifier cascading simple tasks to instant 1.5B/4B models and complex tasks to 8B/30B reasoning models |
 | 👁️ **Real Vision** | `saleha vision "spec" --image mockup.png` — screenshot → working UI code via local llava/qwen-vl |
-| 🧠 **Smart Model Router** | 2026 catalog (qwen3-coder:30b, devstral:24b, deepseek-r1:8b...) + runtime Ollama probing + complexity-tiered selection |
 | 📦 **Repository Context Packer** | Aider-style task-relevant repo map (tree + AST symbol outlines + key excerpts) packed into coder prompts |
-| 💬 **Token Streaming** | REPL chat & `saleha run --stream` stream tokens live from Ollama |
-| ⏯️ **Session Resume** | Every run checkpoints to disk; crash → `saleha run --resume` continues from saved state |
-| 🧠 **Semantic Memory** | Dense embeddings (nomic-embed-text via Ollama) with TF-IDF fallback for solution recall |
-| 🛡️ **Security Tooling** | Built-in AST SAST scanner, SSRF-guarded web_fetch, secret vault, audit log, CI review bot |
-| 🔐 **HITL Approval Gates** | `SALEHA_APPROVAL=dangerous` prompts y/n before shell exec / git commit / vault writes |
-| 📊 **Metrics** | Per-run success rate, attempts, tokens, duration → `saleha metrics` |
 | 🌐 **MCP Dual Engine** | JSON-RPC 2.0 stdio server/client exposing swarm/DAG/SAST/sandbox/memory tools |
-| ☁️ **Cloud Fallback** | Optional Groq/OpenAI/**Anthropic**/**Gemini**/OpenRouter dispatch when Ollama is down |
 
 ---
 
