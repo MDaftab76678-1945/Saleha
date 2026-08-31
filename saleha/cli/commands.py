@@ -4767,7 +4767,8 @@ def voice_live_cmd(speak):
 @click.argument('script_path')
 @click.option('--timeout', '-t', default=15, help='Timeout in seconds')
 @click.option('--memory', '-m', default='256m', help='Memory limit (e.g. 512m)')
-def sandbox_cmd(script_path, timeout, memory):
+@click.option('--json', 'json_output', is_flag=True, help='Output result as JSON')
+def sandbox_cmd(script_path, timeout, memory, json_output):
     """
     Execute code inside a hardened isolated security sandbox (Docker / process sandbox).
     
@@ -4775,14 +4776,26 @@ def sandbox_cmd(script_path, timeout, memory):
     """
     from saleha.core.hardened_sandbox import hardened_sandbox
     if not os.path.isfile(script_path):
-        console.print(f"[bold red]Error:[/] File not found: {script_path}")
+        if json_output:
+            click.echo(json.dumps({"success": False, "error": f"File not found: {script_path}", "output": ""}))
+        else:
+            console.print(f"[bold red]Error:[/] File not found: {script_path}")
         return
 
     with open(script_path, "r", encoding="utf-8") as f:
         code = f.read()
 
-    console.print(f"[bold cyan]🛡️ Executing in Hardened Sandbox:[/] [yellow]{script_path}[/]")
     res = hardened_sandbox.execute_code(code, timeout=timeout, memory_limit=memory)
+    if json_output:
+        click.echo(json.dumps({
+            "success": res.success,
+            "output": res.output,
+            "error": res.error,
+            "sandbox_tier": res.sandbox_tier,
+        }))
+        return
+
+    console.print(f"[bold cyan]🛡️ Executing in Hardened Sandbox:[/] [yellow]{script_path}[/]")
     if res.success:
         console.print(f"[bold green]✅ Sandbox Execution Succeeded (Tier: {res.sandbox_tier}):[/]")
         console.print(res.output)
