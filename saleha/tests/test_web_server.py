@@ -180,6 +180,16 @@ class WebServerTests(unittest.TestCase):
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data["rps"] > 0)
 
+    def test_post_api_diff_patch(self):
+        old_text = "def calc(x):\n    return x + 1\n"
+        search = "return x + 1"
+        replace = "return x * 10"
+        status, body = self._post("/api/diff/patch", {"content": old_text, "search": search, "replace": replace})
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertTrue(data["success"])
+        self.assertIn("return x * 10", data["patched"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,7 +20,9 @@ from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.skill_registry import registry as skill_registry
 from saleha.core.tool_calling import global_tool_registry
 from saleha.core.memory_store import memory_store
-from saleha.core.codebase_indexer import CodebaseIndexer
+from saleha.core.codebase_indexer import CodebaseIndexer, SmartPatcher
+from saleha.core.agentic_loop import AgentLoop
+from saleha.agents.base_agent import BaseAgent
 from saleha.core.team_orchestrator import TeamOrchestrator
 from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.polyglot_executor import polyglot_executor
@@ -980,6 +982,40 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"success": True, "key": key})
             else:
                 self._send_json(400, {"error": "key and value required"})
+            return
+        if path == "/api/agent/run":
+            goal = payload.get("goal", "")
+            model = payload.get("model", "auto")
+            max_steps = int(payload.get("max_steps", 10))
+            allow_write = bool(payload.get("allow_write", False))
+            root_dir = payload.get("root_dir", ".")
+            if not goal:
+                self._send_json(400, {"error": "goal is required"})
+                return
+            agent = BaseAgent(role="Autonomous Engineer", model=model)
+            loop = AgentLoop(agent=agent, root_dir=root_dir, max_steps=max_steps, allow_write=allow_write)
+            res = loop.run(goal)
+            self._send_json(200, {
+                "success": res.success,
+                "final_message": res.final_message,
+                "error": res.error,
+                "steps": [{"step": s.step_no, "action": s.action, "args": s.args_summary, "observation": s.observation} for s in res.steps]
+            })
+            return
+
+        if path == "/api/diff/patch":
+            content = payload.get("content", "")
+            search = payload.get("search", "")
+            replace = payload.get("replace", "")
+            if not search:
+                self._send_json(400, {"error": "search block is required"})
+                return
+            ok, patched, err = SmartPatcher.apply_search_replace(content, search, replace)
+            self._send_json(200, {
+                "success": ok,
+                "patched": patched if ok else content,
+                "error": err
+            })
             return
 
         self._send_json(404, {"error": "Endpoint not found"})
