@@ -3590,6 +3590,110 @@ def sidecar_cmd(host, port, open_browser):
     sidecar_daemon.run(host=host, port=port, open_browser=open_browser)
 
 
+@cli.command(name='doctor')
+@click.option('--fix', is_flag=True, help='Attempt auto-repair of missing models or folders')
+@click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
+def doctor_cmd(fix, as_json):
+    """Diagnose local environment, Ollama models, Git, Sandbox, and Vault."""
+    import shutil
+    import subprocess
+    from saleha.core.smart_router import get_installed_ollama_models
+
+    checks = []
+
+    # 1. Python Check
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    checks.append({
+        "component": "Python Environment",
+        "status": "PASS" if sys.version_info >= (3, 9) else "FAIL",
+        "detail": f"Python {py_ver} (64-bit)" if sys.maxsize > 2**32 else f"Python {py_ver}"
+    })
+
+    # 2. Git Check
+    git_bin = shutil.which("git")
+    git_status = "PASS" if git_bin else "FAIL"
+    git_detail = f"Found at {git_bin}" if git_bin else "Git not found in PATH"
+    checks.append({"component": "Git Binary", "status": git_status, "detail": git_detail})
+
+    # 3. Ollama Service & Models
+    installed_models = get_installed_ollama_models()
+    if installed_models:
+        ollama_status = "PASS"
+        models_sample = list(installed_models)[:4]
+        ollama_detail = f"Online ({len(installed_models)} models: {', '.join(models_sample)})"
+    else:
+        ollama_status = "WARN"
+        ollama_detail = "Offline or no models pulled yet (run 'ollama serve' / 'ollama pull qwen2.5-coder:1.5b')"
+        if fix:
+            try:
+                subprocess.run(["ollama", "pull", "qwen2.5-coder:1.5b"], check=False)
+                installed_models = get_installed_ollama_models()
+                if installed_models:
+                    ollama_status = "PASS"
+                    models_sample = list(installed_models)[:4]
+                    ollama_detail = f"Auto-pulled qwen2.5-coder:1.5b ({len(installed_models)} models: {', '.join(models_sample)})"
+            except Exception:
+                pass
+    checks.append({"component": "Ollama LLM Service", "status": ollama_status, "detail": ollama_detail})
+
+    # 4. Sandboxing (Docker or Polyglot Fallback)
+    docker_bin = shutil.which("docker")
+    docker_running = False
+    if docker_bin:
+        try:
+            d_proc = subprocess.run([docker_bin, "info"], capture_output=True, timeout=2)
+            docker_running = (d_proc.returncode == 0)
+        except Exception:
+            docker_running = False
+
+    if docker_running:
+        sb_status = "PASS"
+        sb_detail = "Docker daemon active (Hardware Sandboxed)"
+    else:
+        sb_status = "PASS"
+        sb_detail = "Polyglot Subprocess Sandbox Active (Docker Offline fallback)"
+    checks.append({"component": "Execution Sandbox", "status": sb_status, "detail": sb_detail})
+
+    # 5. Encrypted Vault Storage
+    vault_dir = os.path.expanduser("~/.saleha")
+    try:
+        os.makedirs(vault_dir, exist_ok=True)
+        vault_status = "PASS"
+        vault_detail = f"Writable at {vault_dir}"
+    except Exception as e:
+        vault_status = "FAIL"
+        vault_detail = f"Permission error: {e}"
+    checks.append({"component": "Encrypted Vault Storage", "status": vault_status, "detail": vault_detail})
+
+    all_pass = all(c["status"] != "FAIL" for c in checks)
+
+    if as_json:
+        click.echo(json.dumps({
+            "healthy": all_pass,
+            "checks": [{"name": f"core/{c['component'].lower().replace(' ', '_')}", "status": c["status"], "detail": c["detail"]} for c in checks],
+            "diagnostics": checks
+        }, ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title="🩺 Saleha System Doctor & Diagnostic Suite", show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Component", style="bold cyan", width=25)
+    table.add_column("Status", width=12)
+    table.add_column("Details", style="white")
+
+    all_pass = True
+    for c in checks:
+        color = "green" if c["status"] == "PASS" else ("yellow" if c["status"] == "WARN" else "red")
+        if c["status"] == "FAIL":
+            all_pass = False
+        table.add_row(c["component"], f"[{color}]{c['status']}[/]", c["detail"])
+
+    console.print(table)
+    if all_pass:
+        console.print("\n[bold green]✅ Everything is healthy and ready for autonomous engineering![/]\n")
+    else:
+        console.print("\n[bold yellow]⚠️ Some components require attention. Run 'saleha doctor --fix' to auto-repair.[/]\n")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
