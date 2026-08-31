@@ -4711,6 +4711,86 @@ def swe_export_cmd(output, scorecard, model):
     console.print(f"[bold green]Pass@1 Score:[/] {run.score_pct:.2f}% ({run.solved}/{run.total_tasks} solved)")
 
 
+@cli.command(name='resolve-issue')
+@click.argument('issue_ref')
+@click.option('--branch', '-b', default=None, help='Custom branch name')
+@click.option('--auto-pr', is_flag=True, help='Automatically open Pull Request on GitHub')
+def resolve_issue_cmd(issue_ref, branch, auto_pr):
+    """
+    Autonomously fetch a GitHub issue, fix it on a dedicated branch, test, and open a PR.
+    
+    Example: saleha resolve-issue 42 --auto-pr
+    """
+    from saleha.core.issue_resolver import issue_resolver
+    console.print(f"[bold cyan]🐙 Autonomous GitHub Issue Resolver started for:[/] [yellow]{issue_ref}[/]")
+    res = issue_resolver.resolve_issue(issue_ref=issue_ref, branch_name=branch, auto_pr=auto_pr)
+    if res.success:
+        console.print(f"[bold green]✅ Issue #{res.issue.issue_number} Resolved Successfully![/]")
+        console.print(f"  • Branch: [cyan]{res.branch_name}[/]")
+        if res.diff_result:
+            console.print(f"  • Changes: [green]{res.diff_result.change_summary}[/]")
+        if res.pr_result and res.pr_result.pr_url:
+            console.print(f"  • Pull Request: [bold blue]{res.pr_result.pr_url}[/]")
+        else:
+            console.print(f"  • Status: [yellow]{res.pr_result.message if res.pr_result else 'Ready'}[/]")
+    else:
+        console.print(f"[bold red]❌ Resolution failed:[/] {res.error}")
+
+
+@cli.command(name='voice-live')
+@click.option('--speak', is_flag=True, default=True, help='Enable audio speech response')
+def voice_live_cmd(speak):
+    """
+    Start Full-Duplex Real-Time Voice Terminal Assistant.
+    
+    Example: saleha voice-live
+    """
+    from saleha.core.voice_live import voice_live_assistant
+    console.print("[bold green]🎙️ Saleha Voice-Live Terminal Assistant is listening...[/]")
+    console.print("[dim]Type voice command or press Enter with speech. Type 'exit' to quit.[/]\n")
+
+    try:
+        while True:
+            prompt = click.prompt("🎤 Voice Command", default="")
+            if not prompt or prompt.strip().lower() in ("exit", "quit"):
+                break
+            turn = voice_live_assistant.process_turn(input_text=prompt, speak=speak)
+            console.print(f"[bold cyan]🤖 Action:[/] {turn.action_summary}")
+            if turn.spoken_response != turn.action_summary:
+                console.print(f"[bold green]🗣️ Spoken:[/] {turn.spoken_response}")
+    except (KeyboardInterrupt, EOFError):
+        pass
+    console.print("\n[yellow]Voice assistant stopped.[/]")
+
+
+@cli.command(name='sandbox')
+@click.argument('script_path')
+@click.option('--timeout', '-t', default=15, help='Timeout in seconds')
+@click.option('--memory', '-m', default='256m', help='Memory limit (e.g. 512m)')
+def sandbox_cmd(script_path, timeout, memory):
+    """
+    Execute code inside a hardened isolated security sandbox (Docker / process sandbox).
+    
+    Example: saleha sandbox script.py --timeout 10
+    """
+    from saleha.core.hardened_sandbox import hardened_sandbox
+    if not os.path.isfile(script_path):
+        console.print(f"[bold red]Error:[/] File not found: {script_path}")
+        return
+
+    with open(script_path, "r", encoding="utf-8") as f:
+        code = f.read()
+
+    console.print(f"[bold cyan]🛡️ Executing in Hardened Sandbox:[/] [yellow]{script_path}[/]")
+    res = hardened_sandbox.execute_code(code, timeout=timeout, memory_limit=memory)
+    if res.success:
+        console.print(f"[bold green]✅ Sandbox Execution Succeeded (Tier: {res.sandbox_tier}):[/]")
+        console.print(res.output)
+    else:
+        console.print(f"[bold red]❌ Sandbox Execution Failed (Tier: {res.sandbox_tier}):[/]")
+        console.print(res.error)
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

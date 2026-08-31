@@ -84,3 +84,4 @@ runs:
             print('::error title=Security Vulnerability::Saleha detected Critical or High severity security issues in reviewed files.')
             sys.exit(1)
         "
+

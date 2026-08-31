@@ -745,6 +745,46 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"secrets": secrets})
             return
 
+        if path == "/api/workflow/dag":
+            self._send_json(200, {
+                "nodes": [
+                    {"id": "planner", "name": "Planner & Architect", "role": "Deconstructs requirements", "status": "completed"},
+                    {"id": "coder", "name": "Polyglot Coder", "role": "Synthesizes type-safe code", "status": "active"},
+                    {"id": "tester", "name": "QA Reliability", "role": "Generates & runs test suites", "status": "pending"},
+                    {"id": "security", "name": "OWASP Security Auditor", "role": "Detects vulnerabilities", "status": "pending"},
+                    {"id": "verifier", "name": "Sandbox Verifier", "role": "Validates runtime & auto-commits", "status": "pending"}
+                ],
+                "edges": [
+                    {"from": "planner", "to": "coder"},
+                    {"from": "coder", "to": "tester"},
+                    {"from": "tester", "to": "security"},
+                    {"from": "security", "to": "verifier"}
+                ]
+            })
+            return
+
+        if path == "/api/memory/project":
+            try:
+                from saleha.core.project_memory import get_project_memory
+                pm = get_project_memory()
+                stats = pm.stats() if pm else {"total_entries": 0}
+                entries = pm.search("", limit=20) if pm else []
+                self._send_json(200, {
+                    "stats": stats,
+                    "entries": [
+                        {
+                            "id": getattr(e, "id", str(i)),
+                            "type": e.entry_type.value if hasattr(e.entry_type, "value") else str(getattr(e, "entry_type", "decision")),
+                            "content": getattr(e, "content", ""),
+                            "tags": getattr(e, "tags", [])
+                        }
+                        for i, e in enumerate(entries)
+                    ]
+                })
+            except Exception as ex:
+                self._send_json(200, {"stats": {"total_entries": 0}, "entries": [], "error": str(ex)})
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def _collab_error(self, err: CollabError):
@@ -977,12 +1017,47 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/vault/set":
             key = payload.get("key", "")
             val = payload.get("value", "")
-            if key and val:
-                vault.set_secret(key, val)
-                self._send_json(200, {"success": True, "key": key})
-            else:
-                self._send_json(400, {"error": "key and value required"})
+            if not key:
+                self._send_json(400, {"error": "key is required"})
+                return
+            vault.set_secret(key, val)
+            self._send_json(200, {"status": "success", "key": key})
             return
+
+        if path == "/api/diff/preview":
+            old_code = payload.get("old_code", "")
+            new_code = payload.get("new_code", "")
+            file_path = payload.get("file_path", "module.py")
+            from saleha.core.diff_engine import DiffEngine
+            de = DiffEngine()
+            diff_res = de.compute_diff(file_path=file_path, old_content=old_code, new_content=new_code)
+            self._send_json(200, {
+                "file_path": diff_res.file_path,
+                "additions": diff_res.lines_added,
+                "deletions": diff_res.lines_removed,
+                "risk_score": diff_res.risk_score,
+                "risk_reason": diff_res.risk_reason,
+                "unified_diff": diff_res.unified_diff,
+                "is_safe": diff_res.is_safe,
+                "hunks_count": len(diff_res.hunks)
+            })
+            return
+
+        if path == "/api/voice/dispatch":
+            transcript = payload.get("transcript", "")
+            speak = payload.get("speak", False)
+            from saleha.core.voice_live import voice_live_assistant
+            turn = voice_live_assistant.process_turn(input_text=transcript, speak=speak)
+            self._send_json(200, {
+                "intent": turn.command.intent,
+                "target_arg": turn.command.target_arg,
+                "action_summary": turn.action_summary,
+                "spoken_response": turn.spoken_response,
+                "duration_sec": turn.duration_sec,
+                "success": turn.success
+            })
+            return
+
         if path == "/api/agent/run":
             goal = payload.get("goal", "")
             model = payload.get("model", "auto")
