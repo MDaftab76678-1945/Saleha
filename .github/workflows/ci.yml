@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - name: Checkout Code
@@ -26,16 +26,22 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
+    - name: Configure Git Identity for CI
+      run: |
+        git config --global user.email "ci@saleha.ai"
+        git config --global user.name "Saleha CI"
+        git config --global init.defaultBranch main
+
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e .
         pip install pytest pytest-asyncio
 
-    - name: Verify 100% Strict Type Annotations
+    - name: Verify Strict Type Annotations
       run: |
         python scratch/check_type_hints.py
 
-    - name: Run Full Test Suite (100+ Suites)
+    - name: Run Full Test Suite (105+ Suites)
       run: |
         python -m pytest saleha/tests -v --durations=10

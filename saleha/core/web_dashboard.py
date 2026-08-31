@@ -109,3 +109,4 @@ class WebDashboardServer:
 
 # Global instance
 web_dashboard = WebDashboardServer()
+
