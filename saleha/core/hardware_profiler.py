@@ -84,20 +84,29 @@ class HardwareProfiler:
         snap = HardwareSnapshot(ts=time.time(), self_pid=self.self_pid)
         snap.cpu_percent = psutil.cpu_percent(interval=0.15)
         snap.cpu_per_core = psutil.cpu_percent(interval=None, percpu=True)
-        freq = psutil.cpu_freq()
-        snap.cpu_freq_mhz = round(freq.current, 0) if freq else None
+        try:
+            freq_fn = getattr(psutil, "cpu_freq", None)
+            freq = freq_fn() if freq_fn else None
+            snap.cpu_freq_mhz = round(freq.current, 0) if (freq and getattr(freq, "current", None) is not None) else None
+        except (AttributeError, OSError, Exception):
+            snap.cpu_freq_mhz = None
+
         try:
             la = psutil.getloadavg()
             snap.load_avg = [round(x, 2) for x in la]
-        except (AttributeError, OSError):
+        except (AttributeError, OSError, Exception):
             snap.load_avg = None
 
         vm = psutil.virtual_memory()
         snap.mem_used_mb = round(vm.used / 1_048_576, 1)
         snap.mem_total_mb = round(vm.total / 1_048_576, 1)
         snap.mem_percent = vm.percent
-        sm = psutil.swap_memory()
-        snap.swap_percent = sm.percent
+
+        try:
+            sm = psutil.swap_memory()
+            snap.swap_percent = sm.percent
+        except (AttributeError, OSError, Exception):
+            snap.swap_percent = 0.0
 
         now = time.time()
         dt = max(0.001, now - self._last_ts)
