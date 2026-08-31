@@ -35,13 +35,20 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
+        pip install click rich pydantic requests psutil PyYAML
+        pip install -e . --no-deps
         pip install pytest pytest-asyncio
+
+    - name: Verify Import Health
+      run: |
+        python -c "import saleha; print('saleha version:', saleha.__version__)"
 
     - name: Verify Strict Type Annotations
       run: |
         python scratch/check_type_hints.py
 
     - name: Run Full Test Suite (105+ Suites)
+      env:
+        OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
       run: |
-        python -m pytest saleha/tests -v --durations=10
+        python -m pytest saleha/tests -v --tb=short --durations=15 -p no:warnings
