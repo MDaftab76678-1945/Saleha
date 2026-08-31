@@ -219,16 +219,107 @@ class SmartPatcher:
         return "".join(diff)
 
     @staticmethod
+    def fuzzy_find_block(source_lines: List[str], search_lines: List[str]) -> Optional[int]:
+        """Finds starting line index in source_lines matching search_lines (with exact or trimmed fallback)."""
+        if not search_lines or not source_lines:
+            return None
+        n_search = len(search_lines)
+        if n_search > len(source_lines):
+            return None
+
+        # 1. Exact line match
+        for i in range(len(source_lines) - n_search + 1):
+            if source_lines[i:i + n_search] == search_lines:
+                return i
+
+        # 2. Strip trailing whitespace match
+        clean_search = [l.rstrip() for l in search_lines]
+        for i in range(len(source_lines) - n_search + 1):
+            clean_source = [l.rstrip() for l in source_lines[i:i + n_search]]
+            if clean_source == clean_search:
+                return i
+
+        # 3. Strip leading & trailing whitespace match (indentation-tolerant)
+        trimmed_search = [l.strip() for l in search_lines if l.strip()]
+        if not trimmed_search:
+            return None
+
+        for i in range(len(source_lines)):
+            if source_lines[i].strip() == trimmed_search[0]:
+                k = 0
+                matched_indices = []
+                for j in range(i, min(len(source_lines), i + len(search_lines) + 10)):
+                    if not source_lines[j].strip() and not (k < len(search_lines) and not search_lines[k].strip()):
+                        continue
+                    if k < len(trimmed_search) and source_lines[j].strip() == trimmed_search[k]:
+                        matched_indices.append(j)
+                        k += 1
+                        if k == len(trimmed_search):
+                            return i
+                    elif k > 0:
+                        break
+        return None
+
+    @staticmethod
+    def apply_search_replace(original_code: str, search_block: str, replace_block: str) -> Tuple[bool, str, Optional[str]]:
+        """Replaces search_block in original_code with replace_block using exact or fuzzy line matching."""
+        if not search_block:
+            return False, original_code, "Empty search block"
+
+        if search_block in original_code:
+            new_code = original_code.replace(search_block, replace_block, 1)
+            return True, new_code, None
+
+        orig_lines = original_code.splitlines(keepends=True)
+        search_lines = search_block.splitlines(keepends=True)
+        replace_lines = replace_block.splitlines(keepends=True)
+
+        idx = SmartPatcher.fuzzy_find_block(orig_lines, search_lines)
+        if idx is not None:
+            new_lines = orig_lines[:idx] + replace_lines + orig_lines[idx + len(search_lines):]
+            return True, "".join(new_lines), None
+
+        return False, original_code, "Could not match search block in target file."
+
+    @staticmethod
+    def parse_aider_blocks(diff_text: str) -> List[Tuple[str, str]]:
+        """Extracts (search, replace) block pairs from Aider-style diff text."""
+        blocks: List[Tuple[str, str]] = []
+        pattern = re.compile(r"<<<<<<<\s*SEARCH\s*\n(.*?)\n=======\s*\n(.*?)\n>>>>>>>", re.DOTALL)
+        for match in pattern.finditer(diff_text):
+            search_part = match.group(1)
+            replace_part = match.group(2)
+            blocks.append((search_part, replace_part))
+        return blocks
+
+    @staticmethod
+    def apply_aider_diff(original_code: str, diff_text: str) -> Tuple[bool, str, Optional[str]]:
+        """Applies all Aider-style SEARCH/REPLACE blocks sequentially to original_code."""
+        blocks = SmartPatcher.parse_aider_blocks(diff_text)
+        if not blocks:
+            return False, original_code, "No SEARCH/REPLACE blocks found in diff text."
+
+        current_code = original_code
+        for i, (search_b, replace_b) in enumerate(blocks):
+            ok, new_code, err = SmartPatcher.apply_search_replace(current_code, search_b, replace_b)
+            if not ok:
+                return False, original_code, f"Block #{i+1} failed to apply: {err}"
+            current_code = new_code
+
+        return True, current_code, None
+
+    @staticmethod
     def apply_patch(file_path: str, modified_code: str) -> Dict[str, Any]:
         """Validates syntax of modified_code and safely overwrites file_path."""
-        try:
-            ast.parse(modified_code)
-        except SyntaxError as e:
-            return {
-                "success": False,
-                "error": f"Refactored code has syntax error: {e.msg} (line {e.lineno})",
-                "diff": ""
-            }
+        if file_path.endswith(".py"):
+            try:
+                ast.parse(modified_code)
+            except SyntaxError as e:
+                return {
+                    "success": False,
+                    "error": f"Refactored code has syntax error: {e.msg} (line {e.lineno})",
+                    "diff": ""
+                }
 
         original_code = ""
         if os.path.isfile(file_path):

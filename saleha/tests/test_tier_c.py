@@ -119,6 +119,46 @@ class MultiFileEditorTests(unittest.TestCase):
         self.assertTrue(any("SyntaxError" in e for e in res.errors))
         self.assertFalse(os.path.exists(self._path("bad.py")))
 
+    def test_patch_action_with_search_replace(self):
+        os.makedirs(self._path("src"), exist_ok=True)
+        with open(self._path("src/core.py"), "w", encoding="utf-8") as f:
+            f.write("def run():\n    # old logic\n    return 10\n")
+        payload = '''```json
+{"edits": [{
+  "path": "src/core.py",
+  "action": "patch",
+  "search": "    # old logic\\n    return 10",
+  "replace": "    # new logic\\n    return 42"
+}]}
+```'''
+        coder = _coder_returning(payload)
+        ed = MultiFileEditor(coder_agent=coder, root_dir=self.root)
+        res = ed.edit("update logic", apply=True)
+        self.assertTrue(res.success, res.errors)
+        with open(self._path("src/core.py"), encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("return 42", content)
+            self.assertNotIn("return 10", content)
+
+    def test_patch_action_with_aider_blocks(self):
+        os.makedirs(self._path("src"), exist_ok=True)
+        with open(self._path("src/utils.py"), "w", encoding="utf-8") as f:
+            f.write("def helper():\n    return 'v1'\n")
+        payload = '''```json
+{"edits": [{
+  "path": "src/utils.py",
+  "action": "edit",
+  "content": "<<<<<<< SEARCH\\ndef helper():\\n    return 'v1'\\n=======\\ndef helper():\\n    return 'v2'\\n>>>>>>>"
+}]}
+```'''
+        coder = _coder_returning(payload)
+        ed = MultiFileEditor(coder_agent=coder, root_dir=self.root)
+        res = ed.edit("bump helper", apply=True)
+        self.assertTrue(res.success, res.errors)
+        with open(self._path("src/utils.py"), encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn("return 'v2'", content)
+
 
 class DetectLanguageTests(unittest.TestCase):
     def test_detection_table(self):

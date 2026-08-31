@@ -165,8 +165,33 @@ Format:
             path = str(item.get("path", "")).strip().replace("\\", "/")
             action = str(item.get("action", "edit")).strip().lower()
             content = item.get("content", "")
-            if action not in ("create", "edit"):
+            search_b = item.get("search", "")
+            replace_b = item.get("replace", "")
+
+            if action not in ("create", "edit", "patch"):
                 return [], f"edit #{i}: invalid action '{action}'"
+
+            abs_p = self._safe_abs_path(path) if path else None
+
+            # Handle surgical search/replace or Aider-style block patch
+            if action == "patch" or (action == "edit" and isinstance(content, str) and "<<<<<<< SEARCH" in content):
+                if not abs_p or not os.path.isfile(abs_p):
+                    return [], f"edit #{i}: target file not found for patch: {path}"
+                try:
+                    with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
+                        old_content = f.read()
+                    from saleha.core.codebase_indexer import SmartPatcher
+                    if search_b and replace_b:
+                        ok, patched, err = SmartPatcher.apply_search_replace(old_content, search_b, replace_b)
+                    else:
+                        ok, patched, err = SmartPatcher.apply_aider_diff(old_content, content)
+                    if not ok:
+                        return [], f"edit #{i} ({path}): patch failed: {err}"
+                    content = patched
+                    action = "edit"
+                except Exception as ex:
+                    return [], f"edit #{i} ({path}): patch application error: {str(ex)}"
+
             if not isinstance(content, str) or len(content) > MAX_FILE_CHARS:
                 return [], f"edit #{i}: missing/oversized content"
             edit_obj = PlannedEdit(
@@ -174,7 +199,6 @@ Format:
                 lines_changed=len(content.splitlines()),
             )
             # Unified diff preview (existing files ke liye)
-            abs_p = self._safe_abs_path(path) if path else None
             if action == "edit" and abs_p and os.path.isfile(abs_p):
                 try:
                     with open(abs_p, "r", encoding="utf-8", errors="replace") as f:

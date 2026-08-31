@@ -49,6 +49,40 @@ def standalone_helper(x: int) -> int:
         diff = SmartPatcher.create_unified_diff(orig, mod, "math.py")
         self.assertIn("+    # Fast add", diff)
 
+    def test_smart_patcher_search_replace(self):
+        code = "def calc(x):\n    # TODO\n    return x\n"
+        ok, patched, err = SmartPatcher.apply_search_replace(code, "    # TODO\n    return x", "    return x * 2")
+        self.assertTrue(ok)
+        self.assertIn("return x * 2", patched)
+
+    def test_smart_patcher_fuzzy_matching(self):
+        code = "def greet():\n    name = 'world'   \n    print(name)\n"
+        # Search block has different trailing spaces
+        search_b = "    name = 'world'\n    print(name)"
+        replace_b = "    name = 'saleha'\n    print('hello ' + name)"
+        ok, patched, err = SmartPatcher.apply_search_replace(code, search_b, replace_b)
+        self.assertTrue(ok, msg=f"Fuzzy match failed: {err}")
+        self.assertIn("name = 'saleha'", patched)
+
+    def test_smart_patcher_aider_blocks(self):
+        code = "def first():\n    return 1\n\ndef second():\n    return 2\n"
+        diff = """<<<<<<< SEARCH
+def first():
+    return 1
+=======
+def first():
+    return 100
+>>>>>>>
+<<<<<<< SEARCH
+def second():
+    return 2
+=======
+def second():
+    return 200
+>>>>>>>"""
+        ok, patched, err = SmartPatcher.apply_aider_diff(code, diff)
+        self.assertTrue(ok, msg=f"Aider diff failed: {err}")
+        self.assertIn("return 100", patched)
     def test_smart_patcher_syntax_validation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             target = os.path.join(tmpdir, "broken.py")
