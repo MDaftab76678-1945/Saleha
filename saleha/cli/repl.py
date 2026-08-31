@@ -157,6 +157,62 @@ class SalehaREPL:
                 console.print(f"[red]Error:[/]\n{res.error}")
             return True
 
+        if cmd == "/outline":
+            if not arg or not os.path.isfile(arg):
+                console.print("[red]Usage: /outline <valid_file_path>[/]")
+                return True
+            try:
+                import ast
+                with open(arg, "r", encoding="utf-8", errors="replace") as f:
+                    tree = ast.parse(f.read(), filename=arg)
+                t = Table(title=f"📐 File Outline: {arg}", show_header=True)
+                t.add_column("Type", style="cyan")
+                t.add_column("Name", style="bold yellow")
+                t.add_column("Lines", style="green")
+                for node in tree.body:
+                    if isinstance(node, ast.ClassDef):
+                        t.add_row("class", node.name, f"{node.lineno}-{node.end_lineno}")
+                    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        t.add_row("def", node.name, f"{node.lineno}-{node.end_lineno}")
+                console.print(t)
+            except Exception as ex:
+                console.print(f"[red]Outline error: {ex}[/]")
+            return True
+
+        if cmd == "/symbols":
+            if not arg:
+                console.print("[red]Usage: /symbols <symbol_name>[/]")
+                return True
+            indexer = CodebaseIndexer(root_dir=".")
+            indexer.scan()
+            matches = indexer.find_symbol(arg.strip())
+            if matches:
+                console.print(f"[green]Symbol '{arg}' found in:[/]\n" + "\n".join([f"  • {m}" for m in matches]))
+            else:
+                console.print(f"[yellow]Symbol '{arg}' not found in codebase.[/]")
+            return True
+
+        if cmd == "/status":
+            from saleha.core.git_native import git_engine
+            stat = git_engine.get_status_summary()
+            if stat.get("is_repo"):
+                dirty_tag = "[red]Dirty[/]" if stat.get("dirty") else "[green]Clean[/]"
+                console.print(f"[cyan]Git Branch:[/] {stat.get('branch')} ({dirty_tag})")
+                if stat.get("files"):
+                    console.print("[yellow]Modified files:[/]\n" + "\n".join([f"  • {f}" for f in stat["files"][:8]]))
+            else:
+                console.print("[yellow]Not inside a Git repository.[/]")
+            return True
+
+        if cmd == "/undo":
+            from saleha.core.git_native import git_engine
+            res = git_engine.rollback_last_commit(soft=True)
+            if res.get("success"):
+                console.print(f"[green]✅ {res.get('message')}[/]")
+            else:
+                console.print(f"[red]❌ Undo failed: {res.get('error')}[/]")
+            return True
+
         return False
 
     def run(self):

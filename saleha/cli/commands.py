@@ -78,6 +78,8 @@ _LAZY_IMPORT_MAP = {
     "render_dashboard": ("saleha.cli.dashboard", "render_dashboard"),
     "run_live_dashboard": ("saleha.cli.dashboard", "run_live_dashboard"),
     "AgentLoop": ("saleha.core.agentic_loop", "AgentLoop"),
+    "repo_watcher": ("saleha.core.repo_watcher", "repo_watcher"),
+    "swe_bench": ("saleha.core.swe_bench_harness", "swe_bench"),
 }
 
 
@@ -3692,6 +3694,101 @@ def doctor_cmd(fix, as_json):
         console.print("\n[bold green]✅ Everything is healthy and ready for autonomous engineering![/]\n")
     else:
         console.print("\n[bold yellow]⚠️ Some components require attention. Run 'saleha doctor --fix' to auto-repair.[/]\n")
+
+
+@cli.command(name='watch')
+@click.argument('directory', default='.')
+@click.option('--debounce', default=0.3, type=float, help='Debounce seconds for save events')
+def watch_cmd(directory, debounce):
+    """
+    Watch workspace files in real-time and display live AST symbol updates & blast-radius alerts.
+    
+    Example: saleha watch ./src
+    """
+    from saleha.core.repo_watcher import RepoWatcher
+    watcher = RepoWatcher(root_dir=directory, poll_interval=0.5, debounce_sec=debounce)
+    watcher.initialize()
+
+    console.print(Panel(
+        f"[bold cyan]Watching Workspace:[/] {os.path.abspath(directory)}\n"
+        f"[dim]Live AST indexer active. Save any file in your IDE to see instant blast-radius traces.[/]\n"
+        f"[dim]Press Ctrl+C to stop watching.[/]",
+        title="[bold green]👁️ Saleha Live Repo Watcher[/]",
+        border_style="green"
+    ))
+
+    def on_event(ev):
+        color = "green" if ev.change_type == "created" else ("yellow" if ev.change_type == "modified" else "red")
+        syms = f" [cyan](Symbols: {', '.join(ev.symbols_defined[:4])})[/]" if ev.symbols_defined else ""
+        console.print(f"[{color}]⚡ {ev.change_type.upper()}:[/] [bold white]{ev.file_path}[/]{syms}")
+        if ev.impacted_downstream_files:
+            console.print(f"   [bold magenta]↳ ⚠️ Downstream Blast Radius ({len(ev.impacted_downstream_files)} files):[/] [yellow]{', '.join(ev.impacted_downstream_files[:4])}[/]")
+
+    watcher.on_change(on_event)
+    watcher.start_background()
+
+    try:
+        while True:
+            time.sleep(1.0)
+    except KeyboardInterrupt:
+        watcher.stop()
+        console.print("\n[dim]Watcher stopped.[/]")
+
+
+@cli.command(name='bench')
+@click.option('--limit', '-n', default=None, type=int, help='Maximum number of benchmark instances to evaluate')
+@click.option('--dry-run', is_flag=True, help='Simulate execution quickly without executing heavy code')
+@click.option('--json', 'as_json', is_flag=True, help='Output benchmark results as JSON')
+def bench_cmd(limit, dry_run, as_json):
+    """
+    Run SWE-bench & HumanEval autonomous software engineering benchmark evaluation.
+    
+    Example: saleha bench
+    Example fast: saleha bench --dry-run
+    """
+    from saleha.core.swe_bench_harness import swe_bench
+    console.print(Panel(
+        "[bold cyan]Suite:[/] SWE-bench Verified & HumanEval Suite\n"
+        "[bold green]Metrics:[/] Pass@1 Resolution Rate, Multi-file Localization, Sandboxed Execution\n"
+        f"[dim]Running {'dry-run simulation' if dry_run else 'sandboxed execution test harness'}...[/]",
+        title="[bold green]🏆 Saleha Autonomous Benchmark Runner[/]",
+        border_style="green"
+    ))
+
+    report = swe_bench.run_evaluation(limit=limit, dry_run=dry_run)
+
+    if as_json:
+        click.echo(json.dumps(report.__dict__, ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title="📊 Benchmark Problem Resolution Breakdown", show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Instance ID", style="bold cyan", width=30)
+    table.add_column("Domain / Repo", width=22)
+    table.add_column("Difficulty", width=12)
+    table.add_column("Resolution", width=12)
+    table.add_column("Latency", width=10)
+
+    for r in report.results:
+        status_color = "green" if r["resolved"] else "red"
+        status_txt = "RESOLVED" if r["resolved"] else "FAILED"
+        table.add_row(
+            r["instance_id"],
+            r["repo"],
+            r["difficulty"],
+            f"[{status_color}]{status_txt}[/]",
+            f"{r['latency_sec']}s"
+        )
+
+    console.print(table)
+    rate_color = "green" if report.pass_rate >= 80 else ("yellow" if report.pass_rate >= 50 else "red")
+    console.print(Panel(
+        f"[bold white]Total Instances Tested:[/] {report.total_instances}\n"
+        f"[bold white]Instances Resolved:[/] {report.resolved_instances}\n"
+        f"[bold cyan]Pass Rate (Pass@1):[/] [{rate_color}]{report.pass_rate}%[/]\n"
+        f"[bold cyan]Average Latency:[/] {report.avg_latency_sec}s",
+        title="[bold green]🏁 Official Benchmark Summary[/]",
+        border_style="green"
+    ))
 
 
 # ==============================================================================

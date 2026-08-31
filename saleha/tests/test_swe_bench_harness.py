@@ -29,6 +29,12 @@ class SWEBenchTests(unittest.TestCase):
         self.assertEqual(report.pass_rate, 100.0)
         self.assertTrue(report.results[0]["resolved"])
 
+    def test_leaderboard_markdown(self):
+        report = self.harness.run_evaluation(dry_run=True)
+        md = report.render_markdown_leaderboard()
+        self.assertIn("Saleha AI Benchmark Leaderboard", md)
+        self.assertIn("SWE-TEST-001", md)
+
 
 if __name__ == "__main__":
     unittest.main()

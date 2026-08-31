@@ -90,6 +90,17 @@ class MemoryStoreTests(unittest.TestCase):
         payload = json.loads(res.output)
         self.assertIn("total_memories", payload)
 
+    def test_compact_conversation_history(self):
+        steps = [
+            {"step": i, "action": f"tool_{i}", "args": f"arg_{i}", "observation": f"observation line {i}\nmore details"}
+            for i in range(1, 8)
+        ]
+        compacted = MemoryStore.compact_conversation_history(steps)
+        self.assertIn("Compacted Prior Investigation Context", compacted)
+        self.assertIn("Recent Detailed Trace", compacted)
+        self.assertIn("Step 1 (tool_1)", compacted)
+        self.assertIn("Step 7", compacted)
+
 
 if __name__ == "__main__":
     unittest.main()

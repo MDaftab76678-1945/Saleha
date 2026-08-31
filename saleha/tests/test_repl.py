@@ -32,6 +32,11 @@ class REPLTests(unittest.TestCase):
     def test_slash_command_exit(self):
         self.assertTrue(self.repl.handle_slash_command("/exit"))
 
+    def test_slash_command_symbols_status_outline(self):
+        self.assertTrue(self.repl.handle_slash_command("/symbols calculate"))
+        self.assertTrue(self.repl.handle_slash_command("/status"))
+        self.assertTrue(self.repl.handle_slash_command("/outline setup.py"))
+
 
 if __name__ == "__main__":
     unittest.main()

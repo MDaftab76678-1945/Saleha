@@ -77,6 +77,27 @@ SWE_BENCH_TASKS: List[SWEBenchTask] = [
             "print('SWE_BENCH_VERIFIED')"
         ),
         difficulty="medium"
+    ),
+    SWEBenchTask(
+        instance_id="HUMANEVAL-001-CLOSE-ELEMENTS",
+        repo="saleha/math-utils",
+        problem_statement="Check if in given list of numbers, are any two numbers closer to each other than given threshold.",
+        base_code=(
+            "def has_close_elements(numbers: list, threshold: float) -> bool:\n"
+            "    for idx, elem in enumerate(numbers):\n"
+            "        for idx2, elem2 in enumerate(numbers):\n"
+            "            if idx != idx2:\n"
+            "                distance = abs(elem - elem2)\n"
+            "                if distance < threshold:\n"
+            "                    return True\n"
+            "    return False\n"
+        ),
+        test_patch=(
+            "assert has_close_elements([1.0, 2.0, 3.0], 0.5) is False\n"
+            "assert has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3) is True\n"
+            "print('SWE_BENCH_VERIFIED')"
+        ),
+        difficulty="easy"
     )
 ]
 
@@ -88,6 +109,20 @@ class SWEBenchReport:
     pass_rate: float
     avg_latency_sec: float
     results: List[Dict[str, Any]] = field(default_factory=list)
+
+    def render_markdown_leaderboard(self) -> str:
+        lines = [
+            "# 🏆 Saleha AI Benchmark Leaderboard",
+            f"- **Pass Rate (Pass@1):** `{self.pass_rate}%` ({self.resolved_instances}/{self.total_instances} Resolved)",
+            f"- **Avg Latency:** `{self.avg_latency_sec}s`",
+            "",
+            "| Task ID | Domain / Repo | Difficulty | Status | Latency |",
+            "|---|---|---|---|---|"
+        ]
+        for r in self.results:
+            status_badge = "✅ PASS" if r["resolved"] else "❌ FAIL"
+            lines.append(f"| `{r['instance_id']}` | `{r['repo']}` | {r['difficulty']} | {status_badge} | {r['latency_sec']}s |")
+        return "\n".join(lines)
 
 
 class SWEBenchHarness:
@@ -140,4 +175,5 @@ class SWEBenchHarness:
 
 # Global instance
 swe_bench = SWEBenchHarness()
+
 

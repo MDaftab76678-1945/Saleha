@@ -246,7 +246,47 @@ class MemoryStore:
         }
         return [t for t in tokens if t in tech_keywords]
 
+    @staticmethod
+    def compact_conversation_history(transcript_steps: List[Dict[str, Any]], max_chars: int = 4000) -> str:
+        """
+        Hierarchically compacts multi-turn agent conversation steps into a token-efficient summary.
+        Keeps recent actions detailed while condensing older tool observations into semantic bullet points.
+        """
+        if not transcript_steps:
+            return "(no history)"
+
+        if len(transcript_steps) <= 4:
+            lines = []
+            for s in transcript_steps:
+                lines.append(f"[Step {s.get('step', '?')}] {s.get('action')}({s.get('args', '')}) -> {s.get('observation', '')[:200]}")
+            return "\n".join(lines)
+
+        older = transcript_steps[:-4]
+        recent = transcript_steps[-4:]
+
+        compact_lines = ["### 📜 Compacted Prior Investigation Context:"]
+        for s in older:
+            action = s.get("action", "")
+            step_no = s.get("step", "?")
+            obs = str(s.get("observation", ""))
+            first_line = obs.strip().splitlines()[0] if obs.strip() else "done"
+            compact_lines.append(f"- Step {step_no} ({action}): {first_line[:120]}")
+
+        compact_lines.append("\n### ⚡ Recent Detailed Trace:")
+        for s in recent:
+            step_no = s.get("step", "?")
+            action = s.get("action", "")
+            args = str(s.get("args", ""))[:80]
+            obs = str(s.get("observation", ""))[:300]
+            compact_lines.append(f"[Step {step_no}] {action}({args})\nOBSERVATION: {obs}")
+
+        full_compact = "\n".join(compact_lines)
+        if len(full_compact) > max_chars:
+            return full_compact[:max_chars] + "\n...(older context pruned for budget)"
+        return full_compact
+
 
 # Global memory store instance
 memory_store = MemoryStore()
+
 
