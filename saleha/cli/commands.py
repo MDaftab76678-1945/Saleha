@@ -77,6 +77,7 @@ _LAZY_IMPORT_MAP = {
     "start_tui_canvas": ("saleha.cli.tui_canvas", "start_tui_canvas"),
     "render_dashboard": ("saleha.cli.dashboard", "render_dashboard"),
     "run_live_dashboard": ("saleha.cli.dashboard", "run_live_dashboard"),
+    "AgentLoop": ("saleha.core.agentic_loop", "AgentLoop"),
 }
 
 
@@ -270,6 +271,78 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
     if verbose:
         console.print("\n[bold yellow]📜 Execution Log:[/]")
         console.print(result.log)
+
+# ==============================================================================
+# AGENT COMMAND - Autonomous ReAct Loop with Surgical AST Tools
+# ==============================================================================
+
+@cli.command()
+@click.argument('goal')
+@click.option('--model', '-m', default='auto', help='Model to use')
+@click.option('--max-steps', default=10, type=click.IntRange(1, 50), help='Maximum agent exploration/patch steps')
+@click.option('--allow-write', '-w', is_flag=True, help='Allow the autonomous agent to patch or write files')
+@click.option('--root-dir', '-d', default='.', help='Root workspace directory for the agent')
+@click.option('--json', 'as_json', is_flag=True, help='Output machine-readable JSON result')
+def agent(goal, model, max_steps, allow_write, root_dir, as_json):
+    """
+    Run an Autonomous ReAct Agent with surgical tools (patch_file, find_symbols, outline, run_code).
+    
+    Example: saleha agent "Find charge function in app.py and double the rate" -w
+    Example read-only: saleha agent "Audit security of authentication routes"
+    """
+    base_agent = BaseAgent(role="Autonomous Software Engineer", model=model)
+    loop = AgentLoop(agent=base_agent, root_dir=root_dir, max_steps=max_steps, allow_write=allow_write)
+
+    if as_json:
+        result = loop.run(goal)
+        click.echo(json.dumps({
+            "success": result.success,
+            "final_message": result.final_message,
+            "error": result.error,
+            "step_count": len(result.steps),
+            "steps": [{"step": s.step_no, "action": s.action, "args": s.args_summary, "observation": s.observation} for s in result.steps]
+        }, ensure_ascii=False))
+        if not result.success:
+            raise click.exceptions.Exit(1)
+        return
+
+    console.print(Panel.fit(
+        f"[bold cyan]🎯 Goal:[/] {goal}\n"
+        f"[bold green]Mode:[/] {'Read/Write (Surgical Patch Enabled)' if allow_write else 'Read-Only Safe Mode'}\n"
+        f"[bold magenta]Max Steps:[/] {max_steps}",
+        title="[bold green]Saleha Autonomous Agent[/]",
+        border_style="green"
+    ))
+
+    def on_event(ev):
+        action = ev.get("action")
+        step_no = ev.get("step")
+        if action == "think":
+            console.print(f"[dim cyan]🧠 Step {step_no} (Reasoning):[/] {ev.get('thought')}")
+        elif action == "finish":
+            console.print(f"\n[bold green]🏁 Finished:[/] {ev.get('observation')}")
+        elif action == "error":
+            console.print(f"\n[bold red]❌ Error:[/] {ev.get('observation')}")
+        else:
+            obs_prev = str(ev.get("observation", ""))[:120].replace("\n", " ")
+            console.print(f"[bold yellow]⚡ Step {step_no}:[/] [cyan]{action}[/] -> [white]{obs_prev}[/]")
+
+    result = loop.run(goal, on_event=on_event)
+    console.print()
+
+    if result.success:
+        console.print(Panel(
+            f"[bold green]✅ Task Complete[/]\n\n{result.final_message}",
+            title="[bold green]Success[/]",
+            border_style="green"
+        ))
+    else:
+        console.print(Panel(
+            f"[bold red]❌ Failed[/]\n\n{result.error}",
+            title="[bold red]Incomplete[/]",
+            border_style="red"
+        ))
+        raise click.exceptions.Exit(1)
 
 # ==============================================================================
 # PLAN COMMAND - Generate Plan Only
