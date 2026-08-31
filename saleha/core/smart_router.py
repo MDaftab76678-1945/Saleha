@@ -353,5 +353,45 @@ class SmartRouter:
             "avg_time": perf["total_time"] / perf["uses"]
         }
 
+    def classify_task_tier(self, task: str) -> Dict[str, Any]:
+        """Classifies task intent into fast, standard, or reasoning tier."""
+        task_lower = task.lower()
+
+        # 1. Reasoning / Architecture Tier
+        reasoning_keywords = [
+            "architect", "design", "distributed", "microservice", "security audit",
+            "vulnerability", "refactor whole", "concurrency", "deadlock", "algorithm",
+            "optimize complexity", "high throughput", "database schema", "self-healing"
+        ]
+        if any(w in task_lower for w in reasoning_keywords) or len(task.split()) > 40:
+            return {
+                "tier": "reasoning",
+                "estimated_complexity": 8.5,
+                "recommended_model": self.select_model(task, complexity_score=8.5),
+                "rationale": "High-complexity architectural reasoning required."
+            }
+
+        # 2. Fast Tier
+        fast_keywords = [
+            "docstring", "comment", "rename", "typo", "quick fix", "syntax",
+            "convert", "format", "uppercase", "lowercase", "is_prime", "fibonacci",
+            "two sum", "simple helper", "unit test outline"
+        ]
+        if any(w in task_lower for w in fast_keywords) and len(task.split()) < 15:
+            return {
+                "tier": "fast",
+                "estimated_complexity": 2.0,
+                "recommended_model": self.select_model(task, complexity_score=2.0),
+                "rationale": "Low-complexity syntactic/helper task suitable for ultra-fast local tier."
+            }
+
+        # 3. Standard Tier
+        return {
+            "tier": "standard",
+            "estimated_complexity": 5.0,
+            "recommended_model": self.select_model(task, complexity_score=5.0),
+            "rationale": "Standard implementation and modular engineering task."
+        }
+
     def get_all_stats(self) -> Dict[str, Dict]:
         return {name: self.get_model_stats(name) for name in self.models}

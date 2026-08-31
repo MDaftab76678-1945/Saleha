@@ -31,6 +31,20 @@ class SmartRouterTests(unittest.TestCase):
         self.assertEqual(stats["avg_time"], 1.0)
         self.assertEqual(reloaded.get_model_stats("qwen2.5-coder:1.5b")["uses"], 2)
 
+    def test_classify_task_tier(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            router = SmartRouter(history_file=str(Path(tmp) / "router.json"))
+            fast_info = router.classify_task_tier("add docstring to helper function")
+            self.assertEqual(fast_info["tier"], "fast")
+            self.assertLessEqual(fast_info["estimated_complexity"], 3.0)
+
+            reasoning_info = router.classify_task_tier("design distributed microservice architecture with security audit")
+            self.assertEqual(reasoning_info["tier"], "reasoning")
+            self.assertGreaterEqual(reasoning_info["estimated_complexity"], 8.0)
+
+            standard_info = router.classify_task_tier("build user login endpoint with password hash")
+            self.assertEqual(standard_info["tier"], "standard")
+
 
 if __name__ == "__main__":
     unittest.main()
