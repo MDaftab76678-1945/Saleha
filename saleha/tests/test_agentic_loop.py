@@ -129,6 +129,47 @@ class AgentLoopTests(unittest.TestCase):
         self.assertGreaterEqual(len(events), 2)
         self.assertEqual(events[-1]["action"], "finish")
 
+    def test_patch_file_tool(self):
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="app.py", search="amount * 2", replace="amount * 10"),
+            _finish("patched"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True)
+        with patch_gate(approve_result=True):
+            res = loop.run("patch charge")
+        self.assertTrue(res.success)
+        with open(os.path.join(self.root, "app.py"), "r") as f:
+            self.assertIn("amount * 10", f.read())
+
+    def test_get_file_outline_and_find_symbols(self):
+        agent = ScriptedAgent([
+            _tool_call("get_file_outline", path="app.py"),
+            _tool_call("find_symbols", symbol_name="charge"),
+            _finish("inspected"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("inspect code")
+        self.assertTrue(res.success)
+        self.assertIn("def charge()", res.steps[0].observation)
+        self.assertIn("app.py", res.steps[1].observation)
+
+    def test_deepseek_r1_think_parsing(self):
+        events = []
+        agent = ScriptedAgent([
+            "<think>Analyzing billing function to verify rate logic.</think>\n"
+            + _tool_call("read_file", path="app.py"),
+            "<think>I found the charge function and it looks correct.</think>\n"
+            + _finish("verified charge function"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("check charge", on_event=events.append)
+        self.assertTrue(res.success)
+        self.assertEqual(res.final_message, "verified charge function")
+        # Ensure think events were emitted
+        think_events = [e for e in events if e.get("action") == "think"]
+        self.assertGreaterEqual(len(think_events), 2)
+        self.assertIn("Analyzing billing", think_events[0]["thought"])
+
 
 class patch_gate:
     """approval_gate.approve ko force-approve karta hai (context manager)."""

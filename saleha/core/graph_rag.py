@@ -19,6 +19,7 @@ class GraphRAGAnswer:
     relevant_files: List[str] = field(default_factory=list)
     key_symbols: List[str] = field(default_factory=list)
     call_hierarchy: List[str] = field(default_factory=list)
+    downstream_impacted_files: List[str] = field(default_factory=list)
 
 
 class GraphRAGEngine:
@@ -52,12 +53,19 @@ class GraphRAGEngine:
                     relevant_files.add(c.caller_file)
                     call_chains.append(f"{c.caller_file}:{c.caller_line} -> calls {sym}()")
 
+        # Compute downstream impacted files
+        impacted_files = set()
+        for f in relevant_files:
+            for imp in dependency_graph.get_impacted_files(f):
+                impacted_files.add(imp)
+
         # 2. Build Graph-Augmented Context Prompt
         context_blocks = [
             f"Codebase Graph Context for Question: '{question}'",
             f"Total Files Indexed: {len(dependency_graph.files_indexed)}",
             f"Matched Symbols: {', '.join(matched_symbols[:10]) or 'None'}",
             f"Relevant Files: {', '.join(list(relevant_files)[:10]) or 'General Codebase'}",
+            f"Downstream Impacted Files: {', '.join(list(impacted_files)[:10]) or 'None'}",
             "\nCall Hierarchy Traces:"
         ]
         context_blocks.extend(call_chains[:8] if call_chains else ["No direct cross-file call traces found."])
@@ -84,7 +92,8 @@ class GraphRAGEngine:
             answer=answer_text,
             relevant_files=sorted(list(relevant_files)),
             key_symbols=matched_symbols[:10],
-            call_hierarchy=call_chains[:10]
+            call_hierarchy=call_chains[:10],
+            downstream_impacted_files=sorted(list(impacted_files))
         )
 
 

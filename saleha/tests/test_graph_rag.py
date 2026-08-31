@@ -11,6 +11,7 @@ class GraphRAGTests(unittest.TestCase):
         self.assertEqual(ans.question, "How does security scanner detect vulnerabilities?")
         self.assertTrue(len(ans.answer) > 20)
         self.assertTrue(isinstance(ans.relevant_files, list))
+        self.assertTrue(isinstance(ans.downstream_impacted_files, list))
 
 
 if __name__ == "__main__":

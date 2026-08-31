@@ -199,6 +199,63 @@ Never invent tool outputs. One block per reply. Be efficient."""
         except OSError as err:
             return f"write error: {err}"
 
+    def _tool_patch_file(self, path: str, search: str, replace: str) -> str:
+        if not self.allow_write:
+            return "BLOCKED: write/patch tool disabled (enable allow_write=True)"
+        from saleha.core.approval_gate import approve
+        abs_p = self._safe_path(path)
+        if not abs_p:
+            return f"path traversal blocked: {path}"
+        if not os.path.isfile(abs_p):
+            return f"file not found: {path}"
+        if not approve("file_patch", f"{path} (search {len(search)} chars -> replace {len(replace)} chars)"):
+            return "BLOCKED: human approval denied/required."
+        try:
+            with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
+                old_content = f.read()
+            from saleha.core.codebase_indexer import SmartPatcher
+            ok, patched, err = SmartPatcher.apply_search_replace(old_content, search, replace)
+            if not ok:
+                return f"patch failed: {err}"
+            with open(abs_p, "w", encoding="utf-8") as f:
+                f.write(patched)
+            return f"successfully patched: {path}"
+        except OSError as err:
+            return f"patch error: {err}"
+
+    def _tool_find_symbols(self, symbol_name: str) -> str:
+        from saleha.core.codebase_indexer import CodebaseIndexer
+        indexer = CodebaseIndexer(root_dir=self.root_dir)
+        indexer.scan()
+        files = indexer.find_symbol(symbol_name.strip())
+        if not files:
+            return f"symbol '{symbol_name}' not found in codebase"
+        return f"symbol '{symbol_name}' found in: {', '.join(files)}"
+
+    def _tool_get_file_outline(self, path: str) -> str:
+        abs_p = self._safe_path(path)
+        if not abs_p or not os.path.isfile(abs_p):
+            return f"file not found: {path}"
+        if not path.endswith(".py"):
+            return "outline is currently supported for Python (.py) files"
+        try:
+            import ast
+            with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            tree = ast.parse(content, filename=abs_p)
+            lines = []
+            for node in tree.body:
+                if isinstance(node, ast.ClassDef):
+                    lines.append(f"class {node.name} (lines {node.lineno}-{node.end_lineno}):")
+                    for sub in node.body:
+                        if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            lines.append(f"  - def {sub.name}() (lines {sub.lineno}-{sub.end_lineno})")
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    lines.append(f"def {node.name}() (lines {node.lineno}-{node.end_lineno})")
+            return "\n".join(lines) or "(no top-level classes/functions)"
+        except Exception as ex:
+            return f"outline error: {ex}"
+
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
@@ -215,10 +272,11 @@ Never invent tool outputs. One block per reply. Be efficient."""
         tools: Dict[str, Callable] = {
             "list_dir": self._tool_list_dir,
             "read_file": self._tool_read_file,
+            "get_file_outline": self._tool_get_file_outline,
+            "find_symbols": self._tool_find_symbols,
             "search_repo": self._tool_search_repo,
             "run_code": self._tool_run_code,
-            # Hamesha registered -- handler khud allow_write check karta hai,
-            # taaki model ko clear "BLOCKED" observation mile (silent absence se behtar)
+            "patch_file": self._tool_patch_file,
             "write_file": self._tool_write_file,
         }
 
@@ -244,8 +302,17 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 emit({"step": step_no, "action": "error", "observation": result.error})
                 return result
 
-            # Finish check pehle
-            fin = _FINISH_RE.search(resp.content)
+            # 1. DeepSeek-R1 / CoT Reasoning extraction (<think>...</think>)
+            raw_content = resp.content or ""
+            think_match = re.search(r"<think>(.*?)</think>", raw_content, re.DOTALL)
+            clean_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip() if think_match else raw_content
+
+            if think_match:
+                thought_str = think_match.group(1).strip()
+                emit({"step": step_no, "action": "think", "thought": thought_str[:500]})
+
+            # 2. Finish check
+            fin = _FINISH_RE.search(clean_content)
             if fin:
                 try:
                     summary = str(json.loads(fin.group(1)).get("finish", ""))
@@ -257,12 +324,12 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 emit({"step": step_no, "action": "finish", "observation": result.final_message})
                 return result
 
-            # Tool call parse (```tool_call {...}``` format)
-            call = self._parse_call(resp.content)
+            # 3. Tool call parse (```tool_call {...}``` format or JSON fallback)
+            call = self._parse_call(clean_content)
             if call is None:
                 result.error = f"step {step_no}: model returned no tool_call/finish block"
                 emit({"step": step_no, "action": "parse-error",
-                      "observation": resp.content[:200]})
+                      "observation": clean_content[:200]})
                 return result
 
             tool_name, args = call
@@ -290,15 +357,23 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
     @staticmethod
     def _parse_call(text: str) -> Optional[Tuple[str, Dict]]:
-        m = re.search(r"```(?:tool_call)?\s*(\{.*?\})\s*```", text or "", re.DOTALL)
-        if not m:
-            return None
-        try:
-            data = json.loads(m.group(1))
-        except json.JSONDecodeError:
-            return None
-        name = data.get("tool") or data.get("name")
-        args = data.get("args") or data.get("arguments") or {}
-        if name and isinstance(args, dict):
-            return str(name), args
+        m = re.search(r"```(?:tool_call|json)?\s*(\{.*?\})\s*```", text or "", re.DOTALL)
+        data = None
+        if m:
+            try:
+                data = json.loads(m.group(1))
+            except json.JSONDecodeError:
+                data = None
+        if not data:
+            # Fallback to direct raw JSON object
+            try:
+                data = json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                data = None
+
+        if isinstance(data, dict):
+            name = data.get("tool") or data.get("name") or data.get("action")
+            args = data.get("args") or data.get("arguments") or data.get("action_input") or {}
+            if name and isinstance(args, dict):
+                return str(name), args
         return None
