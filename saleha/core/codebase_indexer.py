@@ -339,3 +339,8 @@ class SmartPatcher:
             "lines_changed": len([l for l in diff.splitlines() if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))])
         }
 
+
+# Global instance
+codebase_indexer = CodebaseIndexer()
+
+

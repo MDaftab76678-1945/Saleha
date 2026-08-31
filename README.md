@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-400%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-414%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,10 @@
 
 | Capability | Detail |
 |---|---|
+| 🩹 **Autonomous Self-Healing Loop** | `saleha fix "<cmd>"` parses failing test/compiler stacktraces, localizes fault, patches surgically, and verifies with auto-commit |
+| 🔎 **Hybrid Semantic Code Search** | `saleha search "<query>" --semantic` combines subword BM25 ranking and TF-IDF vector embeddings for <10ms symbol retrieval |
+| 👥 **Multi-Model Ensemble Reviewer** | `saleha review <path> --ensemble` cross-validates code via Security Auditor + Performance Architect + QA Reliability agents |
+| 📊 **Live Interactive Terminal HUD** | `saleha hud` renders 4-quadrant real-time TUI telemetry (Ollama health, RAM/VRAM, AST symbols, hotkeys) |
 | 🧠 **DeepSeek-R1 CoT Reasoning** | Extracts and streams `<think>...</think>` internal model reasoning tokens without JSON corruption |
 | ✂️ **Surgical Aider-Style Diffing** | `<<<<<<< SEARCH ... ======= ... >>>>>>>` block diffs with 3-tier fuzzy indentation-tolerant search (90% token reduction) |
 | 🌲 **Git Worktree Isolation** | Swarm agents run in parallel ephemeral Git worktree branches (`saleha/task-...`) keeping the main workspace pristine |

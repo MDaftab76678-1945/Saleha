@@ -3876,6 +3876,116 @@ def ship_cmd(target_dir, auto_apply):
         console.print("\n[dim]Run 'saleha ship --apply' to write these deployment files directly to disk.[/]\n")
 
 
+@cli.command(name='fix')
+@click.argument('command_or_file', default='pytest')
+@click.option('--retries', default=3, help='Max healing attempts')
+@click.option('--no-commit', is_flag=True, help='Do not auto-commit verified fix')
+def fix_cmd(command_or_file, retries, no_commit):
+    """
+    Autonomous Self-Healing Loop: Runs a failing command/test, localizes fault, patches and verifies.
+    
+    Example: saleha fix "pytest saleha/tests/test_foo.py"
+    """
+    from saleha.core.self_healer import self_healer
+    console.print(f"[bold cyan]🩹 Running Autonomous Self-Healer on:[/] [yellow]{command_or_file}[/]")
+    result = self_healer.auto_heal(command_or_file, max_retries=retries, auto_commit=not no_commit)
+
+    if result.success:
+        if result.attempts_made == 0:
+            console.print("[bold green]✅ Command is already passing! Zero errors detected.[/]")
+        else:
+            console.print(f"[bold green]🎉 Healed successfully in {result.attempts_made} attempt(s)![/]")
+            if result.commit_hash:
+                console.print(f"[cyan]📦 Git Commit:[/] [yellow]{result.commit_hash}[/]")
+    else:
+        console.print(f"[bold red]❌ Healing failed:[/] {result.error}")
+        if result.diagnostics:
+            console.print(f"[dim]Faulting Location: {result.diagnostics.faulting_file}:{result.diagnostics.faulting_line}[/]")
+
+
+@cli.command(name='search')
+@click.argument('query')
+@click.option('--limit', default=10, help='Max results to display')
+@click.option('--semantic/--lexical', default=True, help='Enable hybrid BM25 + Vector cosine similarity')
+@click.option('--json', 'as_json', is_flag=True, help='Output JSON format')
+def search_cmd(query, limit, semantic, as_json):
+    """
+    Hybrid BM25 + Vector Semantic Code Search across codebase symbols and syntax trees.
+    
+    Example: saleha search "memory compact history" --semantic
+    """
+    from saleha.core.semantic_search import semantic_search
+    results = semantic_search.search(query, top_k=limit, semantic=semantic)
+
+    if as_json:
+        click.echo(json.dumps([r.__dict__ for r in results], ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title=f"🔎 Codebase Search: '{query}' ({'Hybrid Semantic' if semantic else 'Lexical BM25'})", show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Score", width=8, style="bold green")
+    table.add_column("Location", style="bold cyan", width=30)
+    table.add_column("Type", width=12, style="yellow")
+    table.add_column("Snippet / Symbol", style="white")
+
+    for r in results:
+        table.add_row(
+            f"{r.score:.3f}",
+            f"{r.file_path}:{r.line_number}",
+            r.symbol_type,
+            r.snippet
+        )
+
+    console.print(table)
+    if not results:
+        console.print("[dim]No matching symbols or comments found.[/]\n")
+
+
+@cli.command(name='review')
+@click.argument('target_file_or_dir', default='.')
+@click.option('--ensemble', is_flag=True, help='Use 3-Agent Multi-Model Consensus (Security + Performance + QA)')
+@click.option('--min-confidence', default=0.80, help='Minimum confidence threshold for approval')
+def review_cmd(target_file_or_dir, ensemble, min_confidence):
+    """
+    Run automated code review with optional Multi-Model Ensemble Consensus.
+    
+    Example: saleha review saleha/core/agentic_loop.py --ensemble
+    """
+    if ensemble:
+        from saleha.core.ensemble_reviewer import ensemble_reviewer
+        content = ""
+        if os.path.isfile(target_file_or_dir):
+            with open(target_file_or_dir, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        else:
+            from saleha.core.git_native import git_engine
+            content = git_engine.get_status_summary().get("diff", "Codebase audit")
+
+        consensus = ensemble_reviewer.review_code(content, file_path=target_file_or_dir, min_confidence=min_confidence)
+        console.print(Markdown(consensus.summary))
+        if consensus.approved:
+            console.print("\n[bold green]✅ Code change APPROVED by Ensemble Consensus![/]\n")
+        else:
+            console.print("\n[bold yellow]⚠️ Code change REQUIRES REVISION before merge.[/]\n")
+    else:
+        console.print("[yellow]Pass --ensemble to run the 3-Agent consensus reviewer (e.g. saleha review . --ensemble)[/]")
+
+
+@cli.command(name='hud')
+@click.option('--once', is_flag=True, help='Render a single static snapshot without live loop')
+@click.option('--rate', default=1.0, help='Refresh interval in seconds')
+def hud_cmd(once, rate):
+    """
+    Live interactive Terminal Heads-Up Display (HUD) with real-time telemetry and hotkeys.
+    
+    Example: saleha hud
+    """
+    from saleha.cli.terminal_hud import terminal_hud
+    if once:
+        terminal_hud.render_once()
+    else:
+        terminal_hud.run_live(refresh_rate=rate)
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
