@@ -6,12 +6,14 @@ extracts symbol tables (classes, methods, functions, imports, docstrings),
 tracks cross-file dependency call graphs, and enables surgical diff patching.
 """
 
+from __future__ import annotations
+
 import os
 import ast
 import re
 import difflib
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Set, Any
+from typing import List, Dict, Optional, Set, Any, Tuple
 from saleha.core.path_utils import safe_relpath
 
 

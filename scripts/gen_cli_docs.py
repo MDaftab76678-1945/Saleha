@@ -5,8 +5,10 @@ Usage: python scripts/gen_cli_docs.py
 Kabhi naya command add ho to bas ye script chala do -- docs hamesha
 code ke saath sync rehte hain.
 """
+from __future__ import annotations
 import io
 import sys
+from typing import List
 
 import click
 

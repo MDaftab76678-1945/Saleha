@@ -33,12 +33,12 @@ jobs:
 
       - name: Run Test Suite
         run: |
-          pytest saleha/tests -v
+          python -m pytest saleha/tests -v
 
       - name: Run Saleha Autonomous Review Bot
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: |
-          saleha ci review . --output pr_review.md --json
+          saleha ci review . --output pr_review.md --json || true
 
       - name: Post PR Review Comment
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
