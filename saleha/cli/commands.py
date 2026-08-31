@@ -3986,6 +3986,104 @@ def hud_cmd(once, rate):
         terminal_hud.run_live(refresh_rate=rate)
 
 
+@cli.group(name='refactor')
+def refactor_group():
+    """
+    Autonomous Multi-File Atomic Refactoring & AST Symbol Migration.
+    """
+    pass
+
+
+@refactor_group.command(name='rename')
+@click.argument('old_symbol')
+@click.argument('new_symbol')
+@click.option('--no-commit', is_flag=True, help='Do not auto-commit changes')
+def refactor_rename_cmd(old_symbol, new_symbol, no_commit):
+    """
+    Rename symbol across all definitions and call-sites with atomic rollback protection.
+    
+    Example: saleha refactor rename SmartRouter NextGenRouter
+    """
+    from saleha.core.multi_file_refactorer import multi_file_refactorer
+    console.print(f"[bold cyan]🔄 Planning atomic multi-file rename:[/] [yellow]{old_symbol}[/] -> [green]{new_symbol}[/]")
+    res = multi_file_refactorer.rename_symbol(old_symbol, new_symbol, auto_commit=not no_commit)
+
+    if res.success:
+        console.print(f"\n[bold green]✅ Successfully renamed '{old_symbol}' -> '{new_symbol}' across {len(res.files_modified)} files![/]")
+        for f in res.files_modified:
+            console.print(f"  • [cyan]{f}[/]")
+        if res.commit_hash:
+            console.print(f"\n[cyan]📦 Git Commit:[/] [yellow]{res.commit_hash}[/]")
+    else:
+        console.print(f"\n[bold red]❌ Refactoring failed:[/] {res.error}")
+        if res.rollback_performed:
+            console.print("[bold yellow]🛡️ Automatic transactional rollback completed. Workspace is 100% intact.[/]")
+
+
+@cli.command(name='learn')
+@click.argument('skill_goal')
+@click.option('--name', default=None, help='Custom skill identifier name')
+def learn_cmd(skill_goal, name):
+    """
+    Synthesize and distill an engineering task pattern into a permanent reusable skill.
+    
+    Example: saleha learn "optimize postgres connection pool and vacuum"
+    """
+    from saleha.core.skill_synthesizer import skill_synthesizer
+    console.print(f"[bold cyan]🧠 Distilling continuous learning skill for:[/] [yellow]{skill_goal}[/]")
+    skill = skill_synthesizer.distill_from_execution(task_goal=skill_goal, execution_trace=f"Task pattern: {skill_goal}", skill_name=name)
+    saved_path = skill_synthesizer.save_skill(skill)
+    console.print(f"\n[bold green]✅ Synthesized permanent skill:[/] [cyan]{skill.name}[/]")
+    console.print(f"[dim]Saved to: {saved_path}[/]\n")
+
+
+@cli.command(name='budget')
+@click.option('--history', is_flag=True, help='Show recent invocation history')
+def budget_cmd(history):
+    """
+    Token Economics & Cumulative Cloud API Cost Savings Analytics.
+    
+    Example: saleha budget
+    """
+    from saleha.core.token_analytics import token_analytics
+    summary = token_analytics.get_summary()
+
+    table = Table(title="💰 Token Economics & Cloud Cost Savings", show_header=True, header_style="bold green", expand=True)
+    table.add_column("Metric", style="bold white")
+    table.add_column("Value", style="cyan")
+
+    table.add_row("Total Invocations", str(summary["total_invocations"]))
+    table.add_row("Total Tokens (In + Out)", f"{summary['total_tokens']:,}")
+    table.add_row("Prompt Tokens", f"{summary['total_prompt_tokens']:,}")
+    table.add_row("Completion Tokens", f"{summary['total_completion_tokens']:,}")
+    table.add_row("Reasoning (<think>) Tokens", f"{summary['total_reasoning_tokens']:,}")
+    table.add_row("Average Generation Speed", f"{summary['average_speed_tps']} tokens/sec")
+    table.add_row("Claude 3.5 Sonnet Equivalent Saved", f"[bold green]{summary['claude_equivalent_saved']}[/]")
+    table.add_row("GPT-4o Equivalent Saved", f"[bold green]{summary['gpt4o_equivalent_saved']}[/]")
+
+    console.print(table)
+
+
+@cli.command(name='debate')
+@click.argument('topic')
+@click.option('--rounds', default=2, help='Number of debate rounds between Advocate and Skeptic')
+@click.option('--context', default='', help='Additional architectural context')
+@click.option('--save', 'save_dir', default='docs/adr', help='Output directory for synthesized ADR')
+def debate_cmd(topic, rounds, context, save_dir):
+    """
+    Run multi-agent architecture debate (Advocate vs Skeptic vs Judge) and synthesize ADR.md.
+    
+    Example: saleha debate "Migrate from REST to gRPC for inter-service communication"
+    """
+    from saleha.core.architecture_debater import architecture_debater
+    console.print(f"[bold cyan]⚔️ Initiating Architecture Debate on:[/] [yellow]{topic}[/]")
+    adr = architecture_debater.debate(topic=topic, rounds=rounds, context=context)
+    file_p = architecture_debater.save_adr(adr, output_dir=save_dir)
+
+    console.print(Markdown(adr.markdown_content))
+    console.print(f"\n[bold green]✅ Synthesized Architecture Decision Record (ADR):[/] [cyan]{file_p}[/]\n")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

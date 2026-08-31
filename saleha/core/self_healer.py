@@ -279,3 +279,4 @@ Rules:
 
 # Global instance
 self_healer = SelfHealingEngine()
+

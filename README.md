@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-414%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-428%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,11 @@
 
 | Capability | Detail |
 |---|---|
+| 🔄 **Multi-File Atomic Refactoring** | `saleha refactor rename <old> <new>` performs synchronized symbol renaming with transactional rollback protection |
+| 🧠 **Continuous Skill Synthesis** | `saleha learn "<task>"` auto-distills successful fixes into permanent reusable skill files (`.saleha/skills/*.md`) |
+| 💰 **Token Economics & Cost Analytics** | `saleha budget` tracks prompt/completion/reasoning tokens, generation speeds, and dollar savings vs Claude 3.5 & GPT-4o |
+| ⚔️ **Architecture Debate & ADR Engine** | `saleha debate "<topic>"` runs 3-agent dialectic debates (Advocate vs Skeptic vs Judge) to generate ADR markdown docs |
+| 🌐 **Polyglot AST & CST Parser** | Native AST extraction for Python, JavaScript, TypeScript, Go, Rust, and Java |
 | 🩹 **Autonomous Self-Healing Loop** | `saleha fix "<cmd>"` parses failing test/compiler stacktraces, localizes fault, patches surgically, and verifies with auto-commit |
 | 🔎 **Hybrid Semantic Code Search** | `saleha search "<query>" --semantic` combines subword BM25 ranking and TF-IDF vector embeddings for <10ms symbol retrieval |
 | 👥 **Multi-Model Ensemble Reviewer** | `saleha review <path> --ensemble` cross-validates code via Security Auditor + Performance Architect + QA Reliability agents |
