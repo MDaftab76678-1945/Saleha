@@ -43,8 +43,8 @@ ollama pull qwen3-coder:30b
 
 ### 2. Install Saleha
 ```powershell
-git clone https://github.com/aftab-alam/saleha-0.1.git
-cd saleha-0.1
+git clone https://github.com/MDaftab76678-1945/Saleha.git
+cd Saleha
 py -3.12 -m pip install -r requirements.txt
 py -3.12 -m pip install -e .
 saleha --version

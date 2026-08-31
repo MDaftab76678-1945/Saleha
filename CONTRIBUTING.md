@@ -5,8 +5,8 @@ Thanks for considering a contribution! Saleha is a **local-first autonomous mult
 ## 🚀 Quick Setup
 
 ```bash
-git clone https://github.com/MDaftab76678-1945/aftab-alam-saleha-0.1.git
-cd aftab-alam-saleha-0.1
+git clone https://github.com/MDaftab76678-1945/Saleha.git
+cd Saleha
 python -m pip install -e .
 python -m pip install -e ".[codeintel]"   # optional: tree-sitter context ranking
 ollama pull qwen2.5-coder:1.5b            # fast local model for manual testing

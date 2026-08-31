@@ -57,6 +57,26 @@ class DockerSandboxRunner:
                 res = self.fallback_runner.run_in_sandbox(code, timeout=timeout)
                 res.output = f"[Docker unavailable: VirtualEnv Sandbox Fallback]\n{res.output}" if res.output else res.output
                 return res
+            elif self.fallback_runner:
+                try:
+                    from saleha.core.polyglot_executor import polyglot_executor
+                    poly_res = polyglot_executor.execute(code, language=language)
+                    out_msg = f"[Docker unavailable: Polyglot Local Fallback ({language})]\n{poly_res.output}" if poly_res.output else poly_res.output
+                    return SandboxResult(
+                        success=poly_res.success,
+                        output=out_msg,
+                        error=poly_res.error,
+                        exit_code=poly_res.exit_code,
+                        execution_time=poly_res.execution_time,
+                        blocked=poly_res.blocked,
+                        block_reason=poly_res.block_reason
+                    )
+                except Exception as ex:
+                    return SandboxResult(
+                        success=False,
+                        exit_code=-1,
+                        error=f"Local polyglot fallback failed: {str(ex)}"
+                    )
             return SandboxResult(
                 success=False,
                 exit_code=-1,

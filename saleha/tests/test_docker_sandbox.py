@@ -16,6 +16,18 @@ class DockerSandboxTests(unittest.TestCase):
             self.assertTrue(res.success)
             self.assertIn("fallback ok", res.output)
 
+    def test_docker_fallback_to_polyglot_when_unavailable(self):
+        with patch("saleha.core.docker_sandbox.is_docker_available", return_value=False), \
+             patch("saleha.core.polyglot_executor.polyglot_executor.execute") as mock_poly:
+            from saleha.core.polyglot_executor import PolyglotExecutionResult
+            mock_poly.return_value = PolyglotExecutionResult(
+                success=True, language="javascript", output="polyglot js output"
+            )
+            runner = DockerSandboxRunner(fallback_to_venv=True)
+            res = runner.run_code("console.log('js');", language="javascript")
+            self.assertTrue(res.success)
+            self.assertIn("polyglot js output", res.output)
+
     def test_docker_execution_mock(self):
         with patch("saleha.core.docker_sandbox.is_docker_available", return_value=True), \
              patch("saleha.core.docker_sandbox.subprocess.run") as mock_run:

@@ -28,6 +28,7 @@ class TestResult:
 class TesterAgent:
     """Code checker: static pre-flight (AST/safety/keywords) + REAL unittest
     execution via run_suite()."""
+    __test__ = False
 
     def test_code(self, code: str, expected_keywords: list = None,
                   language: str = "python") -> TestResult:

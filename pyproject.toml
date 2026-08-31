@@ -43,14 +43,22 @@ codeintel = [
     "tree-sitter-javascript>=0.21",
     "tree-sitter-typescript>=0.21"
 ]
-all = ["playwright>=1.35.0", "tree-sitter>=0.22", "tree-sitter-python>=0.21", "tree-sitter-javascript>=0.21", "tree-sitter-typescript>=0.21"]
+all = [
+    "playwright>=1.35.0",
+    "faster-whisper>=1.0",
+    "pyttsx3>=2.90",
+    "tree-sitter>=0.22",
+    "tree-sitter-python>=0.21",
+    "tree-sitter-javascript>=0.21",
+    "tree-sitter-typescript>=0.21"
+]
 
 [project.scripts]
 saleha = "saleha.cli.commands:cli"
 
 [project.urls]
-Homepage = "https://github.com/aftab-alam/saleha-0.1"
-Documentation = "https://github.com/aftab-alam/saleha-0.1/tree/main/docs"
-Repository = "https://github.com/aftab-alam/saleha-0.1.git"
-Issues = "https://github.com/aftab-alam/saleha-0.1/issues"
+Homepage = "https://github.com/MDaftab76678-1945/Saleha"
+Documentation = "https://github.com/MDaftab76678-1945/Saleha/tree/main/docs"
+Repository = "https://github.com/MDaftab76678-1945/Saleha.git"
+Issues = "https://github.com/MDaftab76678-1945/Saleha/issues"
 

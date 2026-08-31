@@ -121,6 +121,7 @@ class TestRunner:
     script generic check hota tha jisme hamara hi harness `sys` import par
     block ho jaata tha.
     """
+    __test__ = False
 
     def __init__(self, executor=None):
         # Lazy import: code_executor chain heavy-ish hai
