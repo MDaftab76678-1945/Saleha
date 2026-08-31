@@ -116,3 +116,4 @@ class ReviewReporter:
 
 # Global instance
 review_reporter = ReviewReporter()
+

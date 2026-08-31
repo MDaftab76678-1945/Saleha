@@ -241,3 +241,4 @@ class AICodeReviewer:
 
 # Global instance
 ai_reviewer = AICodeReviewer()
+

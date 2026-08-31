@@ -139,3 +139,4 @@ class SWELeaderboard:
 
 # Global instance
 swe_leaderboard = SWELeaderboard()
+

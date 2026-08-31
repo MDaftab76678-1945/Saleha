@@ -133,3 +133,4 @@ class BenchmarkReporter:
 
 # Global instance
 benchmark_reporter = BenchmarkReporter()
+

@@ -136,3 +136,4 @@ class TrainingCollector:
 
 # Global instance
 training_collector = TrainingCollector()
+

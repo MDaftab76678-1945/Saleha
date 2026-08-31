@@ -123,3 +123,4 @@ class MemoryJournal:
 
 # Global instance
 memory_journal = MemoryJournal(project="default")
+

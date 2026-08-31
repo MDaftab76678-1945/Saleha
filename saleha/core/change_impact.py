@@ -140,3 +140,4 @@ class ChangeImpactAnalyzer:
 
 # Global instance
 change_impact = ChangeImpactAnalyzer()
+

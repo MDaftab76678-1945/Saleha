@@ -216,3 +216,4 @@ class DiffEngine:
 
 # Global instance
 diff_engine = DiffEngine()
+

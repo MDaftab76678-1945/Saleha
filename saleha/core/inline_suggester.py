@@ -89,3 +89,4 @@ class InlineSuggester:
 
 # Global instance
 inline_suggester = InlineSuggester()
+

@@ -52,4 +52,4 @@ jobs:
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
         PYTHONFAULTHANDLER: "1"
       run: |
-        python -m pytest saleha/tests -v --tb=short --junitxml=test-results-${{ matrix.os }}-${{ matrix.python-version }}.xml -p no:warnings
+        python scripts/ci_test_runner.py
