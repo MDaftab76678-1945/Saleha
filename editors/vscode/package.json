@@ -1,16 +1,31 @@
 {
   "name": "saleha-vscode",
   "displayName": "Saleha AI - Autonomous Multi-Agent AI Engineer",
-  "description": "Local-first, self-healing Autonomous AI Engineering Platform powered by Ollama",
-  "version": "1.5.0",
+  "description": "100% Local-First Autonomous AI Software Engineering Platform powered by Ollama. Self-healing loop, OWASP code review, episodic memory, and surgical diffs.",
+  "version": "2.0.0",
   "publisher": "saleha-ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MDaftab76678-1945/Saleha.git"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages",
     "Linters",
-    "Machine Learning"
+    "Machine Learning",
+    "Testing",
+    "Snippets"
+  ],
+  "keywords": [
+    "ai",
+    "copilot",
+    "ollama",
+    "local-ai",
+    "code-review",
+    "devin-alternative",
+    "self-healing"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -18,22 +33,50 @@
       {
         "command": "saleha.fix",
         "title": "Saleha: Auto-Heal Active Test / Build Errors",
-        "category": "Saleha AI"
+        "category": "Saleha AI",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "saleha.reviewAI",
+        "title": "Saleha: Run Deep OWASP AI Code Review",
+        "category": "Saleha AI",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "saleha.diffPreview",
+        "title": "Saleha: Preview Surgical Diff & AST Blast Radius",
+        "category": "Saleha AI",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "saleha.memoryProject",
+        "title": "Saleha: Recall Project Decisions & Memory",
+        "category": "Saleha AI",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "saleha.watchAI",
+        "title": "Saleha: Toggle Real-Time File Watcher",
+        "category": "Saleha AI",
+        "icon": "$(eye)"
       },
       {
         "command": "saleha.search",
         "title": "Saleha: Hybrid Semantic Codebase Search",
-        "category": "Saleha AI"
-      },
-      {
-        "command": "saleha.refactor",
-        "title": "Saleha: Atomic Multi-File Symbol Rename",
-        "category": "Saleha AI"
+        "category": "Saleha AI",
+        "icon": "$(search)"
       },
       {
         "command": "saleha.hud",
         "title": "Saleha: Open Real-Time Terminal HUD",
-        "category": "Saleha AI"
+        "category": "Saleha AI",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "saleha.tune",
+        "title": "Saleha: Launch Local LoRA Fine-Tuning",
+        "category": "Saleha AI",
+        "icon": "$(rocket)"
       }
     ],
     "keybindings": [
@@ -43,11 +86,32 @@
         "mac": "cmd+alt+f"
       },
       {
+        "command": "saleha.reviewAI",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r"
+      },
+      {
         "command": "saleha.search",
         "key": "ctrl+alt+s",
         "mac": "cmd+alt+s"
+      },
+      {
+        "command": "saleha.watchAI",
+        "key": "ctrl+alt+w",
+        "mac": "cmd+alt+w"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "saleha.reviewAI",
+          "group": "saleha@1"
+        },
+        {
+          "command": "saleha.fix",
+          "group": "saleha@2"
+        }
+      ]
+    }
   }
 }
-

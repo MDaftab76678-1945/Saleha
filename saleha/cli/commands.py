@@ -4683,6 +4683,34 @@ def watch_ai_cmd(directory):
         console.print("\n[yellow]Watch-AI stopped.[/]")
 
 
+@cli.command(name='swe-export')
+@click.option('--output', '-o', default='all_preds.jsonl', help='Output JSONL file path')
+@click.option('--scorecard', '-s', default='scorecard.md', help='Output markdown scorecard path')
+@click.option('--model', default='saleha-v2.0', help='Model name to tag predictions')
+def swe_export_cmd(output, scorecard, model):
+    """
+    Export SWE-bench evaluation run to official all_preds.jsonl and leaderboard scorecard.
+    
+    Example: saleha swe-export --output dist/all_preds.jsonl --scorecard scorecard.md
+    """
+    from saleha.core.swe_leaderboard import swe_leaderboard
+    from saleha.core.swe_bench_exporter import SWEBenchExporter
+
+    console.print(f"[bold cyan]🏁 Evaluating benchmark and exporting for model:[/] [yellow]{model}[/]")
+    run = swe_leaderboard.run_suite(use_llm=False, model=model)
+
+    exporter = SWEBenchExporter(model_name=model)
+    jsonl_path = exporter.export_predictions(run, output_file=output)
+    md = exporter.generate_leaderboard_scorecard(run)
+
+    with open(scorecard, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    console.print(f"[bold green]✅ Official SWE-bench predictions exported:[/] {jsonl_path}")
+    console.print(f"[bold green]📊 Scorecard saved:[/] {os.path.abspath(scorecard)}")
+    console.print(f"[bold green]Pass@1 Score:[/] {run.score_pct:.2f}% ({run.solved}/{run.total_tasks} solved)")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

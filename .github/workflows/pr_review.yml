@@ -1,0 +1,25 @@
+name: Saleha Autonomous PR Code Review & Security Audit
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    name: Saleha AI PR Security & Code Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Saleha AI Action
+        uses: ./
+        with:
+          scan-path: 'saleha/core'
+          fail-on-critical: 'false'
