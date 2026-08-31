@@ -4084,6 +4084,55 @@ def debate_cmd(topic, rounds, context, save_dir):
     console.print(f"\n[bold green]✅ Synthesized Architecture Decision Record (ADR):[/] [cyan]{file_p}[/]\n")
 
 
+@cli.command(name='graph')
+@click.option('--output', default='docs/architecture_graph.html', help='Path to output HTML file')
+@click.option('--dir', 'target_dir', default='.', help='Workspace root directory to map')
+def graph_cmd(output, target_dir):
+    """
+    Generate live interactive 2D/3D force-directed architecture visualizer HTML.
+    
+    Example: saleha graph --output docs/architecture_graph.html
+    """
+    from saleha.core.graph_visualizer import ArchitectureGraphVisualizer
+    console.print(f"[bold cyan]🗺️ Generating interactive architecture graph visualizer for:[/] [yellow]{target_dir}[/]")
+    vis = ArchitectureGraphVisualizer(root_dir=target_dir)
+    out_p = vis.render_html(output_path=output)
+    console.print(f"\n[bold green]✅ Interactive Architecture Graph generated:[/] [cyan]{out_p}[/]")
+    console.print("[dim]Open this file in your browser to inspect nodes and dependencies.[/]\n")
+
+
+@cli.group(name='multi-repo')
+def multi_repo_group():
+    """
+    Multi-Repository & Monorepo Cross-Service Dependency Mapping.
+    """
+    pass
+
+
+@multi_repo_group.command(name='scan')
+@click.argument('workspace_dir', default='.')
+def multi_repo_scan_cmd(workspace_dir):
+    """
+    Scan workspace for child repositories and build cross-repo dependency index.
+    
+    Example: saleha multi-repo scan .
+    """
+    from saleha.core.multi_repo_graph import multi_repo_graph
+    console.print(f"[bold cyan]🏢 Scanning multi-repository workspace:[/] [yellow]{workspace_dir}[/]")
+    meta = multi_repo_graph.scan_workspace(workspace_dir)
+
+    table = Table(title="🏢 Multi-Repository Swarm Index", show_header=True, header_style="bold blue", expand=True)
+    table.add_column("Repository / Package", style="bold white")
+    table.add_column("Source Files", style="cyan")
+    table.add_column("AST Symbols", style="green")
+    table.add_column("Git Repo", style="yellow")
+
+    for r_name, r_meta in meta.items():
+        table.add_row(r_name, str(r_meta.files_count), str(r_meta.symbols_count), "Yes" if r_meta.is_git else "No")
+
+    console.print(table)
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

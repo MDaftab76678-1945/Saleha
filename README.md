@@ -1,6 +1,6 @@
 # 🧠 Saleha AI Framework
 
-[![Tests](https://img.shields.io/badge/Tests-428%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-437%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -13,6 +13,10 @@
 
 | Capability | Detail |
 |---|---|
+| 🌐 **Autonomous Visual Browser Tester** | `saleha test --browser` executes headless DOM flows (click, fill, screenshot, text assertions) for E2E web verification |
+| 🔌 **Standard JSON-RPC LSP Daemon** | `saleha lsp --stdio` connects to VS Code, Cursor, Neovim for live diagnostics, definition jumps, and autocompletion |
+| 🏢 **Multi-Repository Swarm Indexer** | `saleha multi-repo scan` maps cross-repo microservice dependencies and calculates global blast-radius |
+| 🗺️ **Live Interactive Graph Visualizer** | `saleha graph --output docs/graph.html` generates interactive D3.js force-directed SVG network topologies |
 | 🔄 **Multi-File Atomic Refactoring** | `saleha refactor rename <old> <new>` performs synchronized symbol renaming with transactional rollback protection |
 | 🧠 **Continuous Skill Synthesis** | `saleha learn "<task>"` auto-distills successful fixes into permanent reusable skill files (`.saleha/skills/*.md`) |
 | 💰 **Token Economics & Cost Analytics** | `saleha budget` tracks prompt/completion/reasoning tokens, generation speeds, and dollar savings vs Claude 3.5 & GPT-4o |

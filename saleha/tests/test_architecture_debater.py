@@ -53,3 +53,4 @@ Adopt gRPC for internal service-to-service calls.
 
 if __name__ == "__main__":
     unittest.main()
+

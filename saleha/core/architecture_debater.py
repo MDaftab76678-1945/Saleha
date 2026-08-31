@@ -145,3 +145,4 @@ Synthesize a standard ADR format:
 
 # Global instance
 architecture_debater = ArchitectureDebater()
+

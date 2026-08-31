@@ -254,3 +254,4 @@ class PolyglotASTEngine:
 
 # Global instance
 polyglot_ast_engine = PolyglotASTEngine()
+

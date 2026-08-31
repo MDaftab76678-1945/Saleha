@@ -157,3 +157,4 @@ class TokenAnalyticsEngine:
 
 # Global instance
 token_analytics = TokenAnalyticsEngine()
+

@@ -202,3 +202,4 @@ class MultiFileRefactorer:
 
 # Global instance
 multi_file_refactorer = MultiFileRefactorer()
+
