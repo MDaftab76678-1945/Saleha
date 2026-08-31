@@ -80,6 +80,9 @@ _LAZY_IMPORT_MAP = {
     "AgentLoop": ("saleha.core.agentic_loop", "AgentLoop"),
     "repo_watcher": ("saleha.core.repo_watcher", "repo_watcher"),
     "swe_bench": ("saleha.core.swe_bench_harness", "swe_bench"),
+    "lsp_engine": ("saleha.core.lsp_engine", "lsp_engine"),
+    "cloud_deployer": ("saleha.core.cloud_deployer", "cloud_deployer"),
+    "db_optimizer": ("saleha.core.db_optimizer", "db_optimizer"),
 }
 
 
@@ -3789,6 +3792,88 @@ def bench_cmd(limit, dry_run, as_json):
         title="[bold green]🏁 Official Benchmark Summary[/]",
         border_style="green"
     ))
+
+
+@cli.command(name='lsp')
+@click.argument('target', default='.')
+@click.option('--json', 'as_json', is_flag=True, help='Output diagnostics as JSON')
+def lsp_cmd(target, as_json):
+    """
+    Run compiler-grade static analysis & type-checking diagnostics across workspace.
+    
+    Example: saleha lsp ./src
+    """
+    from saleha.core.lsp_engine import lsp_engine
+    if os.path.isfile(target):
+        diags = lsp_engine.check_file(target)
+        errs = sum(1 for d in diags if d.severity == "ERROR")
+        warns = sum(1 for d in diags if d.severity == "WARNING")
+        from saleha.core.lsp_engine import DiagnosticReport
+        report = DiagnosticReport(total_diagnostics=len(diags), error_count=errs, warning_count=warns, diagnostics=diags)
+    else:
+        report = lsp_engine.check_directory(target)
+
+    if as_json:
+        click.echo(json.dumps({
+            "total": report.total_diagnostics,
+            "errors": report.error_count,
+            "warnings": report.warning_count,
+            "diagnostics": [d.__dict__ for d in report.diagnostics]
+        }, ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title=f"🔍 Compiler & Type Diagnostics ({target})", show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Location", style="bold cyan", width=25)
+    table.add_column("Severity", width=10)
+    table.add_column("Rule ID", width=18)
+    table.add_column("Message", style="white")
+
+    for d in report.diagnostics[:15]:
+        sev_color = "red" if d.severity == "ERROR" else "yellow"
+        table.add_row(
+            f"{os.path.basename(d.file_path)}:{d.line_number}:{d.column}",
+            f"[{sev_color}]{d.severity}[/]",
+            d.rule_id,
+            d.message
+        )
+
+    console.print(table)
+    if report.total_diagnostics == 0:
+        console.print("[bold green]✅ Clean! Zero compiler or type errors detected.[/]\n")
+    else:
+        console.print(f"[bold yellow]Found {report.error_count} Errors, {report.warning_count} Warnings.[/]\n")
+
+
+@cli.command(name='ship')
+@click.argument('target_dir', default='.')
+@click.option('--apply', 'auto_apply', is_flag=True, help='Automatically write Dockerfile, compose, and CI workflows')
+def ship_cmd(target_dir, auto_apply):
+    """
+    Synthesize production-hardened multi-stage Dockerfiles, docker-compose, and GitHub Actions CI.
+    
+    Example: saleha ship . --apply
+    """
+    from saleha.core.cloud_deployer import cloud_deployer
+    plan = cloud_deployer.plan_deployment(target_dir)
+
+    console.print(Panel(
+        f"[bold cyan]Target Workspace:[/] {os.path.abspath(target_dir)}\n"
+        f"[bold cyan]Detected Runtime Stack:[/] [bold green]{plan.stack_detected.upper()}[/]\n"
+        f"[bold cyan]Generated Assets:[/] {len(plan.assets)} artifacts",
+        title="[bold green]🚢 Saleha Autonomous Cloud Deployer[/]",
+        border_style="green"
+    ))
+
+    for asset in plan.assets:
+        console.print(f"[bold yellow]📄 {asset.relative_path}[/] - [dim]{asset.description}[/]")
+
+    if auto_apply:
+        written = cloud_deployer.apply_plan(plan, target_dir=target_dir)
+        console.print(f"\n[bold green]✅ Applied {len(written)} deployment files to workspace:[/]")
+        for w in written:
+            console.print(f"  • [cyan]{w}[/]")
+    else:
+        console.print("\n[dim]Run 'saleha ship --apply' to write these deployment files directly to disk.[/]\n")
 
 
 # ==============================================================================

@@ -71,3 +71,4 @@ class InteractiveDiffReviewer:
 
 # Global default instance
 diff_reviewer = InteractiveDiffReviewer()
+

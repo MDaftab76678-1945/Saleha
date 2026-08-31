@@ -52,7 +52,24 @@ class DBOptimizer:
             migration_sql_down="\n".join(down_migrations)
         )
 
+    def audit_directory(self, dir_path: str = ".") -> SchemaAnalysis:
+        """Recursively scans all SQL and ORM files in directory."""
+        import os
+        combined_code = []
+        for root, _, files in os.walk(dir_path):
+            if any(p in root for p in [".git", "__pycache__", "venv", ".venv", "node_modules"]):
+                continue
+            for f in files:
+                if f.endswith((".sql", ".py", ".ts", ".js")):
+                    try:
+                        with open(os.path.join(root, f), "r", encoding="utf-8", errors="ignore") as fp:
+                            combined_code.append(fp.read())
+                    except Exception:
+                        pass
+        return self.analyze_schema("\n".join(combined_code))
+
 
 # Global instance
 db_optimizer = DBOptimizer()
+
 

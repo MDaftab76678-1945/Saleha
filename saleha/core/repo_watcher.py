@@ -148,3 +148,4 @@ class RepoWatcher:
 
 # Global default instance
 repo_watcher = RepoWatcher()
+
