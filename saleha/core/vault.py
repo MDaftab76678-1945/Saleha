@@ -126,11 +126,18 @@ class EncryptedVault:
     def _save_vault(self, data: Dict[str, Any]) -> bool:
         os.makedirs(os.path.dirname(self.vault_path), exist_ok=True)
         encrypted = self._encrypt(json.dumps(data))
+        tmp_path = f"{self.vault_path}.tmp.{os.getpid()}"
         try:
-            with open(self.vault_path, "w", encoding="utf-8") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 f.write(encrypted)
+            os.replace(tmp_path, self.vault_path)
             return True
-        except OSError:
+        except Exception:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
             return False
 
     def set_secret(self, key: str, value: str, description: str = "") -> bool:

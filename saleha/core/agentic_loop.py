@@ -23,11 +23,14 @@ Security:
 - write_file approval_gate se gated (SALEHA_APPROVAL=dangerous/always)
 """
 
+from __future__ import annotations
+
 import os
 import re
 import json
+import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Any, Set
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 from saleha.core.path_utils import safe_relpath
@@ -95,11 +98,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
     def __init__(self, agent: BaseAgent, root_dir: str = ".",
                  max_steps: int = 12, allow_write: bool = False,
                  code_executor=None,
-                 allowed_tools: Optional[List[str]] = None):
+                 allowed_tools: Optional[List[str]] = None,
+                 timeout_sec: float = 300.0):
         self.agent = agent
         self.root_dir = os.path.abspath(root_dir)
         self.max_steps = max_steps
         self.allow_write = allow_write
+        self.timeout_sec = timeout_sec
         # Profile-driven tool restriction (v1.5): agar diya gaya to sirf ye
         # tools available honge (intersection with built-ins).
         self.allowed_tools = set(allowed_tools) if allowed_tools else None
@@ -289,8 +294,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
         system = self.SYSTEM_PROMPT.replace("{tool_names}", ", ".join(tools))
         transcript_parts: List[str] = []
+        start_time = time.time()
 
         for step_no in range(1, self.max_steps + 1):
+            if time.time() - start_time > self.timeout_sec:
+                result.error = f"Agent execution timed out after {self.timeout_sec}s (step {step_no})"
+                emit({"step": step_no, "action": "timeout", "observation": result.error})
+                return result
+
             prompt = (
                 f"{system}\n\n## Goal\n{goal}\n\n"
                 f"## Action-Observation History (steps {len(transcript_parts)})\n"

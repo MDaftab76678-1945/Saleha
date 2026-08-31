@@ -45,19 +45,20 @@ class GraphRAGEngine:
             if any(w in sym_lower for w in words):
                 matched_symbols.append(sym)
                 for l in locs:
-                    relevant_files.add(l.file_path)
+                    relevant_files.add(l.file_path.replace("\\", "/"))
 
                 # Get callers
                 callers = dependency_graph.find_callers(sym)
                 for c in callers[:5]:
-                    relevant_files.add(c.caller_file)
-                    call_chains.append(f"{c.caller_file}:{c.caller_line} -> calls {sym}()")
+                    caller_norm = c.caller_file.replace("\\", "/")
+                    relevant_files.add(caller_norm)
+                    call_chains.append(f"{caller_norm}:{c.caller_line} -> calls {sym}()")
 
         # Compute downstream impacted files
         impacted_files = set()
         for f in relevant_files:
             for imp in dependency_graph.get_impacted_files(f):
-                impacted_files.add(imp)
+                impacted_files.add(imp.replace("\\", "/"))
 
         # 2. Build Graph-Augmented Context Prompt
         context_blocks = [

@@ -68,3 +68,4 @@ if all_issues:
         print("  -", i)
 else:
     print("NO TYPE ANNOTATION ISSUES FOUND IN ANY FILE!")
+

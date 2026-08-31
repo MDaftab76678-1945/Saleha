@@ -33,6 +33,7 @@ class RepoWatcher:
         self.debounce_sec = debounce_sec
         self.file_mtimes: Dict[str, float] = {}
         self.is_running = False
+        self._lock = threading.RLock()
         self._thread: Optional[threading.Thread] = None
         self._callbacks: List[Callable[[RepoChangeEvent], None]] = []
         self._ignore_dirs = {
@@ -42,7 +43,8 @@ class RepoWatcher:
 
     def on_change(self, callback: Callable[[RepoChangeEvent], None]):
         """Registers a listener for live file change events."""
-        self._callbacks.append(callback)
+        with self._lock:
+            self._callbacks.append(callback)
 
     def scan_snapshot(self) -> Dict[str, float]:
         """Collects current file modification timestamps."""
@@ -60,8 +62,9 @@ class RepoWatcher:
 
     def initialize(self):
         """Builds initial AST dependency graph and takes file snapshot."""
-        dependency_graph.build_graph(root_dir=self.root_dir)
-        self.file_mtimes = self.scan_snapshot()
+        with self._lock:
+            dependency_graph.build_graph(root_dir=self.root_dir)
+            self.file_mtimes = self.scan_snapshot()
 
     def process_file_change(self, file_path: str, change_type: str) -> RepoChangeEvent:
         """Incrementally re-indexes a changed file and calculates blast radius."""
@@ -88,7 +91,9 @@ class RepoWatcher:
         )
 
         # 4. Notify listeners
-        for cb in self._callbacks:
+        with self._lock:
+            callbacks = list(self._callbacks)
+        for cb in callbacks:
             try:
                 cb(event)
             except Exception:
@@ -101,23 +106,24 @@ class RepoWatcher:
         current_snapshot = self.scan_snapshot()
         events = []
 
-        # Check modified or created
-        for p, mtime in current_snapshot.items():
-            if p not in self.file_mtimes:
-                self.file_mtimes[p] = mtime
-                ev = self.process_file_change(p, "created")
-                events.append(ev)
-            elif mtime > self.file_mtimes[p] + self.debounce_sec:
-                self.file_mtimes[p] = mtime
-                ev = self.process_file_change(p, "modified")
-                events.append(ev)
+        with self._lock:
+            # Check modified or created
+            for p, mtime in current_snapshot.items():
+                if p not in self.file_mtimes:
+                    self.file_mtimes[p] = mtime
+                    ev = self.process_file_change(p, "created")
+                    events.append(ev)
+                elif mtime > self.file_mtimes[p] + self.debounce_sec:
+                    self.file_mtimes[p] = mtime
+                    ev = self.process_file_change(p, "modified")
+                    events.append(ev)
 
-        # Check deleted
-        for p in list(self.file_mtimes.keys()):
-            if p not in current_snapshot:
-                del self.file_mtimes[p]
-                ev = self.process_file_change(p, "deleted")
-                events.append(ev)
+            # Check deleted
+            for p in list(self.file_mtimes.keys()):
+                if p not in current_snapshot:
+                    del self.file_mtimes[p]
+                    ev = self.process_file_change(p, "deleted")
+                    events.append(ev)
 
         return events
 

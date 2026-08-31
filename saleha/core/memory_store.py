@@ -87,8 +87,7 @@ class MemoryStore:
             self._entries = {}
 
     def _save(self):
-        """Sirf disk persistence -- vector store ko touch NahI karta.
-        (Pehle yahin se har save par full vector resync trigger hota tha.)"""
+        """Atomic disk persistence -- writes to tmp file then replaces atomically."""
         if self.storage_path and self.storage_path != ":memory:":
             dirname = os.path.dirname(self.storage_path)
             if dirname:
@@ -99,8 +98,17 @@ class MemoryStore:
                 "total_entries": len(self._entries),
                 "entries": [asdict(e) for e in self._entries.values()],
             }
-            with open(self.storage_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            tmp_path = f"{self.storage_path}.tmp.{os.getpid()}"
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, self.storage_path)
+            except Exception:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
 
     def semantic_search(self, query: str, top_k: int = 5, min_score: float = 0.05) -> List[Tuple[MemoryEntry, float]]:
         """Performs TF-IDF Cosine Similarity semantic search over memory store."""

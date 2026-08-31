@@ -5,13 +5,15 @@ Provides automated, conventional Git commits for verified agent task deliverable
 automatic branch isolation, and safe atomic undo/rollback capabilities (Aider-style).
 """
 
+from __future__ import annotations
+
 import os
 import re
 import shutil
 import tempfile
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Set
 
 
 @dataclass
@@ -30,6 +32,17 @@ class GitAutomationEngine:
     def __init__(self, repo_path: str = "."):
         self.repo_path = os.path.abspath(repo_path)
         self.git_bin = shutil.which("git") or "git"
+        self._active_worktrees: Set[str] = set()
+        import atexit
+        atexit.register(self._cleanup_all_worktrees)
+
+    def _cleanup_all_worktrees(self):
+        """Cleanup handler registered with atexit to remove ephemeral worktrees on process termination."""
+        for wt in list(self._active_worktrees):
+            try:
+                self.remove_worktree(wt, force=True)
+            except Exception:
+                pass
 
     def _run_git(self, args: List[str]) -> subprocess.CompletedProcess:
         try:
@@ -185,6 +198,7 @@ class GitAutomationEngine:
         wt_path = target_dir or os.path.join(tempfile.gettempdir(), f"saleha_wt_{branch_name.replace('/', '_')}")
         res = self._run_git(["worktree", "add", "-B", branch_name, wt_path])
         if res.returncode == 0 or os.path.isdir(wt_path):
+            self._active_worktrees.add(wt_path)
             return True, wt_path, ""
         return False, "", res.stderr
 
@@ -198,10 +212,12 @@ class GitAutomationEngine:
         args.append(worktree_dir)
         res = self._run_git(args)
         if res.returncode == 0 or not os.path.exists(worktree_dir):
+            self._active_worktrees.discard(worktree_dir)
             return True, ""
         return False, res.stderr
 
 
 # Global instance
 git_engine = GitAutomationEngine()
+
 
