@@ -205,6 +205,15 @@ class VectorStoreLazyIndexTests(unittest.TestCase):
 
 
 class EnsureImagePreflightTests(unittest.TestCase):
+    def setUp(self):
+        from saleha.core.execution_policy import _reset_probe_cache
+        _reset_probe_cache()
+
+    def tearDown(self):
+        from saleha.core.execution_policy import _reset_probe_cache
+        _reset_probe_cache()
+        os.environ.pop("SALEHA_DOCKER_AUTO_PULL", None)
+
     def test_returns_false_when_docker_unavailable(self):
         from saleha.core.execution_policy import ensure_image
         with patch("saleha.core.execution_policy.docker_available", return_value=False):

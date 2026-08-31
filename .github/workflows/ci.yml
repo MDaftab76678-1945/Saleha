@@ -50,5 +50,6 @@ jobs:
     - name: Run Full Test Suite (105+ Suites)
       env:
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
+        PYTHONFAULTHANDLER: "1"
       run: |
-        python -m pytest saleha/tests -v --tb=short --durations=15 -p no:warnings
+        python -m pytest saleha/tests -v --tb=long --durations=15 -p no:warnings

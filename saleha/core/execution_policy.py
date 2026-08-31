@@ -40,6 +40,12 @@ _MODE_ALIASES = {
 _probe_cache: Dict[str, object] = {"done": False, "available": False}
 
 
+def _reset_probe_cache() -> None:
+    """Reset Docker probe cache — for test isolation only."""
+    _probe_cache["done"] = False
+    _probe_cache["available"] = False
+
+
 def get_sandbox_mode() -> str:
     """Env se effective sandbox mode resolve karta hai (invalid value -> auto)."""
     raw = (os.getenv("SALEHA_SANDBOX") or "auto").strip().lower()

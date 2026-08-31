@@ -25,6 +25,7 @@ from saleha.core.execution_policy import (
     get_sandbox_mode,
     resolve_backend,
     docker_available,
+    _reset_probe_cache,
 )
 
 
@@ -161,7 +162,12 @@ class DynamicImportDetectionTests(unittest.TestCase):
 
 
 class ExecutionPolicyTests(unittest.TestCase):
+    def setUp(self):
+        _reset_probe_cache()
+        os.environ.pop("SALEHA_SANDBOX", None)
+
     def tearDown(self):
+        _reset_probe_cache()
         os.environ.pop("SALEHA_SANDBOX", None)
 
     def test_mode_aliases_and_invalid_values(self):
