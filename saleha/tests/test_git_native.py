@@ -43,6 +43,18 @@ class GitNativeTests(unittest.TestCase):
         self.assertEqual(res.commit_hash, "a1b2c3d")
         self.assertEqual(res.branch, "main")
 
+    def test_worktree_methods(self):
+        from unittest.mock import patch, MagicMock
+        with patch.object(self.engine, "is_git_repo", return_value=True), \
+             patch.object(self.engine, "_run_git") as mock_git:
+            mock_git.return_value = MagicMock(returncode=0, stdout="true", stderr="")
+            ok, wt_dir, err = self.engine.create_worktree("test-task")
+            self.assertTrue(ok)
+            self.assertTrue(len(wt_dir) > 0)
+
+            removed, rem_err = self.engine.remove_worktree(wt_dir)
+            self.assertTrue(removed)
+
 
 if __name__ == "__main__":
     unittest.main()

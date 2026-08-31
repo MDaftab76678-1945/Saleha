@@ -8,9 +8,10 @@ automatic branch isolation, and safe atomic undo/rollback capabilities (Aider-st
 import os
 import re
 import shutil
+import tempfile
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 
 @dataclass
@@ -176,6 +177,31 @@ class GitAutomationEngine:
             }
         return {"success": False, "error": res.stderr}
 
+    def create_worktree(self, branch_name: str, target_dir: Optional[str] = None) -> Tuple[bool, str, str]:
+        """Creates an isolated git worktree directory for safe multi-agent execution."""
+        if not self.is_git_repo():
+            return False, "", "Not a git repository"
+
+        wt_path = target_dir or os.path.join(tempfile.gettempdir(), f"saleha_wt_{branch_name.replace('/', '_')}")
+        res = self._run_git(["worktree", "add", "-B", branch_name, wt_path])
+        if res.returncode == 0 or os.path.isdir(wt_path):
+            return True, wt_path, ""
+        return False, "", res.stderr
+
+    def remove_worktree(self, worktree_dir: str, force: bool = True) -> Tuple[bool, str]:
+        """Removes an ephemeral git worktree safely."""
+        if not self.is_git_repo():
+            return False, "Not a git repository"
+        args = ["worktree", "remove"]
+        if force:
+            args.append("--force")
+        args.append(worktree_dir)
+        res = self._run_git(args)
+        if res.returncode == 0 or not os.path.exists(worktree_dir):
+            return True, ""
+        return False, res.stderr
+
 
 # Global instance
 git_engine = GitAutomationEngine()
+
