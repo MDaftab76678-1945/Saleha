@@ -4920,6 +4920,40 @@ def migrate_cmd(target_path, source_fw, target_fw, inplace):
         console.print(res.migrated_code)
 
 
+@cli.command(name='desktop')
+@click.option('--port', '-p', default=0, help='Custom HTTP port (0 for auto-assign)')
+@click.option('--browser/--no-browser', default=True, help='Launch native browser-app window')
+def desktop_cmd(port, browser):
+    """
+    Launch Saleha Native Desktop GUI Application.
+    
+    Example: saleha desktop
+    """
+    from saleha.desktop.app import SalehaDesktopApp
+    app = SalehaDesktopApp(port=port)
+    assigned_port = app.start_server()
+    app_url = app.get_app_url()
+
+    console.print(f"[bold green]🖥️ Saleha AI Desktop v2.0 running![/]")
+    console.print(f"  • URL: [bold cyan]{app_url}[/]")
+    console.print(f"  • Port: [yellow]{assigned_port}[/]")
+    console.print(f"  • Token: [dim]{app.token}[/]\n")
+
+    if browser:
+        console.print("[cyan]Launching native desktop GUI window...[/]")
+        app.launch_window(app_url)
+
+    console.print("[dim]Press Ctrl+C to stop the desktop application.[/]")
+    try:
+        while app.is_running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        app.stop()
+        console.print("\n[yellow]Desktop application stopped.[/]")
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================

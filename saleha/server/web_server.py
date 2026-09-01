@@ -785,6 +785,32 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"stats": {"total_entries": 0}, "entries": [], "error": str(ex)})
             return
 
+        if path == "/api/desktop/status":
+            try:
+                from saleha.desktop.app import LocalLLMManager
+                mgr = LocalLLMManager()
+                llm_status = mgr.check_status()
+                self._send_json(200, {
+                    "version": __version__,
+                    "llm_status": {
+                        "is_running": llm_status.is_running,
+                        "server_url": llm_status.server_url,
+                        "active_model": llm_status.active_model,
+                        "gpu_available": llm_status.gpu_available,
+                        "message": llm_status.message,
+                        "models": [
+                            {"name": m.name, "size_bytes": m.size_bytes, "family": m.family}
+                            for m in llm_status.models
+                        ]
+                    },
+                    "agents_count": len(profile_registry.list_profiles()),
+                    "tools_count": len(global_tool_registry.get_schemas()),
+                    "memory_entries": len(memory_store.list_all())
+                })
+            except Exception as ex:
+                self._send_json(200, {"version": __version__, "error": str(ex)})
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def _collab_error(self, err: CollabError):
@@ -1091,6 +1117,17 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 "patched": patched if ok else content,
                 "error": err
             })
+            return
+
+        if path == "/api/desktop/pull-model":
+            model_name = payload.get("model", "qwen2.5-coder")
+            try:
+                from saleha.desktop.app import LocalLLMManager
+                mgr = LocalLLMManager()
+                success = mgr.pull_model(model_name)
+                self._send_json(200, {"model": model_name, "success": success})
+            except Exception as ex:
+                self._send_json(200, {"model": model_name, "success": False, "error": str(ex)})
             return
 
         self._send_json(404, {"error": "Endpoint not found"})
