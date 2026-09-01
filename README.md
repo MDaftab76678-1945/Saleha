@@ -16,15 +16,19 @@
 ## ⚡ 1-Click Launch (Desktop & Web Studio)
 
 ### Option A: Windows 1-Click Batch Launcher
+
 Double-click `launch_studio.bat` in the root repository folder, or run:
+
 ```powershell
 .\launch_studio.bat
 ```
 
 ### Option B: Python Command
+
 ```powershell
 python -m saleha.desktop.app
 ```
+
 Then navigate to: **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
 
 ---
@@ -32,7 +36,7 @@ Then navigate to: **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
 ## 💎 6 Deep Enterprise Engines
 
 | Engine | Technical Achievement | Benefit |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | ⚡ **VS Code Real FIM Autocomplete** | Fill-In-The-Middle (`<fim_prefix>`, `<fim_suffix>`) with 250ms latency bound | Real-time code completions via local Ollama `qwen2.5-coder` |
 | 🔀 **3-Way AST Conflict Merger** | AST parsing & body unification (`_resolve_ast_function_conflict`) | Eliminates Git merge conflicts at syntax level without manual edits |
 | 🔄 **Polyglot Codebase Migrator** | Flask path params (`<int:id>`) & unittest `assertRaises` AST transforms | Automatic framework modernization to FastAPI & pytest |
@@ -45,7 +49,9 @@ Then navigate to: **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
 ## 🚀 Quickstart
 
 ### 1. Prerequisites
+
 Install [Ollama](https://ollama.ai/) and pull a coding model:
+
 ```powershell
 ollama pull qwen2.5-coder:1.5b   # fast tier
 # optional flagship:
@@ -53,6 +59,7 @@ ollama pull qwen2.5-coder:7b
 ```
 
 ### 2. Install Saleha
+
 ```powershell
 git clone https://github.com/MDaftab76678-1945/Saleha.git
 cd Saleha
@@ -62,6 +69,7 @@ saleha --version
 ```
 
 ### 3. First Run
+
 ```powershell
 saleha doctor                                                   # diagnose environment
 saleha run "Build a token bucket rate limiter" --tests          # real unittest healing
@@ -74,8 +82,9 @@ saleha watch .                                                  # live blast-rad
 ## 🛠️ Command Reference
 
 ### Core Autonomous Pipelines
+
 | Command | What it does |
-|---|---|
+| :--- | :--- |
 | `saleha run "GOAL"` | Full self-healing pipeline: Plan → Code → Test → Review → Execute |
 | `saleha agent "GOAL" --dir .` | Autonomous ReAct loop with tools (`--write` opt-in) |
 | `saleha watch [DIR]` | Live background AST re-indexer & real-time blast-radius alerts |
@@ -88,6 +97,7 @@ saleha watch .                                                  # live blast-rad
 | `saleha edit "GOAL" --dir ./repo --apply` | Multi-file edits: dry-run diffs → atomic apply |
 
 ### Introspection & Health
+
 ```powershell
 saleha doctor --fix            # diagnose & auto-repair models/directories
 saleha metrics                 # success-rate, avg attempts, per-model stats
@@ -96,6 +106,7 @@ saleha agents                  # 20 dynamically-loaded agent personas
 ```
 
 ### Security & CI
+
 ```powershell
 saleha sast ./src              # AST SAST scan (SQLi, eval, secrets, shell=True)
 saleha ci review .             # autonomous PR review bot (CI-friendly exit codes)
@@ -103,6 +114,7 @@ saleha vault set db_pass x     # encrypted secret store
 ```
 
 ### Interactive & Web
+
 ```powershell
 saleha chat                    # streaming pair-programming REPL (/outline, /symbols, /undo, ...)
 saleha studio                  # Web Studio + REST API (token-authenticated)
@@ -116,10 +128,15 @@ saleha sidecar                 # floating desktop AI companion daemon
 ```powershell
 pytest saleha/tests
 ```
+
 ```text
-============================ 400 passed in 36.97s =============================
+============================= 594 passed in 48.60s =============================
 ```
+
 100% offline, fully mocked LLM fallbacks, deterministic execution.
 
+---
+
 ## 📄 License
+
 MIT
