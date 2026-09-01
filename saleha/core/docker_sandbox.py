@@ -114,7 +114,7 @@ class DockerSandboxRunner:
                     text=True,
                     timeout=timeout
                 )
-                if proc.returncode != 0 and ("Unable to find image" in (proc.stderr or "") or "docker: Error" in (proc.stderr or "")):
+                if proc.returncode != 0:
                     if self.fallback_runner and language == "python":
                         return self.fallback_runner.run_in_sandbox(code, timeout=timeout)
                 return SandboxResult(

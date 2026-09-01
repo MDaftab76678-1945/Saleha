@@ -67,7 +67,7 @@ class HardenedSandboxEngine:
                 network=net,
             )
             elapsed = time.time() - start_t
-            if not res.success and ("unable to find image" in (res.error or "").lower() or "docker: error" in (res.error or "").lower()):
+            if not res.success:
                 return self._execute_process_sandbox(code, language=language, timeout=timeout)
             return HardenedExecutionResult(
                 success=res.success,
