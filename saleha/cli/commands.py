@@ -40,6 +40,43 @@ if sys.platform == "win32":
 console = Console(safe_box=True)
 
 from saleha.cli.dashboard import render_dashboard
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from saleha.core.smart_router import SmartRouter
+    from saleha.agents.base_agent import BaseAgent
+    from saleha.agents.planner import PlannerAgent
+    from saleha.agents.coder import CoderAgent
+    from saleha.agents.tester import TesterAgent
+    from saleha.agents.debugger import DebuggerAgent
+    from saleha.orchestrator import SalehaOrchestrator
+    from saleha.core.project_builder import ProjectBuilder
+    from saleha.core.team_orchestrator import TeamOrchestrator
+    from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
+    from saleha.core.agent_profile_loader import profile_registry
+    from saleha.core.memory_store import memory_store
+    from saleha.core.codebase_indexer import CodebaseIndexer, SmartPatcher
+    from saleha.core.deliberation_engine import DeliberationEngine
+    from saleha.core.tool_calling import global_tool_registry
+    from saleha.core.sandbox_runner import SandboxRunner
+    from saleha.core.docker_sandbox import DockerSandboxRunner
+    from saleha.core.polyglot_indexer import PolyglotIndexer
+    from saleha.core.pr_generator import PRGenerator
+    from saleha.core.security_scanner import ASTSecurityScanner
+    from saleha.core.dag_engine import TaskDAG, TaskNode
+    from saleha.core.mcp_engine import MCPServer
+    from saleha.ci.bot import PRReviewBot
+    from saleha.core.hybrid_gateway import gateway as hybrid_gateway
+    from saleha.server.web_server import run_web_studio
+    from saleha.cli.repl import start_repl
+    from saleha.cli.tui_canvas import start_tui_canvas
+    from saleha.cli.dashboard import run_live_dashboard
+    from saleha.core.agentic_loop import AgentLoop
+    from saleha.core.repo_watcher import repo_watcher
+    from saleha.core.swe_bench_harness import swe_bench
+    from saleha.core.lsp_engine import lsp_engine
+    from saleha.core.cloud_deployer import cloud_deployer
+    from saleha.core.db_optimizer import db_optimizer
 
 # ==============================================================================
 # LAZY IMPORTS (PEP 562)
