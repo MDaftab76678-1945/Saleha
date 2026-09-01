@@ -2,6 +2,27 @@
 
 All notable changes to Saleha AI Framework are documented here.
 
+## [2.6.0] - 2026-09-02 (Sovereign Intelligence & Marketplace Release)
+
+### 🌟 34 Sovereign Flagship Systems
+- **Swarm PBFT Consensus Protocol** (`saleha consensus`): Multi-agent Byzantine Fault Tolerance ($2f+1$ Quorum).
+- **Constitutional AI Safety Guard** (`saleha constitutional-check`): Rule-based invariant enforcement.
+- **Formal Logic Lean 4 Prover** (`saleha formal-verify`): Mathematical contract and proof synthesizer.
+- **Pearl Causal World Model** (`saleha causal-eval`): Counterfactual $L_1 \to L_3$ intervention analysis.
+- **Gödel Self-Proving Utility** (`saleha godel-utility`): Proof-bounded recursive self-improvement.
+- **Emergent Swarm & Gini Collusion Monitor** (`saleha emergence-check`): Deadlock and communication divergence detection.
+- **Mechanistic Interpretability Engine** (`saleha explain-code`): Syntactic circuit and attribution discovery.
+- **Merkle Tree Audit Ledger** (`saleha merkle-audit`): SHA-256 immutable cryptographic lineage trail.
+- **Quadratic Voting & VCG Mechanism** (`saleha quadratic-vote`): Truthful resource allocation in swarms.
+- **Autonomous Headless Browser UI Inspector** (`saleha test-ui`): DOM inspection, console error detection, viewport health.
+- **Isolated Process & Container Sandbox** (`saleha sandbox-run`): Sanitized containment environment.
+- **SWE-Bench Benchmark Runner** (`saleha swebench-eval`): Real-world SWE-Bench Lite evaluation scorecard.
+- **Full-Screen Terminal TUI Workspace** (`saleha tui`): Aider-style split-screen interactive terminal.
+- **SWE-Bench Public Leaderboard Generator** (`saleha leaderboard`): Comparative HTML/Markdown matrix generator.
+- **Saleha Hub Community Plugin Loader** (`saleha hub`): Dynamic plugin & skill registry.
+- **VS Code Extension Packager** (`editors/vscode/build_extension.py`): 1-Click `.vsix` packaging for VS Code & Open-VSX marketplaces.
+- **100% Test Suite Pass**: 783/783 tests passed (0 failures).
+
 ## [1.5.0] - 2026-09-01
 
 ### 🚀 Features & Enhancements
