@@ -19,9 +19,7 @@ except ImportError:
     yaml = None
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
-import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 
 

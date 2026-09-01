@@ -15,10 +15,7 @@ Ye sirf ek udaharan hai -- isi pattern se future me "file_read_skill",
 import re
 import ast
 import operator
-import sys
-import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.core.skill_base import Skill, SkillResult
 
 
@@ -34,19 +31,22 @@ _SAFE_OPS = {
 }
 
 
-def _safe_eval(node):
+def _safe_evaluate_ast_node(node: ast.AST) -> float:
+    """Recursively evaluates safe mathematical AST nodes."""
     if isinstance(node, ast.Constant):
         if isinstance(node.value, (int, float)):
-            return node.value
+            return float(node.value)
         raise ValueError("Only numeric constants allowed")
     if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPS:
-        return _SAFE_OPS[type(node.op)](_safe_eval(node.left), _safe_eval(node.right))
+        return _SAFE_OPS[type(node.op)](_safe_evaluate_ast_node(node.left), _safe_evaluate_ast_node(node.right))
     if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_OPS:
-        return _SAFE_OPS[type(node.op)](_safe_eval(node.operand))
+        return _SAFE_OPS[type(node.op)](_safe_evaluate_ast_node(node.operand))
     raise ValueError(f"Unsupported expression: {ast.dump(node)}")
 
 
 class CalculatorSkill(Skill):
+    """Simple arithmetic solver without calling an external LLM."""
+
     name = "calculator"
     description = "Simple arithmetic (add/subtract/multiply/divide/power) seedha solve karta hai, LLM ke bina."
 
@@ -54,13 +54,13 @@ class CalculatorSkill(Skill):
     _EXPR_PATTERN = re.compile(r"[-+]?\d+(\.\d+)?(\s*[\+\-\*/\^]\s*[-+]?\d+(\.\d+)?)+")
 
     def can_handle(self, task: str) -> bool:
-        # Sirf tab handle karo jab task me koi clean arithmetic expression ho
-        # AUR task "function likho" jaisi coding request na ho (wo Coder ka kaam hai)
+        """Determines if the given query is a direct arithmetic problem."""
         if any(kw in task.lower() for kw in ["function", "class", "script", "program", "code likho"]):
             return False
         return bool(self._EXPR_PATTERN.search(task))
 
     def execute(self, task: str) -> SkillResult:
+        """Parses and computes the arithmetic expression safely."""
         match = self._EXPR_PATTERN.search(task)
         if not match:
             return SkillResult(success=False, output="", error="No arithmetic expression found in task.")
@@ -68,24 +68,22 @@ class CalculatorSkill(Skill):
         expr = match.group(0).replace("^", "**")
         try:
             tree = ast.parse(expr, mode="eval")
-            result = _safe_eval(tree.body)
-            return SkillResult(success=True, output=f"{expr} = {result}")
+            result = _safe_evaluate_ast_node(tree.body)
+            # Format cleanly
+            int_res = int(result) if result.is_integer() else result
+            return SkillResult(success=True, output=f"{expr} = {int_res}")
         except Exception as e:
-            return SkillResult(success=False, output="", error=f"Could not evaluate '{expr}': {e}")
+            return SkillResult(success=False, output="", error=f"Could not compute '{expr}': {e}")
 
 
 if __name__ == "__main__":
-    skill = CalculatorSkill()
-
-    test_cases = [
+    _skill = CalculatorSkill()
+    _test_cases = [
         "What is 12 * 8?",
         "Calculate 100 / 4 + 5",
-        "Create a function to add two numbers",  # ye Coder ke paas jaana chahiye, calculator ke nahi
+        "Create a function to add two numbers",
     ]
-
-    for task in test_cases:
-        handled = skill.can_handle(task)
-        print(f"Task: '{task}' -> can_handle: {handled}")
-        if handled:
-            result = skill.execute(task)
-            print(f"  Result: {result.output if result.success else result.error}")
+    for _task in _test_cases:
+        _handled = _skill.can_handle(_task)
+        if _handled:
+            _res = _skill.execute(_task)

@@ -27,21 +27,21 @@ class EcosystemIntegrationTests(unittest.TestCase):
     def test_version_consistency_across_ecosystem(self):
         """Ensures __init__.py, pyproject.toml, and vscode/package.json share exact version."""
         current_ver = saleha.__version__
-        self.assertEqual(current_ver, "2.0.0")
+        self.assertEqual(current_ver, "2.6.0")
 
         # Check pyproject.toml
         pyproject_path = self.root_dir / "pyproject.toml"
         self.assertTrue(pyproject_path.is_file())
         with open(pyproject_path, "r", encoding="utf-8") as f:
             pyproject_content = f.read()
-        self.assertIn('version = "2.0.0"', pyproject_content)
+        self.assertIn(f'version = "{current_ver}"', pyproject_content)
 
         # Check editors/vscode/package.json
         vscode_pkg = self.root_dir / "editors" / "vscode" / "package.json"
         self.assertTrue(vscode_pkg.is_file())
         with open(vscode_pkg, "r", encoding="utf-8") as f:
             vscode_data = json.load(f)
-        self.assertEqual(vscode_data.get("version"), "2.0.0")
+        self.assertEqual(vscode_data.get("version"), current_ver)
 
     def test_github_action_metadata_schema(self):
         """Validates action.yml exists and has proper composite action schema."""

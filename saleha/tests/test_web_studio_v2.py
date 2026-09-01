@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import threading
 import unittest
@@ -88,6 +89,62 @@ class WebStudioV2Tests(unittest.TestCase):
         self.assertEqual(data["status"], "ready")
         self.assertEqual(data["viewport_width"], 1280)
         self.assertIn("Hello Saleha UI", data["rendered_preview"])
+
+    def test_project_export_post_endpoint(self):
+        import io
+        import zipfile
+        payload = {
+            "files": {
+                "index.html": "<h1>Exported</h1>",
+                "app.js": "console.log('Exported');"
+            }
+        }
+        req = urllib.request.Request(
+            self.base + "/api/project/export",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Saleha-Token": self.token},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.headers.get("Content-Type"), "application/zip")
+            buf = io.BytesIO(resp.read())
+            with zipfile.ZipFile(buf, "r") as zf:
+                namelist = zf.namelist()
+                self.assertIn("index.html", namelist)
+                self.assertIn("app.js", namelist)
+                self.assertEqual(zf.read("index.html").decode("utf-8"), "<h1>Exported</h1>")
+
+
+    def test_workspace_sync_post_endpoint(self):
+        import tempfile
+        import shutil
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            payload = {
+                "directory": tmp_dir,
+                "files": {
+                    "index.html": "<h1>Synced Disk</h1>",
+                    "app.js": "console.log('Synced');"
+                }
+            }
+            data = self._post("/api/workspace/sync", payload)
+            self.assertTrue(data["success"])
+            self.assertEqual(data["synced_files"], 2)
+            with open(os.path.join(tmp_dir, "index.html"), "r", encoding="utf-8") as f:
+                self.assertEqual(f.read(), "<h1>Synced Disk</h1>")
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def test_ast_merge_post_endpoint(self):
+        payload = {
+            "ours": "def fn(): return 1",
+            "theirs": "def fn2(): return 2"
+        }
+        data = self._post("/api/ast/merge", payload)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["ast_valid"])
+        self.assertIn("def fn(): return 1", data["merged_code"])
+        self.assertIn("def fn2(): return 2", data["merged_code"])
 
 
 if __name__ == "__main__":

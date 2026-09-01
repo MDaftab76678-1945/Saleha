@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saleha"
-version = "2.0.0"
+version = "2.6.0"
 description = "Local-First Autonomous Multi-Agent AI Software Engineering Platform"
 readme = "README.md"
 authors = [{ name = "Aftab Alam", email = "alamaftab76678@gmail.com" }]
@@ -41,6 +41,10 @@ codeintel = [
     "tree-sitter-python>=0.21",
     "tree-sitter-javascript>=0.21",
     "tree-sitter-typescript>=0.21"
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0"
 ]
 all = [
     "playwright>=1.35.0",

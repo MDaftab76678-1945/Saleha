@@ -20,10 +20,7 @@ Bas itna -- orchestrator.py ko chhedne ki zaroorat nahi.
 """
 
 from typing import List, Optional
-import sys
-import os
 
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from saleha.core.skill_base import Skill
 
 
@@ -60,7 +57,6 @@ registry = SkillRegistry()
 def load_builtin_skills():
     """Saleha ke saath aane wale built-in skills load karta hai. Naye
     built-in skill add karne ke liye bas import + register yahan jodo."""
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from saleha.skills.calculator_skill import CalculatorSkill
     from saleha.skills.unit_converter_skill import UnitConverterSkill
     from saleha.skills.datetime_skill import DateTimeSkill

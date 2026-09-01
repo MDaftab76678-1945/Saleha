@@ -65,36 +65,36 @@ class CodeReviewReport:
 class AICodeReviewer:
     """Performs deep static AI-assisted code review without any external API."""
 
-    # OWASP Top-10 + common security patterns
+    # OWASP Top-10 + common security patterns with word boundaries
     SECURITY_PATTERNS: List[Tuple[re.Pattern, str, str, str, str]] = [
-        (re.compile(r'execute\s*\(.*%.*\)|execute\s*\(.*format\(', re.IGNORECASE),
+        (re.compile(r'\bexecute\s*\(.*%.*\)|\bexecute\s*\(.*format\(', re.IGNORECASE),
          "SQL Injection", "CWE-89", "critical",
          "Use parameterized queries: cursor.execute(sql, (param,))"),
-        (re.compile(r'eval\s*\(|exec\s*\('),
+        (re.compile(r'\beval\s*\(|\bexec\s*\('),
          "Code Injection via eval/exec", "CWE-94", "critical",
          "Remove eval/exec. Use ast.literal_eval() for safe data parsing."),
-        (re.compile(r'pickle\.loads?\s*\(|yaml\.load\s*\([^,)]*\)'),
+        (re.compile(r'\bpickle\.loads?\s*\(|\byaml\.load\s*\([^,)]*\)'),
          "Insecure Deserialization", "CWE-502", "critical",
          "Use pickle with trusted data only, or yaml.safe_load()."),
-        (re.compile(r'subprocess\.\w+\(.*shell\s*=\s*True', re.IGNORECASE),
+        (re.compile(r'\bsubprocess\.\w+\(.*shell\s*=\s*True', re.IGNORECASE),
          "Shell Injection Risk", "CWE-78", "high",
          "Use shell=False and pass arguments as list."),
-        (re.compile(r'hashlib\.md5\(|hashlib\.sha1\('),
+        (re.compile(r'\bhashlib\.md5\(|\bhashlib\.sha1\('),
          "Weak Cryptographic Hash", "CWE-327", "high",
          "Use hashlib.sha256() or hashlib.sha3_256() instead."),
-        (re.compile(r'(?:password|secret|api_key|token)\s*=\s*["\'][^"\']{6,}["\']', re.IGNORECASE),
+        (re.compile(r'\b(?:password|secret|api_key|token)\s*=\s*["\'][^"\']{6,}["\']', re.IGNORECASE),
          "Hardcoded Credential", "CWE-798", "critical",
          "Move secrets to environment variables or encrypted vault."),
-        (re.compile(r'random\.random\(|random\.randint\('),
+        (re.compile(r'\brandom\.random\(|\brandom\.randint\('),
          "Insecure Randomness", "CWE-338", "medium",
          "Use secrets.token_bytes() for cryptographic randomness."),
-        (re.compile(r'open\s*\([^,)]*\+'),
+        (re.compile(r'\bopen\s*\([^,)]*\+'),
          "Path Traversal Risk", "CWE-22", "high",
          "Validate/sanitize file paths. Use pathlib.Path.resolve()."),
-        (re.compile(r'verify\s*=\s*False'),
+        (re.compile(r'\bverify\s*=\s*False'),
          "SSL Verification Disabled", "CWE-295", "high",
          "Never disable SSL verification in production."),
-        (re.compile(r'DEBUG\s*=\s*True|debug\s*=\s*True'),
+        (re.compile(r'\bDEBUG\s*=\s*True|\bdebug\s*=\s*True'),
          "Debug Mode in Code", "CWE-94", "medium",
          "Ensure DEBUG=False in production. Use environment config."),
     ]
@@ -126,16 +126,18 @@ class AICodeReviewer:
         (re.compile(r'pass\s*$', re.MULTILINE),
          "Empty block with pass — may hide unimplemented logic",
          "Add a TODO comment or raise NotImplementedError."),
-        (re.compile(r'# TODO|# FIXME|# HACK|# XXX'),
+        (re.compile(r'#\s*(?:TODO|FIXME|HACK|XXX)\b'),
          "Technical debt marker found",
          "Track in issue tracker and resolve before release."),
-        (re.compile(r'print\s*\('),
+        (re.compile(r'\bprint\s*\('),
          "print() used — prefer structured logging",
          "Use logging.info/debug/error() for production code."),
         (re.compile(r'global\s+\w+'),
          "Global variable mutation",
          "Prefer class attributes or function parameters."),
     ]
+
+    _SUPPRESSION_PATTERN = re.compile(r'#\s*(?:noqa|nosec)(?::\s*([A-Z0-9,\s]+))?', re.IGNORECASE)
 
     def review_file(self, file_path: str, content: str) -> CodeReviewReport:
         """Performs full static review of a Python source file."""
@@ -155,28 +157,38 @@ class AICodeReviewer:
 
         # 2. Line-by-line pattern scan
         for lineno, line in enumerate(lines, start=1):
-            for pattern, title, cwe, severity, suggestion in self.SECURITY_PATTERNS:
-                if pattern.search(line):
-                    issues.append(ReviewIssue(
-                        severity=severity, category="security",
-                        line=lineno, title=title, description=f"Found at line {lineno}: `{line.strip()[:80]}`",
-                        suggestion=suggestion, cwe_id=cwe,
-                        code_snippet=line.strip()[:120]
-                    ))
+            stripped = line.strip()
+            # Check for inline suppression (# noqa or # nosec)
+            if self._SUPPRESSION_PATTERN.search(line):
+                continue
+            is_comment = stripped.startswith("#")
 
-            for pattern, title, suggestion in self.PERFORMANCE_PATTERNS:
-                if pattern.search(line):
-                    issues.append(ReviewIssue(
-                        severity="medium", category="performance",
-                        line=lineno, title=title, description=f"Line {lineno}: `{line.strip()[:80]}`",
-                        suggestion=suggestion
-                    ))
+            if not is_comment:
+                for pattern, title, cwe, severity, suggestion in self.SECURITY_PATTERNS:
+                    if pattern.search(line):
+                        issues.append(ReviewIssue(
+                            severity=severity, category="security",
+                            line=lineno, title=title, description=f"Found at line {lineno}: `{stripped[:80]}`",
+                            suggestion=suggestion, cwe_id=cwe,
+                            code_snippet=stripped[:120]
+                        ))
+
+                for pattern, title, suggestion in self.PERFORMANCE_PATTERNS:
+                    if pattern.search(line):
+                        issues.append(ReviewIssue(
+                            severity="medium", category="performance",
+                            line=lineno, title=title, description=f"Line {lineno}: `{stripped[:80]}`",
+                            suggestion=suggestion
+                        ))
 
             for pattern, title, suggestion in self.SMELL_PATTERNS:
                 if pattern.search(line):
+                    # Do not flag print() inside comment
+                    if title.startswith("print()") and is_comment:
+                        continue
                     issues.append(ReviewIssue(
                         severity="low", category="smell",
-                        line=lineno, title=title, description=f"Line {lineno}: `{line.strip()[:80]}`",
+                        line=lineno, title=title, description=f"Line {lineno}: `{stripped[:80]}`",
                         suggestion=suggestion
                     ))
 

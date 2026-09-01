@@ -4,12 +4,6 @@ Saleha Agents: Planner Agent
 और यदि आवश्यक हो तो उसे छोटे, प्रबंधनीय चरणों (DAG) में तोड़ना।
 """
 
-import sys
-import os
-
-# Parent directory को path में जोड़ें ताकि हम core modules import कर सकें
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 from saleha.core.math_logic import MathLogicEngine
 

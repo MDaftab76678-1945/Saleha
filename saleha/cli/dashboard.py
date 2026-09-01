@@ -14,8 +14,6 @@ import time
 from typing import Optional
 from datetime import datetime
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel

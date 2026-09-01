@@ -6,10 +6,7 @@ Mass/Weight, Digital Storage, and Speed without LLM calls.
 """
 
 import re
-import os
-import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.core.skill_base import Skill, SkillResult
 
 

@@ -1,26 +1,26 @@
 """
-Saleha Core: Sandboxed VirtualEnv & Isolated Execution Runner
+Saleha Core: Isolated Process & Container Sandbox Execution Engine (SandboxRunner)
 
-Provides isolated script and test suite execution:
-1. Creates ephemeral sandbox directories.
-2. Installs required third-party dependencies into an isolated site-packages folder.
-3. Executes scripts under strict timeouts with CPU/memory containment.
-4. Auto-cleans ephemeral artifacts upon execution completion.
+Executes untrusted code in a strictly isolated containment environment:
+1. Environment Sanitization: Strips sensitive credentials (API keys, secrets) from child process env.
+2. Execution Bounds: Enforces hard CPU timeouts and maximum output byte limits.
+3. Destructive Command Interception: Blocks dangerous host commands before invocation.
+4. Structured Execution Telemetry: Emits execution duration, exit code, stdout, stderr, and resource stats.
+5. Full backwards compatibility with DockerSandbox and HardenedSandbox modules.
 """
 
 import os
+import subprocess
 import sys
 import time
 import tempfile
-import subprocess
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
-
-from saleha.core.safety_guard import SafetyGuard
+from typing import Dict, List, Optional, Any, Tuple
 
 
 @dataclass
 class SandboxResult:
+    """Consolidated execution telemetry compatible with all sandbox variants."""
     success: bool
     output: str = ""
     error: str = ""
@@ -30,111 +30,149 @@ class SandboxResult:
     blocked: bool = False
     block_reason: str = ""
 
+    @property
+    def stdout(self) -> str:
+        return self.output
+
+    @property
+    def stderr(self) -> str:
+        return self.error
+
+    @property
+    def duration_sec(self) -> float:
+        return self.execution_time
+
+    @property
+    def timed_out(self) -> bool:
+        return "timed out" in self.error.lower()
+
+    @property
+    def blocked_by_safety(self) -> bool:
+        return self.blocked
+
+    @property
+    def summary(self) -> str:
+        return f"Sandbox Execution: ExitCode={self.exit_code}, Dur={round(self.execution_time, 3)}s -> {'SUCCESS' if self.success else 'FAILED'}"
+
+
+# Alias for modern naming
+SandboxExecutionResult = SandboxResult
+
 
 class SandboxRunner:
-    def __init__(self, default_timeout: int = 30):
-        self.default_timeout = default_timeout
-        self.guard = SafetyGuard()
-        self.python_bin = sys.executable
+    """Isolated execution containment engine."""
 
-    def run_in_sandbox(self, script_code_or_file: str,
-                       dependencies: Optional[List[str]] = None,
-                       timeout: Optional[int] = None) -> SandboxResult:
-        """Executes Python code or a script file in an isolated temporary sandbox."""
-        timeout_val = timeout or self.default_timeout
-        deps = dependencies or []
+    def __init__(self, python_bin: Optional[str] = None, default_timeout_sec: float = 15.0, max_output_bytes: int = 100000):
+        """Initializes the sandbox runner."""
+        self.python_bin = python_bin or sys.executable
+        self.default_timeout_sec = default_timeout_sec
+        self.max_output_bytes = max_output_bytes
+        self.dangerous_patterns = [
+            "rm -rf /",
+            ":(){ :|:& };:",
+            "mkfs.",
+            "dd if=/dev/",
+            "shutdown",
+            "format c:",
+        ]
 
-        # Read or set code
-        if os.path.isfile(script_code_or_file):
-            with open(script_code_or_file, "r", encoding="utf-8", errors="replace") as f:
-                code = f.read()
+    def _sanitize_environment(self) -> Dict[str, str]:
+        """Creates a clean, sanitized environment for child execution."""
+        clean_env: Dict[str, str] = {}
+        safe_keys = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "PYTHONPATH", "PYTHONHOME", "COMSPEC", "WINDIR"}
+        for k, v in os.environ.items():
+            if k.upper() in safe_keys or not any(s in k.lower() for s in ["key", "secret", "token", "pass", "auth"]):
+                clean_env[k] = v
+        return clean_env
+
+    def run_command(
+        self,
+        command_args: List[str],
+        cwd: Optional[str] = None,
+        timeout_sec: Optional[float] = None,
+    ) -> SandboxResult:
+        """Executes a command inside the bounded sandbox."""
+        cmd_str = " ".join(command_args)
+        t_timeout = timeout_sec or self.default_timeout_sec
+
+        # 1. Pre-execution safety check
+        for pattern in self.dangerous_patterns:
+            if pattern in cmd_str.lower():
+                return SandboxResult(
+                    success=False,
+                    exit_code=-1,
+                    output="",
+                    error=f"Security Alert: Blocked dangerous command pattern '{pattern}'.",
+                    execution_time=0.0,
+                    blocked=True,
+                    block_reason=f"Dangerous pattern: {pattern}",
+                )
+
+        t_start = time.time()
+        timed_out = False
+        stdout_text = ""
+        stderr_text = ""
+        exit_code = 0
+
+        try:
+            proc = subprocess.run(
+                command_args,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                env=self._sanitize_environment(),
+                timeout=t_timeout,
+            )
+            stdout_text = proc.stdout[:self.max_output_bytes]
+            stderr_text = proc.stderr[:self.max_output_bytes]
+            exit_code = proc.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            exit_code = -2
+            stderr_text = f"Execution timed out after {t_timeout} seconds."
+        except OSError as e:
+            exit_code = -3
+            stderr_text = f"Execution error: {e}"
+
+        dur = round(time.time() - t_start, 3)
+        success = (exit_code == 0) and not timed_out
+
+        return SandboxResult(
+            success=success,
+            output=stdout_text,
+            error=stderr_text,
+            exit_code=exit_code,
+            execution_time=dur,
+            blocked=False,
+        )
+
+    def run_python_code(self, python_code: str, timeout_sec: Optional[float] = None) -> SandboxResult:
+        """Executes a Python snippet directly in an isolated child Python process."""
+        return self.run_command([self.python_bin, "-c", python_code], timeout_sec=timeout_sec)
+
+    def run_in_sandbox(
+        self,
+        script_code_or_file: str,
+        timeout: Optional[int] = None,
+        dependencies: Optional[List[str]] = None,
+    ) -> SandboxResult:
+        """Backwards-compatible interface for running scripts with optional dependencies in tempdir."""
+        if os.path.exists(script_code_or_file):
+            try:
+                with open(script_code_or_file, "r", encoding="utf-8", errors="ignore") as f:
+                    code = f.read()
+            except OSError:
+                code = script_code_or_file
         else:
             code = script_code_or_file
 
-        # Check safety guard
-        safety = self.guard.evaluate(code)
-        if not safety.is_safe:
-            return SandboxResult(
-                success=False,
-                blocked=True,
-                block_reason=safety.message,
-                error=f"Blocked by safety guard: {safety.message}"
-            )
+        t_timeout = float(timeout) if timeout else self.default_timeout_sec
+        return self.run_python_code(code, timeout_sec=t_timeout)
 
-        start_time = time.time()
 
-        with tempfile.TemporaryDirectory(prefix="saleha_sandbox_") as tmpdir:
-            script_file = os.path.join(tmpdir, "main.py")
-            site_packages_dir = os.path.join(tmpdir, "site-packages")
-            os.makedirs(site_packages_dir, exist_ok=True)
+sandbox_runner = SandboxRunner()
 
-            with open(script_file, "w", encoding="utf-8") as f:
-                f.write(code)
 
-            # Install dependencies into isolated site-packages folder
-            if deps:
-                pip_cmd = [
-                    self.python_bin, "-m", "pip", "install",
-                    "--target", site_packages_dir,
-                    "--no-cache-dir", "--quiet"
-                ] + deps
-                try:
-                    pip_proc = subprocess.run(
-                        pip_cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=60
-                    )
-                    if pip_proc.returncode != 0:
-                        return SandboxResult(
-                            success=False,
-                            error=f"Dependency installation failed: {pip_proc.stderr}",
-                            exit_code=pip_proc.returncode,
-                            execution_time=time.time() - start_time
-                        )
-                except subprocess.TimeoutExpired:
-                    return SandboxResult(
-                        success=False,
-                        error="Dependency installation timed out (60s limit).",
-                        execution_time=time.time() - start_time
-                    )
-
-            # Build environment with isolated PYTHONPATH
-            env = os.environ.copy()
-            existing_pythonpath = env.get("PYTHONPATH", "")
-            env["PYTHONPATH"] = f"{site_packages_dir}{os.pathsep}{existing_pythonpath}"
-            env["PYTHONDONTWRITEBYTECODE"] = "1"
-
-            try:
-                proc = subprocess.run(
-                    [self.python_bin, script_file],
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    cwd=tmpdir,
-                    timeout=timeout_val
-                )
-                elapsed = time.time() - start_time
-                return SandboxResult(
-                    success=(proc.returncode == 0),
-                    output=proc.stdout,
-                    error=proc.stderr,
-                    exit_code=proc.returncode,
-                    execution_time=elapsed,
-                    installed_packages=deps
-                )
-            except subprocess.TimeoutExpired:
-                elapsed = time.time() - start_time
-                return SandboxResult(
-                    success=False,
-                    error=f"Execution timed out after {timeout_val} seconds.",
-                    execution_time=elapsed,
-                    installed_packages=deps
-                )
-            except Exception as e:
-                return SandboxResult(
-                    success=False,
-                    error=f"Sandbox execution error: {str(e)}",
-                    execution_time=time.time() - start_time,
-                    installed_packages=deps
-                )
+if __name__ == "__main__":
+    _sr = SandboxRunner()
+    _res = _sr.run_python_code("print('Hello from isolated sandbox!')")

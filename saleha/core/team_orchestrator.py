@@ -17,8 +17,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Callable
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent

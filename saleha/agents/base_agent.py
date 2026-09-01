@@ -10,9 +10,7 @@ import uuid
 import time
 from dataclasses import dataclass
 from typing import Optional
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from saleha.core.smart_router import SmartRouter
 from saleha.core.model_provider import default_provider, ModelProvider
 

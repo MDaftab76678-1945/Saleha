@@ -2,7 +2,7 @@
   "name": "saleha-vscode",
   "displayName": "Saleha AI - Autonomous Multi-Agent AI Engineer",
   "description": "100% Local-First Autonomous AI Software Engineering Platform powered by Ollama. Self-healing loop, OWASP code review, episodic memory, and surgical diffs.",
-  "version": "2.0.0",
+  "version": "2.6.0",
   "publisher": "saleha-ai",
   "repository": {
     "type": "git",
@@ -11,6 +11,9 @@
   "engines": {
     "vscode": "^1.75.0"
   },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "categories": [
     "Programming Languages",
     "Linters",

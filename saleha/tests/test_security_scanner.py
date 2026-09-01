@@ -34,7 +34,7 @@ def load_data(raw):
 
     def test_detect_hardcoded_secrets(self):
         code = '''
-API_KEY = "sk_live_983748293478923487"
+API_KEY = "mock_sk_key_983748293478923487"
 JWT_SECRET = "super_secret_jwt_token_key"
 '''
         vulns = self.scanner.scan_code(code)

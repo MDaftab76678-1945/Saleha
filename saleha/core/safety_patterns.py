@@ -32,11 +32,11 @@ class DangerPattern:
 
 DANGEROUS_PATTERNS: List[DangerPattern] = [
     # From tester.py (execution-risk builtins)
-    DangerPattern(r"os\.system", "os.system() call -- runs arbitrary shell commands"),
-    DangerPattern(r"subprocess\.call", "subprocess.call() -- runs arbitrary external commands"),
-    DangerPattern(r"__import__\s*\(\s*['\"]os['\"]", "dynamic import of os module"),
-    DangerPattern(r"\beval\s*\(", "eval() -- executes arbitrary code from a string"),
-    DangerPattern(r"\bexec\s*\(", "exec() -- executes arbitrary code from a string"),
+    DangerPattern(r"os\.system", "os.system() call -- runs arbitrary shell commands"),  # noqa
+    DangerPattern(r"subprocess\.call", "subprocess.call() -- runs arbitrary external commands"),  # noqa
+    DangerPattern(r"__import__\s*\(\s*['\"]os['\"]", "dynamic import of os module"),  # noqa
+    DangerPattern(r"\beval\s*\(", "eval() -- executes arbitrary code from a string"),  # noqa
+    DangerPattern(r"\bexec\s*\(", "exec() -- executes arbitrary code from a string"),  # noqa
     # From code_executor.py (destructive filesystem operations)
     DangerPattern(
         r"shutil\.rmtree\s*\(\s*['\"](/|~|C:\\\\?|C:/)",

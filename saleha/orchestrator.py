@@ -13,12 +13,8 @@ Naya kya hai vs pehle:
    nahi chhedna padta, bas core/skills/ me naya file banao.
 """
 
-import sys
-import os
 import time
 from typing import Optional
-
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from saleha.agents.planner import PlannerAgent, PlanResult
 from saleha.agents.coder import CoderAgent, CodeResult
@@ -54,6 +50,7 @@ class OrchestrationResult:
 
 class SalehaOrchestrator:
     def __init__(self, model: str = "qwen2.5-coder:1.5b", max_healing_attempts: int = 3, profile: Optional[str] = None):
+        """Initializes the multi-agent orchestrator with Planner, Coder, Debugger, Tester, and Reviewer."""
         self.model = model
         self.planner = PlannerAgent(model=model)
         self.coder = CoderAgent(model=model, max_attempts=max_healing_attempts)
@@ -488,37 +485,5 @@ class SalehaOrchestrator:
 # ==============================================================================
 
 if __name__ == "__main__":
-    print("="*70)
-    print("🧠 SALEHA ORCHESTRATOR - SELF-HEALING LOOP LIVE TEST (Fixed Version)")
-    print("="*70)
-
-    orchestrator = SalehaOrchestrator(model="qwen2.5-coder:1.5b", max_healing_attempts=3)
-
-    test_goal_1 = "एक Python फंक्शन लिखो जो दो संख्याओं को जोड़ता है।"
-    test_goal_2 = "एक Python स्क्रिप्ट लिखो जो एक फाइल पढ़ती है, लेकिन `with open` का उपयोग नहीं करती।"
-
-    for i, goal in enumerate([test_goal_1, test_goal_2], 1):
-        print(f"\n{'='*70}")
-        print(f"[TEST {i}] Goal: '{goal}'")
-        print(f"{'='*70}")
-
-        result = orchestrator.execute_task(goal)
-
-        print("\n📜 EXECUTION LOG:")
-        print("-" * 70)
-        print(result.log)
-        print("-" * 70)
-
-        if result.success:
-            print(f"\n🎉 OVERALL RESULT: SUCCESS (in {result.attempts} attempts)")
-            print("\n📝 FINAL CODE:")
-            print("-" * 70)
-            print(result.final_code[:500])
-            if len(result.final_code) > 500:
-                print("... (कोड जारी)")
-            print("-" * 70)
-        else:
-            print(f"\n💥 OVERALL RESULT: FAILED after {result.attempts} attempts")
-
-    print("\n📊 Saved stats (persists across restarts now):")
-    print(orchestrator.stats.summary(task_type="coding"))
+    _orchestrator = SalehaOrchestrator(model="qwen2.5-coder:1.5b", max_healing_attempts=3)
+    _res = _orchestrator.execute_task("def add(a, b): return a + b")

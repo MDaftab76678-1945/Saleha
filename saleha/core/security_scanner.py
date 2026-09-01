@@ -153,7 +153,7 @@ class ASTSecurityVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign):
-        # 5. Check hardcoded secrets
+        """AST visitor for inspecting variable assignments for hardcoded secrets."""
         for target in node.targets:
             if isinstance(target, ast.Name):
                 var_name = target.id.lower()
@@ -176,11 +176,12 @@ class ASTSecurityVisitor(ast.NodeVisitor):
 
 
 class ASTSecurityScanner:
-    """Polyglot SAST Scanner for Python (AST) and JS/TS/Go/Java/Rust."""
+    """Polyglot SAST Scanner for Python (AST), JS/TS, Go, Java, Rust, and Verilog/SystemVerilog Hardware RTL."""
 
-    POLYGLOT_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".rs"}
+    POLYGLOT_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".rs", ".v", ".sv", ".vh", ".svh"}
 
     def scan_code(self, code: str, filename: str = "snippet.py") -> List[SecurityVulnerability]:
+        """Scans source code across supported languages and returns detected vulnerabilities."""
         ext = os.path.splitext(filename)[1].lower()
         if ext in (".js", ".jsx", ".ts", ".tsx"):
             return self._scan_js_ts(code, filename)
@@ -190,10 +191,30 @@ class ASTSecurityScanner:
             return self._scan_java(code, filename)
         elif ext == ".rs":
             return self._scan_rust(code, filename)
+        elif ext in (".v", ".sv", ".vh", ".svh"):
+            return self._scan_verilog(code, filename)
         else:
             return self._scan_python(code, filename)
 
+    def _scan_verilog(self, code: str, filename: str) -> List[SecurityVulnerability]:
+        """Scans Verilog / SystemVerilog hardware description files using SiliconCopilot scanner."""
+        from saleha.core.silicon_scanner import silicon_scanner
+        silicon_vulns = silicon_scanner.scan_verilog(code, filename=filename)
+        return [
+            SecurityVulnerability(
+                rule_id=v.rule_id,
+                severity=v.severity,
+                file_path=v.file_path,
+                line_number=v.line_number,
+                code_snippet=v.code_snippet,
+                description=f"[{v.cwe}] {v.description}",
+                remediation=v.remediation,
+            )
+            for v in silicon_vulns
+        ]
+
     def _scan_python(self, code: str, filename: str) -> List[SecurityVulnerability]:
+        """Scans Python code using AST traversal."""
         try:
             tree = ast.parse(code, filename=filename)
         except SyntaxError:
@@ -206,16 +227,17 @@ class ASTSecurityScanner:
                 if not visitor._suppressed(v.line_number, v.rule_id)]
 
     def _scan_js_ts(self, code: str, filename: str) -> List[SecurityVulnerability]:
+        """Scans JavaScript and TypeScript for client and server security risks."""
         vulns = []
         lines = code.splitlines()
         for idx, line in enumerate(lines, 1):
             sline = line.strip()
             # SEC101: eval or Function constructor
-            if re.search(r"\beval\s*\(", sline) or re.search(r"new\s+Function\s*\(", sline):
+            if re.search(r"\beval\s*\(", sline) or re.search(r"new\s+Function\s*\(", sline):  # noqa
                 vulns.append(SecurityVulnerability(
                     rule_id="SEC101", severity="HIGH", file_path=filename, line_number=idx,
                     code_snippet=sline, description="Unsafe dynamic JavaScript execution (eval/Function).",
-                    remediation="Avoid eval() or new Function(). Use JSON.parse or safe expression parsers."
+                    remediation="Avoid eval() or new Function(). Use JSON.parse or safe expression parsers."  # noqa
                 ))
             # SEC102: XSS
             if "dangerouslySetInnerHTML" in sline or "document.write(" in sline:
@@ -225,7 +247,7 @@ class ASTSecurityScanner:
                     remediation="Sanitize HTML using DOMPurify or use standard textContent rendering."
                 ))
             # SEC103: child_process.exec
-            if "child_process.exec(" in sline or "execSync(" in sline:
+            if "child_process.exec(" in sline or "execSync(" in sline:  # noqa
                 vulns.append(SecurityVulnerability(
                     rule_id="SEC103", severity="MEDIUM", file_path=filename, line_number=idx,
                     code_snippet=sline, description="Insecure child_process.exec command execution.",
@@ -241,6 +263,7 @@ class ASTSecurityScanner:
         return vulns
 
     def _scan_go(self, code: str, filename: str) -> List[SecurityVulnerability]:
+        """Scans Go source code for SQL injection and unsafe execution."""
         vulns = []
         lines = code.splitlines()
         for idx, line in enumerate(lines, 1):
@@ -254,6 +277,7 @@ class ASTSecurityScanner:
         return vulns
 
     def _scan_java(self, code: str, filename: str) -> List[SecurityVulnerability]:
+        """Scans Java source files for unsafe deserialization."""
         vulns = []
         lines = code.splitlines()
         for idx, line in enumerate(lines, 1):
@@ -267,6 +291,7 @@ class ASTSecurityScanner:
         return vulns
 
     def _scan_rust(self, code: str, filename: str) -> List[SecurityVulnerability]:
+        """Scans Rust files for unsafe blocks and hardcoded secrets."""
         vulns = []
         lines = code.splitlines()
         for idx, line in enumerate(lines, 1):
@@ -286,6 +311,7 @@ class ASTSecurityScanner:
         return vulns
 
     def scan_file(self, file_path: str) -> List[SecurityVulnerability]:
+        """Scans an individual source file from the filesystem."""
         if not os.path.isfile(file_path):
             return []
         try:
@@ -296,6 +322,7 @@ class ASTSecurityScanner:
             return []
 
     def scan_directory(self, dir_path: str = ".") -> ScanReport:
+        """Scans an entire directory tree recursively for polyglot security vulnerabilities."""
         report = ScanReport()
         for root, _, files in os.walk(dir_path):
             rel_parts = safe_relpath(root, dir_path).split(os.sep)

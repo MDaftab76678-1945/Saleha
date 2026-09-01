@@ -9,11 +9,8 @@ Instant, deterministic date and time calculations without calling an LLM:
 """
 
 import re
-import os
-import sys
 from datetime import datetime, date, timedelta, timezone
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.core.skill_base import Skill, SkillResult
 
 

@@ -51,26 +51,17 @@ class InlineSuggester:
             ))
             return suggestions  # No point checking further
 
-        # 2. Quick pattern checks
+        # 2. Quick pattern checks for real-time suggestions
         quick_checks: List[Tuple[str, int, str, str, str, str]] = [
-            ("eval(", 0, "error", "security", "eval() is a code injection risk",
-             "Use ast.literal_eval() for safe evaluation."),
-            ("exec(", 0, "error", "security", "exec() executes arbitrary code",
-             "Avoid exec(). Use specific function calls instead."),
-            ("import *", 0, "warning", "style", "Wildcard import pollutes namespace",
-             "Import specific names: from module import name1, name2"),
-            ("TODO", 0, "hint", "style", "TODO comment found",
-             "Track in your issue tracker and resolve before release."),
-            ("FIXME", 0, "warning", "style", "FIXME marker in code",
-             "This marks a known bug — fix before shipping."),
-            ("except:", 0, "warning", "style", "Bare except catches all exceptions",
-             "Catch specific exceptions: except (ValueError, TypeError) as e:"),
-            ("print(", 0, "hint", "style", "print() in production code",
-             "Use logging.info/debug() for structured logging."),
-            ("password = \"", 0, "error", "security", "Hardcoded password detected",
-             "Use os.getenv('PASSWORD') or encrypted vault."),
-            ("secret = \"", 0, "error", "security", "Hardcoded secret detected",
-             "Use environment variables or Saleha vault."),
+            ("eval(", 0, "error", "security", "eval() is a code injection risk", "Use ast.literal_eval() for safe evaluation."),  # noqa
+            ("exec(", 0, "error", "security", "exec() executes arbitrary code", "Avoid exec(). Use specific function calls instead."),  # noqa
+            ("import *", 0, "warning", "style", "Wildcard import pollutes namespace", "Import specific names: from module import name1, name2"),  # noqa
+            ("TODO", 0, "hint", "style", "TODO comment found", "Track in your issue tracker and resolve before release."),  # noqa
+            ("FIXME", 0, "warning", "style", "FIXME marker in code", "This marks a known bug — fix before shipping."),  # noqa
+            ("except:", 0, "warning", "style", "Bare except catches all exceptions", "Catch specific exceptions: except (ValueError, TypeError) as e:"),  # noqa
+            ("print(", 0, "hint", "style", "print() in production code", "Use logging.info/debug() for structured logging."),  # noqa
+            ("password = \"", 0, "error", "security", "Hardcoded password detected", "Use os.getenv('PASSWORD') or encrypted vault."),  # noqa
+            ("secret = \"", 0, "error", "security", "Hardcoded secret detected", "Use environment variables or Saleha vault."),  # noqa
         ]
 
         for lineno, line in enumerate(lines, start=1):

@@ -2,11 +2,8 @@
 
 import os
 import re
-import sys
 from dataclasses import dataclass
 from typing import Optional
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from saleha.agents.base_agent import AgentResponse, BaseAgent
 from saleha.core.self_healing import SelfHealingEngine

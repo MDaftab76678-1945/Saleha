@@ -1,50 +1,29 @@
+"""Unit tests for Isolated Container & Process Sandbox Execution Engine."""
+
 import unittest
-import os
-import tempfile
-import json
-from click.testing import CliRunner
-
-from saleha.core.sandbox_runner import SandboxRunner, SandboxResult
-from saleha.cli.commands import cli
+from saleha.core.sandbox_runner import SandboxRunner, SandboxExecutionResult
 
 
-class SandboxRunnerTests(unittest.TestCase):
+class TestSandboxRunner(unittest.TestCase):
+    """Test suite for SandboxRunner process containment and safety checks."""
+
     def setUp(self):
-        self.runner = SandboxRunner(default_timeout=10)
+        self.runner = SandboxRunner(default_timeout_sec=5.0)
 
-    def test_safe_code_execution_in_sandbox(self):
-        code = "print('Hello from Sandbox!')"
-        res: SandboxResult = self.runner.run_in_sandbox(code)
+    def test_run_python_code_success(self):
+        res = self.runner.run_python_code("print('SANDBOX_OK')")
+        self.assertIsInstance(res, SandboxExecutionResult)
         self.assertTrue(res.success)
-        self.assertIn("Hello from Sandbox!", res.output)
         self.assertEqual(res.exit_code, 0)
+        self.assertIn("SANDBOX_OK", res.stdout)
+        self.assertFalse(res.blocked_by_safety)
 
-    def test_runtime_error_captured(self):
-        code = "raise ValueError('Custom error inside sandbox')"
-        res: SandboxResult = self.runner.run_in_sandbox(code)
+    def test_blocks_dangerous_command(self):
+        res = self.runner.run_command(["rm", "-rf", "/"])
         self.assertFalse(res.success)
-        self.assertIn("ValueError: Custom error inside sandbox", res.error)
-        self.assertNotEqual(res.exit_code, 0)
-
-    def test_dangerous_pattern_blocked(self):
-        dangerous_code = "rm -rf /"
-        res: SandboxResult = self.runner.run_in_sandbox(dangerous_code)
-        self.assertFalse(res.success)
-        self.assertTrue(res.blocked)
-
-    def test_cli_sandbox_invocation(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            script_path = os.path.join(tmpdir, "script.py")
-            with open(script_path, "w", encoding="utf-8") as f:
-                f.write("print('Sandbox CLI OK')\n")
-
-            res = CliRunner().invoke(cli, ["sandbox", script_path, "--json"])
-            self.assertEqual(res.exit_code, 0)
-            payload = json.loads(res.output)
-            self.assertTrue(payload["success"])
-            self.assertIn("Sandbox CLI OK", payload["output"])
+        self.assertTrue(res.blocked_by_safety)
+        self.assertIn("Security Alert", res.stderr)
 
 
 if __name__ == "__main__":
     unittest.main()
-

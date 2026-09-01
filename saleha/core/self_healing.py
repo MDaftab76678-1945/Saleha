@@ -134,8 +134,8 @@ class SelfHealingEngine:
         patched = re.sub(r"(\w+)\.addAndGet\((.*?)\)", r"\1 = \1 + \2", patched)
 
         # 3. Fix Java/JS print statement hallucinations
-        patched = re.sub(r"System\.out\.println\((.*?)\)", r"print(\1)", patched)
-        patched = re.sub(r"console\.log\((.*?)\)", r"print(\1)", patched)
+        patched = re.sub(r"System\.out\.println\((.*?)\)", r"print(\1)", patched)  # noqa
+        patched = re.sub(r"console\.log\((.*?)\)", r"print(\1)", patched)  # noqa
 
         return patched
 
@@ -144,41 +144,5 @@ class SelfHealingEngine:
 # ==============================================================================
 
 if __name__ == "__main__":
-    engine = SelfHealingEngine()
-    
-    test_cases = [
-        {
-            "task": "एक Python फंक्शन बनाओ जो दो नंबर जोड़ता है।",
-            "error": "File \"test.py\", line 2\n    return a + b\n            ^\nSyntaxError: invalid syntax"
-        },
-        {
-            "task": "Pandas का उपयोग करके CSV फाइल पढ़ो।",
-            "error": "Traceback (most recent call last):\n  File \"test.py\", line 1, in <module>\n    import panda\nModuleNotFoundError: No module named 'panda'"
-        },
-        {
-            "task": "एक लिस्ट को सॉर्ट करो।",
-            "error": "TypeError: '<' not supported between instances of 'str' and 'int'"
-        },
-        {
-            "task": "Hello World प्रिंट करो।",
-            "error": "" # कोई एरर नहीं
-        }
-    ]
-
-    print("="*70)
-    print("🩹 SALEHA SELF-HEALING ENGINE - REFLEXION TEST")
-    print("="*70)
-    
-    for i, test in enumerate(test_cases, 1):
-        print(f"\n[Test {i}] Task: '{test['task']}'")
-        if test['error']:
-            print(f"  ➔ Error Log: '{test['error'][:50]}...'")
-        
-        result = engine.analyze_and_heal(test['error'], test['task'])
-        
-        if result.error_detected:
-            print(f"  ✅ Error Detected : {result.error_type}")
-            print(f"  💡 Root Cause     : {result.root_cause_hint}")
-            print(f"  🔄 Reflexion Prompt Generated: YES (Length: {len(result.reflexion_prompt)} chars)")
-        else:
-            print(f"  ✅ No Error Detected. Code is clean.")
+    _engine = SelfHealingEngine()
+    _res = _engine.analyze_and_heal("SyntaxError: invalid syntax", "def add(a, b): return a + b")

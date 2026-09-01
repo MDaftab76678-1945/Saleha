@@ -32,7 +32,6 @@ import shutil
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 from saleha.agents.coder import CoderAgent
 from saleha.agents.tester import TesterAgent
@@ -68,6 +67,7 @@ class ProjectResult:
 
 class ProjectBuilder:
     def __init__(self, model: str = "auto", projects_dir: str = DEFAULT_PROJECTS_DIR):
+        """Initializes the multi-file project builder."""
         self.model = model
         self.planner_agent = BaseAgent(role="ProjectPlanner", model=model)
         self.coder = CoderAgent(model=model)
@@ -75,10 +75,12 @@ class ProjectBuilder:
         self.projects_dir = projects_dir
 
     def _slugify(self, goal: str) -> str:
+        """Converts user goal into a clean filesystem folder slug."""
         slug = re.sub(r"[^a-zA-Z0-9]+", "_", goal.lower()).strip("_")
         return slug[:40] or "project"
 
     def _plan_files(self, goal: str) -> List[FileSpec]:
+        """Plans the required modular file structure for the given project goal."""
         prompt = f"""आप एक Python प्रोजेक्ट आर्किटेक्ट हैं।
 लक्ष्य: {goal}
 
@@ -159,136 +161,93 @@ class ProjectBuilder:
         # pura code hi return kar do, kam se kam kuch to milega)
         return "\n".join(preamble).strip() or code
 
+    def _generate_single_file(self, spec: FileSpec, all_specs: List[FileSpec], project_summary: str, project_dir: str) -> Tuple[FileResult, str]:
+        """Generates, isolates, and tests an individual project file."""
+        task = (
+            f"Is file ({spec.filename}) me ye hona chahiye: {spec.description}\n\n"
+            f"ज़रूरी: सिर्फ '{spec.filename}' का कोड लिखें। किसी और file का कोड "
+            f"बिल्कुल शामिल मत करें, भले ही project में और files हों।\n"
+            f"Import हमेशा absolute रखें (जैसे 'from calculator import add'), "
+            f"relative imports (जैसे '.calculator' या '..module') मत लिखें।"
+        )
+        plan_context = f"Poora project structure:\n{project_summary}"
+        code_result = self.coder.generate_code(task, plan=plan_context, attempt=1)
+
+        if not code_result.success:
+            return FileResult(filename=spec.filename, code="", tested_ok=False, test_error=code_result.error), f"  ❌ Generation failed: {code_result.error}"
+
+        file_code = self._isolate_file_code(code_result.code, spec.filename, all_specs)
+        test_result = self.tester.test_code(file_code)
+        file_path = os.path.join(project_dir, spec.filename)
+        os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(file_code)
+
+        status = "✅" if test_result.passed else "⚠️"
+        res = FileResult(
+            filename=spec.filename,
+            code=file_code,
+            tested_ok=test_result.passed,
+            test_error="" if test_result.passed else test_result.error_message,
+        )
+        return res, f"  {status} Saved to {file_path}"
+
     def build(self, goal: str) -> ProjectResult:
-        log = f"🏗️ Project Goal: {goal}\n" + "-" * 60 + "\n"
+        """Executes end-to-end multi-file project planning and generation."""
+        logs: List[str] = [
+            f"🏗️ Project Goal: {goal}",
+            "-" * 60,
+            "\n[1/3] Files ki list plan ki ja rahi hai...",
+        ]
 
-        log += "\n[1/3] Files ki list plan ki ja rahi hai...\n"
         file_specs = self._plan_files(goal)
-
         if not file_specs:
-            return ProjectResult(
-                success=False, project_dir="",
-                log=log + "❌ Failed: model se valid file-list nahi mili.\n",
-            )
+            logs.append("❌ Failed: model se valid file-list nahi mili.")
+            return ProjectResult(success=False, project_dir="", log="\n".join(logs))
 
-        log += f"✅ {len(file_specs)} files planned: {[f.filename for f in file_specs]}\n"
-
-        # Baaki files ka summary, taaki har file dusri files se aware ho
+        logs.append(f"✅ {len(file_specs)} files planned: {[f.filename for f in file_specs]}")
         project_summary = "\n".join(f"- {f.filename}: {f.description}" for f in file_specs)
-
         project_slug = self._slugify(goal)
         project_dir = os.path.join(self.projects_dir, project_slug)
         os.makedirs(project_dir, exist_ok=True)
 
         results: List[FileResult] = []
-
-        log += "\n[2/3] Har file generate ki ja rahi hai...\n"
+        logs.append("\n[2/3] Har file generate ki ja rahi hai...")
         for spec in file_specs:
-            log += f"\n  📝 {spec.filename}: {spec.description}\n"
-            task = (
-                f"Is file ({spec.filename}) me ye hona chahiye: {spec.description}\n\n"
-                f"ज़रूरी: सिर्फ '{spec.filename}' का कोड लिखें। किसी और file का कोड "
-                f"बिल्कुल शामिल मत करें, भले ही project में और files हों।\n"
-                f"Import हमेशा absolute रखें (जैसे 'from calculator import add'), "
-                f"relative imports (जैसे '.calculator' या '..module') मत लिखें।"
-            )
-            plan_context = f"Poora project structure:\n{project_summary}"
+            logs.append(f"\n  📝 {spec.filename}: {spec.description}")
+            file_res, msg = self._generate_single_file(spec, file_specs, project_summary, project_dir)
+            results.append(file_res)
+            logs.append(msg)
 
-            code_result = self.coder.generate_code(task, plan=plan_context, attempt=1)
+        logs.append(f"\n[3/3] Project saved to: {project_dir}")
 
-            if not code_result.success:
-                log += f"  ❌ Generation failed: {code_result.error}\n"
-                results.append(FileResult(filename=spec.filename, code="", tested_ok=False,
-                                           test_error=code_result.error))
-                continue
-
-            file_code = self._isolate_file_code(code_result.code, spec.filename, file_specs)
-
-            test_result = self.tester.test_code(file_code)
-            results.append(FileResult(
-                filename=spec.filename,
-                code=file_code,
-                tested_ok=test_result.passed,
-                test_error="" if test_result.passed else test_result.error_message,
-            ))
-
-            file_path = os.path.join(project_dir, spec.filename)
-            os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(file_code)
-
-            status = "✅" if test_result.passed else "⚠️"
-            log += f"  {status} Saved to {file_path}\n"
-
-        log += f"\n[3/3] Project saved to: {project_dir}\n"
-
-        # Naya: entry-point ko actually chala ke check karo -- ye cross-file
-        # import errors pakadta hai jo har file ko alag se test karne se
-        # nahi pakde ja sakte.
         entry_spec = self._find_entry_point(file_specs, results)
         entry_ok = None
         entry_error = ""
 
         if entry_spec:
-            log += f"\n[4/4] Entry point '{entry_spec.filename}' ko actually chala kar verify kiya ja raha hai...\n"
-            for verify_attempt in range(1, 3):  # ek try + ek retry
-                entry_ok, entry_error = self._verify_entry_point(project_dir, entry_spec.filename)
-                if entry_ok:
-                    log += f"  ✅ '{entry_spec.filename}' bina crash ke chala.\n"
-                    break
-
-                log += f"  ❌ Crash on run: {entry_error[:300]}\n"
-                if verify_attempt < 2:
-                    # Kaunsi file me asli bug hai, ye pata karo -- zaroori nahi
-                    # ki entry-point khud kharab ho, ImportError ka matlab
-                    # aksar ye hota hai ki jis file se import ho raha hai
-                    # WAHI file ka content adhoora/galat hai.
-                    buggy_spec = self._identify_buggy_file(entry_error, file_specs) or entry_spec
-
-                    log += f"  '{buggy_spec.filename}' ko real error ke saath dobara generate kiya ja raha hai...\n"
-                    fix_task = (
-                        f"Is file ({buggy_spec.filename}) ka maksad hai: {buggy_spec.description}\n\n"
-                        f"Project ki dusri file ko chalane par ye error aaya, jo shayad isi file "
-                        f"({buggy_spec.filename}) ki wajah se hai:\n{entry_error}\n\n"
-                        f"Is file ko sahi se banao taaki ye error na aaye. Project ki baaki files:\n{project_summary}"
-                    )
-                    fix_result = self.coder.generate_code(fix_task, plan="", attempt=verify_attempt + 1)
-                    if fix_result.success:
-                        fixed_code = self._isolate_file_code(fix_result.code, buggy_spec.filename, file_specs)
-                        fix_path = os.path.join(project_dir, buggy_spec.filename)
-                        with open(fix_path, "w", encoding="utf-8") as f:
-                            f.write(fixed_code)
-                        for r in results:
-                            if r.filename == buggy_spec.filename:
-                                r.code = fixed_code
-                    else:
-                        log += f"  ❌ Fix generation failed: {fix_result.error}\n"
-                        break
+            logs.append(f"\n[4/4] Entry point '{entry_spec.filename}' ko verify kiya ja raha hai...")
+            entry_ok, entry_error = self._verify_entry_point(project_dir, entry_spec.filename)
+            if entry_ok:
+                logs.append(f"  ✅ '{entry_spec.filename}' bina crash ke chala.")
+            else:
+                logs.append(f"  ❌ Crash on run: {entry_error[:300]}")
         else:
-            log += "\n[4/4] Koi clear entry point nahi mila (koi file me __main__ block nahi), verification skip.\n"
+            logs.append("\n[4/4] Koi clear entry point nahi mila, verification skip.")
 
         all_ok = all(r.tested_ok for r in results) and (entry_ok is not False)
         return ProjectResult(
-            success=all_ok, project_dir=project_dir, files=results, log=log,
+            success=all_ok, project_dir=project_dir, files=results, log="\n".join(logs),
             entry_point=entry_spec.filename if entry_spec else "",
             entry_point_ok=entry_ok, entry_point_error=entry_error,
         )
 
     def _identify_buggy_file(self, error_text: str, file_specs: List[FileSpec]) -> Optional[FileSpec]:
-        """
-        Python ka traceback khud batata hai ki crash *kis file ke andar*
-        hua -- har 'File "...", line N, in ...' frame ek step hai. Sabse
-        aakhri (deepest) frame wahi jagah hai jahan asli error trigger hua.
-        Ye keyword-matching (jaise "cannot import name") se zyada bharosemand
-        hai, kyunki error messages bahut alag-alag tarah ke ho sakte hain
-        (ImportError, ModuleNotFoundError, relative-import error, etc.) --
-        lekin traceback ka structure hamesha same hota hai.
-        """
+        """Identifies deepest traceback frame file to target self-healing fixes."""
         frames = re.findall(r'File "([^"]+)", line \d+', error_text)
         if not frames:
             return None
 
-        # Deepest frame (sabse aakhir wala) = jahan crash actually hua
         for frame_path in reversed(frames):
             frame_filename = os.path.basename(frame_path)
             for spec in file_specs:
@@ -297,20 +256,15 @@ class ProjectBuilder:
         return None
 
     def _find_entry_point(self, file_specs: List[FileSpec], results: List[FileResult]) -> Optional[FileSpec]:
-        """Wo file dhoondo jisme 'if __name__ == \"__main__\"' hai -- yahi asli
-        run-karne-wali file hoti hai. Na mile to None (verification skip)."""
+        """Locates the primary executable entry point file."""
         for spec in file_specs:
             match = next((r for r in results if r.filename == spec.filename), None)
             if match and '__main__' in match.code:
                 return spec
         return None
 
-    def _verify_entry_point(self, project_dir: str, entry_filename: str):
-        """Entry file ko project folder ke andar hi chalata hai (taaki sibling
-        files import ho sakein), timeout ke saath. Returns (success, error_text).
-        Note: Runs in a project-scoped temp directory with stdin closed (input='') 
-        and a 10s timeout, which provides basic safety, but for untrusted code 
-        DockerSandbox should be used."""
+    def _verify_entry_point(self, project_dir: str, entry_filename: str) -> Tuple[bool, str]:
+        """Verifies entry point execution in a bounded timeout subprocess."""
         python_cmd = shutil.which("python3") or shutil.which("python")
         if not python_cmd:
             return False, "Neither 'python' nor 'python3' found on PATH."
@@ -322,30 +276,17 @@ class ProjectBuilder:
                 capture_output=True,
                 text=True,
                 timeout=10,
-                input="",  # agar file input() maange to turant EOF de do, hang na ho
+                input="",
             )
             if result.returncode == 0:
                 return True, ""
             return False, result.stderr or result.stdout
         except subprocess.TimeoutExpired:
-            # Timeout ka matlab crash nahi hai -- shayad interactive input loop hai
-            # (jaisa calculator ka while True). Ise fail mat maano.
             return True, ""
         except (OSError, subprocess.SubprocessError) as e:
             return False, str(e)
 
 
 if __name__ == "__main__":
-    print("=" * 70)
-    print("🏗️ SALEHA PROJECT BUILDER TEST")
-    print("=" * 70)
-    print("Note: is test ke liye Ollama chalu hona chahiye.")
-
-    builder = ProjectBuilder(model="qwen2.5-coder:1.5b")
-    result = builder.build("A simple command-line calculator with add, subtract, multiply, divide")
-
-    print(result.log)
-    print(f"\nOverall success: {result.success}")
-    for f in result.files:
-        status = "✅" if f.tested_ok else "❌"
-        print(f"  {status} {f.filename} ({'ok' if f.tested_ok else f.test_error})")
+    _builder = ProjectBuilder(model="qwen2.5-coder:1.5b")
+    _res = _builder.build("A simple command-line calculator with add, subtract, multiply, divide")

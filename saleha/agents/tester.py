@@ -10,11 +10,8 @@ Static `test_code()` ab bhi fast pre-flight gate hai (execution se pehle).
 """
 
 import ast
-import sys
-import os
 from dataclasses import dataclass
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.core.safety_patterns import check_dangerous
 
 

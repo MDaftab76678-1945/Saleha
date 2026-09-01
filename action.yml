@@ -43,6 +43,8 @@ runs:
       shell: bash
       env:
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
+        SALEHA_SCAN_PATH: ${{ inputs.scan-path }}
+        SALEHA_FAIL_ON_CRITICAL: ${{ inputs.fail-on-critical }}
       run: |
         python -c "
         import os, sys, json
@@ -50,7 +52,7 @@ runs:
         from saleha.core.review_reporter import ReviewReporter
 
         rev = AIReviewer()
-        target = '${{ inputs.scan-path }}'
+        target = os.environ.get('SALEHA_SCAN_PATH', '.')
         report = rev.review_workspace(target) if os.path.isdir(target) else (rev.review_file(target) and None)
         
         if os.path.isfile(target):
@@ -80,7 +82,7 @@ runs:
             for fr in report.file_reviews
             for iss in fr.issues
         )
-        if '${{ inputs.fail-on-critical }}' == 'true' and has_critical:
+        if os.environ.get('SALEHA_FAIL_ON_CRITICAL', 'true') == 'true' and has_critical:
             print('::error title=Security Vulnerability::Saleha detected Critical or High severity security issues in reviewed files.')
             sys.exit(1)
         "

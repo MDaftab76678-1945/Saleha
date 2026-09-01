@@ -1,7 +1,12 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from saleha.core.model_provider import OllamaProvider
+from saleha.core.model_provider import (
+    OllamaProvider,
+    OpenAICompatibleProvider,
+    FallbackChainProvider,
+    MockProvider,
+)
 
 
 class ModelProviderTests(unittest.TestCase):
@@ -37,6 +42,40 @@ class ModelProviderTests(unittest.TestCase):
 
         get.return_value.status_code = 503
         self.assertFalse(self.provider.is_available())
+
+    def test_mock_provider(self):
+        mock_p = MockProvider("def test(): pass")
+        self.assertTrue(mock_p.is_available())
+        res = mock_p.generate("any-model", "prompt")
+        self.assertTrue(res.success)
+        self.assertEqual(res.content, "def test(): pass")
+
+    @patch("saleha.core.model_provider.requests.post")
+    def test_openai_compatible_provider(self, post):
+        openai_p = OpenAICompatibleProvider(api_key="test-key")
+        resp = Mock()
+        resp.json.return_value = {
+            "choices": [{"message": {"content": "OpenAI result"}}],
+            "usage": {"total_tokens": 42},
+        }
+        post.return_value = resp
+
+        res = openai_p.generate("gpt-4o", "Hello")
+        self.assertTrue(res.success)
+        self.assertEqual(res.content, "OpenAI result")
+        self.assertEqual(res.tokens_used, 42)
+
+    def test_fallback_chain_provider(self):
+        failing_p = Mock()
+        failing_p.is_available.return_value = False
+
+        working_p = MockProvider("Fallback Success")
+        chain = FallbackChainProvider([failing_p, working_p])
+
+        self.assertTrue(chain.is_available())
+        res = chain.generate("model", "prompt")
+        self.assertTrue(res.success)
+        self.assertEqual(res.content, "Fallback Success")
 
 
 if __name__ == "__main__":

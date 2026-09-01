@@ -33,3 +33,16 @@ Thumbs.db
 # Node (vscode-extension)
 node_modules/
 *.vsix
+
+# Local Research Notes & Temporary Scratch Workspaces
+Notebook/
+workspace/
+test_dynamic_ws/
+saleha-2.6.0/
+saleha-*/
+apps/
+packages/
+turbo.json
+package.json
+package-lock.json
+saleha-release-manifest.json

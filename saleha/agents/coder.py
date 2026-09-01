@@ -15,11 +15,7 @@ current attempt number into generate_code() -- see the __main__ demo below
 for the expected call pattern.
 """
 
-import sys
-import os
 import re
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 

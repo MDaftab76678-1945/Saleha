@@ -82,47 +82,32 @@ class ChangelogGenerator:
 
         return section
 
-    def generate_release_notes(self, version: str = "1.5.0", limit: int = 50) -> str:
+    def generate_release_notes(self, version: str = "2.0.0", limit: int = 50) -> str:
         """Formats categorized commits into professional Markdown release notes."""
         commits = self.extract_recent_commits(limit=limit)
         cat = self.categorize_commits(commits)
         today = time.strftime("%Y-%m-%d")
 
-        md = f"## [{version}] - {today}\n\n"
+        blocks = [f"## [{version}] - {today}\n"]
 
         if cat.features:
-            md += "### 🚀 Features & Enhancements\n"
-            for f in cat.features:
-                md += f"- {f}\n"
-            md += "\n"
+            blocks.append("### 🚀 Features & Enhancements\n" + "\n".join(f"- {f}" for f in cat.features) + "\n")
 
         if cat.fixes:
-            md += "### 🩹 Bug Fixes & Resilience\n"
-            for fx in cat.fixes:
-                md += f"- {fx}\n"
-            md += "\n"
+            blocks.append("### 🩹 Bug Fixes & Resilience\n" + "\n".join(f"- {fx}" for fx in cat.fixes) + "\n")
 
         if cat.refactors:
-            md += "### 🔄 Architecture & Refactoring\n"
-            for r in cat.refactors:
-                md += f"- {r}\n"
-            md += "\n"
+            blocks.append("### 🔄 Architecture & Refactoring\n" + "\n".join(f"- {r}" for r in cat.refactors) + "\n")
 
         if cat.performance:
-            md += "### ⚡ Performance Improvements\n"
-            for p in cat.performance:
-                md += f"- {p}\n"
-            md += "\n"
+            blocks.append("### ⚡ Performance Improvements\n" + "\n".join(f"- {p}" for p in cat.performance) + "\n")
 
         if cat.tests:
-            md += "### 🧪 Quality Assurance & Tests\n"
-            for t in cat.tests:
-                md += f"- {t}\n"
-            md += "\n"
+            blocks.append("### 🧪 Quality Assurance & Tests\n" + "\n".join(f"- {t}" for t in cat.tests) + "\n")
 
-        return md.strip()
+        return "\n".join(blocks).strip()
 
-    def update_changelog_file(self, file_path: str = "CHANGELOG.md", version: str = "1.5.0") -> str:
+    def update_changelog_file(self, file_path: str = "CHANGELOG.md", version: str = "2.0.0") -> str:
         """Appends new version release notes to CHANGELOG.md file."""
         notes = self.generate_release_notes(version=version)
         abs_p = os.path.join(self.repo_dir, file_path) if not os.path.isabs(file_path) else file_path

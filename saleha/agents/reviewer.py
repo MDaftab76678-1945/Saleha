@@ -15,12 +15,10 @@ Design: BaseAgent se inherit karta hai (jaisa Coder karta hai), taaki wahi
 Ollama connection aur SmartRouter use ho jo already kaam kar raha hai.
 """
 
-import sys
 import os
 import re
 from dataclasses import dataclass
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 
 

@@ -242,7 +242,7 @@ class SmartRouter:
 
         if thermal_state == "hot":
             if complexity >= 9.0:
-                return self._filter_installed(["deepseek-r1:8b", "deepseek-coder:6.7b"])
+                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "deepseek-coder:6.7b"])
             elif complexity >= 5.0:
                 return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b"])
             else:
