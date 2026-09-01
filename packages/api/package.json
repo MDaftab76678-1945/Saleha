@@ -1,0 +1,19 @@
+{
+  "name": "@saleha/api",
+  "version": "2.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@saleha/db": "workspace:*",
+    "@trpc/server": "^11.0.0-rc.802",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
+

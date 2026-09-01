@@ -1,0 +1,82 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  role          String         @default("DEVELOPER") // DEVELOPER, ARCHITECT, ADMIN
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  organizations OrganizationMember[]
+  auditLogs     AuditLog[]
+}
+
+model Organization {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  plan        String               @default("FREE_OPEN_CORE") // FREE_OPEN_CORE, TEAM_SAAS, ENTERPRISE
+  createdAt   DateTime             @default(now())
+  members     OrganizationMember[]
+  projects    Project[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String       @default("MEMBER")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model Project {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  repositoryUrl  String?
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memoryTriples  MemoryTriple[]
+  auditLogs      AuditLog[]
+
+  @@unique([organizationId, slug])
+}
+
+model MemoryTriple {
+  id         String   @id @default(cuid())
+  projectId  String
+  subject    String
+  predicate  String
+  object     String
+  confidence Float    @default(1.0)
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, subject])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  projectId  String?
+  action     String   // GAMMA_AST_AUTO_HEAL, SWARM_DISPATCH, DEPLOY_GENERATED
+  details    String
+  timestamp  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([action, timestamp])
+}
+
