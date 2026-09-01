@@ -103,6 +103,13 @@ class CodeMigrator:
             code = route_get.sub(r"@app.get(\1)", code)
             changes += 1
 
+        # Flask path parameters <int:id> -> {id}
+        if "<int:" in code or "<string:" in code or "<path:" in code:
+            code = re.sub(r"<int:([a-zA-Z_]\w*)>", r"{\1}", code)
+            code = re.sub(r"<string:([a-zA-Z_]\w*)>", r"{\1}", code)
+            code = re.sub(r"<path:([a-zA-Z_]\w*)>", r"{\1}", code)
+            changes += 1
+
         # jsonify replacement
         if "jsonify(" in code:
             code = code.replace("jsonify(", "(")
@@ -135,6 +142,11 @@ class CodeMigrator:
             code = code.replace("import unittest\n", "import pytest\n")
             changes += 1
 
+        # Convert self.assertRaises
+        if "self.assertRaises(" in code:
+            code = re.sub(r"self\.assertRaises\((.*?)\)", r"pytest.raises(\1)", code)
+            changes += 1
+
         # Replace assertions
         replacements = [
             (r"self\.assertEqual\((.*?),\s*(.*?)\)", r"assert \1 == \2"),
@@ -158,6 +170,12 @@ class CodeMigrator:
         # Replace setUp with fixture
         if "def setUp(self):" in code:
             code = re.sub(r"def setUp\(self\):", "@pytest.fixture(autouse=True)\ndef setup_test(self):", code)
+            changes += 1
+
+        # Strip unittest.main()
+        if "unittest.main()" in code:
+            code = code.replace("unittest.main()", "pytest.main()")
+            changes += 1
             changes += 1
 
         # Remove if __name__ == '__main__': unittest.main()

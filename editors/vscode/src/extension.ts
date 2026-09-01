@@ -136,16 +136,66 @@ export function activate(context: vscode.ExtensionContext) {
   const inlineProvider: vscode.InlineCompletionItemProvider = {
     async provideInlineCompletionItems(document, position, context, token) {
       const lineText = document.lineAt(position.line).text;
-      const prefix = lineText.substring(0, position.character);
+      const prefix = document.getText(new vscode.Range(new vscode.Position(Math.max(0, position.line - 10), 0), position));
+      const suffix = document.getText(new vscode.Range(position, new vscode.Position(Math.min(document.lineCount - 1, position.line + 5), 0)));
+
       if (prefix.trim().length < 3) {
         return [];
       }
-      return [
-        new vscode.InlineCompletionItem(
-          ` // [Saleha Local Ghost-Text]`,
-          new vscode.Range(position, position)
-        )
-      ];
+
+      try {
+        // Real Ollama FIM (Fill-in-the-Middle) query
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 250);
+
+        const prompt = `<fim_prefix>${prefix}<fim_suffix>${suffix}<fim_middle>`;
+        const response = await fetch('http://localhost:11434/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'qwen2.5-coder',
+            prompt: prompt,
+            stream: false,
+            options: { num_predict: 24, temperature: 0.1, stop: ['\n\n', '<file_sep>'] }
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json() as { response?: string };
+          if (data && data.response && data.response.trim().length > 0) {
+            return [
+              new vscode.InlineCompletionItem(
+                data.response,
+                new vscode.Range(position, position)
+              )
+            ];
+          }
+        }
+      } catch {
+        // Fallback gracefully without blocking editor
+      }
+
+      // Smart local heuristic fallback
+      const trimmed = lineText.trim();
+      let fallbackText = '';
+      if (trimmed.endsWith('def ') || trimmed.endsWith('function ')) {
+        fallbackText = 'handler(*args, **kwargs): ...';
+      } else if (trimmed.endsWith('if ') || trimmed.endsWith('if(')) {
+        fallbackText = 'is_valid: return True';
+      }
+
+      if (fallbackText) {
+        return [
+          new vscode.InlineCompletionItem(
+            fallbackText,
+            new vscode.Range(position, position)
+          )
+        ];
+      }
+
+      return [];
     }
   };
 
