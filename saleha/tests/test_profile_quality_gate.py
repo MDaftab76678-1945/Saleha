@@ -8,7 +8,8 @@ from saleha.core.agent_profile_loader import profile_registry
 class ProfileQualityGateTests(unittest.TestCase):
     def test_all_20_profiles_load(self):
         profiles = profile_registry.list_profiles()
-        self.assertEqual(len(profiles), 20)
+        self.assertGreaterEqual(len(profiles), 20)
+        self.assertEqual(len(profiles), 24)
 
     def test_every_profile_meets_richness_bar(self):
         failures = []

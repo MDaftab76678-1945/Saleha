@@ -480,6 +480,17 @@ class SalehaOrchestrator:
         _checkpoint("failed")
         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
+    def execute_with_tot_exploration(self, goal: str, initial_code: str, test_suite: str, max_depth: int = 3, branching_factor: int = 3):
+        """Executes advanced Tree-of-Thoughts (ToT) search with backtracking and learned heuristics."""
+        from saleha.core.tot_orchestrator import tot_orchestrator
+        return tot_orchestrator.solve_task_with_tot(
+            goal=goal,
+            initial_code=initial_code,
+            test_suite=test_suite,
+            max_depth=max_depth,
+            branching_factor=branching_factor
+        )
+
 # ==============================================================================
 # 3. टेस्टिंग (Testing)
 # ==============================================================================

@@ -6143,6 +6143,124 @@ def mcp_serve_cmd():
     server.run_stdio()
 
 
+# ==============================================================================
+# SPECIALIZED ORCHESTRATOR CLI COMMANDS (v2.6.0)
+# ==============================================================================
+
+@cli.command(name="cloud-plan")
+@click.argument("goal")
+@click.option("--provider", "-p", default="aws", type=click.Choice(["aws", "gcp", "azure", "cloudflare"], case_sensitive=False), help="Target cloud provider")
+@click.option("--ha/--no-ha", default=True, help="Enable Multi-AZ High Availability")
+@click.option("--output-dir", "-o", default=None, help="Directory to save generated IaC manifests")
+def cloud_plan_cmd(goal: str, provider: str, ha: bool, output_dir: Optional[str]):
+    """Autonomously synthesize Terraform, Kubernetes manifests, Helm values & IAM security policies."""
+    from saleha.core.cloud_infra_orchestrator import cloud_infra_orchestrator
+    console.print(f"[bold cyan]☁️ Synthesizing Enterprise Cloud Architecture for:[/] [white]{goal}[/]")
+    plan = cloud_infra_orchestrator.plan_and_generate_infra(goal=goal, cloud_provider=provider, high_availability=ha)
+
+    if output_dir:
+        out_p = Path(output_dir)
+        out_p.mkdir(parents=True, exist_ok=True)
+        (out_p / "main.tf").write_text(plan.terraform_code, encoding="utf-8")
+        (out_p / "k8s-deployment.yaml").write_text(plan.kubernetes_manifests, encoding="utf-8")
+        (out_p / "values.yaml").write_text(plan.helm_values, encoding="utf-8")
+        (out_p / "iam-policy.json").write_text(plan.iam_policy_json, encoding="utf-8")
+        (out_p / "deploy.yml").write_text(plan.ci_cd_workflow, encoding="utf-8")
+        console.print(f"[bold green]✅ Wrote 5 cloud manifests to:[/] {output_dir}")
+
+    console.print(Panel(plan.terraform_code[:380] + "\n  ...", title=f"Terraform ({provider.upper()})", border_style="cyan"))
+    console.print(f"[green]💰 Estimated Monthly Cost:[/] ${plan.finops_estimated_monthly_cost:.2f}/mo | [yellow]🛡️ Security CIS Score:[/] {plan.security_score}/100")
+
+
+@cli.command(name="multirepo")
+@click.argument("goal")
+@click.option("--repos", "-r", required=True, help="Comma-separated repository names (e.g. 'api-gateway,web-client,auth-service')")
+def multirepo_cmd(goal: str, repos: str):
+    """Coordinate cross-repository atomic refactorings, breaking contract sync, and correlated PRs."""
+    from saleha.core.multirepo_orchestrator import multirepo_orchestrator
+    repo_list = [r.strip() for r in repos.split(",") if r.strip()]
+    console.print(f"[bold magenta]🔗 Coordinating Multi-Repo Migration across {len(repo_list)} repositories...[/]")
+    plan = multirepo_orchestrator.plan_multirepo_sync(goal=goal, repos=repo_list)
+
+    table = Table(title=f"Multi-Repo Transformation Matrix: {goal}", border_style="magenta")
+    table.add_column("Repository", style="bold cyan")
+    table.add_column("Branch", style="yellow")
+    table.add_column("Files Changed", style="green")
+    table.add_column("PR Title", style="white")
+
+    for repo, trans in plan.transforms.items():
+        table.add_row(trans.repo_name, trans.branch_name, ", ".join(trans.files_changed), trans.pr_title)
+
+    console.print(table)
+    console.print(f"[bold green]✅ Atomic execution sequence mapped:[/] {' -> '.join(plan.migration_order)}")
+
+
+@cli.command(name="silicon-build")
+@click.argument("goal")
+@click.option("--name", "-n", default=None, help="Custom hardware module name")
+@click.option("--output-dir", "-o", default=None, help="Directory to save synthesizable Verilog & testbench")
+def silicon_build_cmd(goal: str, name: Optional[str], output_dir: Optional[str]):
+    """Synthesize synthesizable Verilog / SystemVerilog RTL, self-checking testbenches & SDC timing."""
+    from saleha.core.silicon_circuit_orchestrator import silicon_circuit_orchestrator
+    console.print(f"[bold yellow]⚡ Synthesizing Silicon Hardware Circuit for:[/] [white]{goal}[/]")
+    design = silicon_circuit_orchestrator.synthesize_hardware_circuit(spec_goal=goal, module_name=name)
+
+    if output_dir:
+        out_p = Path(output_dir)
+        out_p.mkdir(parents=True, exist_ok=True)
+        (out_p / f"{design.module_name}.v").write_text(design.verilog_rtl, encoding="utf-8")
+        (out_p / f"tb_{design.module_name}.v").write_text(design.testbench_sv, encoding="utf-8")
+        (out_p / f"{design.module_name}.sdc").write_text(design.timing_constraints_sdc, encoding="utf-8")
+        console.print(f"[bold green]✅ Wrote hardware RTL, testbench & SDC timing to:[/] {output_dir}")
+
+    console.print(Panel(design.verilog_rtl[:380] + "\n  ...", title=f"Verilog RTL: {design.module_name}", border_style="yellow"))
+    console.print(f"[cyan]📊 Estimated LUTs:[/] {design.estimated_lut_count} | [magenta]⏱️ Max Frequency:[/] {design.estimated_max_freq_mhz} MHz | [green]Synthesizable:[/] {design.is_synthesizable}")
+
+
+@cli.command(name="debate")
+@click.argument("topic")
+@click.option("--rounds", "-r", default=2, help="Number of dialectic debate rounds")
+def debate_cmd(topic: str, rounds: int):
+    """Execute game-theoretic multi-agent council debate (Advocate, Devil's Advocate, Security, FinOps, Arbiter)."""
+    from saleha.core.debate_consensus_orchestrator import debate_orchestrator
+    console.print(f"[bold purple]⚖️ Conducting Multi-Agent Architectural Debate on:[/] [white]{topic}[/]")
+    verdict = debate_orchestrator.conduct_architectural_debate(topic=topic, num_rounds=rounds)
+
+    for rnd in verdict.rounds:
+        console.print(f"\n[bold yellow]--- Round {rnd.round_number} ---[/]")
+        console.print(f"[green]🟢 Advocate:[/] {rnd.advocate_argument}")
+        console.print(f"[red]🔴 Devil's Advocate:[/] {rnd.skeptic_rebuttal}")
+        console.print(f"[cyan]🛡️ Security Red-Team:[/] {rnd.security_critique}")
+        console.print(f"[magenta]💰 FinOps Auditor:[/] {rnd.finops_impact}")
+
+    console.print(f"\n[bold green]🏆 Consensus Decision (Elo Confidence: {verdict.elo_confidence_score * 100:.1f}%):[/]")
+    console.print(Panel(verdict.adr_markdown[:400] + "\n  ...", title="Synthesized Architecture Decision Record (ADR)", border_style="green"))
+
+
+@cli.command(name="tot-solve")
+@click.argument("goal")
+@click.option("--code", "-c", required=True, help="Initial code string or file path")
+@click.option("--tests", "-t", required=True, help="Verification test assertions code string or file path")
+def tot_solve_cmd(goal: str, code: str, tests: str):
+    """Solve tricky coding bugs with Tree-of-Thoughts (ToT) state-space search and backtracking."""
+    from saleha.core.tot_orchestrator import tot_orchestrator
+    # Check if files or raw strings
+    code_content = Path(code).read_text(encoding="utf-8") if os.path.exists(code) else code.replace("\\n", "\n")
+    tests_content = Path(tests).read_text(encoding="utf-8") if os.path.exists(tests) else tests.replace("\\n", "\n")
+
+    console.print(f"[bold cyan]🌲 Starting Tree-of-Thoughts (ToT) Search for:[/] [white]{goal}[/]")
+    res = tot_orchestrator.solve_task_with_tot(goal=goal, initial_code=code_content, test_suite=tests_content)
+
+    for line in res.execution_log:
+        console.print(f"[dim]{line}[/dim]")
+
+    if res.success:
+        console.print(f"[bold green]✨ ToT Solution Found! Total nodes explored: {res.total_nodes_explored} (Pruned: {res.pruned_nodes})[/bold green]")
+        console.print(Panel(res.final_code, title="Winning Code Patch", border_style="green"))
+    else:
+        console.print(f"[bold yellow]⚠️ Best-effort candidate reached with score. Nodes: {res.total_nodes_explored}[/bold yellow]")
+
+
 from saleha.cli.monorepo_cli import monorepo_group
 from saleha.cli.demo_cli import dogfood_cmd
 from saleha.cli.benchmark_cli import benchmark_cmd
