@@ -75,7 +75,13 @@ class SpecializedOrchestratorsTests(unittest.TestCase):
             "agent_silicon_architect.md",
             "agent_cloud_resilience.md",
             "agent_quantum_symbolic.md",
-            "agent_p2p_swarm_coordinator.md"
+            "agent_p2p_swarm_coordinator.md",
+            "agent_neuro_optimizer.md",
+            "agent_zero_day_hunter.md",
+            "agent_spatial_3d_engine.md",
+            "agent_embedded_firmware.md",
+            "agent_finops_token_economist.md",
+            "agent_semantic_data_pipeline.md",
         ]
         for persona_file in new_personas:
             p = skills_dir / persona_file

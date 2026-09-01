@@ -9,7 +9,7 @@ class ProfileQualityGateTests(unittest.TestCase):
     def test_all_20_profiles_load(self):
         profiles = profile_registry.list_profiles()
         self.assertGreaterEqual(len(profiles), 20)
-        self.assertEqual(len(profiles), 24)
+        self.assertEqual(len(profiles), 30)
 
     def test_every_profile_meets_richness_bar(self):
         failures = []
