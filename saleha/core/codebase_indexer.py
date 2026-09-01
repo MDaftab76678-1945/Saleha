@@ -61,7 +61,8 @@ class CodebaseIndexer:
         self.symbol_map: Dict[str, List[str]] = {}  # symbol_name -> list of file paths
         self.ignored_dirs = {
             ".git", ".venv", "venv", "env", "__pycache__", ".pytest_cache",
-            "build", "dist", ".egg-info", ".idea", ".vscode", "node_modules"
+            "build", "dist", ".egg-info", ".idea", ".vscode", "node_modules",
+            ".gemini", "brain", ".system_generated", ".history", "scratch", "site-packages"
         }
 
     def scan(self) -> Dict[str, FileIndex]:

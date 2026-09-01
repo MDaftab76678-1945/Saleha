@@ -202,3 +202,20 @@ class SalehaDesktopApp:
 
 # Global instance
 desktop_app = SalehaDesktopApp()
+
+
+if __name__ == "__main__":
+    app = SalehaDesktopApp(port=8000)
+    port = app.start_server()
+    print("=" * 60)
+    print("  Saleha AI Desktop & Web Studio 2.0")
+    print(f"  URL   : {app.get_app_url()}")
+    print(f"  Status: Server running on port {port}")
+    print("=" * 60)
+    app.launch_window()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nStopping Saleha Desktop...")
+        app.stop()
