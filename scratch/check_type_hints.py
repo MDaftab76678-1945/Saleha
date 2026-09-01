@@ -66,6 +66,8 @@ if all_issues:
     print(f"FOUND {len(all_issues)} TYPE ANNOTATION ISSUES:")
     for i in all_issues:
         print("  -", i)
+    sys.exit(1)
 else:
     print("NO TYPE ANNOTATION ISSUES FOUND IN ANY FILE!")
+    sys.exit(0)
 
