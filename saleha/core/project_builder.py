@@ -23,6 +23,8 @@ Limitations (honest scope):
 - Sirf Python files ke liye bana hai abhi (jaisa baaki Saleha).
 """
 
+from __future__ import annotations
+
 import sys
 import os
 import re
@@ -30,7 +32,7 @@ import json
 import subprocess
 import shutil
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 from saleha.agents.coder import CoderAgent

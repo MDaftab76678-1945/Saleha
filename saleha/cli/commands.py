@@ -7,6 +7,8 @@ taaki persistent data dekhne ke liye lambi `python -c "..."` command na
 likhni pade.
 """
 
+from __future__ import annotations
+
 import click
 import sys
 import os
@@ -17,6 +19,7 @@ import json
 import io
 import contextlib
 from contextlib import redirect_stdout
+from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
 from saleha import __version__
 from rich.console import Console
 from rich.panel import Panel
@@ -35,7 +38,6 @@ if sys.platform == "win32":
 console = Console(safe_box=True)
 
 from saleha.cli.dashboard import render_dashboard
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from saleha.core.smart_router import SmartRouter

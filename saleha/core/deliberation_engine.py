@@ -9,11 +9,13 @@ Orchestrates multi-agent debate and refinement rounds:
 5. SDE implements code and Verifier ensures all consensus tests pass.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 
 from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
