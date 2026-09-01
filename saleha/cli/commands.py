@@ -5986,6 +5986,163 @@ def hub_install_cmd(plugin_name: str):
         console.print(f"[bold red]❌ Plugin '{plugin_name}' not found in Hub catalog.[/bold red]")
 
 
+# ==============================================================================
+# SALEHA v2.6: AGENTSKILLS 1,000+ CATALOG & UNIVERSAL MCP HUB COMMANDS
+# ==============================================================================
+
+@cli.group(name="skill")
+def skill_group():
+    """Manage and execute 1,000+ specialized AgentSkills."""
+    pass
+
+
+@skill_group.command(name="list")
+@click.option("--domain", "-d", help="Filter skills by domain name (e.g., frontend_web, cloud_iac, vector_rag)")
+@click.option("--limit", "-l", default=25, help="Number of skills to display")
+def skill_list_cmd(domain: Optional[str], limit: int):
+    """List registered skills across 25 specialized domains."""
+    from saleha.core.skill_catalog import skill_catalog
+    skills = skill_catalog.list_skills(domain=domain, limit=limit)
+    stats = skill_catalog.get_stats()
+
+    table = Table(title=f"🧠 Saleha AgentSkills Catalog ({stats['total_skills']} Total Skills across {stats['total_domains']} Domains)", border_style="cyan")
+    table.add_column("Skill Name", style="bold cyan")
+    table.add_column("Domain", style="magenta")
+    table.add_column("Description", style="white")
+    table.add_column("Triggers", style="yellow")
+
+    for s in skills:
+        table.add_row(s.name, s.domain, s.description[:55] + "...", ", ".join(s.trigger_keywords[:3]))
+
+    console.print(table)
+    console.print(f"[dim]Showing {len(skills)} of {stats['total_skills']} skills. Use --domain or 'saleha skill search <query>' to explore.[/dim]")
+
+
+@skill_group.command(name="search")
+@click.argument("query")
+@click.option("--domain", "-d", help="Filter search within specific domain")
+@click.option("--limit", "-l", default=10, help="Maximum search results")
+def skill_search_cmd(query: str, domain: Optional[str], limit: int):
+    """Sub-millisecond keyword and semantic search across 1,000+ skills."""
+    from saleha.core.skill_catalog import skill_catalog
+    results = skill_catalog.search_skills(query, domain=domain, limit=limit)
+
+    if not results:
+        console.print(f"[bold yellow]No skills found matching '{query}'.[/bold yellow]")
+        return
+
+    table = Table(title=f"🔍 Skill Search Results for '{query}' ({len(results)} matches)", border_style="green")
+    table.add_column("Skill Name", style="bold green")
+    table.add_column("Domain", style="magenta")
+    table.add_column("Description", style="white")
+
+    for s in results:
+        table.add_row(s.name, s.domain, s.description)
+
+    console.print(table)
+
+
+@skill_group.command(name="info")
+@click.argument("skill_name")
+def skill_info_cmd(skill_name: str):
+    """Display full AgentSkills specification and schema for a skill."""
+    from saleha.core.skill_catalog import skill_catalog
+    skill = skill_catalog.get_skill(skill_name)
+    if not skill:
+        console.print(f"[bold red]❌ Skill '{skill_name}' not found.[/bold red]")
+        return
+
+    console.print(Panel(skill.to_markdown(), title=f"AgentSkill: {skill.name}", border_style="cyan"))
+
+
+@skill_group.command(name="run")
+@click.argument("skill_name")
+@click.option("--task", "-t", default="Execute standard skill routine", help="Task input description")
+def skill_run_cmd(skill_name: str, task: str):
+    """Execute a registered AgentSkill directly."""
+    from saleha.core.skill_catalog import skill_catalog
+    res = skill_catalog.execute_skill(skill_name, {"task": task})
+    if res.get("success"):
+        console.print(Panel(json.dumps(res, indent=2), title=f"✅ Skill '{skill_name}' Execution Output", border_style="green"))
+    else:
+        console.print(f"[bold red]❌ Skill execution failed: {res.get('error')}[/bold red]")
+
+
+@skill_group.command(name="stats")
+def skill_stats_cmd():
+    """Display statistical breakdown of the 1,000+ skill catalog."""
+    from saleha.core.skill_catalog import skill_catalog
+    stats = skill_catalog.get_stats()
+
+    table = Table(title=f"📊 Saleha 1,000+ AgentSkills Domain Distribution", border_style="blue")
+    table.add_column("Domain Name", style="bold cyan")
+    table.add_column("Skills Count", style="green", justify="right")
+
+    for domain, count in sorted(stats["domain_breakdown"].items(), key=lambda x: x[1], reverse=True):
+        table.add_row(domain, str(count))
+
+    console.print(table)
+    console.print(f"[bold green]✨ Total Catalog: {stats['total_skills']} Skills | {stats['total_domains']} Domains | {stats['total_indexed_keywords']} Indexed Terms[/bold green]")
+
+
+@cli.group(name="mcp")
+def mcp_group():
+    """Universal Model Context Protocol (MCP) Multi-Platform Hub."""
+    pass
+
+
+@mcp_group.command(name="list")
+@click.option("--category", "-c", help="Filter MCP servers by category")
+def mcp_list_cmd(category: Optional[str]):
+    """List all 30+ pre-configured MCP servers."""
+    from saleha.core.mcp_hub import mcp_hub
+    servers = mcp_hub.list_servers(category=category)
+
+    table = Table(title="🔌 Universal Model Context Protocol (MCP) Server Hub", border_style="cyan")
+    table.add_column("Server Name", style="bold cyan")
+    table.add_column("Category", style="magenta")
+    table.add_column("Transport", style="yellow")
+    table.add_column("Description", style="white")
+
+    for s in servers:
+        table.add_row(s.name, s.category, s.transport, s.description)
+
+    console.print(table)
+    console.print(f"[dim]Total: {len(servers)} pre-configured servers. Export configs using 'saleha mcp export <platform>'.[/dim]")
+
+
+@mcp_group.command(name="export")
+@click.argument("platform", type=click.Choice(["cursor", "claude", "vscode", "windsurf", "zed", "jetbrains", "universal"], case_sensitive=False))
+@click.option("--output", "-o", help="Optional custom output file path")
+def mcp_export_cmd(platform: str, output: Optional[str]):
+    """Export tailored MCP configuration for Cursor, Claude, VS Code, Windsurf, Zed, or JetBrains."""
+    from saleha.core.mcp_hub import mcp_hub
+    target_file, config_data = mcp_hub.export_config(platform, output_path=output)
+    console.print(f"[bold green]✅ Exported {platform.upper()} MCP configuration to: [underline]{target_file}[/underline][/bold green]")
+    console.print(Panel(json.dumps(config_data, indent=2)[:400] + "\n  ...", title=f"{platform.upper()} Configuration Snippet", border_style="cyan"))
+
+
+@mcp_group.command(name="connect")
+@click.argument("server_name")
+def mcp_connect_cmd(server_name: str):
+    """Test connection to an MCP server."""
+    from saleha.core.mcp_hub import mcp_hub
+    res = mcp_hub.connect_server(server_name)
+    if res.get("success"):
+        console.print(f"[bold green]✅ {res['message']}[/bold green]")
+    else:
+        console.print(f"[bold red]❌ Connection failed: {res.get('error')}[/bold red]")
+
+
+@mcp_group.command(name="serve")
+def mcp_serve_cmd():
+    """Start Saleha's standard JSON-RPC 2.0 stdio MCP server."""
+    from saleha.core.mcp_engine import MCPServer
+    server = MCPServer()
+    console.print("[bold green]🚀 Saleha MCP Server running over stdio (JSON-RPC 2.0)...[/bold green]")
+    server.run_stdio()
+
+
 from saleha.cli.monorepo_cli import monorepo_group
 from saleha.cli.demo_cli import dogfood_cmd
 from saleha.cli.benchmark_cli import benchmark_cmd
@@ -6012,6 +6169,7 @@ doom_group.add_command(release_cmd)
 
 if __name__ == '__main__':
     cli()
+
 
 
 
