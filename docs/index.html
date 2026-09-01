@@ -40,6 +40,10 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       background-color: var(--bg-dark);
       color: var(--text-main);
@@ -51,6 +55,18 @@
         radial-gradient(circle at 85% 60%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
         radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.06) 0%, transparent 50%);
       background-attachment: fixed;
+    }
+
+    /* Accessibility Focus States (WCAG AAA) */
+    :focus-visible {
+      outline: 2px solid var(--accent-cyan);
+      outline-offset: 3px;
+    }
+
+    /* Core Web Vitals LCP Optimization: Offscreen content deferral */
+    .features-section, .agents-section, .playground-section, .quickstart-section {
+      content-visibility: auto;
+      contain-intrinsic-size: 1px 800px;
     }
 
     /* Container */
@@ -759,14 +775,14 @@
 
       <!-- Install Box -->
       <div class="install-box">
-        <div class="install-tabs">
-          <button class="install-tab-btn active" onclick="switchInstall('linux')">macOS / Linux</button>
-          <button class="install-tab-btn" onclick="switchInstall('windows')">Windows</button>
-        </div>
-        <div class="install-cmd">
-          <span id="install-text">curl -fsSL https://raw.githubusercontent.com/MDaftab76678-1945/Saleha/main/install.sh | bash</span>
-          <button class="btn-copy" onclick="copyInstall()">Copy</button>
-        </div>
+        <div class="install-tabs" role="tablist">
+        <button class="install-tab-btn active" role="tab" aria-selected="true" aria-label="macOS and Linux installation command" onclick="switchInstall('linux')">macOS / Linux</button>
+        <button class="install-tab-btn" role="tab" aria-selected="false" aria-label="Windows PowerShell installation command" onclick="switchInstall('win')">Windows</button>
+      </div>
+      <div class="install-cmd">
+        <span id="install-text">curl -fsSL https://raw.githubusercontent.com/MDaftab76678-1945/Saleha/main/install.sh | bash</span>
+        <button class="btn-copy" aria-label="Copy installation command to clipboard" onclick="copyInstall()">Copy</button>
+      </div>
       </div>
 
       <!-- Live Terminal Simulation -->
