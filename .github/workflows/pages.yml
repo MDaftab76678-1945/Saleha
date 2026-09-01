@@ -1,4 +1,4 @@
-name: Deploy Saleha Landing Page to GitHub Pages
+name: Deploy Saleha Docs & Leaderboard to GitHub Pages
 
 on:
   push:
@@ -33,9 +33,8 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/'
+          path: 'docs'
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
