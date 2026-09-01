@@ -4791,7 +4791,12 @@ def sandbox_cmd(script_path, timeout, memory, json_output):
     with open(script_path, "r", encoding="utf-8") as f:
         code = f.read()
 
-    res = hardened_sandbox.execute_code(code, timeout=timeout, memory_limit=memory)
+    try:
+        res = hardened_sandbox.execute_code(code, timeout=timeout, memory_limit=memory)
+    except Exception as ex:
+        from saleha.core.hardened_sandbox import HardenedExecutionResult
+        res = HardenedExecutionResult(success=False, output="", error=str(ex), sandbox_tier="fallback")
+
     if json_output:
         click.echo(json.dumps({
             "success": res.success,

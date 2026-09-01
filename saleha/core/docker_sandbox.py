@@ -18,6 +18,9 @@ from saleha.core.sandbox_runner import SandboxRunner, SandboxResult
 
 def is_docker_available() -> bool:
     """Checks if Docker CLI and Docker daemon are running."""
+    # In CI environments (GitHub Actions), nested container mounts are restricted; use native process sandbox
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+        return False
     if not shutil.which("docker"):
         return False
     try:
