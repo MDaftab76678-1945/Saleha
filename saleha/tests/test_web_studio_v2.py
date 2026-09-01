@@ -80,6 +80,15 @@ class WebStudioV2Tests(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertIn("Auto-healing", data["action_summary"])
 
+    def test_browser_preview_post_endpoint(self):
+        payload = {
+            "html": "<div id='app'>Hello Saleha UI</div>"
+        }
+        data = self._post("/api/browser/preview", payload)
+        self.assertEqual(data["status"], "ready")
+        self.assertEqual(data["viewport_width"], 1280)
+        self.assertIn("Hello Saleha UI", data["rendered_preview"])
+
 
 if __name__ == "__main__":
     unittest.main()

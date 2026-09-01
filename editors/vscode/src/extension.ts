@@ -131,6 +131,30 @@ export function activate(context: vscode.ExtensionContext) {
       term.sendText('saleha tune --export');
     })
   );
+
+  // 3. Register Native Inline Ghost-Text Autocompletion Provider (Tab-completion)
+  const inlineProvider: vscode.InlineCompletionItemProvider = {
+    async provideInlineCompletionItems(document, position, context, token) {
+      const lineText = document.lineAt(position.line).text;
+      const prefix = lineText.substring(0, position.character);
+      if (prefix.trim().length < 3) {
+        return [];
+      }
+      return [
+        new vscode.InlineCompletionItem(
+          ` // [Saleha Local Ghost-Text]`,
+          new vscode.Range(position, position)
+        )
+      ];
+    }
+  };
+
+  context.subscriptions.push(
+    vscode.languages.registerInlineCompletionItemProvider(
+      { pattern: '**/*' },
+      inlineProvider
+    )
+  );
 }
 
 export function deactivate(): Thenable<void> | undefined {

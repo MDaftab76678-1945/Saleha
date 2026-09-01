@@ -1,11 +1,12 @@
 # 🧠 Saleha AI Framework
 
 [![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-587%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-589%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-All%20OS%20Green-success.svg)]()
+[![Docs](https://img.shields.io/badge/Docs-Cookbook%20Portal-cyan.svg)](docs/docs.html)
 
 **Saleha** is a local-first, self-healing **Autonomous Multi-Agent AI Engineering Platform** powered by Ollama. Twenty specialized agents collaborate through parallel task DAGs, run **real sandboxed test-verification loops**, perform AST-based SAST security audits, expose compiler-grade LSP diagnostics, ship cloud deployments, and run with a ReAct-style autonomous agent loop with surgical Aider-style diffing — **100% local, $0 API cost**.
 

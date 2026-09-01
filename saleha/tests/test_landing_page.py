@@ -62,6 +62,18 @@ class LandingPageTests(unittest.TestCase):
         self.assertIn("function copyInstall", content)
         self.assertIn("function updateSavings", content)
         self.assertIn("function switchCliTab", content)
+        self.assertIn("function switchPrFile", content)
+        self.assertIn("function applyPrFix", content)
+
+    def test_landing_page_contains_pr_simulator_and_leaderboard(self):
+        with open(self.landing_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("id=\"pr-simulator\"", content)
+        self.assertIn("id=\"leaderboard\"", content)
+        self.assertIn("Qwen 2.5 Coder 32B", content)
+        self.assertIn("DeepSeek Coder V2 16B", content)
+        self.assertIn("Llama 3.3 70B", content)
 
 
 if __name__ == "__main__":

@@ -1069,6 +1069,17 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if path == "/api/browser/preview":
+            html_content = payload.get("html", "<h1>Live App Preview</h1>")
+            self._send_json(200, {
+                "status": "ready",
+                "viewport_width": 1280,
+                "viewport_height": 720,
+                "html_length": len(html_content),
+                "rendered_preview": html_content
+            })
+            return
+
         if path == "/api/voice/dispatch":
             transcript = payload.get("transcript", "")
             speak = payload.get("speak", False)
