@@ -55,6 +55,12 @@ class DesktopAppTests(unittest.TestCase):
         import shutil
         shutil.rmtree("dist/desktop_test", ignore_errors=True)
 
+    def test_check_hardware_resources(self):
+        hw = self.llm_manager.check_hardware_resources()
+        self.assertIn("has_gpu", hw)
+        self.assertIn("gpu_name", hw)
+        self.assertIn("recommended_model", hw)
+
 
 if __name__ == "__main__":
     unittest.main()

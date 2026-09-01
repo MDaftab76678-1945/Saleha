@@ -69,6 +69,50 @@ class ConflictResolver:
                 combined.append(line)
         return combined
 
+    def _resolve_ast_function_conflict(self, ours_str: str, theirs_str: str) -> Optional[str]:
+        """Parses conflicting Python function definitions and merges statements AST-semantically."""
+        try:
+            ours_ast = ast.parse(ours_str)
+            theirs_ast = ast.parse(theirs_str)
+            
+            ours_fn = next((n for n in ours_ast.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
+            theirs_fn = next((n for n in theirs_ast.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
+
+            if not ours_fn or not theirs_fn or ours_fn.name != theirs_fn.name:
+                return None
+
+            # Pick richer signature (union/longest)
+            ours_arg_names = [a.arg for a in ours_fn.args.args]
+            theirs_arg_names = [a.arg for a in theirs_fn.args.args]
+            sig_line = theirs_str.splitlines()[0] if len(theirs_arg_names) >= len(ours_arg_names) else ours_str.splitlines()[0]
+
+            ours_body = ours_str.splitlines()[1:]
+            theirs_body = theirs_str.splitlines()[1:]
+
+            merged_lines = [sig_line]
+            ours_statements = [l for l in ours_body if not l.strip().startswith("return ")]
+            theirs_statements = [l for l in theirs_body if not l.strip().startswith("return ")]
+
+            for l in ours_statements:
+                merged_lines.append(l)
+            for l in theirs_statements:
+                if l not in ours_statements:
+                    merged_lines.append(l)
+
+            # Pick return statement
+            ret_line = "    return True"
+            for l in theirs_body + ours_body:
+                if l.strip().startswith("return "):
+                    ret_line = l
+                    break
+            merged_lines.append(ret_line)
+
+            merged_code = "\n".join(merged_lines)
+            ast.parse(merged_code) # verify valid AST syntax
+            return merged_code
+        except Exception:
+            return None
+
     def _resolve_hunk(self, hunk: ConflictHunk) -> str:
         """Applies AST semantic heuristics to resolve a conflict hunk."""
         ours_str = "\n".join(hunk.ours_lines).strip()
@@ -93,7 +137,13 @@ class ConflictResolver:
                 # Completely distinct definitions, retain both!
                 return f"{ours_str}\n\n{theirs_str}"
 
-        # Strategy 4: Prefer richer/longer implementation (super-set)
+        # Strategy 4: AST Semantic Function Merger (when modifying same function)
+        if "def " in ours_str and "def " in theirs_str:
+            ast_merged = self._resolve_ast_function_conflict(ours_str, theirs_str)
+            if ast_merged:
+                return ast_merged
+
+        # Strategy 5: Prefer richer/longer implementation (super-set)
         if len(theirs_str) > len(ours_str):
             return theirs_str
         return ours_str

@@ -39,8 +39,16 @@ class AgentCouncilTests(unittest.TestCase):
         self.assertEqual(res.problem_statement, "Design Cache Layer")
         self.assertIn("HighThroughputService", res.consensus_code)
         self.assertIn("Trade-Off Analysis", res.trade_off_analysis)
+        self.assertIn("Cross-Agent Adversarial Critiques Addressed", res.trade_off_analysis)
         self.assertGreater(res.total_consensus_score, 80.0)
         self.assertGreaterEqual(res.duration_sec, 0.0)
+
+    def test_critique_proposals_generates_cross_critiques(self):
+        proposals = self.council.generate_proposals("Rate Limiter")
+        critiques = self.council.critique_proposals(proposals)
+        self.assertEqual(len(critiques), 3)
+        for persona, c_list in critiques.items():
+            self.assertGreaterEqual(len(c_list), 1)
 
 
 if __name__ == "__main__":

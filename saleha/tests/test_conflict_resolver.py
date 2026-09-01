@@ -57,6 +57,25 @@ def feature_beta():
         self.assertEqual(res.conflicts_found, 0)
         self.assertEqual(res.status, "NO_CONFLICTS")
 
+    def test_resolve_same_function_ast_merging(self):
+        code = """<<<<<<< HEAD
+def authenticate(username, password):
+    if not username:
+        raise ValueError("Username empty")
+    return verify(username, password)
+=======
+def authenticate(username, password, token=None):
+    if not password:
+        raise ValueError("Password empty")
+    return verify(username, password)
+>>>>>>> incoming
+"""
+        res = self.resolver.resolve_content(code, file_path="auth.py")
+        self.assertTrue(res.is_valid_ast)
+        self.assertEqual(res.status, "RESOLVED")
+        self.assertIn("Username empty", res.resolved_content)
+        self.assertIn("Password empty", res.resolved_content)
+
 
 if __name__ == "__main__":
     unittest.main()

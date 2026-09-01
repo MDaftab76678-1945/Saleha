@@ -42,6 +42,18 @@ class VoiceLiveAssistantTests(unittest.TestCase):
         self.assertIn("Auto-healing", turn.action_summary)
         self.assertGreater(turn.duration_sec, 0.0)
 
+    def test_multi_turn_pronoun_resolution(self):
+        # Turn 1: Explicit target
+        t1 = self.assistant.process_turn("Review security in auth.py", speak=False)
+        self.assertEqual(t1.command.intent, "REVIEW")
+        self.assertIn("auth.py", t1.command.target_arg)
+
+        # Turn 2: Contextual pronoun "fix it"
+        t2 = self.assistant.process_turn("Fix it", speak=False)
+        self.assertEqual(t2.command.intent, "FIX")
+        self.assertIn("auth.py", t2.command.target_arg)
+        self.assertGreater(t2.command.confidence, 0.8)
+
 
 if __name__ == "__main__":
     unittest.main()

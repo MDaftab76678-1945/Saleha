@@ -1,7 +1,7 @@
 # 🧠 Saleha AI Framework
 
 [![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-589%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-593%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local%20First-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()

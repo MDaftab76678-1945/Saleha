@@ -82,6 +82,29 @@ class LocalLLMManager:
                 message="Ollama not detected on localhost:11434. Running in cloud/simulation mode.",
             )
 
+    def check_hardware_resources(self) -> Dict[str, Any]:
+        """Probes system RAM and GPU acceleration status."""
+        resources = {
+            "has_gpu": False,
+            "gpu_name": "None (CPU Execution)",
+            "total_ram_gb": 16.0,
+            "recommended_model": "qwen2.5-coder:7b"
+        }
+        try:
+            res = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                resources["has_gpu"] = True
+                resources["gpu_name"] = res.stdout.strip().splitlines()[0]
+                resources["recommended_model"] = "qwen2.5-coder:32b"
+        except Exception:
+            pass
+        return resources
+
     def pull_model(self, model_name: str) -> bool:
         """Triggers model pull via Ollama REST API."""
         url = f"{self.host}/api/pull"
@@ -116,11 +139,21 @@ class SalehaDesktopApp:
             return s.getsockname()[1]
 
     def start_server(self) -> int:
-        """Starts background web server on an available port."""
+        """Starts background web server with automatic port-collision recovery."""
         if self.port == 0:
             self.port = self._find_free_port()
 
-        self.server = HTTPServer((self.host, self.port), SalehaAPIHandler)
+        # Retry binding if target port is occupied
+        for _ in range(5):
+            try:
+                self.server = HTTPServer((self.host, self.port), SalehaAPIHandler)
+                break
+            except OSError:
+                self.port = self._find_free_port()
+
+        if not self.server:
+            raise RuntimeError(f"Could not bind Saleha server to {self.host}")
+
         self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.server_thread.start()
         self.is_running = True

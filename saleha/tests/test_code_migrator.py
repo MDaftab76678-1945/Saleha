@@ -68,6 +68,17 @@ if __name__ == '__main__':
         self.assertIn("assert 'a' in 'abc'", res.migrated_code)
         self.assertNotIn("unittest.main()", res.migrated_code)
 
+    def test_migrate_flask_path_params_and_raises(self):
+        flask_code = """from flask import Flask\napp = Flask(__name__)\n@app.route('/user/<int:user_id>')\ndef get_user(user_id):\n    return str(user_id)\n"""
+        res = self.migrator.migrate_flask_to_fastapi(flask_code)
+        self.assertTrue(res.is_valid_syntax)
+        self.assertIn("@app.get('/user/{user_id}')", res.migrated_code)
+
+        unittest_code = """import unittest\nclass T(unittest.TestCase):\n    def test_err(self):\n        with self.assertRaises(ValueError):\n            raise ValueError('oops')\n"""
+        res_test = self.migrator.migrate_unittest_to_pytest(unittest_code)
+        self.assertTrue(res_test.is_valid_syntax)
+        self.assertIn("with pytest.raises(ValueError):", res_test.migrated_code)
+
 
 if __name__ == "__main__":
     unittest.main()
