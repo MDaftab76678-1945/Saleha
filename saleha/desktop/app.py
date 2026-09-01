@@ -208,7 +208,7 @@ if __name__ == "__main__":
     app = SalehaDesktopApp(port=8000)
     port = app.start_server()
     print("=" * 60)
-    print("  🚀 Saleha AI Desktop & Web Studio 2.0")
+    print("  Saleha AI Desktop & Web Studio 2.0")
     print(f"  URL   : {app.get_app_url()}")
     print(f"  Status: Server running on port {port}")
     print("=" * 60)

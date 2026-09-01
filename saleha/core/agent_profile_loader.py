@@ -13,7 +13,10 @@ Features:
 
 import os
 import re
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 import sys
@@ -101,7 +104,7 @@ class AgentProfileRegistry:
 
         frontmatter_raw, body = match.groups()
         try:
-            metadata = yaml.safe_load(frontmatter_raw) or {}
+            metadata = yaml.safe_load(frontmatter_raw) if yaml else {}
         except Exception:
             metadata = {}
 
