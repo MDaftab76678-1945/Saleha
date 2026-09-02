@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, type ReactNode } from "react";
 import { ThemeTokens } from "../tokens/theme";
 
 export interface ModalProps {
@@ -7,17 +7,17 @@ export interface ModalProps {
   title: string;
   theme?: ThemeTokens;
   maxWidth?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-export const Modal: React.FC<ModalProps> = ({
+export function Modal({
   isOpen,
   onClose,
   title,
   children,
   theme,
   maxWidth = "600px",
-}) => {
+}: ModalProps): React.JSX.Element | null {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -111,4 +111,4 @@ export const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
-};
+}
