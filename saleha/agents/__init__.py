@@ -110,10 +110,26 @@ __all__ = [
     "VoiceArchitectAgent",
     "VoiceCommentaryResult",
     "voice_architect",
+    "ScreenCopilotAgent",
+    "ScreenInspectionResult",
+    "screen_copilot",
+    "ChaosResilienceAgent",
+    "ChaosExperimentResult",
+    "chaos_resilience",
 ]
 
 from saleha.agents.voice_architect import (
     VoiceArchitectAgent,
     VoiceCommentaryResult,
     voice_architect,
+)
+from saleha.agents.screen_copilot import (
+    ScreenCopilotAgent,
+    ScreenInspectionResult,
+    screen_copilot,
+)
+from saleha.agents.chaos_resilience import (
+    ChaosResilienceAgent,
+    ChaosExperimentResult,
+    chaos_resilience,
 )

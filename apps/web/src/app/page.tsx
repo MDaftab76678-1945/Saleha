@@ -21,7 +21,7 @@ interface WebNotebookCell {
   isExecuting?: boolean;
 }
 
-const ALL_25_NODES: SwarmNode[] = [
+const ALL_27_NODES: SwarmNode[] = [
   { id: "arch", name: "ArchitectAgent", role: "ADR & Hexagonal Design", icon: "🏛️", status: "idle" },
   { id: "planner", name: "PlannerAgent", role: "Task Decomposition", icon: "🗺️", status: "idle" },
   { id: "designer", name: "DesignerAgent", role: "UI/UX & Tokens", icon: "🎨", status: "idle" },
@@ -47,6 +47,8 @@ const ALL_25_NODES: SwarmNode[] = [
   { id: "claw", name: "SovereignClawAgent", role: "Autonomous Browser & DOM Agent", icon: "🦅", status: "idle" },
   { id: "nb_architect", name: "NotebookArchitectAgent", role: "Interactive Reactive Notebooks", icon: "📓", status: "idle" },
   { id: "voice", name: "VoiceArchitectAgent", role: "Real-Time Spoken Pair-Programmer", icon: "🎙️", status: "idle" },
+  { id: "screen", name: "ScreenCopilotAgent", role: "Visual UI Debugger & WCAG Inspector", icon: "👁️", status: "idle" },
+  { id: "chaos", name: "ChaosResilienceAgent", role: "Chaos Engineering & Circuit Breaker", icon: "💥", status: "idle" },
 ];
 
 export default function WebStudioPage() {
@@ -57,7 +59,7 @@ export default function WebStudioPage() {
   const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal" | "notebook" | "trainer">("chat");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
-  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_25_NODES);
+  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_27_NODES);
 
   // Settings
   const [modelBackend, setModelBackend] = useState("ollama");
