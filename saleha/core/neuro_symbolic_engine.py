@@ -20,6 +20,9 @@ class InvariantFitnessScore:
     evaluation_duration_ms: float = 0.0
 
 
+CodeInvariantScore = InvariantFitnessScore
+
+
 class NeuroSymbolicEngine:
     """Neuro-Symbolic optimizer that scores code candidates against deterministic
 

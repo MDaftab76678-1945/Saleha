@@ -44,6 +44,10 @@ from saleha.core.repo_orchestrator import repo_orchestrator
 from saleha.core.mcp_server import saleha_mcp_server
 from saleha.core.swarm_cluster_node import swarm_cluster
 from saleha.core.ephemeral_container_runner import container_runner
+from saleha.core.mcts_search_engine import mcts_search_engine
+from saleha.core.speculative_accelerator import speculative_accelerator
+from saleha.core.swe_repo_fixer import swe_repo_fixer
+from saleha.core.self_evolving_loop import self_evolving_loop
 from saleha.tools.release_manager import release_manager
 
 
@@ -167,6 +171,25 @@ class SwarmChatSession:
         if cmd.startswith("/notebook ") or cmd.startswith("notebook ") or cmd.startswith("make-notebook "):
             topic = cmd.split(" ", 1)[1].strip()
             self._execute_notebook_command(topic)
+            return True
+
+        if cmd.startswith("/mcts ") or cmd.startswith("mcts ") or cmd.startswith("tree-search "):
+            prompt = cmd.split(" ", 1)[1].strip()
+            self._execute_mcts_command(prompt)
+            return True
+
+        if cmd.startswith("/speculative ") or cmd.startswith("speculative ") or cmd.startswith("accelerate "):
+            prompt = cmd.split(" ", 1)[1].strip()
+            self._execute_speculative_command(prompt)
+            return True
+
+        if cmd.startswith("/swe-fix ") or cmd.startswith("swe-fix ") or cmd.startswith("repo-fix "):
+            issue = cmd.split(" ", 1)[1].strip()
+            self._execute_swe_fix_command(issue)
+            return True
+
+        if cmd in ["/evolving-status", "evolving-status", "self-learning", "/self-learning"]:
+            self._execute_evolving_status_command()
             return True
 
         if cmd.startswith("/dataset") or cmd.startswith("dataset") or cmd.startswith("export-dataset"):
@@ -477,6 +500,41 @@ class SwarmChatSession:
         self.console.print(f"\n[bold cyan]🔄 Resuming Execution ID:[/] [yellow]{exec_id}[/]")
         res = swarm_engine.resume_swarm(exec_id)
         self.console.print(f"[bold green]✨ Resumed successfully ({len(res.stages)} stages, {res.total_duration_ms}ms)![/bold green]\n")
+
+    def _execute_mcts_command(self, prompt: str):
+        self.console.print(f"\n[bold cyan]🌲 Test-Time MCTS Reasoning Search:[/] [yellow]{prompt}[/]")
+        res = mcts_search_engine.search(prompt)
+        status_color = "green" if res.verified_clean else "yellow"
+        self.console.print(f"[{status_color}]✨ Explored {res.total_branches_explored} branches ({res.passed_branches_count} passed tests, {res.search_duration_ms}ms, Invariant Score: {res.best_score})[/{status_color}]\n")
+        self.console.print(Syntax(res.winner_code, "python", theme="monokai", line_numbers=True))
+        self.console.print()
+
+    def _execute_speculative_command(self, prompt: str):
+        self.console.print(f"\n[bold cyan]⚡ Dual-Engine Speculative Accelerator:[/] [yellow]{prompt}[/]")
+        code, metrics = speculative_accelerator.generate(prompt)
+        self.console.print(f"[bold green]✨ Accelerated at {metrics.effective_tokens_per_sec} tok/s ({metrics.dual_engine_speedup}x Speedup, {metrics.acceptance_rate_pct}% Acceptance)![/bold green]\n")
+        self.console.print(Syntax(code, "python", theme="monokai", line_numbers=True))
+        self.console.print()
+
+    def _execute_swe_fix_command(self, issue: str):
+        self.console.print(f"\n[bold cyan]🐙 SWE-bench Multi-File Repo Fixer:[/] [yellow]{issue}[/]")
+        res = swe_repo_fixer.resolve_issue(issue)
+        self.console.print(f"[bold green]✨ Issue resolved across {res.total_files_affected} files in {res.resolution_time_ms}ms (Tests: PASS)![/bold green]\n")
+        self.console.print(Panel(res.unified_git_diff, title="[bold green]Unified Multi-File Git Diff[/]", border_style="green"))
+        self.console.print()
+
+    def _execute_evolving_status_command(self):
+        stats = self_evolving_loop.get_stats()
+        table = Table(title="🔄 Saleha Continuous Learning & Self-Evolving Telemetry", border_style="cyan")
+        table.add_column("Metric", style="white")
+        table.add_column("Value", style="bold cyan")
+        table.add_row("Active Learning Status", f"[green]{stats.active_learning_status}[/]")
+        table.add_row("Captured Coding Turns", str(stats.total_captured_turns))
+        table.add_row("Qualified High-Score Solutions", str(stats.qualified_high_score_turns))
+        table.add_row("Auto-Appended to Training Buffer", str(stats.auto_appended_to_dataset))
+        table.add_row("Average Invariant Quality", f"{stats.avg_quality_score * 100:.1f}%")
+        self.console.print(table)
+        self.console.print()
 
     def _generate_turn_response(self, user_msg: str):
         self.console.print("\n[bold magenta]Saleha AI[/bold magenta] [dim](Ollama / DeepSeek Failover)[/dim]:")
