@@ -1,4 +1,4 @@
-import React, { useEffect, type ReactNode } from "react";
+import React, { useEffect, type ReactNode, type ReactElement } from "react";
 import { ThemeTokens } from "../tokens/theme";
 
 export interface ModalProps {
@@ -17,7 +17,7 @@ export function Modal({
   children,
   theme,
   maxWidth = "600px",
-}: ModalProps): React.ReactElement | null {
+}: ModalProps): ReactElement | null {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
