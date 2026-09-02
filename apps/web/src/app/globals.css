@@ -1,0 +1,102 @@
+/* ==============================================================================
+   Saleha Web Studio: Next.js 15 Vanilla CSS Stylesheet
+   ============================================================================== */
+
+@import "../../../../packages/ui/src/styles/theme.css";
+@import "../../../../packages/ui/src/styles/components.css";
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+.web-studio-header {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+  z-index: 10;
+}
+
+.web-studio-hud {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.35rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-family: 'Fira Code', monospace;
+  color: var(--text-dim);
+}
+
+.web-studio-main {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+}
+
+.topology-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.topology-node-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+}
+
+.topology-node-card.active {
+  border-color: var(--border-bright);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.diff-view-grid {
+  flex: 1;
+  background: #030712;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.85rem;
+}
+
+.diff-box-fail {
+  display: flex;
+  flex-direction: column;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.diff-box-pass {
+  display: flex;
+  flex-direction: column;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+}

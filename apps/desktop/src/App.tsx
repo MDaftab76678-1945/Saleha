@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { THEME_PRESETS, ThemeTokens, Modal, Switch, Slider } from "@saleha/ui";
+import "./App.css";
 
 interface AgentItem {
   id: string;

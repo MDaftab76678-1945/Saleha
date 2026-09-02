@@ -1,0 +1,132 @@
+/* ==============================================================================
+   Saleha Desktop App: Vanilla CSS Stylesheet
+   ============================================================================== */
+
+@import "../../../packages/ui/src/styles/theme.css";
+@import "../../../packages/ui/src/styles/components.css";
+
+.desktop-app-container {
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.desktop-header {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.5rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  z-index: 10;
+}
+
+.desktop-logo-badge {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.1rem;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.desktop-tabs {
+  display: flex;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.desktop-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.desktop-tab-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-bright);
+}
+
+.desktop-main-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  overflow: hidden;
+}
+
+.desktop-sidebar {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+}
+
+.desktop-agent-card {
+  padding: 0.55rem 0.75rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  transition: all 0.15s ease;
+}
+
+.desktop-agent-card.selected {
+  background: var(--bg-elevated);
+  border-color: var(--border-bright);
+}
+
+.desktop-workspace {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+  position: relative;
+}
+
+.desktop-terminal-box {
+  flex: 1;
+  background: #030712;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.85rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.desktop-canvas-container {
+  height: 120px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
