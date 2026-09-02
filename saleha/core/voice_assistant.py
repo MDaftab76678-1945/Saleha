@@ -11,6 +11,7 @@ Implements an autonomous local voice interface for Saleha:
 import os
 import sys
 import time
+import importlib
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, Callable
 
@@ -47,14 +48,13 @@ class VoiceAssistant:
     def _init_audio_drivers(self):
         """Attempts to initialize speech_recognition and pyttsx3 with graceful fallbacks."""
         try:
-            import speech_recognition as sr
-            self._stt_driver = sr
-        except ImportError:
+            self._stt_driver = importlib.import_module("speech_recognition")
+        except (ImportError, Exception):
             self._stt_driver = None
 
         try:
-            import pyttsx3
-            self._tts_driver = pyttsx3.init()
+            pyttsx = importlib.import_module("pyttsx3")
+            self._tts_driver = pyttsx.init()
         except (ImportError, Exception):
             self._tts_driver = None
 
