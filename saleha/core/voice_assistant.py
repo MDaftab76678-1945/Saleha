@@ -146,7 +146,7 @@ class VoiceAssistant:
             execution_time_sec=round(time.time() - start_time, 2),
         )
 
-    def process_voice_prompt(self, prompt: str, audio_file: Optional[str] = None) -> VoiceCommandResult:
+    def process_voice_prompt(self, prompt: str, audio_file: Optional[str] = None, auto_execute: bool = False, executor_fn: Optional[Callable[[str], Any]] = None) -> VoiceCommandResult:
         """Processes a voice prompt from text or transcribed audio file for CLI integration."""
         if audio_file:
             from saleha.core.speech import WhisperSTT
@@ -161,7 +161,12 @@ class VoiceAssistant:
                 )
             prompt = res.text
 
-        return self.process_voice_input(prompt)
+        if auto_execute and not executor_fn:
+            from saleha.orchestrator import SalehaOrchestrator
+            orch = SalehaOrchestrator()
+            executor_fn = lambda p: orch.run_task(p).summary if hasattr(orch.run_task(p), "summary") else str(orch.run_task(p))
+
+        return self.process_voice_input(prompt, executor_fn=executor_fn)
 
 
 voice_assistant = VoiceAssistant()

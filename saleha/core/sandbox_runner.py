@@ -62,10 +62,10 @@ SandboxExecutionResult = SandboxResult
 class SandboxRunner:
     """Isolated execution containment engine."""
 
-    def __init__(self, python_bin: Optional[str] = None, default_timeout_sec: float = 15.0, max_output_bytes: int = 100000):
+    def __init__(self, python_bin: Optional[str] = None, default_timeout_sec: float = 15.0, max_output_bytes: int = 100000, default_timeout: Optional[float] = None):
         """Initializes the sandbox runner."""
         self.python_bin = python_bin or sys.executable
-        self.default_timeout_sec = default_timeout_sec
+        self.default_timeout_sec = default_timeout if default_timeout is not None else default_timeout_sec
         self.max_output_bytes = max_output_bytes
         self.dangerous_patterns = [
             "rm -rf /",
