@@ -144,7 +144,7 @@ export function DesktopApp() {
     setTimeout(() => {
       setExecStep(4);
       setIsExecuting(false);
-      setGeneratedCode((prev) => prev + `\n// [3/4] SecurityGuardAgent AST Scan: PASS (0 CWEs detected)\n` +
+      setGeneratedCode((prev: string) => prev + `\n// [3/4] SecurityGuardAgent AST Scan: PASS (0 CWEs detected)\n` +
         `// [4/4] TesterAgent Sandboxed Verification: 5/5 PASSED in 42μs\n` +
         `// Result: 100% Deterministic Code Synthesized & Verified locally ($0 Token Cost)`
       );
@@ -268,7 +268,7 @@ export function DesktopApp() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <select
             value={themeKey}
-            onChange={(e) => setThemeKey(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setThemeKey(e.target.value)}
             style={{
               background: theme.bgElevated,
               border: `1px solid ${theme.borderSubtle}`,
@@ -281,7 +281,7 @@ export function DesktopApp() {
               outline: "none",
             }}
           >
-            {Object.entries(THEME_PRESETS).map(([key, t]) => (
+            {(Object.entries(THEME_PRESETS) as [string, ThemeTokens][]).map(([key, t]: [string, ThemeTokens]) => (
               <option key={key} value={key} style={{ background: "#0c101a", color: "#f8fafc" }}>
                 🎨 {t.name}
               </option>
@@ -443,7 +443,7 @@ export function DesktopApp() {
               <input
                 type="text"
                 value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUserPrompt(e.target.value)}
                 placeholder="Describe your software requirement or engineering task..."
                 style={{
                   flex: 1,
@@ -537,7 +537,7 @@ export function DesktopApp() {
             </label>
             <select
               value={modelBackend}
-              onChange={(e) => setModelBackend(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setModelBackend(e.target.value)}
               style={{
                 width: "100%",
                 marginTop: "0.35rem",
