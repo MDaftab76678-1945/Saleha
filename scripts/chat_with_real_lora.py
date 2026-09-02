@@ -24,10 +24,11 @@ def main():
     console.print("=" * 80, style="bold green")
     console.print("[dim]Type your coding question or prompt. Type 'exit' or 'quit' to end session.[/dim]\n")
 
-    base_model_id = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
-    adapter_path = os.path.abspath("models/saleha_hardcore_master_adapter")
+    base_model_id = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+    adapter_path = os.path.abspath("models/saleha_1.5b_master_adapter")
     if not os.path.exists(adapter_path):
-        adapter_path = os.path.abspath("models/saleha_omni_leaderboard_adapter")
+        base_model_id = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+        adapter_path = os.path.abspath("models/saleha_hardcore_master_adapter")
 
     console.print(f"📥 Loading Base Model & Merging LoRA Weights on [yellow]NVIDIA GPU[/]...")
     tokenizer = AutoTokenizer.from_pretrained(adapter_path, trust_remote_code=True)
