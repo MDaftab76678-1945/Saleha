@@ -102,6 +102,9 @@ class TrainingCollector:
 
     def export_alpaca(self, output_path: str, min_quality: float = 0.7) -> int:
         """Export dataset in Alpaca JSON format for fine-tuning."""
+        parent_dir = os.path.dirname(os.path.abspath(output_path))
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         samples = self.load_samples(min_quality=min_quality)
         data = [s.to_alpaca() for s in samples]
         with open(output_path, "w", encoding="utf-8") as f:
@@ -110,6 +113,9 @@ class TrainingCollector:
 
     def export_sharegpt(self, output_path: str, min_quality: float = 0.7) -> int:
         """Export dataset in ShareGPT JSONL format for Unsloth/axolotl."""
+        parent_dir = os.path.dirname(os.path.abspath(output_path))
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         samples = self.load_samples(min_quality=min_quality)
         with open(output_path, "w", encoding="utf-8") as f:
             for s in samples:
