@@ -2353,6 +2353,69 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if path == "/api/v2/swarm/execute":
+            from saleha.core.swarm_pipeline_engine import swarm_engine
+            goal = payload.get("goal", "Build a high-performance Python microservice")
+            res = swarm_engine.execute_swarm(goal)
+            self._send_json(200, {
+                "execution_id": res.execution_id,
+                "goal": res.goal,
+                "success": res.success,
+                "adr_title": res.adr_title,
+                "security_clean": res.security_clean,
+                "tests_passed": res.tests_passed,
+                "token_savings_pct": res.token_savings_pct,
+                "total_duration_ms": res.total_duration_ms,
+                "stages": [
+                    {
+                        "stage_id": s.stage_id,
+                        "agent_role": s.agent_role,
+                        "status": s.status,
+                        "duration_ms": s.duration_ms,
+                        "output_summary": s.output_summary,
+                    }
+                    for s in res.stages
+                ],
+                "final_code": res.final_code,
+            })
+            return
+
+        if path == "/api/v2/swarm/events":
+            from saleha.core.agent_message_bus import message_bus
+            hist = message_bus.get_history(limit=50)
+            self._send_json(200, {
+                "events": [
+                    {
+                        "event_id": e.event_id,
+                        "event_type": e.event_type,
+                        "sender_agent": e.sender_agent,
+                        "timestamp": e.timestamp,
+                    }
+                    for e in hist
+                ]
+            })
+            return
+
+        if path == "/api/v2/memory/search":
+            from saleha.core.semantic_memory_cache import semantic_memory
+            q = payload.get("query", "")
+            matches = semantic_memory.search_memory(q, top_k=5)
+            self._send_json(200, {
+                "query": q,
+                "results": [
+                    {
+                        "memory_id": m.memory_id,
+                        "category": m.category,
+                        "title": m.title,
+                        "content": m.content,
+                        "tags": m.tags,
+                        "score": round(score, 3),
+                    }
+                    for m, score in matches
+                ]
+            })
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def log_message(self, format, *args):

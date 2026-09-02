@@ -8,6 +8,9 @@ Exports the multi-agent orchestrator suite via PEP 562 lazy loading:
 - SiliconCircuitOrchestrator (Verilog / SystemVerilog RTL Synthesis)
 - DebateConsensusOrchestrator (Game-Theoretic Multi-Agent Deliberation)
 - TeamOrchestrator (5-Stage Polyglot Swarm Delivery)
+- SwarmPipelineEngine & AutonomousSwarmRouter (Dynamic DAG Swarms)
+- AgentMessageBus & message_bus (Typed Pub/Sub Event Broker)
+- SemanticMemoryCache & semantic_memory (Episodic Vector Recall)
 - SkillCatalog & UniversalMCPHub
 """
 
@@ -35,6 +38,15 @@ __all__ = [
     "DebateRound",
     "TeamOrchestrator",
     "TeamResult",
+    "SwarmPipelineEngine",
+    "swarm_engine",
+    "AutonomousSwarmRouter",
+    "SwarmExecutionResult",
+    "SwarmPipelineStage",
+    "AgentMessageBus",
+    "message_bus",
+    "SemanticMemoryCache",
+    "semantic_memory",
     "SkillCatalog",
     "skill_catalog",
     "UniversalMCPHub",
@@ -63,6 +75,15 @@ _MOD_MAP = {
     "DebateRound": "debate_consensus_orchestrator",
     "TeamOrchestrator": "team_orchestrator",
     "TeamResult": "team_orchestrator",
+    "SwarmPipelineEngine": "swarm_pipeline_engine",
+    "swarm_engine": "swarm_pipeline_engine",
+    "AutonomousSwarmRouter": "swarm_pipeline_engine",
+    "SwarmExecutionResult": "swarm_pipeline_engine",
+    "SwarmPipelineStage": "swarm_pipeline_engine",
+    "AgentMessageBus": "agent_message_bus",
+    "message_bus": "agent_message_bus",
+    "SemanticMemoryCache": "semantic_memory_cache",
+    "semantic_memory": "semantic_memory_cache",
     "SkillCatalog": "skill_catalog",
     "skill_catalog": "skill_catalog",
     "UniversalMCPHub": "mcp_hub",

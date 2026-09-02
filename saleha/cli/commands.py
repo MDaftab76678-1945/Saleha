@@ -6261,6 +6261,43 @@ def tot_solve_cmd(goal: str, code: str, tests: str):
         console.print(f"[bold yellow]⚠️ Best-effort candidate reached with score. Nodes: {res.total_nodes_explored}[/bold yellow]")
 
 
+@cli.command("swarm")
+@click.argument("goal", default="Build a robust distributed worker pool")
+def swarm_cli_cmd(goal: str):
+    """Execute dynamic multi-agent DAG swarm pipeline with real-time ASCII visualization."""
+    from saleha.core.swarm_pipeline_engine import swarm_engine
+    from saleha.cli.swarm_visualizer import visualizer
+
+    visualizer.render_header(goal)
+    stage_counter = [0]
+    total_stages = 6
+
+    def on_stage(stage):
+        if stage.status == "success":
+            stage_counter[0] += 1
+            visualizer.render_stage_update(stage, stage_counter[0], total_stages)
+
+    res = swarm_engine.execute_swarm(goal, callback=on_stage)
+    visualizer.render_execution_summary(res)
+
+
+@cli.command("dev")
+@click.option("--all", "all_apps", is_flag=True, default=False, help="Launch backend server and frontend apps simultaneously")
+@click.option("--port", default=8000, help="Backend server port")
+def dev_cli_cmd(all_apps: bool, port: int):
+    """Start local development server and client applications."""
+    if all_apps:
+        console.print("[bold cyan]🚀 Starting Saleha AI Multi-App Dev Ecosystem...[/bold cyan]")
+        console.print("  • Backend Web Studio : http://127.0.0.1:8000")
+        console.print("  • Next.js App Studio : http://localhost:3000")
+        console.print("  • Astro Landing Page : http://localhost:4321")
+        from saleha.server.web_server import run_web_studio
+        run_web_studio(port=port, open_browser=True)
+    else:
+        from saleha.server.web_server import run_web_studio
+        run_web_studio(port=port, open_browser=True)
+
+
 from saleha.cli.monorepo_cli import monorepo_group
 from saleha.cli.demo_cli import dogfood_cmd
 from saleha.cli.benchmark_cli import benchmark_cmd
