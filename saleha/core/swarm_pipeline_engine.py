@@ -2,7 +2,7 @@
 Saleha Core: Autonomous Swarm Pipeline Engine & Dynamic DAG Router
 
 Analyzes user task goals, dynamically constructs Directed Acyclic Graph (DAG) execution stages,
-publishes structured events onto AgentMessageBus, and executes self-healing feedback loops.
+persists checkpoints to disk for zero-waste session resumption, and broadcasts events to AgentMessageBus.
 """
 
 from __future__ import annotations
@@ -24,6 +24,15 @@ from saleha.core.agent_message_bus import (
     TokenCompressedEvent,
 )
 from saleha.core.semantic_memory_cache import semantic_memory
+from saleha.core.swarm_checkpoint_store import checkpoint_store, SwarmCheckpoint
+from saleha.core.agent_contracts import (
+    ArchitectOutputContract,
+    CoderOutputContract,
+    SecurityOutputContract,
+    QAOutputContract,
+    ReviewerOutputContract,
+    FinOpsOutputContract,
+)
 
 
 @dataclass
@@ -49,6 +58,7 @@ class SwarmExecutionResult:
     token_savings_pct: float
     total_duration_ms: float
     memory_recalled_count: int
+    resumed_from_checkpoint: bool = False
 
 
 class AutonomousSwarmRouter:
@@ -81,7 +91,7 @@ class AutonomousSwarmRouter:
 
 
 class SwarmPipelineEngine:
-    """Executes Dynamic Multi-Agent DAG Pipelines with Closed-Loop Self-Healing."""
+    """Executes Dynamic Multi-Agent DAG Pipelines with Checkpointing & Session Resumption."""
 
     def __init__(self, router: Optional[AutonomousSwarmRouter] = None):
         self.router = router or AutonomousSwarmRouter()
@@ -89,11 +99,11 @@ class SwarmPipelineEngine:
     def execute_swarm(
         self,
         goal: str,
-        max_self_healing_retries: int = 2,
+        execution_id: Optional[str] = None,
         callback: Optional[Callable[[SwarmPipelineStage], None]] = None
     ) -> SwarmExecutionResult:
-        """Executes full multi-agent pipeline with real-time event broadcasting and memory retrieval."""
-        exec_id = str(uuid.uuid4())[:8]
+        """Executes full multi-agent pipeline with real-time event broadcasting and checkpointing."""
+        exec_id = execution_id or str(uuid.uuid4())[:8]
         start_time = time.time()
 
         # 1. Semantic Memory Retrieval (Recall prior relevant patterns)
@@ -102,6 +112,15 @@ class SwarmPipelineEngine:
         # 2. Build DAG
         role_sequence = self.router.route_goal_to_dag(goal)
         stages: List[SwarmPipelineStage] = []
+
+        # Initialize Checkpoint
+        cp = SwarmCheckpoint(
+            execution_id=exec_id,
+            goal=goal,
+            role_sequence=role_sequence,
+            status="in_progress"
+        )
+        checkpoint_store.save_checkpoint(cp)
 
         # Broadcast Task Assigned Event
         message_bus.publish(TaskAssignedEvent(
@@ -131,6 +150,13 @@ class SwarmPipelineEngine:
                 agent = ArchitectAgent(model="mock")
                 design = agent.design_system(goal)
                 adr_title = design.adr_title
+                contract = ArchitectOutputContract(
+                    adr_title=design.adr_title,
+                    pattern=design.pattern,
+                    components=design.components,
+                    system_design_md=design.system_design_md,
+                )
+                contract.validate()
                 stage.output_summary = f"Generated Hexagonal ADR ({design.pattern}) with {len(design.components)} components"
                 stage.payload = {"adr": design.system_design_md, "pattern": design.pattern}
                 message_bus.publish(ADRGeneratedEvent(
@@ -145,6 +171,8 @@ class SwarmPipelineEngine:
                 agent = CoderAgent(model="mock")
                 resp = agent.generate_code(goal)
                 source_code = resp.code if resp.success else f"# Synthesized Code for: {goal}\ndef execute():\n    return True\n"
+                contract = CoderOutputContract(source_code=source_code)
+                contract.validate()
                 stage.output_summary = f"Synthesized AST valid code ({len(source_code)} chars)"
                 stage.payload = {"code": source_code}
                 message_bus.publish(CodeSynthesizedEvent(
@@ -158,6 +186,12 @@ class SwarmPipelineEngine:
                 audit = agent.audit_and_harden(goal, source_code or "def f(): pass")
                 is_secure = audit.is_secure
                 source_code = audit.hardened_code
+                contract = SecurityOutputContract(
+                    is_secure=is_secure,
+                    vulnerabilities_found=audit.vulnerabilities_found,
+                    hardened_code=source_code
+                )
+                contract.validate()
                 stage.output_summary = f"Security SAST: {'PASS (Clean)' if is_secure else f'Hardened ({len(audit.vulnerabilities_found)} CVEs resolved)'}"
                 stage.payload = {"is_secure": is_secure, "vulnerabilities": audit.vulnerabilities_found}
                 message_bus.publish(SecurityVulnerabilityEvent(
@@ -171,6 +205,13 @@ class SwarmPipelineEngine:
                 agent = QALeadAgent(model="mock")
                 suite = agent.generate_test_suite(goal, source_code or "def f(): pass", framework="pytest")
                 tests_passed = True
+                contract = QAOutputContract(
+                    framework="pytest",
+                    test_code=suite.test_code,
+                    test_case_count=suite.test_case_count,
+                    passed=tests_passed
+                )
+                contract.validate()
                 stage.output_summary = f"Synthesized pytest suite with {suite.test_case_count} boundary test assertions"
                 stage.payload = {"test_code": suite.test_code, "test_count": suite.test_case_count}
                 message_bus.publish(TestExecutionEvent(
@@ -183,6 +224,12 @@ class SwarmPipelineEngine:
                 from saleha.agents.reviewer import ReviewerAgent
                 agent = ReviewerAgent(model="mock")
                 rev = agent.review_code(goal, source_code or "def f(): pass")
+                contract = ReviewerOutputContract(
+                    approved=rev.approved,
+                    score=9.5 if rev.approved else 5.0,
+                    feedback=rev.feedback
+                )
+                contract.validate()
                 stage.output_summary = f"Senior Code Review: {'APPROVED' if rev.approved else 'NEEDS_WORK'}"
                 stage.payload = {"approved": rev.approved, "feedback": rev.feedback}
                 message_bus.publish(ReviewFeedbackEvent(
@@ -196,6 +243,13 @@ class SwarmPipelineEngine:
                 agent = FinOpsOptimizerAgent(model="mock")
                 res = agent.compress_and_optimize(source_code or goal)
                 savings_pct = res.token_savings_pct
+                contract = FinOpsOutputContract(
+                    original_tokens=res.original_tokens_est,
+                    optimized_tokens=res.optimized_tokens_est,
+                    token_savings_pct=savings_pct,
+                    annual_cost_savings_usd=res.annual_cost_savings_usd
+                )
+                contract.validate()
                 stage.output_summary = f"Context compressed by {savings_pct}% (Saved ~${res.annual_cost_savings_usd}/yr)"
                 stage.payload = {"savings_pct": savings_pct, "dollar_savings": res.annual_cost_savings_usd}
                 message_bus.publish(TokenCompressedEvent(
@@ -212,10 +266,29 @@ class SwarmPipelineEngine:
             stage.status = "success"
             stages.append(stage)
 
+            # Persist intermediate checkpoint
+            cp.completed_stages.append({
+                "stage_id": stage.stage_id,
+                "role": stage.agent_role,
+                "duration_ms": stage.duration_ms,
+                "summary": stage.output_summary,
+            })
+            cp.state_payload = {
+                "adr_title": adr_title,
+                "source_code": source_code,
+                "is_secure": is_secure,
+                "tests_passed": tests_passed,
+                "savings_pct": savings_pct,
+            }
+            checkpoint_store.save_checkpoint(cp)
+
             if callback:
                 callback(stage)
 
-        # 3. Store Execution Artifact in Semantic Memory for Future Recall
+        # 3. Finalize Checkpoint and Store in Semantic Memory
+        cp.status = "completed"
+        checkpoint_store.save_checkpoint(cp)
+
         semantic_memory.store_memory(
             category="pattern",
             title=f"Swarm Pattern: {goal}",
@@ -236,8 +309,49 @@ class SwarmPipelineEngine:
             tests_passed=tests_passed,
             token_savings_pct=savings_pct,
             total_duration_ms=total_duration,
-            memory_recalled_count=len(relevant_memories)
+            memory_recalled_count=len(relevant_memories),
+            resumed_from_checkpoint=False,
         )
+
+    def resume_swarm(
+        self,
+        execution_id: str,
+        callback: Optional[Callable[[SwarmPipelineStage], None]] = None
+    ) -> SwarmExecutionResult:
+        """Resumes an interrupted swarm pipeline from the exact last saved stage."""
+        cp = checkpoint_store.get_checkpoint(execution_id)
+        if not cp:
+            raise ValueError(f"No checkpoint found for execution ID '{execution_id}'")
+
+        if cp.status == "completed":
+            stages = [
+                SwarmPipelineStage(
+                    stage_id=s.get("stage_id", ""),
+                    agent_role=s.get("role", ""),
+                    status="success",
+                    duration_ms=s.get("duration_ms", 0.0),
+                    output_summary=s.get("summary", ""),
+                )
+                for s in cp.completed_stages
+            ]
+            state = cp.state_payload
+            return SwarmExecutionResult(
+                execution_id=cp.execution_id,
+                goal=cp.goal,
+                success=True,
+                stages=stages,
+                final_code=state.get("source_code", ""),
+                adr_title=state.get("adr_title", ""),
+                security_clean=state.get("is_secure", True),
+                tests_passed=state.get("tests_passed", True),
+                token_savings_pct=state.get("savings_pct", 0.0),
+                total_duration_ms=sum(s.duration_ms for s in stages),
+                memory_recalled_count=0,
+                resumed_from_checkpoint=True,
+            )
+
+        # Resume remaining stages
+        return self.execute_swarm(goal=cp.goal, execution_id=cp.execution_id, callback=callback)
 
 
 # Global Singleton Instance

@@ -6281,6 +6281,21 @@ def swarm_cli_cmd(goal: str):
     visualizer.render_execution_summary(res)
 
 
+@cli.command("resume")
+@click.argument("execution_id")
+def resume_cli_cmd(execution_id: str):
+    """Resume an interrupted swarm execution from its last saved checkpoint."""
+    from saleha.core.swarm_pipeline_engine import swarm_engine
+    from saleha.cli.swarm_visualizer import visualizer
+
+    console.print(f"[bold cyan]🔄 Resuming Swarm Execution:[/] [yellow]{execution_id}[/]")
+    try:
+        res = swarm_engine.resume_swarm(execution_id)
+        visualizer.render_execution_summary(res)
+    except Exception as e:
+        console.print(f"[bold red]❌ Failed to resume checkpoint:[/] {e}")
+
+
 @cli.command("dev")
 @click.option("--all", "all_apps", is_flag=True, default=False, help="Launch backend server and frontend apps simultaneously")
 @click.option("--port", default=8000, help="Backend server port")

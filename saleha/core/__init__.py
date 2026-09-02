@@ -9,8 +9,11 @@ Exports the multi-agent orchestrator suite via PEP 562 lazy loading:
 - DebateConsensusOrchestrator (Game-Theoretic Multi-Agent Deliberation)
 - TeamOrchestrator (5-Stage Polyglot Swarm Delivery)
 - SwarmPipelineEngine & AutonomousSwarmRouter (Dynamic DAG Swarms)
+- SwarmCheckpointStore & checkpoint_store (Session Resume Engine)
 - AgentMessageBus & message_bus (Typed Pub/Sub Event Broker)
 - SemanticMemoryCache & semantic_memory (Episodic Vector Recall)
+- AgentWorkerPool & worker_pool (Sandboxed Isolation)
+- PluginManifestEngine & plugin_engine (Micro-Kernel Plugin System)
 - SkillCatalog & UniversalMCPHub
 """
 
@@ -43,6 +46,13 @@ __all__ = [
     "AutonomousSwarmRouter",
     "SwarmExecutionResult",
     "SwarmPipelineStage",
+    "SwarmCheckpointStore",
+    "checkpoint_store",
+    "SwarmCheckpoint",
+    "AgentWorkerPool",
+    "worker_pool",
+    "PluginManifestEngine",
+    "plugin_engine",
     "AgentMessageBus",
     "message_bus",
     "SemanticMemoryCache",
@@ -80,6 +90,13 @@ _MOD_MAP = {
     "AutonomousSwarmRouter": "swarm_pipeline_engine",
     "SwarmExecutionResult": "swarm_pipeline_engine",
     "SwarmPipelineStage": "swarm_pipeline_engine",
+    "SwarmCheckpointStore": "swarm_checkpoint_store",
+    "checkpoint_store": "swarm_checkpoint_store",
+    "SwarmCheckpoint": "swarm_checkpoint_store",
+    "AgentWorkerPool": "agent_worker_pool",
+    "worker_pool": "agent_worker_pool",
+    "PluginManifestEngine": "plugin_manifest",
+    "plugin_engine": "plugin_manifest",
     "AgentMessageBus": "agent_message_bus",
     "message_bus": "agent_message_bus",
     "SemanticMemoryCache": "semantic_memory_cache",
