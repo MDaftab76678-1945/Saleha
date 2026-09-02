@@ -43,6 +43,7 @@ class SuiteFailure:
 
 @dataclass
 class TestSuiteResult:
+    __test__ = False
     passed: bool = False
     ran: int = 0
     failures: List[SuiteFailure] = field(default_factory=list)

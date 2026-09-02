@@ -65,3 +65,22 @@ Documentation = "https://github.com/MDaftab76678-1945/Saleha/tree/main/docs"
 Repository = "https://github.com/MDaftab76678-1945/Saleha.git"
 Issues = "https://github.com/MDaftab76678-1945/Saleha/issues"
 
+[tool.pytest.ini_options]
+testpaths = ["saleha/tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+norecursedirs = [
+    "templates",
+    "node_modules",
+    ".git",
+    ".pytest_cache",
+    "workspace",
+    "test_dynamic_ws",
+    "scratch",
+    "apps",
+    "dist",
+    "build"
+]
+
+
