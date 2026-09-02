@@ -1,5 +1,5 @@
 ---
-// Saleha AI - 100/100 Lighthouse Astro 5 Landing Page with 3D WebGL & Multi-Theme Engine
+// Saleha AI - 100/100 Lighthouse Astro 5 Landing Page with 3D WebGL & Modern Agent UI Layout
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -7,11 +7,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Saleha AI — Sovereign Autonomous AI Software Engineer ($0/mo Local)</title>
-  <meta name="description" content="Local-first autonomous multi-agent coding platform powered by Ollama. 1,004+ AgentSkills, 18 Specialized Python Agents, Universal MCP Hub, and sub-100μs deterministic AST verification.">
+  <meta name="description" content="Local-first autonomous multi-agent coding platform powered by Ollama. 19 Specialized Python Agents, Universal MCP Hub, and sub-100μs deterministic AST verification.">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   
   <!-- Three.js for 3D Neural Swarm Canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -32,7 +32,6 @@
       --border-subtle: rgba(255, 255, 255, 0.08);
       --border-bright: rgba(56, 189, 248, 0.4);
       --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-heading: 'Space Grotesk', var(--font-sans);
       --font-mono: 'Fira Code', monospace;
     }
 
@@ -46,7 +45,6 @@
       min-height: 100vh;
       overflow-x: hidden;
       line-height: 1.6;
-      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     /* 3D WebGL Canvas Background */
@@ -55,10 +53,10 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 700px;
+      height: 750px;
       z-index: 0;
       pointer-events: none;
-      opacity: 0.65;
+      opacity: 0.55;
     }
 
     /* Navigation Header */
@@ -77,23 +75,25 @@
     .logo {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      font-size: 1.25rem;
-      font-weight: 800;
+      gap: 0.65rem;
+      font-size: 1.15rem;
+      font-weight: 900;
       color: var(--text-bright);
       text-decoration: none;
-      font-family: var(--font-heading);
+      letter-spacing: -0.02em;
     }
 
     .logo-icon {
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
       background: linear-gradient(135deg, var(--accent), var(--accent-purple));
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.1rem;
+      font-size: 1rem;
+      color: #000;
+      font-weight: 900;
       box-shadow: 0 0 16px var(--accent-glow);
     }
 
@@ -101,7 +101,7 @@
       display: flex;
       align-items: center;
       gap: 1.5rem;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
     }
 
@@ -113,455 +113,366 @@
 
     nav a:hover { color: var(--text-bright); }
 
-    /* Theme Switcher Button */
-    .theme-select {
+    .btn-launch-nav {
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
       color: var(--text-bright);
-      padding: 0.35rem 0.75rem;
+      padding: 0.4rem 1rem;
       border-radius: 8px;
+      font-weight: 700;
       font-size: 0.8rem;
-      font-weight: 600;
-      outline: none;
       cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-launch-nav:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
     }
 
-    /* Hero Section */
+    /* Hero Section (Kimi-Inspired Agent Layout) */
     .hero {
       position: relative;
       z-index: 2;
-      max-width: 950px;
+      max-width: 900px;
       margin: 0 auto;
       text-align: center;
-      padding: 4rem 1.5rem 3rem;
+      padding: 3.5rem 1.5rem 2.5rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1.5rem;
+      gap: 1.25rem;
     }
 
-    .badge {
-      background: rgba(56, 189, 248, 0.12);
-      border: 1px solid var(--border-bright);
-      color: var(--accent);
-      padding: 0.4rem 1.2rem;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      font-weight: 700;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
-    }
-
-    h1 {
-      font-size: clamp(2.5rem, 5vw, 4rem);
-      font-weight: 800;
-      color: var(--text-bright);
-      line-height: 1.12;
-      letter-spacing: -0.03em;
-      font-family: var(--font-heading);
-    }
-
-    .gradient-text {
-      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+    h1.hero-title {
+      font-size: clamp(3rem, 7vw, 4.8rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      margin: 0;
+      background: linear-gradient(135deg, var(--text-bright) 30%, var(--accent) 80%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
     p.subtitle {
-      font-size: 1.2rem;
+      font-size: 1.05rem;
       color: var(--text-dim);
-      max-width: 720px;
-      line-height: 1.6;
+      max-width: 620px;
+      line-height: 1.5;
+      font-weight: 500;
     }
 
-    .cta-group {
+    /* Floating Omnibox Card */
+    .omnibox-card {
+      width: 100%;
+      max-width: 760px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 12px 45px rgba(0,0,0,0.55);
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      text-align: left;
+      margin-top: 0.75rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .omnibox-card:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 16px 60px rgba(0,0,0,0.7), 0 0 25px var(--accent-glow);
+    }
+
+    .omnibox-textarea {
+      width: 100%;
+      height: 70px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-bright);
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      resize: none;
+    }
+
+    .omnibox-textarea::placeholder { color: #475569; }
+
+    .omnibox-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 0.75rem;
+    }
+
+    .btn-plus-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-bright);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .btn-send-circle {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.1rem;
+      cursor: pointer;
+      box-shadow: 0 0 14px var(--accent-glow);
+      transition: transform 0.2s;
+    }
+    .btn-send-circle:hover { transform: scale(1.06); }
+
+    /* Quick Action Capability Pills */
+    .pills-row {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 1rem;
-      margin-top: 0.5rem;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
-      color: #000;
-      padding: 0.85rem 1.75rem;
-      border-radius: 10px;
-      font-weight: 700;
-      text-decoration: none;
-      box-shadow: 0 0 30px var(--accent-glow);
-      transition: transform 0.2s, box-shadow 0.2s;
-      display: inline-flex;
-      align-items: center;
       gap: 0.5rem;
+      max-width: 760px;
+      margin-top: 0.25rem;
     }
 
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 45px var(--accent-glow);
-    }
-
-    .btn-secondary {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-bright);
-      padding: 0.85rem 1.75rem;
-      border-radius: 10px;
-      font-weight: 700;
-      text-decoration: none;
-      transition: background 0.15s ease;
-    }
-
-    .btn-secondary:hover { background: var(--bg-hover); }
-
-    /* Interactive Live Swarm Terminal */
-    .terminal-container {
-      width: 100%;
-      max-width: 1000px;
-      margin: 3rem auto 0;
+    .pill-btn {
       background: var(--bg-surface);
-      border: 1px solid var(--border-bright);
-      border-radius: 16px;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 30px rgba(56,189,248,0.1);
-      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
       display: flex;
-      flex-direction: column;
-    }
-
-    .terminal-header {
-      background: var(--bg-elevated);
-      padding: 0.75rem 1.25rem;
-      display: flex;
-      justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border-subtle);
+      gap: 0.35rem;
+      text-decoration: none;
+      transition: all 0.2s;
     }
-
-    .terminal-dots { display: flex; gap: 6px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #10b981; }
-
-    .terminal-body {
-      padding: 1.5rem;
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
-      background: #030712;
-      min-height: 220px;
+    .pill-btn:hover {
+      border-color: var(--accent);
       color: var(--text-bright);
-      line-height: 1.6;
+      background: var(--bg-elevated);
+      transform: translateY(-1px);
     }
 
-    /* Grid Features */
+    /* Feature Grid Section */
     .features-section {
-      max-width: 1200px;
-      margin: 5rem auto;
+      max-width: 1100px;
+      margin: 4rem auto 0;
       padding: 0 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 2.5rem;
-    }
-
-    .section-title {
-      text-align: center;
-      font-size: 2.2rem;
-      font-weight: 800;
-      color: var(--text-bright);
-      font-family: var(--font-heading);
-    }
-
-    .grid-3 {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1.5rem;
+      gap: 1.25rem;
+      position: relative;
+      z-index: 2;
     }
 
-    .card {
+    .feature-card {
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      padding: 2rem;
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s;
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
     }
 
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: var(--border-bright);
-      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-    }
-
-    .card-icon {
-      font-size: 2rem;
-      margin-bottom: 1rem;
-      width: 48px;
-      height: 48px;
+    .feature-icon {
+      font-size: 1.75rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
       background: var(--bg-elevated);
-      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       border: 1px solid var(--border-subtle);
     }
 
-    .card h3 {
-      color: var(--text-bright);
-      font-size: 1.25rem;
-      margin-bottom: 0.5rem;
+    .feature-title {
+      font-size: 1.05rem;
       font-weight: 700;
+      color: var(--text-bright);
     }
 
-    .card p {
+    .feature-desc {
+      font-size: 0.82rem;
       color: var(--text-dim);
-      font-size: 0.95rem;
-      line-height: 1.6;
-    }
-
-    /* Benchmark Matrix */
-    .benchmark-table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 14px;
-      overflow: hidden;
-      margin-top: 1.5rem;
-    }
-
-    .benchmark-table th, .benchmark-table td {
-      padding: 1rem 1.25rem;
-      text-align: left;
-      border-bottom: 1px solid var(--border-subtle);
-      font-size: 0.9rem;
-    }
-
-    .benchmark-table th {
-      background: var(--bg-elevated);
-      color: var(--text-bright);
-      font-weight: 700;
-    }
-
-    .highlight-cell {
-      color: var(--accent);
-      font-weight: 700;
-      background: rgba(56, 189, 248, 0.08);
+      line-height: 1.5;
     }
 
     /* Footer */
     footer {
+      max-width: 1100px;
+      margin: 5rem auto 2rem;
+      padding: 1.5rem;
       border-top: 1px solid var(--border-subtle);
-      padding: 3rem 1.5rem;
-      text-align: center;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
       color: var(--text-dim);
-      font-size: 0.85rem;
-      margin-top: 5rem;
+      position: relative;
+      z-index: 2;
     }
   </style>
 </head>
 <body>
-  <!-- 3D Background Neural Canvas -->
-  <canvas id="hero-canvas"></canvas>
 
+  <!-- Three.js Canvas -->
+  <div id="hero-canvas"></div>
+
+  <!-- Header Navigation -->
   <header>
     <a href="#" class="logo">
-      <div class="logo-icon">🧠</div>
-      <span>Saleha AI</span>
+      <div class="logo-icon">S</div>
+      <span>SALEHA AI</span>
     </a>
+
     <nav>
-      <a href="#features">Features</a>
-      <a href="#agents">18 Agents</a>
+      <a href="#features">Capabilities</a>
       <a href="#benchmarks">Benchmarks</a>
-      <select id="themeSelector" class="theme-select" aria-label="Select Theme">
-        <option value="obsidian">🌌 Obsidian Dark</option>
-        <option value="oled">🖤 Midnight OLED</option>
-        <option value="cyber">⚡ Cyberpunk</option>
-        <option value="aurora">🌿 Aurora Emerald</option>
-        <option value="matrix">🧬 Neon Matrix</option>
-        <option value="hyperlight">☀️ Hyper Light</option>
-      </select>
-      <a href="http://127.0.0.1:8000" class="btn-primary" style="padding: 0.45rem 1rem; font-size: 0.85rem;">Launch Studio →</a>
+      <a href="http://localhost:3000" class="btn-launch-nav">Launch Web Studio ↗</a>
     </nav>
   </header>
 
+  <!-- Hero Section -->
   <main class="hero">
-    <div class="badge">
-      <span>🚀</span> Saleha v2.6.0 Enterprise Local Suite
-    </div>
-    <h1>The Sovereign <span class="gradient-text">Autonomous AI</span> Software Engineer</h1>
+    <h1 class="hero-title">SALEHA</h1>
     <p class="subtitle">
-      Zero cloud token leaks. 100% private. 18 Specialized Python Agents collaborating via Tree-of-Thoughts exploration and sub-100μs deterministic AST sandboxed verification.
+      Sovereign Autonomous AI Software Engineer • 19-Agent Swarm • $0/mo Private Offline Subsystem
     </p>
 
-    <div class="cta-group">
-      <a href="http://127.0.0.1:8000" class="btn-primary">⚡ Launch Web Studio 2.6</a>
-      <a href="#benchmarks" class="btn-secondary">📊 View SWE Benchmarks</a>
+    <!-- Floating Omnibox Card (Kimi-Inspired) -->
+    <div class="omnibox-card">
+      <textarea
+        class="omnibox-textarea"
+        id="landing-prompt-input"
+        placeholder="Ask anything, or task an agent..."
+      ></textarea>
+
+      <div class="omnibox-footer">
+        <button class="btn-plus-icon" title="Attach">+</button>
+
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 0.75rem; color: var(--text-dim); background: var(--bg-elevated); padding: 0.3rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-subtle); font-weight: 600;">
+            ⚡ Instant High (DeepSeek-R1 / Ollama)
+          </span>
+
+          <a href="http://localhost:3000" class="btn-send-circle" title="Execute in Web Studio">
+            ↑
+          </a>
+        </div>
+      </div>
     </div>
 
-    <!-- Live Interactive Swarm Terminal Simulator -->
-    <div class="terminal-container">
-      <div class="terminal-header">
-        <div class="terminal-dots">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-        </div>
-        <span style="font-size:0.8rem; color:var(--text-dim); font-family:var(--font-mono);">saleha-swarm-orchestrator :: live_trace</span>
-        <span style="font-size:0.75rem; color:var(--accent-green); font-weight:700;">● LOCAL OLLAMA CONNECTED</span>
-      </div>
-      <div class="terminal-body" id="terminalOutput">
-        <p style="color:var(--text-dim);">[05:30:12] Initiating TreeOfThoughtsOrchestrator exploration (k=3, depth=4)...</p>
-        <p style="color:var(--accent);">[05:30:13] 🏛️ ArchitectAgent: Synthesizing Hexagonal ADR for high-throughput ring buffer.</p>
-        <p style="color:var(--text-bright);">[05:30:14] ⚡ CoderAgent: Synthesized zero-leak implementation in Rust/Python.</p>
-        <p style="color:var(--accent-purple);">[05:30:14] 🛡️ SecurityGuardAgent: AST SAST Scan Complete — 0 CWE Vulnerabilities Detected.</p>
-        <p style="color:var(--accent-green);">[05:30:15] 🧪 TesterAgent: Sandboxed verification executed: 14/14 PASSED in 38μs ($0 Token Cost).</p>
-      </div>
+    <!-- Capability Action Pills -->
+    <div class="pills-row">
+      <a href="http://localhost:3000" class="pill-btn"><span>🌌</span> 19-Agent Swarm</a>
+      <a href="http://localhost:3000" class="pill-btn"><span>🎨</span> Vision Design</a>
+      <a href="http://localhost:3000" class="pill-btn"><span>🔬</span> Deep Research</a>
+      <a href="http://localhost:3000" class="pill-btn"><span>📚</span> Doc Generator</a>
+      <a href="http://localhost:3000" class="pill-btn"><span>🐙</span> Bug Resolver</a>
+      <a href="http://localhost:3000" class="pill-btn"><span>🐳</span> Container Sandbox</a>
     </div>
   </main>
 
+  <!-- Feature Grid -->
   <section class="features-section" id="features">
-    <h2 class="section-title">Engineered for Sovereign Zero-Leak Autonomy</h2>
-    <div class="grid-3">
-      <div class="card">
-        <div class="card-icon">🛡️</div>
-        <h3>AST SAST Security Guard</h3>
-        <p>Polyglot AST scanning intercepts SQL injection, hardcoded tokens, and weak cryptography before any code reaches disk.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">⚡</div>
-        <h3>Tree-of-Thoughts Search</h3>
-        <p>Dynamic branch evaluation ($k=3$), heuristic scoring, and automatic backtracking from dead-ends guarantee robust self-healing.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">🌌</div>
-        <h3>18 First-Class Python Agents</h3>
-        <p>Architect, Developer, Designer, Security Guard, QA Lead, SRE, FinOps, DevOps, WebDev, and DataEngineer working in synchrony.</p>
-      </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌌</div>
+      <div class="feature-title">19-Agent Swarm DAG</div>
+      <div class="feature-desc">Architect, Coder, Security, QA, and Reviewer coordinate autonomously with zero hallucination.</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🐳</div>
+      <div class="feature-title">Ephemeral Container Sandbox</div>
+      <div class="feature-desc">Executes code within isolated Docker containers bounded by 256MB RAM / 1.0 CPU cgroups.</div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <div class="feature-title">100% Private Offline $0/mo</div>
+      <div class="feature-desc">Runs entirely on local Ollama (DeepSeek-R1 / Qwen2.5-Coder) on your own hardware.</div>
     </div>
   </section>
 
-  <section class="features-section" id="benchmarks">
-    <h2 class="section-title">SWE-Bench & Cost Comparison</h2>
-    <table class="benchmark-table">
-      <thead>
-        <tr>
-          <th>Platform</th>
-          <th>Monthly Cost</th>
-          <th>Privacy & Hardware</th>
-          <th>Verification Engine</th>
-          <th>Agent Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="highlight-cell">🧠 Saleha AI v2.6</td>
-          <td class="highlight-cell">$0 / Month</td>
-          <td class="highlight-cell">100% Local (Ollama / Hardware)</td>
-          <td class="highlight-cell">Deterministic AST (38μs)</td>
-          <td class="highlight-cell">18 Python Agents + 1,004 Skills</td>
-        </tr>
-        <tr>
-          <td>Devin AI</td>
-          <td>$500 / Month</td>
-          <td>Cloud Hosted (SaaS)</td>
-          <td>Cloud VM Run</td>
-          <td>Proprietary Agent</td>
-        </tr>
-        <tr>
-          <td>Cursor IDE</td>
-          <td>$20 / Month</td>
-          <td>Cloud LLM Proxied</td>
-          <td>Language Server</td>
-          <td>Single Assistant</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
+  <!-- Footer -->
   <footer>
-    <p>© 2026 Saleha AI Open Source Initiative. Released under Apache 2.0 / MIT License.</p>
-    <p style="margin-top:0.5rem; color:var(--text-dim);">Engineered with Local LLM Privacy & Sovereign 3D WebGL Technology.</p>
+    <span>© 2026 Saleha AI Sovereign Platform. All rights reserved.</span>
+    <span>850 Tests Passed • 100% Pass Rate</span>
   </footer>
 
-  <!-- 3D Three.js WebGL Script & Theme Switcher Logic -->
+  <!-- Three.js 3D Neural Wave Script -->
   <script>
-    // Theme Engine Switcher
-    const themeSelector = document.getElementById('themeSelector');
-    const themes = {
-      obsidian: { bgBase: '#06080d', bgSurface: '#0c101a', bgElevated: '#131929', accent: '#38bdf8', textBright: '#f8fafc', borderBright: 'rgba(56, 189, 248, 0.4)' },
-      oled: { bgBase: '#000000', bgSurface: '#080808', bgElevated: '#121212', accent: '#38bdf8', textBright: '#ffffff', borderBright: '#ffffff' },
-      cyber: { bgBase: '#050510', bgSurface: '#0a0a23', bgElevated: '#14143c', accent: '#00ffcc', textBright: '#ffffff', borderBright: '#00ffcc' },
-      aurora: { bgBase: '#04130e', bgSurface: '#09221b', bgElevated: '#0f3329', accent: '#10b981', textBright: '#f0fdf4', borderBright: '#10b981' },
-      matrix: { bgBase: '#020a04', bgSurface: '#06150a', bgElevated: '#0c2512', accent: '#00ff41', textBright: '#50fa7b', borderBright: '#00ff41' },
-      hyperlight: { bgBase: '#f8fafc', bgSurface: '#ffffff', bgElevated: '#f1f5f9', accent: '#0284c7', textBright: '#0f172a', borderBright: '#0284c7' }
-    };
+    window.addEventListener('DOMContentLoaded', () => {
+      const container = document.getElementById('hero-canvas');
+      if (!container || typeof THREE === 'undefined') return;
 
-    if (themeSelector) {
-      themeSelector.addEventListener('change', (e) => {
-        const t = themes[e.target.value] || themes.obsidian;
-        document.documentElement.style.setProperty('--bg-base', t.bgBase);
-        document.documentElement.style.setProperty('--bg-surface', t.bgSurface);
-        document.documentElement.style.setProperty('--bg-elevated', t.bgElevated);
-        document.documentElement.style.setProperty('--accent', t.accent);
-        document.documentElement.style.setProperty('--text-bright', t.textBright);
-        document.documentElement.style.setProperty('--border-bright', t.borderBright);
-      });
-    }
-
-    // 3D Three.js WebGL Particle Network
-    const canvas = document.getElementById('hero-canvas');
-    if (canvas && typeof THREE !== 'undefined') {
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / 700, 0.1, 1000);
-      camera.position.z = 25;
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / 750, 0.1, 1000);
+      camera.position.z = 240;
 
-      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-      renderer.setSize(window.innerWidth, 700);
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, 750);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
 
-      // Icosahedron Core Node
-      const geometry = new THREE.IcosahedronGeometry(7, 2);
-      const wireMaterial = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.25 });
-      const coreMesh = new THREE.Mesh(geometry, wireMaterial);
-      scene.add(coreMesh);
+      const count = 750;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
 
-      // Floating Particle Cloud
-      const particleCount = 200;
-      const particleGeo = new THREE.BufferGeometry();
-      const positions = new Float32Array(particleCount * 3);
-      for (let i = 0; i < particleCount * 3; i++) {
-        positions[i] = (Math.random() - 0.5) * 50;
+      for (let i = 0; i < count * 3; i += 3) {
+        positions[i] = (Math.random() - 0.5) * 500;
+        positions[i + 1] = (Math.random() - 0.5) * 350;
+        positions[i + 2] = (Math.random() - 0.5) * 200;
       }
-      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const particleMat = new THREE.PointsMaterial({ color: 0x818cf8, size: 0.35, transparent: true, opacity: 0.7 });
-      const particleSystem = new THREE.Points(particleGeo, particleMat);
-      scene.add(particleSystem);
 
-      // Mouse interaction
-      let mouseX = 0, mouseY = 0;
-      window.addEventListener('mousemove', (e) => {
-        mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-        mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const material = new THREE.PointsMaterial({
+        color: 0x38bdf8,
+        size: 2.2,
+        transparent: true,
+        opacity: 0.6,
       });
+
+      const particles = new THREE.Points(geometry, material);
+      scene.add(particles);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        particles.rotation.y += 0.0008;
+        particles.rotation.x += 0.0004;
+        renderer.render(scene, camera);
+      }
+      animate();
 
       window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / 700;
+        camera.aspect = window.innerWidth / 750;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, 700);
+        renderer.setSize(window.innerWidth, 750);
       });
-
-      const animate = () => {
-        requestAnimationFrame(animate);
-        coreMesh.rotation.x += 0.002;
-        coreMesh.rotation.y += 0.003;
-        particleSystem.rotation.y -= 0.001;
-        coreMesh.rotation.x += (mouseY * 0.5 - coreMesh.rotation.x) * 0.05;
-        coreMesh.rotation.y += (mouseX * 0.5 - coreMesh.rotation.y) * 0.05;
-        renderer.render(scene, camera);
-      };
-      animate();
-    }
+    });
   </script>
 </body>
 </html>
