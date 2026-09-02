@@ -26,6 +26,11 @@ from saleha.core.swarm_pipeline_engine import swarm_engine
 from saleha.agents.issue_resolver import issue_resolver
 from saleha.agents.vision_designer import vision_designer
 from saleha.agents.doc_generator import doc_generator
+from saleha.agents.deep_researcher import deep_researcher
+from saleha.agents.slides_architect import slides_architect
+from saleha.agents.sheets_analyst import sheets_analyst
+from saleha.agents.browser_claw import browser_claw
+from saleha.core.task_scheduler import task_scheduler
 from saleha.core.ephemeral_container_runner import container_runner
 from saleha.tools.release_manager import release_manager
 
@@ -40,15 +45,21 @@ class SwarmChatSession:
 
     def render_welcome(self):
         """Renders welcome banner and slash command cheat-sheet."""
-        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.6.0[/bold cyan]")
+        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.7.0[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta", border_style="dim")
-        table.add_column("Command", style="cyan", width=18)
+        table.add_column("Command", style="cyan", width=22)
         table.add_column("Description", style="white")
-        table.add_row("/agents", "List all 19 mounted Python agents")
+        table.add_row("/agents", "List all 23 mounted Python agents")
         table.add_row("/swarm <goal>", "Execute full autonomous multi-agent DAG pipeline")
         table.add_row("/solve <issue>", "Autonomous bug triage, patch synthesis, and PR generation")
+        table.add_row("/research <topic>", "Multi-hop Deep Research report with verified citations")
+        table.add_row("/slides <topic>", "Synthesize interactive HTML5/Marp presentation deck")
+        table.add_row("/sheet <query>", "Tabular data statistics, anomaly detection & SQL synthesis")
+        table.add_row("/claw <url_or_query>", "Autonomous sandboxed headless browser crawler & scraper")
+        table.add_row("/schedule <cron> <goal>", "Register background scheduled agent task")
+        table.add_row("/tasks", "List registered background cron tasks")
         table.add_row("/vision <prompt>", "Wireframe-to-Code generator (Vanilla CSS + React JSX)")
         table.add_row("/container <code>", "Execute code inside Ephemeral Container Sandbox")
         table.add_row("/doc-gen [dir]", "Synthesize Architecture Markdown & Mermaid Diagrams")
@@ -91,6 +102,37 @@ class SwarmChatSession:
         if cmd.startswith("/solve ") or cmd.startswith("solve ") or cmd.startswith("solve-issue "):
             issue = cmd.split(" ", 1)[1].strip()
             self._execute_solve_command(issue)
+            return True
+
+        if cmd.startswith("/research ") or cmd.startswith("research "):
+            topic = cmd.split(" ", 1)[1].strip()
+            self._execute_research_command(topic)
+            return True
+
+        if cmd.startswith("/slides ") or cmd.startswith("slides ") or cmd.startswith("make-slides "):
+            topic = cmd.split(" ", 1)[1].strip()
+            self._execute_slides_command(topic)
+            return True
+
+        if cmd.startswith("/sheet ") or cmd.startswith("sheet ") or cmd.startswith("analyze-sheet "):
+            query = cmd.split(" ", 1)[1].strip()
+            self._execute_sheet_command(query)
+            return True
+
+        if cmd.startswith("/claw ") or cmd.startswith("claw "):
+            target = cmd.split(" ", 1)[1].strip()
+            self._execute_claw_command(target)
+            return True
+
+        if cmd.startswith("/schedule ") or cmd.startswith("schedule "):
+            parts = cmd.split(" ", 2)
+            cron = parts[1].strip() if len(parts) > 1 else "0 * * * *"
+            goal = parts[2].strip() if len(parts) > 2 else "Autonomous Security Audit"
+            self._execute_schedule_command(cron, goal)
+            return True
+
+        if cmd in ["/tasks", "tasks", "list-tasks", "/list-tasks"]:
+            self._execute_tasks_command()
             return True
 
         if cmd.startswith("/vision ") or cmd.startswith("vision ") or cmd.startswith("design-vision "):
@@ -187,6 +229,55 @@ class SwarmChatSession:
             self.console.print(Panel(res.output, title="[bold green]Stdout Output[/]", border_style="green"))
         if res.error:
             self.console.print(Panel(res.error, title="[bold red]Stderr Diagnostic[/]", border_style="red"))
+        self.console.print()
+
+    def _execute_research_command(self, topic: str):
+        self.console.print(f"\n[bold cyan]🔬 Autonomous Deep Research — Scanning Sources for:[/] [yellow]\"{topic}\"[/]")
+        report = deep_researcher.conduct_research(topic)
+        self.console.print(f"[bold green]✨ Research Synthesized in {report.generation_time_ms}ms ({len(report.citations)} citations, {len(report.key_findings)} findings)![/bold green]\n")
+        self.console.print(Panel(report.full_markdown_report[:1200] + "\n...", title="[bold cyan]Deep Research Whitepaper[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_slides_command(self, topic: str):
+        self.console.print(f"\n[bold cyan]📊 Synthesizing Presentation Deck:[/] [yellow]\"{topic}\"[/]")
+        deck = slides_architect.synthesize_deck(topic)
+        self.console.print(f"[bold green]✨ Synthesized {len(deck.slides)} Slides in {deck.generation_time_ms}ms![/bold green]\n")
+        self.console.print(Panel(deck.marp_markdown[:900] + "\n...", title="[bold cyan]Marp Markdown Slides[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_sheet_command(self, query: str):
+        self.console.print(f"\n[bold cyan]📈 Tabular Columnar Analytics — Processing:[/] [yellow]\"{query}\"[/]")
+        res = sheets_analyst.analyze_tabular_query(query)
+        self.console.print(f"[bold green]✨ Processed {res.total_rows} Rows ({len(res.columns)} Columns, {len(res.anomalies)} Anomalies) in {res.execution_time_ms}ms![/bold green]\n")
+        self.console.print(Panel(res.ascii_table_preview, title="[bold green]Aggregated Table Output[/]", border_style="green"))
+        if res.anomalies:
+            self.console.print(Panel(f"🚨 [bold red]Detected {len(res.anomalies)} Anomaly Outliers:[/bold red]\n" + "\n".join(f"- {a.column} (Row {a.row_index}): {a.reason}" for a in res.anomalies), title="[bold red]Anomaly Alert[/]", border_style="red"))
+        self.console.print()
+
+    def _execute_claw_command(self, target: str):
+        self.console.print(f"\n[bold cyan]🦅 Sovereign Claw Web Agent Navigating:[/] [yellow]\"{target}\"[/]")
+        res = browser_claw.crawl_and_extract(target)
+        self.console.print(f"[bold green]✨ Crawled {res.dom_elements_scanned} DOM Nodes in {res.execution_time_ms}ms (HTTP {res.http_status})![/bold green]\n")
+        self.console.print(Panel(str(res.extracted_data), title="[bold cyan]Extracted Structured JSON[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_schedule_command(self, cron: str, goal: str):
+        self.console.print(f"\n[bold cyan]⏰ Registering Background Cron Task:[/] [yellow]\"{cron}\"[/] -> [green]\"{goal}\"[/]")
+        task = task_scheduler.register_task(cron, goal)
+        self.console.print(f"[bold green]✨ Task Registered Successfully (Task ID: {task.task_id})![/bold green]\n")
+
+    def _execute_tasks_command(self):
+        self.console.print(f"\n[bold cyan]⏰ Registered Background Cron Tasks:[/bold cyan]\n")
+        tasks = task_scheduler.list_tasks()
+        table = Table(title="Scheduled Background Tasks", border_style="cyan")
+        table.add_column("Task ID", style="cyan")
+        table.add_column("Cron", style="yellow")
+        table.add_column("Goal / Objective", style="white")
+        table.add_column("Executions", style="green")
+        table.add_column("Status", style="bold")
+        for t in tasks:
+            table.add_row(t.task_id, t.cron_expression, t.goal[:40], str(t.total_executions), t.last_status)
+        self.console.print(table)
         self.console.print()
 
     def _execute_docgen_command(self, target_dir: str):

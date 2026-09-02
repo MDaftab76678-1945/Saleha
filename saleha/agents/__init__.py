@@ -44,6 +44,10 @@ from saleha.agents.data_engineer import DataEngineerAgent, DataPipelineSpec
 from saleha.agents.issue_resolver import AutonomousIssueResolver, IssueResolutionPlan, issue_resolver
 from saleha.agents.vision_designer import VisionDesignerAgent, VisionLayoutSpec, vision_designer
 from saleha.agents.doc_generator import DocGeneratorAgent, CodebaseDocSpec, doc_generator
+from saleha.agents.deep_researcher import DeepResearcherAgent, DeepResearchReport, deep_researcher
+from saleha.agents.slides_architect import SlidesArchitectAgent, SlideDeck, slides_architect
+from saleha.agents.sheets_analyst import SheetsAnalystAgent, SheetAnalysisResult, sheets_analyst
+from saleha.agents.browser_claw import SovereignClawAgent, ClawExecutionResult, browser_claw
 
 __all__ = [
     "BaseAgent",
@@ -87,4 +91,16 @@ __all__ = [
     "DocGeneratorAgent",
     "CodebaseDocSpec",
     "doc_generator",
+    "DeepResearcherAgent",
+    "DeepResearchReport",
+    "deep_researcher",
+    "SlidesArchitectAgent",
+    "SlideDeck",
+    "slides_architect",
+    "SheetsAnalystAgent",
+    "SheetAnalysisResult",
+    "sheets_analyst",
+    "SovereignClawAgent",
+    "ClawExecutionResult",
+    "browser_claw",
 ]

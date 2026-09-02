@@ -12,7 +12,7 @@ interface SwarmNode {
   timingMs?: number;
 }
 
-const ALL_19_NODES: SwarmNode[] = [
+const ALL_23_NODES: SwarmNode[] = [
   { id: "arch", name: "ArchitectAgent", role: "ADR & Hexagonal Design", icon: "🏛️", status: "idle" },
   { id: "planner", name: "PlannerAgent", role: "Task Decomposition", icon: "🗺️", status: "idle" },
   { id: "designer", name: "DesignerAgent", role: "UI/UX & Tokens", icon: "🎨", status: "idle" },
@@ -32,6 +32,10 @@ const ALL_19_NODES: SwarmNode[] = [
   { id: "data_eng", name: "DataEngineerAgent", role: "SQL & Vector DB ETL", icon: "📊", status: "idle" },
   { id: "sre", name: "SREIncidentAgent", role: "Outage Log RCA", icon: "🚨", status: "idle" },
   { id: "doc_gen", name: "DocGeneratorAgent", role: "Architecture & Mermaid", icon: "📚", status: "idle" },
+  { id: "researcher", name: "DeepResearcherAgent", role: "Recursive Multi-Hop Research", icon: "🔬", status: "idle" },
+  { id: "slides", name: "SlidesArchitectAgent", role: "HTML5/Marp Presentation Deck", icon: "📊", status: "idle" },
+  { id: "sheets", name: "SheetsAnalystAgent", role: "Polars/Arrow Columnar Analytics", icon: "📈", status: "idle" },
+  { id: "claw", name: "SovereignClawAgent", role: "Autonomous Browser & DOM Agent", icon: "🦅", status: "idle" },
 ];
 
 export default function WebStudioPage() {
@@ -42,7 +46,7 @@ export default function WebStudioPage() {
   const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal">("chat");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
-  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_19_NODES);
+  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_23_NODES);
 
   // Settings
   const [modelBackend, setModelBackend] = useState("ollama");

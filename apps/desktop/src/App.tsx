@@ -27,9 +27,12 @@ const ALL_19_DESKTOP_AGENTS: AgentItem[] = [
   { id: "refactor", name: "RefactorSpecialistAgent", role: "Modern PEP Typing", icon: "♻️", status: "idle" },
   { id: "finops", name: "FinOpsOptimizerAgent", role: "Token Compression", icon: "💰", status: "idle" },
   { id: "devops", name: "DevOpsAgent", role: "Docker & K8s CI/CD", icon: "🐳", status: "idle" },
-  { id: "data_eng", name: "DataEngineerAgent", role: "SQL & Vector DB ETL", icon: "📊", status: "idle" },
   { id: "sre", name: "SREIncidentAgent", role: "Outage Log RCA", icon: "🚨", status: "idle" },
   { id: "doc_gen", name: "DocGeneratorAgent", role: "Architecture & Mermaid", icon: "📚", status: "idle" },
+  { id: "researcher", name: "DeepResearcherAgent", role: "Recursive Multi-Hop Research", icon: "🔬", status: "idle" },
+  { id: "slides", name: "SlidesArchitectAgent", role: "HTML5/Marp Presentation Deck", icon: "📊", status: "idle" },
+  { id: "sheets", name: "SheetsAnalystAgent", role: "Polars/Arrow Columnar Analytics", icon: "📈", status: "idle" },
+  { id: "claw", name: "SovereignClawAgent", role: "Autonomous Browser & DOM Agent", icon: "🦅", status: "idle" },
 ];
 
 export function DesktopApp() {
