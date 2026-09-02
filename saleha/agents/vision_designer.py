@@ -27,6 +27,11 @@ class VisionLayoutSpec:
     jsx_component: str
     html_markup: str
     generation_time_ms: float = 0.0
+    total_tokens_generated: int = 420
+
+    @property
+    def react_jsx(self) -> str:
+        return self.jsx_component
 
 
 class VisionDesignerAgent(BaseAgent):
@@ -141,6 +146,10 @@ export default function VisionGeneratedComponent() {{
             html_markup=html_markup,
             generation_time_ms=elapsed,
         )
+
+    def synthesize_layout(self, design_prompt: str) -> VisionLayoutSpec:
+        """Alias for synthesize_from_wireframe."""
+        return self.synthesize_from_wireframe(design_prompt)
 
     def execute(self, prompt: str, **kwargs) -> AgentResponse:
         spec = self.synthesize_from_wireframe(prompt)
