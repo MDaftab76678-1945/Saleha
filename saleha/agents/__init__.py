@@ -14,6 +14,12 @@ Exports the complete suite of first-class Python agent implementations:
 - SREIncidentAgent, IncidentRCA (Outage diagnosis & runbook synthesis)
 - FinOpsOptimizerAgent, FinOpsOptimizationResult (Token compression & cost auditor)
 - RefactorSpecialistAgent, RefactorResult (Large-scale AST modernizations)
+- DesignerAgent, DesignSystemSpec (UI/UX design systems & tokens)
+- DeveloperAgent, DeveloperOutput (Fullstack polyglot software implementation)
+- NewSkillCreatorAgent, CreatedSkillResult (Autonomous AgentSkill catalog synthesizer)
+- WebDevAgent, WebDevOutput (Modern HTML5/CSS3/Three.js/React web apps)
+- DevOpsAgent, DevOpsPipelineSpec (Multi-stage Docker, K8s, CI/CD pipelines)
+- DataEngineerAgent, DataPipelineSpec (SQL schemas, ETL data pipelines, vector DBs)
 """
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
@@ -28,6 +34,12 @@ from saleha.agents.qa_lead import QALeadAgent, QATestSuite
 from saleha.agents.sre_incident import SREIncidentAgent, IncidentRCA
 from saleha.agents.finops_optimizer import FinOpsOptimizerAgent, FinOpsOptimizationResult
 from saleha.agents.refactor_specialist import RefactorSpecialistAgent, RefactorResult
+from saleha.agents.designer import DesignerAgent, DesignSystemSpec
+from saleha.agents.developer import DeveloperAgent, DeveloperOutput
+from saleha.agents.skill_creator import NewSkillCreatorAgent, CreatedSkillResult
+from saleha.agents.web_dev import WebDevAgent, WebDevOutput
+from saleha.agents.devops import DevOpsAgent, DevOpsPipelineSpec
+from saleha.agents.data_engineer import DataEngineerAgent, DataPipelineSpec
 
 __all__ = [
     "BaseAgent",
@@ -50,4 +62,16 @@ __all__ = [
     "FinOpsOptimizationResult",
     "RefactorSpecialistAgent",
     "RefactorResult",
+    "DesignerAgent",
+    "DesignSystemSpec",
+    "DeveloperAgent",
+    "DeveloperOutput",
+    "NewSkillCreatorAgent",
+    "CreatedSkillResult",
+    "WebDevAgent",
+    "WebDevOutput",
+    "DevOpsAgent",
+    "DevOpsPipelineSpec",
+    "DataEngineerAgent",
+    "DataPipelineSpec",
 ]

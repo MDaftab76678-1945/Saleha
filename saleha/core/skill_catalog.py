@@ -74,6 +74,10 @@ class AgentSkillMetadata:
         return "\n".join(frontmatter)
 
 
+# Standard alias for modern AgentSkills
+AgentSkill = AgentSkillMetadata
+
+
 class SkillCatalog:
     """Universal Registry and Inverted-Index for 1,000+ AgentSkills."""
 

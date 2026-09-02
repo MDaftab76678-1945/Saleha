@@ -1,5 +1,5 @@
 """
-Unit tests for the 6 new first-class Python agents in saleha.agents
+Unit tests for the complete suite of first-class Python agents in saleha.agents
 """
 
 import unittest
@@ -10,6 +10,12 @@ from saleha.agents import (
     SREIncidentAgent,
     FinOpsOptimizerAgent,
     RefactorSpecialistAgent,
+    DesignerAgent,
+    DeveloperAgent,
+    NewSkillCreatorAgent,
+    WebDevAgent,
+    DevOpsAgent,
+    DataEngineerAgent,
 )
 
 
@@ -22,6 +28,12 @@ class NewPythonAgentsTests(unittest.TestCase):
         self.sre = SREIncidentAgent(model="mock")
         self.finops = FinOpsOptimizerAgent(model="mock")
         self.refactor = RefactorSpecialistAgent(model="mock")
+        self.designer = DesignerAgent(model="mock")
+        self.developer = DeveloperAgent(model="mock")
+        self.skill_creator = NewSkillCreatorAgent(model="mock")
+        self.web_dev = WebDevAgent(model="mock")
+        self.devops = DevOpsAgent(model="mock")
+        self.data_engineer = DataEngineerAgent(model="mock")
 
     def test_architect_agent_design_system(self):
         design = self.architect.design_system("Real-time distributed chat engine", tech_stack="FastAPI + WebSockets")
@@ -77,6 +89,46 @@ class NewPythonAgentsTests(unittest.TestCase):
         self.assertTrue(res.complexity_reduced)
         self.assertIn("list[str]", res.refactored_code)
         self.assertIn("int | str", res.refactored_code)
+
+    def test_designer_agent_create_design_system(self):
+        spec = self.designer.create_design_system("E-Commerce Storefront", theme_style="glassmorphism")
+        self.assertIn("accent_primary", spec.color_palette)
+        self.assertIn(".glass-card", spec.components_css)
+        self.assertIn("theme", spec.design_tokens_json)
+
+    def test_developer_agent_develop_feature(self):
+        output = self.developer.develop_feature("Create user registration endpoint", language="python")
+        self.assertEqual(output.language, "python")
+        self.assertTrue(len(output.source_code) > 0)
+        self.assertIn(".py", output.files_created[0])
+
+    def test_skill_creator_agent_create_and_register_skill(self):
+        res = self.skill_creator.create_and_register_skill(
+            name="Quantum Key Distribution Simulator",
+            domain="quantum_cryptography",
+            description="Simulates BB84 protocol photon polarization states"
+        )
+        self.assertTrue(res.registered_in_catalog)
+        self.assertEqual(res.domain, "quantum_cryptography")
+        self.assertIn("def execute_skill", res.python_handler_snippet)
+
+    def test_web_dev_agent_build_web_application(self):
+        output = self.web_dev.build_web_application("Real-Time Analytics Dashboard", framework="html5_css3")
+        self.assertIn("<!DOCTYPE html>", output.html_markup)
+        self.assertIn(".glass-card", output.css_styles)
+        self.assertIn("document.addEventListener", output.js_logic)
+
+    def test_devops_agent_generate_pipeline(self):
+        spec = self.devops.generate_devops_pipeline("saleha-backend", runtime="python:3.12-slim")
+        self.assertIn("FROM python:3.12-slim", spec.dockerfile)
+        self.assertIn("version: '3.8'", spec.docker_compose)
+        self.assertIn("name: CI/CD Pipeline", spec.github_actions_workflow)
+
+    def test_data_engineer_agent_build_data_pipeline(self):
+        spec = self.data_engineer.build_data_pipeline("user_activity_stream", source_format="json")
+        self.assertIn("CREATE TABLE IF NOT EXISTS", spec.sql_schema)
+        self.assertIn("import polars as pl", spec.etl_script_py)
+        self.assertEqual(len(spec.target_tables), 1)
 
 
 if __name__ == "__main__":
