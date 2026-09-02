@@ -1,27 +1,75 @@
 services:
-  saleha-studio:
-    build: .
-    container_name: saleha-ai-studio
+  # Saleha AI Core Engine & Web Studio Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: saleha-backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
-      - "8080:8080"
     environment:
+      - SALEHA_ENV=production
+      - SALEHA_HOST=0.0.0.0
+      - SALEHA_PORT=8000
       - OLLAMA_HOST=http://ollama:11434
+      - REDIS_URL=redis://redis:6379/0
     volumes:
-      - ./workspace:/workspace
+      - saleha-data:/root/.saleha
     depends_on:
-      - ollama
-    restart: unless-stopped
+      redis:
+        condition: service_healthy
 
+  # Next.js 15 Web Studio Frontend
+  web:
+    image: node:20-alpine
+    container_name: saleha-web
+    working_dir: /app/apps/web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm run build && npm start"
+    depends_on:
+      - backend
+
+  # Private Local Ollama LLM Runner
   ollama:
     image: ollama/ollama:latest
     container_name: saleha-ollama
+    restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
-      - ollama_models:/root/.ollama
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # In-Memory EventBus & Semantic Cache
+  redis:
+    image: redis:7-alpine
+    container_name: saleha-redis
     restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
-  ollama_models:
-
+  saleha-data:
+  ollama-models:
+  redis-data:

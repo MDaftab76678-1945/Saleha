@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { THEME_PRESETS, ThemeTokens, Modal, Switch, Slider } from "@saleha/ui";
 
 interface SwarmNode {
@@ -30,6 +30,7 @@ const ALL_18_NODES: SwarmNode[] = [
   { id: "data_eng", name: "DataEngineerAgent", role: "SQL & Vector DB ETL", icon: "📊", status: "idle" },
   { id: "sre", name: "SREIncidentAgent", role: "Outage Log RCA", icon: "🚨", status: "idle" },
   { id: "skill_creator", name: "NewSkillCreatorAgent", role: "AgentSkill Synthesizer", icon: "🧬", status: "idle" },
+  { id: "doc_gen", name: "DocGeneratorAgent", role: "Architecture & Mermaid", icon: "📚", status: "idle" },
   { id: "orch", name: "TreeOfThoughtsOrchestrator", role: "State-Space Search", icon: "🧠", status: "idle" },
 ];
 
@@ -58,6 +59,76 @@ export default function WebStudioPage() {
     "System Ready: 19 First-Class Python Agents Mounted.",
     "Swarm DAG Engine, Ephemeral Container Sandbox & EventBus Broker Active.",
   ]);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // 3D Neural Particle Visualizer
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationId: number;
+    let width = (canvas.width = canvas.parentElement?.clientWidth || window.innerWidth);
+    let height = (canvas.height = canvas.parentElement?.clientHeight || window.innerHeight);
+
+    const particles: { x: number; y: number; vx: number; vy: number; radius: number }[] = [];
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.7,
+        vy: (Math.random() - 0.5) * 0.7,
+        radius: Math.random() * 2 + 1,
+      });
+    }
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = theme.accent;
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0 || p.x > width) p.vx *= -1;
+        if (p.y < 0 || p.y > height) p.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+          if (dist < 85) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+        }
+      }
+      animationId = requestAnimationFrame(render);
+    };
+    render();
+
+    const handleResize = () => {
+      if (canvas && canvas.parentElement) {
+        width = canvas.width = canvas.parentElement.clientWidth;
+        height = canvas.height = canvas.parentElement.clientHeight;
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [theme]);
 
   const handleExecuteSwarm = async () => {
     setIsExecuting(true);
@@ -147,8 +218,22 @@ export default function WebStudioPage() {
         display: "flex",
         flexDirection: "column",
         fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
+      {/* 3D Particle Canvas Background */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          opacity: 0.6,
+        }}
+      />
+
       {/* Studio Header Bar */}
       <header
         style={{
@@ -158,6 +243,8 @@ export default function WebStudioPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
@@ -187,7 +274,7 @@ export default function WebStudioPage() {
               cursor: "pointer",
             }}
           >
-            🌌 18-Agent Swarm DAG
+            🌌 19-Agent Swarm DAG
           </button>
           <button
             onClick={() => setActiveTab("diff")}
@@ -290,6 +377,8 @@ export default function WebStudioPage() {
             fontSize: "0.75rem",
             fontFamily: "monospace",
             color: theme.textDim,
+            position: "relative",
+            zIndex: 1,
           }}
         >
           <span>ENGINE: <b style={{ color: theme.accentGreen }}>SWARM_DAG_v2.6</b></span>
@@ -300,7 +389,7 @@ export default function WebStudioPage() {
       )}
 
       {/* Main Workspace Area */}
-      <div style={{ flex: 1, padding: "1.25rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div style={{ flex: 1, padding: "1.25rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.25rem", position: "relative", zIndex: 1 }}>
         {/* Prompt Input Bar */}
         <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
           <label style={{ display: "block", fontSize: "0.8rem", color: theme.textDim, fontWeight: 700, textTransform: "uppercase", marginBottom: "0.4rem" }}>

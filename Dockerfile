@@ -1,40 +1,43 @@
-# Multi-Stage Production Dockerfile for Saleha AI Platform
-FROM python:3.11-slim AS builder
+# ==============================================================================
+# Saleha AI: Production Multi-Stage Container Image
+# ==============================================================================
+FROM python:3.12-slim AS builder
 
-WORKDIR /app
-
+WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    curl \
     build-essential \
+    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt pyproject.toml setup.py README.md ./
-COPY saleha/ ./saleha/
+COPY pyproject.toml README.md ./
+COPY saleha ./saleha
 
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel build && \
     pip install --no-cache-dir .
 
-FROM python:3.11-slim
+# Final Production Stage
+FROM python:3.12-slim AS runner
 
-WORKDIR /workspace
-
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin/saleha /usr/local/bin/saleha
-
+WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     git \
-    nodejs \
-    npm \
-    golang \
-    default-jre \
     && rm -rf /var/lib/apt/lists/*
 
-ENV OLLAMA_HOST="http://host.docker.internal:11434"
-ENV PYTHONUNBUFFERED=1
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/saleha /usr/local/bin/saleha
+COPY . .
 
-EXPOSE 8000 8080
+ENV PYTHONUNBUFFERED=1
+ENV SALEHA_ENV=production
+ENV SALEHA_HOST=0.0.0.0
+ENV SALEHA_PORT=8000
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8000/api/health || exit 1
 
 ENTRYPOINT ["saleha"]
-CMD ["serve", "--port", "8000", "--no-open"]
-
+CMD ["dev", "--port", "8000"]

@@ -1,46 +1,44 @@
-name: Saleha Release & Distribution
+name: Saleha AI Production Release & PyPI Publisher
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 jobs:
   build-and-release:
-    name: Build Wheel & Create Release
+    name: Build Distribution & Publish Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: 'pip'
+          python-version: "3.12"
 
-      - name: Install Build Tools
+      - name: Install Build Tooling
         run: |
-          python -m pip install --upgrade pip
-          pip install build wheel
+          python -m pip install --upgrade pip build wheel
+          python -m pip install -e .
 
-      - name: Build Python Wheel Package
+      - name: Build PyPI Wheels and Source Distribution
         run: |
-          python -m build
-
-      - name: Package VS Code Extension
-        run: |
-          python editors/vscode/build_extension.py
+          python -m build --wheel --sdist --outdir dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            dist/*
-            editors/vscode/dist/*.vsix
+            dist/*.whl
+            dist/*.tar.gz
           generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
