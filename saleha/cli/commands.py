@@ -6338,6 +6338,61 @@ def dev_cli_cmd(all_apps: bool, port: int):
         run_web_studio(port=port, open_browser=True)
 
 
+@cli.command("design-vision")
+@click.argument("prompt_or_path")
+def design_vision_cli_cmd(prompt_or_path: str):
+    """Synthesize Vanilla CSS and React JSX from UI wireframes and visual prompts."""
+    from saleha.agents.vision_designer import vision_designer
+
+    console.print(f"\n[bold cyan]🎨 Vision Designer Agent — Synthesizing:[/] [yellow]\"{prompt_or_path}\"[/]\n")
+    spec = vision_designer.synthesize_from_wireframe(prompt_or_path)
+
+    console.print(f"[bold green]✨ Synthesized {spec.layout_type} in {spec.generation_time_ms}ms![/bold green]")
+    console.print(f"  • Components Generated : {', '.join(spec.components)}")
+    console.print(f"  • Color Palette Tokens : {', '.join(spec.color_palette[:4])}\n")
+
+    console.print(Panel(spec.jsx_component, title="[bold cyan]⚡ Generated React JSX[/]", border_style="cyan"))
+    console.print(Panel(spec.css_styles, title="[bold magenta]🎨 Generated Vanilla CSS[/]", border_style="magenta"))
+
+
+@cli.command("chat")
+def chat_cli_cmd():
+    """Start interactive pair-programming chat playground."""
+    from saleha.cli.chat_session import run_chat_repl
+    run_chat_repl()
+
+
+@cli.command("play")
+def play_cli_cmd():
+    """Alias for interactive chat playground."""
+    from saleha.cli.chat_session import run_chat_repl
+    run_chat_repl()
+
+
+@cli.command("release-check")
+def release_check_cli_cmd():
+    """Validate project manifests and release readiness across all workspaces."""
+    from saleha.tools.release_manager import release_manager
+
+    console.print("[bold cyan]📦 Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n")
+    report = release_manager.check_release_readiness()
+
+    table = Table(title=f"Release Pre-Flight Report (v{report.version})", border_style="green" if report.success else "red")
+    table.add_column("Manifest Component", style="white")
+    table.add_column("Status", style="bold")
+
+    table.add_row("pyproject.toml (Python Engine)", "[green]PASS[/]" if report.pyproject_valid else "[red]FAIL[/]")
+    table.add_row("Cargo.toml (Tauri Native Desktop)", "[green]PASS[/]" if report.cargo_valid else "[red]FAIL[/]")
+    table.add_row("package.json (@saleha/ui)", "[green]PASS[/]" if report.packages_valid else "[red]FAIL[/]")
+    table.add_row("Core CLI Entrypoint", "[green]PASS[/]")
+
+    console.print(table)
+    if report.success:
+        console.print(f"\n[bold green]✅ All {report.total_checks} workspace checks passed ({report.duration_ms}ms). Ready for release build![/bold green]\n")
+    else:
+        console.print(f"\n[bold red]❌ Release checks failed with issues: {', '.join(report.issues)}[/bold red]\n")
+
+
 from saleha.cli.monorepo_cli import monorepo_group
 from saleha.cli.demo_cli import dogfood_cmd
 from saleha.cli.benchmark_cli import benchmark_cmd

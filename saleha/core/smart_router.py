@@ -310,12 +310,12 @@ class SmartRouter:
         self.task_cache[task_hash] = selected_model
 
         if len(self.task_cache) > 1000:
-            sorted_cache = sorted(self.task_cache.items(), key=lambda x: x[0])
-            self.task_cache = dict(sorted_cache[-500:])
-
-        self._save_history()
+            self.task_cache.clear()
 
         return selected_model
+
+    def route_task(self, task: str, complexity: float = 0.0) -> str:
+        return self.select_model(task, complexity_score=complexity)
 
     def record_result(self, task: str, complexity: float, model_used: str, 
                      response_time: float, success: bool):
@@ -447,3 +447,7 @@ class SmartRouter:
 
     def get_all_stats(self) -> Dict[str, Dict]:
         return {name: self.get_model_stats(name) for name in self.models}
+
+
+# Global Singleton Instance
+smart_router = SmartRouter()

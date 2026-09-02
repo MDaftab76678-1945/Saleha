@@ -42,6 +42,7 @@ from saleha.agents.web_dev import WebDevAgent, WebDevOutput
 from saleha.agents.devops import DevOpsAgent, DevOpsPipelineSpec
 from saleha.agents.data_engineer import DataEngineerAgent, DataPipelineSpec
 from saleha.agents.issue_resolver import AutonomousIssueResolver, IssueResolutionPlan, issue_resolver
+from saleha.agents.vision_designer import VisionDesignerAgent, VisionLayoutSpec, vision_designer
 
 __all__ = [
     "BaseAgent",
@@ -79,4 +80,7 @@ __all__ = [
     "AutonomousIssueResolver",
     "IssueResolutionPlan",
     "issue_resolver",
+    "VisionDesignerAgent",
+    "VisionLayoutSpec",
+    "vision_designer",
 ]
