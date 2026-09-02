@@ -6298,6 +6298,29 @@ def resume_cli_cmd(execution_id: str):
         console.print(f"[bold red]❌ Failed to resume checkpoint:[/] {e}")
 
 
+@cli.command("solve-issue")
+@click.argument("issue_description")
+@click.option("--repo", default="Saleha", help="Target repository name")
+def solve_issue_cli_cmd(issue_description: str, repo: str):
+    """Autonomously triage, patch, test, and generate a GitHub PR for an issue."""
+    from saleha.agents.issue_resolver import issue_resolver
+
+    console.print(f"\n[bold cyan]🐙 Autonomous Issue Resolver Bot — Target:[/] [white]{repo}[/]")
+    console.print(f"[dim]Analyzing issue report: \"{issue_description[:60]}...\"[/dim]\n")
+
+    plan = issue_resolver.resolve_issue(issue_description, repo_name=repo)
+
+    if plan.success:
+        console.print(f"[bold green]✨ Issue Successfully Resolved in {plan.duration_ms}ms![/bold green]")
+        console.print(f"  • Issue Reference : [bold yellow]{plan.issue_id}[/]")
+        console.print(f"  • Suggested Branch: [bold cyan]{plan.branch_name}[/]")
+        console.print(f"  • Security Audit  : {'[green]PASS (0 CVEs)[/]' if plan.security_clean else '[yellow]Hardened[/]'}")
+        console.print(f"  • Pytest Assertion: {'[green]100% Passed[/]' if plan.tests_passed else '[red]Failed[/]'}\n")
+        console.print(Panel(plan.pr_body_markdown, title="[bold green]📦 Generated GitHub PR Markdown[/]", border_style="green"))
+    else:
+        console.print(f"[bold red]❌ Failed to resolve issue automatically.[/]")
+
+
 @cli.command("dev")
 @click.option("--all", "all_apps", is_flag=True, default=False, help="Launch backend server and frontend apps simultaneously")
 @click.option("--port", default=8000, help="Backend server port")

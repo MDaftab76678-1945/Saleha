@@ -20,6 +20,7 @@ Exports the complete suite of first-class Python agent implementations:
 - WebDevAgent, WebDevOutput (Modern HTML5/CSS3/Three.js/React web apps)
 - DevOpsAgent, DevOpsPipelineSpec (Multi-stage Docker, K8s, CI/CD pipelines)
 - DataEngineerAgent, DataPipelineSpec (SQL schemas, ETL data pipelines, vector DBs)
+- AutonomousIssueResolver, IssueResolutionPlan, issue_resolver (Automated Issue & PR Bot)
 """
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
@@ -40,6 +41,7 @@ from saleha.agents.skill_creator import NewSkillCreatorAgent, CreatedSkillResult
 from saleha.agents.web_dev import WebDevAgent, WebDevOutput
 from saleha.agents.devops import DevOpsAgent, DevOpsPipelineSpec
 from saleha.agents.data_engineer import DataEngineerAgent, DataPipelineSpec
+from saleha.agents.issue_resolver import AutonomousIssueResolver, IssueResolutionPlan, issue_resolver
 
 __all__ = [
     "BaseAgent",
@@ -74,4 +76,7 @@ __all__ = [
     "DevOpsPipelineSpec",
     "DataEngineerAgent",
     "DataPipelineSpec",
+    "AutonomousIssueResolver",
+    "IssueResolutionPlan",
+    "issue_resolver",
 ]
