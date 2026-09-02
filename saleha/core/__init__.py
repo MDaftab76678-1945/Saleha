@@ -14,6 +14,7 @@ Exports the multi-agent orchestrator suite via PEP 562 lazy loading:
 - SemanticMemoryCache & semantic_memory (Episodic Vector Recall)
 - AgentWorkerPool & worker_pool (Sandboxed Isolation)
 - PluginManifestEngine & plugin_engine (Micro-Kernel Plugin System)
+- EphemeralContainerRunner & container_runner (Container Sandbox Isolation)
 - SkillCatalog & UniversalMCPHub
 """
 
@@ -53,6 +54,9 @@ __all__ = [
     "worker_pool",
     "PluginManifestEngine",
     "plugin_engine",
+    "EphemeralContainerRunner",
+    "container_runner",
+    "ContainerExecutionResult",
     "AgentMessageBus",
     "message_bus",
     "SemanticMemoryCache",
@@ -97,6 +101,9 @@ _MOD_MAP = {
     "worker_pool": "agent_worker_pool",
     "PluginManifestEngine": "plugin_manifest",
     "plugin_engine": "plugin_manifest",
+    "EphemeralContainerRunner": "ephemeral_container_runner",
+    "container_runner": "ephemeral_container_runner",
+    "ContainerExecutionResult": "ephemeral_container_runner",
     "AgentMessageBus": "agent_message_bus",
     "message_bus": "agent_message_bus",
     "SemanticMemoryCache": "semantic_memory_cache",

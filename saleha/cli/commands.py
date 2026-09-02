@@ -6393,6 +6393,51 @@ def release_check_cli_cmd():
         console.print(f"\n[bold red]❌ Release checks failed with issues: {', '.join(report.issues)}[/bold red]\n")
 
 
+@cli.command("doc-gen")
+@click.argument("target_dir", default=".")
+@click.option("--output", default=None, help="Output markdown filepath")
+def doc_gen_cli_cmd(target_dir: str, output: Optional[str]):
+    """Autonomously analyze codebase and generate architecture overview & Mermaid diagrams."""
+    from saleha.agents.doc_generator import doc_generator
+
+    console.print(f"\n[bold cyan]📚 Autonomous Doc Generator — Scanning:[/] [yellow]{target_dir}[/]\n")
+    spec = doc_generator.scan_and_generate_docs(target_dir)
+
+    console.print(f"[bold green]✨ Documentation Synthesized in {spec.generation_time_ms}ms![/bold green]")
+    console.print(f"  • Modules Scanned : {len(spec.modules_found)}")
+    console.print(f"  • Classes Found   : {spec.total_classes}")
+    console.print(f"  • Public Functions: {spec.total_functions}\n")
+
+    if output:
+        out_path = Path(output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(spec.full_doc_markdown, encoding="utf-8")
+        console.print(f"[bold green]💾 Architecture Document saved to:[/] [cyan]{output}[/]\n")
+    else:
+        console.print(Panel(spec.full_doc_markdown[:1200] + "\n...", title="[bold cyan]📐 Generated Architecture Documentation[/]", border_style="cyan"))
+
+
+@cli.command("run-container")
+@click.argument("code_or_file")
+@click.option("--timeout", default=15.0, help="Hard timeout in seconds")
+def run_container_cli_cmd(code_or_file: str, timeout: float):
+    """Execute code inside isolated ephemeral Docker container with cgroup bounds."""
+    from saleha.core.ephemeral_container_runner import container_runner
+
+    console.print(f"\n[bold cyan]🐳 Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n")
+    res = container_runner.run_code(code_or_file, timeout_sec=timeout)
+
+    status_color = "green" if res.success else "red"
+    console.print(f"[{status_color}]● Execution {'SUCCESS' if res.success else 'FAILED'} ({res.duration_ms}ms)[/{status_color}]")
+    console.print(f"  • Engine    : {res.isolation_engine}")
+    console.print(f"  • Exit Code : {res.exit_code}\n")
+
+    if res.output:
+        console.print(Panel(res.output, title="[bold green]Stdout Output[/]", border_style="green"))
+    if res.error:
+        console.print(Panel(res.error, title="[bold red]Stderr / Diagnostic Output[/]", border_style="red"))
+
+
 from saleha.cli.monorepo_cli import monorepo_group
 from saleha.cli.demo_cli import dogfood_cmd
 from saleha.cli.benchmark_cli import benchmark_cmd
