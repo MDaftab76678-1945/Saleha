@@ -1,0 +1,34 @@
+# Saleha-Coder Custom SLM LoRA / QLoRA Training Configuration
+model_name_or_path: "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+dataset_path: "datasets/saleha_train_dataset.jsonl"
+output_dir: "models/saleha-coder-1.5b-lora"
+
+# LoRA / PEFT Parameters
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+target_modules:
+  - "q_proj"
+  - "k_proj"
+  - "v_proj"
+  - "o_proj"
+  - "gate_proj"
+  - "up_proj"
+  - "down_proj"
+
+# Quantization & Training Precision
+load_in_4bit: true
+bnb_4bit_compute_dtype: "bfloat16"
+bnb_4bit_quant_type: "nf4"
+
+# Hyperparameters
+learning_rate: 0.0002
+batch_size: 4
+gradient_accumulation_steps: 4
+num_train_epochs: 3
+warmup_ratio: 0.03
+lr_scheduler_type: "cosine"
+logging_steps: 10
+save_strategy: "epoch"
+fp16: false
+bf16: true

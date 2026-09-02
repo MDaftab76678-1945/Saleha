@@ -33,6 +33,9 @@ from saleha.agents.browser_claw import browser_claw
 from saleha.agents.notebook_architect import notebook_architect
 from saleha.core.notebook_engine import notebook_engine
 from saleha.core.task_scheduler import task_scheduler
+from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
+from saleha.core.dataset_synthesizer import dataset_synthesizer
+from saleha.core.model_distillation_pipeline import model_distillation_pipeline
 from saleha.core.ephemeral_container_runner import container_runner
 from saleha.tools.release_manager import release_manager
 
@@ -47,7 +50,7 @@ class SwarmChatSession:
 
     def render_welcome(self):
         """Renders welcome banner and slash command cheat-sheet."""
-        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.8.0[/bold cyan]")
+        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.9.0[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta", border_style="dim")
@@ -57,6 +60,9 @@ class SwarmChatSession:
         table.add_row("/swarm <goal>", "Execute full autonomous multi-agent DAG pipeline")
         table.add_row("/solve <issue>", "Autonomous bug triage, patch synthesis, and PR generation")
         table.add_row("/notebook <topic>", "Synthesize reactive Jupyter .ipynb computational notebook")
+        table.add_row("/dataset [path]", "Synthesize high-quality AST-verified JSONL dataset for SLM fine-tuning")
+        table.add_row("/lora-config", "Export PEFT / LoRA / QLoRA training script & YAML configuration")
+        table.add_row("/score-code <code>", "Compute Neuro-Symbolic Invariant RLIF Fitness Score (0.0 - 1.0)")
         table.add_row("/research <topic>", "Multi-hop Deep Research report with verified citations")
         table.add_row("/slides <topic>", "Synthesize interactive HTML5/Marp presentation deck")
         table.add_row("/sheet <query>", "Tabular data statistics, anomaly detection & SQL synthesis")
@@ -110,6 +116,21 @@ class SwarmChatSession:
         if cmd.startswith("/notebook ") or cmd.startswith("notebook ") or cmd.startswith("make-notebook "):
             topic = cmd.split(" ", 1)[1].strip()
             self._execute_notebook_command(topic)
+            return True
+
+        if cmd.startswith("/dataset") or cmd.startswith("dataset") or cmd.startswith("export-dataset"):
+            parts = cmd.split(" ", 1)
+            path = parts[1].strip() if len(parts) > 1 else "datasets/saleha_train_dataset.jsonl"
+            self._execute_dataset_command(path)
+            return True
+
+        if cmd in ["/lora-config", "lora-config", "export-lora-config", "/export-lora-config"]:
+            self._execute_lora_config_command()
+            return True
+
+        if cmd.startswith("/score-code ") or cmd.startswith("score-code "):
+            code = cmd.split(" ", 1)[1].strip()
+            self._execute_score_code_command(code)
             return True
 
         if cmd.startswith("/research ") or cmd.startswith("research "):
@@ -251,6 +272,29 @@ class SwarmChatSession:
                 self.console.print(Syntax(cell.source, "sql", theme="monokai", line_numbers=True))
             else:
                 self.console.print(Markdown(cell.source))
+        self.console.print()
+
+    def _execute_dataset_command(self, path: str):
+        self.console.print(f"\n[bold cyan]📊 Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
+        count = dataset_synthesizer.synthesize_dataset(output_path=path, sample_count=50)
+        self.console.print(f"[bold green]✨ Successfully Synthesized {count} Verified Samples -> [yellow]{path}[/yellow]![/bold green]\n")
+
+    def _execute_lora_config_command(self):
+        self.console.print(f"\n[bold cyan]⚙️ Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
+        model_distillation_pipeline.generate_lora_training_yaml("configs/lora_training_config.yaml")
+        model_distillation_pipeline.generate_training_script("scripts/train_lora_slm.py")
+        self.console.print("[bold green]✨ Exported `configs/lora_training_config.yaml` & `scripts/train_lora_slm.py`![/bold green]\n")
+
+    def _execute_score_code_command(self, code: str):
+        self.console.print(f"\n[bold cyan]🧬 Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
+        score = neuro_symbolic_engine.score_code(code)
+        color = "green" if score.composite_score >= 0.8 else "yellow" if score.composite_score >= 0.5 else "red"
+        self.console.print(f"[{color}]● Composite Invariant Score: {score.composite_score * 100:.1f}% ({score.evaluation_duration_ms}ms)[/{color}]")
+        self.console.print(f"- AST Syntax: {'✅ Valid (100%)' if score.ast_valid else '❌ Syntax Error (0%)'}")
+        self.console.print(f"- Type Safety: {score.type_safety_score * 100:.0f}%")
+        self.console.print(f"- OWASP Security: {score.security_score * 100:.0f}%")
+        self.console.print(f"- Invariant Assertions: {score.assertion_score * 100:.0f}%\n")
+        self.console.print(Panel("\n".join(f"- {n}" for n in score.feedback_notes), title="[bold cyan]RLIF Diagnostic Feedback[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_research_command(self, topic: str):
