@@ -47,7 +47,7 @@ declare module "@saleha/ui" {
   export const THEME_PRESETS: Record<string, ThemeTokens>;
   export const DEFAULT_THEME: ThemeTokens;
   export function applyThemeToDom(theme: ThemeTokens): void;
-  export function Modal(props: { isOpen: boolean; onClose: () => void; title: string; children: any; theme?: ThemeTokens; maxWidth?: string }): any;
+  export function Modal(props: { isOpen: boolean; onClose: () => void; title: string; children?: any; theme?: ThemeTokens; maxWidth?: string }): any;
   export function Switch(props: { checked: boolean; onChange: (checked: boolean) => void; label?: string; theme?: ThemeTokens; disabled?: boolean }): any;
   export function Slider(props: { value: number; min: number; max: number; step?: number; onChange: (value: number) => void; label?: string; unit?: string; theme?: ThemeTokens }): any;
   export function Button(props: any): any;

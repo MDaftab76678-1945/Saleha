@@ -17,7 +17,7 @@ export function Modal({
   children,
   theme,
   maxWidth = "600px",
-}: ModalProps): React.JSX.Element | null {
+}: ModalProps): React.ReactElement | null {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
