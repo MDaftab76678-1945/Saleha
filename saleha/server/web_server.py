@@ -1662,6 +1662,10 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self.wfile.write(page.encode('utf-8'))
             return
 
+        if path == "/api/health":
+            self._send_json(200, {"status": "ok", "version": __version__})
+            return
+
         if path.startswith('/api/') and not self._is_authorized(parsed):
             self._reject_unauthorized()
             return
@@ -2423,12 +2427,19 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
 
 def run_web_studio(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True):
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     token = get_auth_token()
     server_address = (host, port)
     httpd = ThreadingHTTPServer(server_address, SalehaAPIHandler)
     url = f"http://{host}:{port}"
     print("=" * 62)
-    print("  🚀 Saleha AI Web Studio 2.0 (Silicon Valley Master Edition)")
+    print("  * Saleha AI Web Studio 2.0 (Silicon Valley Master Edition)")
     print(f"  URL   : {url}")
     print(f"  Token : {token}")
     print("=" * 62)
@@ -2440,3 +2451,10 @@ def run_web_studio(host: str = "127.0.0.1", port: int = 8000, open_browser: bool
         pass
     finally:
         httpd.server_close()
+
+
+if __name__ == "__main__":
+    host = os.environ.get("SALEHA_HOST", "127.0.0.1")
+    port = int(os.environ.get("SALEHA_PORT", 8000))
+    run_web_studio(host=host, port=port, open_browser=False)
+
