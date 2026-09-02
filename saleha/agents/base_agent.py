@@ -11,7 +11,6 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from saleha.core.smart_router import SmartRouter
 from saleha.core.model_provider import default_provider, ModelProvider
 
 
@@ -33,7 +32,11 @@ class BaseAgent:
         self.task_counter = 0
         # "auto" mode me runtime Ollama probing enable -- router sirf installed
         # models choose karta hai (2026 catalog + adaptive candidate filtering).
-        self.router = SmartRouter(probe_runtime=True) if model == "auto" else None
+        if model == "auto":
+            from saleha.core.smart_router import SmartRouter
+            self.router = SmartRouter(probe_runtime=True)
+        else:
+            self.router = None
         self.total_tokens_used = 0  # v1.2: agent-lifetime token accounting
 
     def _record_tokens(self, provider_result) -> int:

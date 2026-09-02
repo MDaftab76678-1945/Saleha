@@ -1,7 +1,7 @@
 """
 Saleha Core Engine Package
 
-Exports the multi-agent orchestrator suite:
+Exports the multi-agent orchestrator suite via PEP 562 lazy loading:
 - TreeOfThoughtsOrchestrator (State-Space Search & Self-Evolving Heuristics)
 - CloudInfraOrchestrator (IaC, Kubernetes, FinOps, IAM)
 - MultiRepoOrchestrator (Cross-Repo Sync & Correlated PRs)
@@ -11,16 +11,8 @@ Exports the multi-agent orchestrator suite:
 - SkillCatalog & UniversalMCPHub
 """
 
-from saleha.core.tot_orchestrator import TreeOfThoughtsOrchestrator, tot_orchestrator, ToTResult, ThoughtNode
-from saleha.core.cloud_infra_orchestrator import CloudInfraOrchestrator, cloud_infra_orchestrator, CloudInfraPlan
-from saleha.core.multirepo_orchestrator import MultiRepoOrchestrator, multirepo_orchestrator, MultiRepoSyncPlan, RepoTransform
-from saleha.core.silicon_circuit_orchestrator import SiliconCircuitOrchestrator, silicon_circuit_orchestrator, SiliconCircuitDesign
-from saleha.core.debate_consensus_orchestrator import DebateConsensusOrchestrator, debate_orchestrator, DebateVerdict, DebateRound
-from saleha.core.team_orchestrator import TeamOrchestrator, TeamResult
-from saleha.core.skill_catalog import SkillCatalog, skill_catalog
-from saleha.core.mcp_hub import UniversalMCPHub, mcp_hub
-
-MCPHub = UniversalMCPHub
+import importlib
+from typing import Any
 
 __all__ = [
     "TreeOfThoughtsOrchestrator",
@@ -49,3 +41,40 @@ __all__ = [
     "MCPHub",
     "mcp_hub",
 ]
+
+_MOD_MAP = {
+    "TreeOfThoughtsOrchestrator": "tot_orchestrator",
+    "tot_orchestrator": "tot_orchestrator",
+    "ToTResult": "tot_orchestrator",
+    "ThoughtNode": "tot_orchestrator",
+    "CloudInfraOrchestrator": "cloud_infra_orchestrator",
+    "cloud_infra_orchestrator": "cloud_infra_orchestrator",
+    "CloudInfraPlan": "cloud_infra_orchestrator",
+    "MultiRepoOrchestrator": "multirepo_orchestrator",
+    "multirepo_orchestrator": "multirepo_orchestrator",
+    "MultiRepoSyncPlan": "multirepo_orchestrator",
+    "RepoTransform": "multirepo_orchestrator",
+    "SiliconCircuitOrchestrator": "silicon_circuit_orchestrator",
+    "silicon_circuit_orchestrator": "silicon_circuit_orchestrator",
+    "SiliconCircuitDesign": "silicon_circuit_orchestrator",
+    "DebateConsensusOrchestrator": "debate_consensus_orchestrator",
+    "debate_orchestrator": "debate_consensus_orchestrator",
+    "DebateVerdict": "debate_consensus_orchestrator",
+    "DebateRound": "debate_consensus_orchestrator",
+    "TeamOrchestrator": "team_orchestrator",
+    "TeamResult": "team_orchestrator",
+    "SkillCatalog": "skill_catalog",
+    "skill_catalog": "skill_catalog",
+    "UniversalMCPHub": "mcp_hub",
+    "mcp_hub": "mcp_hub",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name == "MCPHub":
+        mod = importlib.import_module("saleha.core.mcp_hub")
+        return getattr(mod, "UniversalMCPHub")
+    if name in _MOD_MAP:
+        mod = importlib.import_module(f"saleha.core.{_MOD_MAP[name]}")
+        return getattr(mod, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
