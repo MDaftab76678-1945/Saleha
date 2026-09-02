@@ -9,15 +9,13 @@ description = "Local-First Autonomous Multi-Agent AI Software Engineering Platfo
 readme = "README.md"
 authors = [{ name = "Aftab Alam", email = "alamaftab76678@gmail.com" }]
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = ["ai", "agents", "multi-agent", "ollama", "mcp", "sast", "code-generator"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
