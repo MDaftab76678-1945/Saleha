@@ -24,18 +24,27 @@ def main():
     console.print("=" * 80, style="bold green")
     console.print("[dim]Type your coding question or prompt. Type 'exit' or 'quit' to end session.[/dim]\n")
 
-    base_model_id = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-    adapter_path = os.path.abspath("models/saleha_1.5b_master_adapter")
+    base_model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
+    adapter_path = os.path.abspath("models/saleha_3b_master_adapter")
     if not os.path.exists(adapter_path):
-        base_model_id = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
-        adapter_path = os.path.abspath("models/saleha_hardcore_master_adapter")
+        base_model_id = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+        adapter_path = os.path.abspath("models/saleha_1.5b_master_adapter")
 
     console.print(f"📥 Loading Base Model & Merging LoRA Weights on [yellow]NVIDIA GPU[/]...")
     tokenizer = AutoTokenizer.from_pretrained(adapter_path, trust_remote_code=True)
+    from transformers import BitsAndBytesConfig
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+    )
+
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_id,
-        dtype=torch.float16,
-        device_map="auto",
+        quantization_config=bnb_config,
+        device_map={"": 0},
         trust_remote_code=True,
     )
     model = PeftModel.from_pretrained(base_model, adapter_path)
