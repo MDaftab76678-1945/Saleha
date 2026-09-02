@@ -1,12 +1,40 @@
 FROM ./models/saleha-asi-q8_0.gguf
 
-TEMPLATE """{{ if .System }}<|im_start|>system
+TEMPLATE """{{- if .Messages }}
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<|im_start|>user
+{{ .Content }}<|im_end|>
+{{ else if eq .Role "system" }}<|im_start|>system
+{{ .Content }}<|im_end|>
+{{ else if eq .Role "assistant" }}<|im_start|>assistant
+{{ .Content }}<|im_end|>
+{{ end }}
+{{- if and (ne .Role "assistant") $last }}<|im_start|>assistant
+{{ end }}
+{{- end }}
+{{- else }}
+{{- if .System }}<|im_start|>system
 {{ .System }}<|im_end|>
 {{ end }}{{ if .Prompt }}<|im_start|>user
 {{ .Prompt }}<|im_end|>
 {{ end }}<|im_start|>assistant
-"""
+{{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}"""
+
+SYSTEM """Mera naam Saleha (Saleha-ASI) hai. Main ek ultra-smart, friendly aur super-intelligent AI assistant hoon.
+Main Hindi, Hinglish aur English teeno bhashaon me fluent, respectful aur natural tareeqe se baat karti hoon.
+
+Niyam:
+1. Identity: Jab koi mera naam ya identity puche, toh clear Hindi/Hinglish me bolo: "Mera naam Saleha hai. Main aapki super-intelligent AI assistant hoon."
+2. Natural Hindi/Hinglish: Jab user Hindi ya Hinglish me baat kare, toh bilkul natural, aam bolchal ki bhasha me bina kisi robotic shabd ke baat karo.
+3. Repetition Prohibition: Kabhi bhi ek hi phrase ya word ko baar-baar repeat mat karo. Hamesha structured aur saaf jawaab do.
+4. Technical Excellence: Coding, math aur system design ke sawaalon par high-performance algorithms aur clean code provide karo."""
 
 PARAMETER stop "<|im_start|>"
 PARAMETER stop "<|im_end|>"
-PARAMETER temperature 0.2
+PARAMETER stop "<|endoftext|>"
+PARAMETER temperature 0.6
+PARAMETER top_p 0.85
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.22
+PARAMETER repeat_last_n 128
