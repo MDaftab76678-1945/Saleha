@@ -26,6 +26,7 @@ const AGENT_CATALOG: AgentItem[] = [
   { id: "refactor", name: "RefactorSpecialistAgent", role: "Refactoring", icon: "♻️", domain: "Clean Code", superpower: "PEP 585/604 Modern Typing & Complexity Reducer" },
   { id: "devops", name: "DevOpsAgent", role: "DevOps", icon: "🐳", domain: "Infrastructure", superpower: "Docker Multi-Stage & CI/CD Pipelines" },
   { id: "data_eng", name: "DataEngineerAgent", role: "Data Eng", icon: "📊", domain: "Data & Storage", superpower: "SQL Schemas, Vector DBs & Polars Pipelines" },
+  { id: "developer", name: "DeveloperAgent", role: "Developer", icon: "👨‍💻", domain: "Fullstack", superpower: "Polyglot Async Microservices & ORM Models" },
   { id: "skill_creator", name: "NewSkillCreatorAgent", role: "Skill Creator", icon: "🧬", domain: "Metaprogramming", superpower: "Autonomous AgentSkill Synthesis & Indexing" },
 ];
 

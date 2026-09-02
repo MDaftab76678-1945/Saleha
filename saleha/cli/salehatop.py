@@ -14,7 +14,7 @@ import random
 import sys
 import time
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from rich.align import Align
 from rich.console import Console
@@ -134,21 +134,30 @@ class SalehaTopDashboard:
         return table
 
     def generate_event_log(self) -> Panel:
-        # Simulate incoming events periodically
-        if self.tick % 3 == 0:
-            events_pool = [
-                "[green]✓ [10:04:12] Gamma Sandbox verified Task #9021 (AF_XDP socket) in 14.2 μs (0 Leaks)[/]",
-                "[yellow]⚡ [10:04:15] Agent #05 auto-repaired Division by Zero in network_core.py[/]",
-                "[cyan]✉ [10:04:18] Agent #12 delegated AST subtask to Security Auditor #110 in 18 ns[/]",
-                "[magenta]🔄 [10:04:21] Swarm Escalation: Department #05 queried Expert #720 for kernel locking[/]",
-                "[bold green]✨ [10:04:24] Autonomous Git Commit: 'fix(core): auto-healed resource leak'[/]",
-            ]
-            self.event_log.append(random.choice(events_pool))
-            if len(self.event_log) > 6:
-                self.event_log.pop(0)
+        from saleha.core.agent_message_bus import message_bus
+        bus_events = message_bus.get_history(limit=6)
 
-        log_text = Text.from_markup("\n".join(self.event_log))
-        return Panel(log_text, title="📡 Live Gamma & Swarm Event Ticker", border_style="blue")
+        if bus_events:
+            event_lines = []
+            for e in bus_events:
+                ts = datetime.fromtimestamp(e.timestamp).strftime('%H:%M:%S')
+                event_lines.append(f"[bold cyan]• [{ts}][/] [yellow]{e.sender_agent}[/] dispatched [bold green]{e.event_type}[/]")
+            log_text = Text.from_markup("\n".join(event_lines))
+        else:
+            if self.tick % 3 == 0:
+                events_pool = [
+                    "[green]✓ [10:04:12] Swarm DAG verified Task in 14.2 ms (0 CWEs)[/]",
+                    "[yellow]⚡ [10:04:15] CoderAgent synthesized clean AST patch[/]",
+                    "[cyan]✉ [10:04:18] ArchitectAgent generated Hexagonal Ports & Adapters ADR[/]",
+                    "[magenta]🔄 [10:04:21] FinOpsOptimizerAgent compressed context window by 42%[/]",
+                    "[bold green]✨ [10:04:24] QALeadAgent verified 100% pytest assertions[/]",
+                ]
+                self.event_log.append(random.choice(events_pool))
+                if len(self.event_log) > 6:
+                    self.event_log.pop(0)
+            log_text = Text.from_markup("\n".join(self.event_log))
+
+        return Panel(log_text, title="📡 Live Swarm EventBus Telemetry Stream", border_style="blue")
 
     def make_layout(self) -> Layout:
         layout = Layout()

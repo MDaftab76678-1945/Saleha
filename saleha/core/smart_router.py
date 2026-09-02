@@ -22,7 +22,7 @@ import time
 import urllib.request
 import psutil
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Any, Tuple
+from typing import Dict, List, Optional, Set, Any, Tuple, Callable
 from collections import defaultdict
 import hashlib
 INSTALL_PROBE_TTL_SEC = 60.0
@@ -394,6 +394,56 @@ class SmartRouter:
             "recommended_model": self.select_model(task, complexity_score=5.0),
             "rationale": "Standard implementation and modular engineering task."
         }
+
+    def get_failover_chain(self, task: str, max_cost_usd: float = 0.0) -> List[str]:
+        """Synthesizes prioritized multi-tier failover chain from Local Ollama to Cloud APIs."""
+        primary = self.select_model(task)
+        tier_info = self.classify_task_tier(task)
+        chain = [primary]
+
+        # Tier 1 fallback: secondary local model
+        if primary != "qwen2.5-coder:7b":
+            chain.append("qwen2.5-coder:7b")
+        elif "deepseek-r1:8b" not in chain:
+            chain.append("deepseek-r1:8b")
+
+        # Tier 2 fallback: High-speed low-cost Cloud API
+        chain.append("deepseek/deepseek-chat")
+
+        # Tier 3 fallback: Frontier Reasoning Cloud API
+        if tier_info.get("tier") == "reasoning":
+            chain.append("anthropic/claude-3-7-sonnet")
+        else:
+            chain.append("openai/gpt-4o")
+
+        return list(dict.fromkeys(chain))
+
+    def execute_with_failover(
+        self,
+        task: str,
+        invoke_fn: Callable[[str], Any],
+        max_retries: int = 3
+    ) -> Tuple[Any, str, float]:
+        """Executes a task across the prioritized failover chain with latency tracking."""
+        chain = self.get_failover_chain(task)
+        last_err: Optional[Exception] = None
+
+        for model in chain[:max_retries]:
+            start = time.time()
+            try:
+                result = invoke_fn(model)
+                elapsed = time.time() - start
+                self.record_result(task, 5.0, model, elapsed, success=True)
+                return result, model, elapsed
+            except Exception as e:
+                elapsed = time.time() - start
+                self.record_result(task, 5.0, model, elapsed, success=False)
+                last_err = e
+                continue
+
+        if last_err:
+            raise last_err
+        raise RuntimeError(f"All failover providers exhausted for task: {task}")
 
     def get_all_stats(self) -> Dict[str, Dict]:
         return {name: self.get_model_stats(name) for name in self.models}
