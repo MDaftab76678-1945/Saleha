@@ -21,7 +21,7 @@ interface WebNotebookCell {
   isExecuting?: boolean;
 }
 
-const ALL_23_NODES: SwarmNode[] = [
+const ALL_25_NODES: SwarmNode[] = [
   { id: "arch", name: "ArchitectAgent", role: "ADR & Hexagonal Design", icon: "🏛️", status: "idle" },
   { id: "planner", name: "PlannerAgent", role: "Task Decomposition", icon: "🗺️", status: "idle" },
   { id: "designer", name: "DesignerAgent", role: "UI/UX & Tokens", icon: "🎨", status: "idle" },
@@ -46,6 +46,7 @@ const ALL_23_NODES: SwarmNode[] = [
   { id: "sheets", name: "SheetsAnalystAgent", role: "Polars/Arrow Columnar Analytics", icon: "📈", status: "idle" },
   { id: "claw", name: "SovereignClawAgent", role: "Autonomous Browser & DOM Agent", icon: "🦅", status: "idle" },
   { id: "nb_architect", name: "NotebookArchitectAgent", role: "Interactive Reactive Notebooks", icon: "📓", status: "idle" },
+  { id: "voice", name: "VoiceArchitectAgent", role: "Real-Time Spoken Pair-Programmer", icon: "🎙️", status: "idle" },
 ];
 
 export default function WebStudioPage() {
@@ -53,10 +54,10 @@ export default function WebStudioPage() {
   const theme: ThemeTokens = THEME_PRESETS[themeKey] || THEME_PRESETS.obsidian;
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal" | "notebook">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal" | "notebook" | "trainer">("chat");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
-  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_23_NODES);
+  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_25_NODES);
 
   // Settings
   const [modelBackend, setModelBackend] = useState("ollama");
@@ -69,11 +70,16 @@ export default function WebStudioPage() {
   const [hasExecuted, setHasExecuted] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>("");
   const [terminalOutput, setTerminalOutput] = useState<string>("Saleha Isolated Execution Terminal Ready.\n");
-  const [isRunningInSandbox, setIsRunningInSandbox] = useState(false);
   const [eventLogs, setEventLogs] = useState<string[]>([
-    "System Ready: 24 First-Class Python Agents Mounted.",
-    "Reactive Notebook Engine, Swarm DAG & Ephemeral Sandbox Active.",
+    "System Ready: 25 First-Class Python Agents Mounted.",
+    "Local Inference Engine (GGUF/Ollama), Neuro-Symbolic Scorer & Trainer Active.",
   ]);
+
+  // Model Trainer State
+  const [isTraining, setIsTraining] = useState(false);
+  const [trainProgress, setTrainProgress] = useState(0);
+  const [trainEpoch, setTrainEpoch] = useState(1);
+  const [currentLoss, setCurrentLoss] = useState(1.42);
 
   // Notebook Cells State
   const [notebookCells, setNotebookCells] = useState<WebNotebookCell[]>([
@@ -87,12 +93,6 @@ export default function WebStudioPage() {
       type: "code",
       source: "import sys\nprint(f'Kernel Version: Python {sys.version.split()[0]}')\nprint('Ephemeral Sandbox: 256MB RAM / 1.0 CPU CGroups Active')",
       output: "Kernel Version: Python 3.14.7\nEphemeral Sandbox: 256MB RAM / 1.0 CPU CGroups Active",
-    },
-    {
-      id: "c3",
-      type: "sql",
-      source: "SELECT DATE_TRUNC(timestamp, DAY) as date, COUNT(*) as events FROM `saleha_telemetry.events` GROUP BY 1 LIMIT 5;",
-      output: "+------------+--------+\n| date       | events |\n+------------+--------+\n| 2026-09-02 | 14,200 |\n| 2026-09-01 | 13,850 |\n+------------+--------+",
     },
   ]);
 
@@ -185,7 +185,7 @@ export default function WebStudioPage() {
 
     setTimeout(() => {
       setNodes((prev) => prev.map((n) => (n.id === "coder" || n.id === "vision" ? { ...n, status: "active", timingMs: 22 } : n)));
-      setGeneratedCode((prev) => prev + `\nclass AutonomousService:\n    """Synthesized AST-hardened production service."""\n    def __init__(self):\n        self.active = True\n\n    def execute(self) -> bool:\n        return self.active\n`);
+      setGeneratedCode((prev) => prev + `\nclass AutonomousService:\n    \"\"\"Synthesized AST-hardened production service.\"\"\"\n    def __init__(self):\n        self.active = True\n\n    def execute(self) -> bool:\n        return self.active\n`);
     }, 900);
 
     setTimeout(() => {
@@ -200,38 +200,35 @@ export default function WebStudioPage() {
     }, 1500);
   };
 
-  const handleRunNotebookCell = (cellId: string) => {
-    setNotebookCells((prev) =>
-      prev.map((c) => {
-        if (c.id === cellId) {
-          return {
-            ...c,
-            isExecuting: true,
-            output: `[${new Date().toLocaleTimeString()}] Executed in Ephemeral Sandbox (ExitCode=0, 8.4ms)`,
-          };
-        }
-        return c;
-      })
-    );
-  };
+  const handleStartFineTuning = () => {
+    setIsTraining(true);
+    setTrainProgress(0);
+    setTrainEpoch(1);
+    setCurrentLoss(1.42);
 
-  const handleAddNotebookCell = (type: "code" | "markdown" | "sql") => {
-    const newCell: WebNotebookCell = {
-      id: `c_${Date.now()}`,
-      type,
-      source: type === "code" ? "# New Python 3.14 Cell\n" : type === "sql" ? "-- New SQL Aggregation\nSELECT 1;" : "### New Markdown Section\n",
-    };
-    setNotebookCells((prev) => [...prev, newCell]);
+    const interval = setInterval(() => {
+      setTrainProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsTraining(false);
+          return 100;
+        }
+        const next = prev + 10;
+        setTrainEpoch(Math.min(3, Math.floor(next / 33) + 1));
+        setCurrentLoss((l) => Math.max(0.18, +(l - 0.12).toFixed(3)));
+        return next;
+      });
+    }, 400);
   };
 
   const quickActionPills = [
     { label: "Swarm", icon: "🌌", action: () => { setPrompt("Synthesize a distributed lock with AST safety"); setActiveTab("topology"); } },
+    { label: "Trainer", icon: "🧠", action: () => { setActiveTab("trainer"); } },
     { label: "Notebook", icon: "📓", action: () => { setActiveTab("notebook"); } },
+    { label: "Voice", icon: "🎙️", action: () => { setPrompt("Walk me through our system architecture verbally"); setActiveTab("chat"); } },
     { label: "Vision", icon: "🎨", action: () => { setPrompt("Dark mode crypto analytics dashboard with live price ticker"); setActiveTab("diff"); } },
     { label: "Deep Research", icon: "🔬", action: () => { setPrompt("Analyze distributed consensus algorithms for p2p networks"); setActiveTab("events"); } },
-    { label: "Docs", icon: "📚", action: () => { setPrompt("Scan repository and synthesize Mermaid architecture diagrams"); setActiveTab("diff"); } },
-    { label: "Bug Solver", icon: "🐙", action: () => { setPrompt("Fix memory leak in websocket event subscription broker"); setActiveTab("diff"); } },
-    { label: "Sandbox", icon: "🐳", action: () => { setPrompt("Run container sandbox benchmark with cgroup isolation"); setActiveTab("terminal"); } },
+    { label: "Auto-PR", icon: "🐙", action: () => { setPrompt("Synthesize distributed rate limiter with Redis backend"); setActiveTab("diff"); } },
   ];
 
   return (
@@ -349,8 +346,9 @@ export default function WebStudioPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
             {[
               { id: "chat", label: "Studio Canvas", icon: "⚡" },
+              { id: "trainer", label: "Model Trainer", icon: "🧠" },
               { id: "notebook", label: "Notebook Studio", icon: "📓" },
-              { id: "topology", label: "24-Agent Swarm", icon: "🌌" },
+              { id: "topology", label: "25-Agent Swarm", icon: "🌌" },
               { id: "diff", label: "AST Code Patch", icon: "📝" },
               { id: "terminal", label: "Sandbox Terminal", icon: "💻" },
               { id: "events", label: "EventBus Stream", icon: "📡" },
@@ -440,10 +438,10 @@ export default function WebStudioPage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <span style={{ fontSize: "0.85rem", fontWeight: 700, color: theme.textBright }}>
-              {activeTab === "chat" ? "Studio Workspace" : activeTab === "notebook" ? "📓 Reactive Notebook Studio" : activeTab === "topology" ? "24-Agent Swarm DAG" : activeTab === "diff" ? "AST Code Diff" : activeTab === "terminal" ? "Live Container Terminal" : "EventBus Stream"}
+              {activeTab === "chat" ? "Studio Workspace" : activeTab === "trainer" ? "🧠 Custom SLM Distillation Studio" : activeTab === "notebook" ? "📓 Reactive Notebook Studio" : activeTab === "topology" ? "25-Agent Swarm DAG" : activeTab === "diff" ? "AST Code Diff" : activeTab === "terminal" ? "Live Container Terminal" : "EventBus Stream"}
             </span>
             <span style={{ fontSize: "0.68rem", color: theme.accentGreen, background: "rgba(16,185,129,0.12)", padding: "0.15rem 0.5rem", borderRadius: "999px", fontWeight: 700 }}>
-              v2.8.0 Sovereign
+              v3.0.0 Sovereign
             </span>
           </div>
 
@@ -489,7 +487,7 @@ export default function WebStudioPage() {
 
         {/* Center Canvas Area */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "2.5rem 1.5rem 1.5rem" }}>
-          {/* Brand Big Title (Kimi-Style) */}
+          {/* Brand Big Title */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "2rem" }}>
             <h1
               style={{
@@ -506,7 +504,7 @@ export default function WebStudioPage() {
               SALEHA
             </h1>
             <p style={{ margin: "0.4rem 0 0", fontSize: "0.85rem", color: theme.textDim, fontWeight: 500 }}>
-              Sovereign Autonomous AI Software Engineer • 24-Agent Swarm • Reactive Notebooks
+              Sovereign Autonomous AI Software Engineer • 25-Agent Swarm • GGUF Local Kernel
             </p>
           </div>
 
@@ -535,7 +533,7 @@ export default function WebStudioPage() {
                   handleExecuteSwarm();
                 }
               }}
-              placeholder="Ask anything, or task an agent..."
+              placeholder="Ask anything, task an agent, or say /voice /auto-pr..."
               style={{
                 width: "100%",
                 minHeight: "75px",
@@ -568,7 +566,7 @@ export default function WebStudioPage() {
                     fontSize: "1rem",
                     fontWeight: 700,
                   }}
-                  title="Attach Files, Git Repos, or Notebooks"
+                  title="Attach Files, Git Repos, or Datasets"
                 >
                   +
                 </button>
@@ -586,7 +584,7 @@ export default function WebStudioPage() {
                     fontWeight: 600,
                   }}
                 >
-                  ⚡ Instant High (DeepSeek-R1)
+                  ⚡ Sovereign Local (Qwen2.5-Coder:1.5b)
                 </span>
 
                 <button
@@ -642,7 +640,62 @@ export default function WebStudioPage() {
 
           {/* Interactive Workspace Views */}
           <div style={{ width: "100%", maxWidth: "980px", marginTop: "2rem" }}>
-            {/* View 1: Reactive Notebook Studio */}
+            {/* View 1: Model Trainer Studio */}
+            {activeTab === "trainer" && (
+              <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "16px", padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${theme.borderSubtle}`, paddingBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "1.2rem" }}>🧠</span>
+                    <span style={{ fontWeight: 800, fontSize: "1rem", color: theme.textBright }}>
+                      Custom SLM Distillation & LoRA Trainer
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleStartFineTuning}
+                    disabled={isTraining}
+                    style={{
+                      background: isTraining ? theme.bgElevated : theme.accentGreen,
+                      color: isTraining ? theme.textDim : "#000",
+                      border: "none",
+                      padding: "0.35rem 0.85rem",
+                      borderRadius: "6px",
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      cursor: isTraining ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {isTraining ? "⏳ Training in Progress..." : "▶ Start LoRA Fine-Tuning"}
+                  </button>
+                </div>
+
+                {/* Training Metrics Cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
+                  <div style={{ background: theme.bgBase, padding: "0.75rem", borderRadius: "8px", border: `1px solid ${theme.borderSubtle}` }}>
+                    <div style={{ fontSize: "0.68rem", color: theme.textDim, fontWeight: 700 }}>BASE MODEL</div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: theme.textBright, marginTop: "0.2rem" }}>Qwen2.5-Coder-1.5B</div>
+                  </div>
+                  <div style={{ background: theme.bgBase, padding: "0.75rem", borderRadius: "8px", border: `1px solid ${theme.borderSubtle}` }}>
+                    <div style={{ fontSize: "0.68rem", color: theme.textDim, fontWeight: 700 }}>EPOCH PROGRESS</div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: theme.accent, marginTop: "0.2rem" }}>Epoch {trainEpoch} / 3 ({trainProgress}%)</div>
+                  </div>
+                  <div style={{ background: theme.bgBase, padding: "0.75rem", borderRadius: "8px", border: `1px solid ${theme.borderSubtle}` }}>
+                    <div style={{ fontSize: "0.68rem", color: theme.textDim, fontWeight: 700 }}>CURRENT LOSS</div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: theme.accentGreen, marginTop: "0.2rem" }}>{currentLoss}</div>
+                  </div>
+                  <div style={{ background: theme.bgBase, padding: "0.75rem", borderRadius: "8px", border: `1px solid ${theme.borderSubtle}` }}>
+                    <div style={{ fontSize: "0.68rem", color: theme.textDim, fontWeight: 700 }}>QUANTIZATION</div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: theme.textBright, marginTop: "0.2rem" }}>4-bit NF4 (LoRA r=16)</div>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div style={{ width: "100%", height: "8px", background: theme.bgElevated, borderRadius: "999px", overflow: "hidden" }}>
+                  <div style={{ width: `${trainProgress}%`, height: "100%", background: `linear-gradient(90deg, ${theme.accent}, ${theme.accentGreen})`, transition: "width 0.3s ease" }} />
+                </div>
+              </div>
+            )}
+
+            {/* View 2: Reactive Notebook */}
             {activeTab === "notebook" && (
               <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "16px", padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${theme.borderSubtle}`, paddingBottom: "0.75rem" }}>
@@ -652,85 +705,18 @@ export default function WebStudioPage() {
                       Reactive Computational Notebook
                     </span>
                   </div>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      onClick={() => handleAddNotebookCell("code")}
-                      style={{ background: theme.bgElevated, border: `1px solid ${theme.borderSubtle}`, color: theme.textBright, padding: "0.3rem 0.65rem", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
-                    >
-                      + Code
-                    </button>
-                    <button
-                      onClick={() => handleAddNotebookCell("sql")}
-                      style={{ background: theme.bgElevated, border: `1px solid ${theme.borderSubtle}`, color: theme.textBright, padding: "0.3rem 0.65rem", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
-                    >
-                      + SQL
-                    </button>
-                    <button
-                      onClick={() => handleAddNotebookCell("markdown")}
-                      style={{ background: theme.bgElevated, border: `1px solid ${theme.borderSubtle}`, color: theme.textBright, padding: "0.3rem 0.65rem", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
-                    >
-                      + Text
-                    </button>
+                </div>
+                {notebookCells.map((cell, idx) => (
+                  <div key={cell.id} style={{ background: theme.bgBase, border: `1px solid ${theme.borderSubtle}`, borderRadius: "10px", padding: "1rem" }}>
+                    <div style={{ fontSize: "0.7rem", color: theme.accent, fontWeight: 700, marginBottom: "0.4rem" }}>[{idx + 1}] {cell.type.toUpperCase()} CELL</div>
+                    <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.82rem", color: theme.textBright }}>{cell.source}</pre>
+                    {cell.output && <pre style={{ margin: "0.4rem 0 0", fontFamily: "monospace", fontSize: "0.78rem", color: theme.accentGreen }}>{cell.output}</pre>}
                   </div>
-                </div>
-
-                {/* Cells List */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {notebookCells.map((cell, idx) => (
-                    <div
-                      key={cell.id}
-                      style={{
-                        background: theme.bgBase,
-                        border: `1px solid ${theme.borderSubtle}`,
-                        borderRadius: "10px",
-                        padding: "1rem",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.6rem",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "0.7rem", color: theme.accent, fontWeight: 700, textTransform: "uppercase" }}>
-                          [{idx + 1}] {cell.type} Cell
-                        </span>
-                        {cell.type !== "markdown" && (
-                          <button
-                            onClick={() => handleRunNotebookCell(cell.id)}
-                            style={{
-                              background: theme.accentGreen,
-                              color: "#000",
-                              border: "none",
-                              padding: "0.2rem 0.6rem",
-                              borderRadius: "4px",
-                              fontSize: "0.72rem",
-                              fontWeight: 700,
-                              cursor: "pointer",
-                            }}
-                          >
-                            ▶ Run
-                          </button>
-                        )}
-                      </div>
-
-                      <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.85rem", color: theme.textBright, background: theme.bgElevated, padding: "0.75rem", borderRadius: "6px" }}>
-                        {cell.source}
-                      </pre>
-
-                      {cell.output && (
-                        <div style={{ borderTop: `1px solid ${theme.borderSubtle}`, paddingTop: "0.5rem" }}>
-                          <span style={{ fontSize: "0.68rem", color: theme.textDim, fontWeight: 700 }}>OUTPUT:</span>
-                          <pre style={{ margin: "0.25rem 0 0", fontFamily: "monospace", fontSize: "0.8rem", color: theme.accentGreen }}>
-                            {cell.output}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             )}
 
-            {/* View 2: 24-Agent Topology Grid */}
+            {/* View 3: 25-Agent Topology */}
             {activeTab === "topology" && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
                 {nodes.map((node) => (
@@ -758,7 +744,7 @@ export default function WebStudioPage() {
               </div>
             )}
 
-            {/* View 3: AST Diff */}
+            {/* View 4: AST Diff */}
             {activeTab === "diff" && (
               <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
                 <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.85rem", color: theme.textBright, background: theme.bgBase, padding: "1rem", borderRadius: "8px", overflowX: "auto" }}>
@@ -767,16 +753,16 @@ export default function WebStudioPage() {
               </div>
             )}
 
-            {/* View 4: Live Terminal */}
+            {/* View 5: Live Terminal */}
             {activeTab === "terminal" && (
-              <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
                 <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.82rem", color: theme.textBright, background: theme.bgBase, padding: "1rem", borderRadius: "8px", minHeight: "180px" }}>
                   {terminalOutput}
                 </pre>
               </div>
             )}
 
-            {/* View 5: Events */}
+            {/* View 6: Events */}
             {activeTab === "events" && (
               <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>

@@ -107,4 +107,13 @@ __all__ = [
     "NotebookArchitectAgent",
     "NotebookSynthesisResult",
     "notebook_architect",
+    "VoiceArchitectAgent",
+    "VoiceCommentaryResult",
+    "voice_architect",
 ]
+
+from saleha.agents.voice_architect import (
+    VoiceArchitectAgent,
+    VoiceCommentaryResult,
+    voice_architect,
+)

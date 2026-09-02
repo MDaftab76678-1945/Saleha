@@ -31,11 +31,14 @@ from saleha.agents.slides_architect import slides_architect
 from saleha.agents.sheets_analyst import sheets_analyst
 from saleha.agents.browser_claw import browser_claw
 from saleha.agents.notebook_architect import notebook_architect
+from saleha.agents.voice_architect import voice_architect
 from saleha.core.notebook_engine import notebook_engine
 from saleha.core.task_scheduler import task_scheduler
 from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
 from saleha.core.dataset_synthesizer import dataset_synthesizer
 from saleha.core.model_distillation_pipeline import model_distillation_pipeline
+from saleha.core.local_inference_engine import local_inference_engine
+from saleha.core.repo_orchestrator import repo_orchestrator
 from saleha.core.ephemeral_container_runner import container_runner
 from saleha.tools.release_manager import release_manager
 
@@ -50,14 +53,17 @@ class SwarmChatSession:
 
     def render_welcome(self):
         """Renders welcome banner and slash command cheat-sheet."""
-        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.9.0[/bold cyan]")
+        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v3.0.0 Sovereign[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta", border_style="dim")
         table.add_column("Command", style="cyan", width=22)
         table.add_column("Description", style="white")
-        table.add_row("/agents", "List all 24 mounted Python agents")
+        table.add_row("/agents", "List all 25 mounted Python agents")
         table.add_row("/swarm <goal>", "Execute full autonomous multi-agent DAG pipeline")
+        table.add_row("/auto-pr <task>", "Autonomous Git branch, AST edit, test verify, and GitHub PR")
+        table.add_row("/voice <topic>", "Real-time spoken pair-programming & verbal architecture review")
+        table.add_row("/local-model <m>", "Switch local GGUF / Ollama inference model")
         table.add_row("/solve <issue>", "Autonomous bug triage, patch synthesis, and PR generation")
         table.add_row("/notebook <topic>", "Synthesize reactive Jupyter .ipynb computational notebook")
         table.add_row("/dataset [path]", "Synthesize high-quality AST-verified JSONL dataset for SLM fine-tuning")
@@ -111,6 +117,21 @@ class SwarmChatSession:
         if cmd.startswith("/solve ") or cmd.startswith("solve ") or cmd.startswith("solve-issue "):
             issue = cmd.split(" ", 1)[1].strip()
             self._execute_solve_command(issue)
+            return True
+
+        if cmd.startswith("/auto-pr ") or cmd.startswith("auto-pr ") or cmd.startswith("autopr "):
+            task = cmd.split(" ", 1)[1].strip()
+            self._execute_autopr_command(task)
+            return True
+
+        if cmd.startswith("/voice ") or cmd.startswith("voice ") or cmd.startswith("speak "):
+            topic = cmd.split(" ", 1)[1].strip()
+            self._execute_voice_command(topic)
+            return True
+
+        if cmd.startswith("/local-model ") or cmd.startswith("local-model ") or cmd.startswith("model "):
+            model_name = cmd.split(" ", 1)[1].strip()
+            self._execute_local_model_command(model_name)
             return True
 
         if cmd.startswith("/notebook ") or cmd.startswith("notebook ") or cmd.startswith("make-notebook "):
@@ -296,6 +317,27 @@ class SwarmChatSession:
         self.console.print(f"- Invariant Assertions: {score.assertion_score * 100:.0f}%\n")
         self.console.print(Panel("\n".join(f"- {n}" for n in score.feedback_notes), title="[bold cyan]RLIF Diagnostic Feedback[/]", border_style="cyan"))
         self.console.print()
+
+    def _execute_autopr_command(self, task: str):
+        self.console.print(f"\n[bold cyan]🤖 Autonomous Git Repo Orchestrator Executing: [yellow]\"{task}\"[/yellow][/bold cyan]")
+        result = repo_orchestrator.execute_auto_pr(task)
+        self.console.print(f"[bold green]✨ PR Autonomously Synthesized in {result.execution_time_ms}ms![/bold green]")
+        self.console.print(f"- Branch Created : [cyan]{result.branch_name}[/cyan]")
+        self.console.print(f"- Commit Message : [white]{result.commit_message.splitlines()[0]}[/white]")
+        self.console.print(f"- Test Sandbox   : {'✅ 100% Invariants Passed' if result.tests_passed else '❌ Failed'}")
+        self.console.print(Panel(result.pr_markdown_body[:1000] + "\n...", title="[bold cyan]Synthesized GitHub Pull Request[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_voice_command(self, topic: str):
+        self.console.print(f"\n[bold cyan]🎙️ Voice Architect Synthesizing Real-Time Spoken Audio Commentary for: [yellow]\"{topic}\"[/yellow][/bold cyan]")
+        result = voice_architect.synthesize_voice_commentary(topic)
+        self.console.print(f"[bold green]✨ Spoken Audio Commentary Synthesized ({result.audio_duration_estimate_sec}s spoken duration, {result.generation_time_ms}ms)![/bold green]")
+        self.console.print(Panel(f"🗣️ [italic]\"{result.transcript}\"[/italic]", title="[bold magenta]Spoken Pair-Programming Transcript[/]", border_style="magenta"))
+        self.console.print()
+
+    def _execute_local_model_command(self, model_name: str):
+        local_inference_engine.set_active_model(model_name)
+        self.console.print(f"\n[bold green]⚡ Active Local GGUF / Ollama Model switched to: [yellow]{model_name}[/yellow][/bold green]\n")
 
     def _execute_research_command(self, topic: str):
         self.console.print(f"\n[bold cyan]🔬 Autonomous Deep Research — Scanning Sources for:[/] [yellow]\"{topic}\"[/]")
