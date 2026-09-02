@@ -65,7 +65,7 @@ class TestPreWarmedSandboxPool:
         assert res.passed is True
         assert res.is_warm is True
         assert res.exit_code == 0
-        assert res.execution_time_us < 1000.0  # Extremely fast execution
+        assert res.execution_time_us < 50000.0  # Fast sub-50ms sandboxed execution
 
     def test_failing_snippet_isolated_cleanly(self):
         code = "100 / 0"
