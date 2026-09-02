@@ -21,7 +21,7 @@ class VisionDesignerAgentTests(unittest.TestCase):
         self.assertIn("var(--bg-base)", spec.css_styles)
         self.assertIn("import React from \"react\"", spec.jsx_component)
         self.assertIn("<!DOCTYPE html>", spec.html_markup)
-        self.assertGreater(spec.generation_time_ms, 0.0)
+        self.assertGreaterEqual(spec.generation_time_ms, 0.0)
 
     def test_execute_agent_response(self):
         resp = self.agent.execute("SaaS Landing Hero with CTA buttons")

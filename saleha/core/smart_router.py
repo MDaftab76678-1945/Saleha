@@ -276,7 +276,7 @@ class SmartRouter:
             score += success_rate * 40.0
 
         if perf["uses"] > 0:
-            avg_time = perf["total_time"] / perf["uses"]
+            avg_time = max(0.001, perf["total_time"] / perf["uses"])
             time_score = max(1.0, 10.0 / avg_time)
             score += time_score * 3.0
 
@@ -284,7 +284,8 @@ class SmartRouter:
         keyword_matches = sum(1 for kw in profile.best_for if kw in task_lower)
         score += keyword_matches * 4.0
 
-        size_score = 10.0 / profile.size_gb
+        size_gb = max(0.1, profile.size_gb)
+        size_score = 10.0 / size_gb
         score += size_score
 
         return score
