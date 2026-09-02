@@ -93,6 +93,11 @@ class DeepResearcherAgent(BaseAgent):
             f"Ephemeral container isolation bounds CPU and RAM footprint to deterministic limits.",
             f"Multi-agent checkpointing enables instant state recovery without token re-computation.",
         ]
+        findings_text = "\n".join(f"- **[FINDING-{idx+1}]**: {f}" for idx, f in enumerate(key_findings))
+        citations_text = "\n".join(
+            f"- **[{c.source_id}]** *{c.title}* ({c.credibility_score*100:.0f}% Credibility) — [{c.url_or_doi}]({c.url_or_doi})\n  > *Finding:* {c.key_finding}"
+            for c in citations
+        )
 
         # Synthesize Markdown Whitepaper
         markdown = f"""# 🔬 Deep Technical Research Report: {clean_topic}
@@ -103,7 +108,7 @@ This empirical study evaluates the architectural characteristics, performance be
 ---
 
 ## 🔑 Key Empirical Findings
-{chr(10).join(f"- **[FINDING-{idx+1}]**: {f}" for idx, f in enumerate(key_findings))}
+{findings_text}
 
 ---
 
@@ -116,7 +121,7 @@ The research framework executed a 3-stage validation pipeline:
 ---
 
 ## 📚 Verified Citations & References
-{chr(10).join(f"- **[{c.source_id}]** *{c.title}* ({c.credibility_score*100:.0f}% Credibility) — [{c.url_or_doi}]({c.url_or_doi})\\n  > *Finding:* {c.key_finding}" for c in citations)}
+{citations_text}
 
 ---
 *Synthesized autonomously by **Saleha DeepResearcherAgent v2.7.0** ($0 Token Waste).*

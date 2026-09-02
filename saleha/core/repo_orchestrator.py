@@ -40,6 +40,7 @@ class AutonomousRepoOrchestrator:
             f"saleha/core/{slug.replace('-', '_')}.py",
             f"saleha/tests/test_{slug.replace('-', '_')}.py",
         ]
+        modified_files_md = "".join(f"- `{f}`\n" for f in files_modified)
 
         # 4. Generate structured GitHub PR Markdown
         pr_markdown = f"""## 🚀 Pull Request: {pr_title}
@@ -59,7 +60,7 @@ This PR was autonomously synthesized and verified by **Saleha Swarm AI v3.0.0 So
 ---
 
 ### 📁 Modified Files
-{"".join(f"- `{f}`\n" for f in files_modified)}
+{modified_files_md}
 
 ---
 

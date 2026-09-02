@@ -102,17 +102,22 @@ class LeaderboardGenerator:
 
     def generate_html(self) -> str:
         """Generates interactive, responsive HTML dashboard."""
-        md_table_rows = "".join(
-            f"<tr><td><strong>{s.platform_name}</strong></td>"
-            f"<td>{'<span class=\"badge local\">100% Local</span>' if s.is_local_sovereign else '<span class=\"badge cloud\">Cloud API</span>'}</td>"
-            f"<td><strong>{s.swe_bench_lite_pass}%</strong></td>"
-            f"<td>{s.humaneval_pass_at_1}%</td>"
-            f"<td>{s.privacy_grade}</td>"
-            f"<td>${s.cost_per_issue_usd:.2f}</td>"
-            f"<td>{'✅ Yes' if s.byzantine_fault_tolerance else '❌ No'}</td>"
-            f"<td>{'✅ Yes' if s.formal_verification else '❌ No'}</td></tr>"
-            for s in self.scores
-        )
+        row_list = []
+        for s in self.scores:
+            badge = '<span class="badge local">100% Local</span>' if s.is_local_sovereign else '<span class="badge cloud">Cloud API</span>'
+            pbft_str = '✅ Yes' if s.byzantine_fault_tolerance else '❌ No'
+            formal_str = '✅ Yes' if s.formal_verification else '❌ No'
+            row_list.append(
+                f"<tr><td><strong>{s.platform_name}</strong></td>"
+                f"<td>{badge}</td>"
+                f"<td><strong>{s.swe_bench_lite_pass}%</strong></td>"
+                f"<td>{s.humaneval_pass_at_1}%</td>"
+                f"<td>{s.privacy_grade}</td>"
+                f"<td>{s.cost_per_issue_usd:.2f}</td>"
+                f"<td>{pbft_str}</td>"
+                f"<td>{formal_str}</td></tr>"
+            )
+        md_table_rows = "".join(row_list)
 
         return f"""<!DOCTYPE html>
 <html lang="en">
