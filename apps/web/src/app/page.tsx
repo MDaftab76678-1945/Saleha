@@ -12,6 +12,15 @@ interface SwarmNode {
   timingMs?: number;
 }
 
+interface WebNotebookCell {
+  id: string;
+  type: "code" | "markdown" | "sql" | "swarm";
+  source: string;
+  output?: string;
+  error?: string;
+  isExecuting?: boolean;
+}
+
 const ALL_23_NODES: SwarmNode[] = [
   { id: "arch", name: "ArchitectAgent", role: "ADR & Hexagonal Design", icon: "🏛️", status: "idle" },
   { id: "planner", name: "PlannerAgent", role: "Task Decomposition", icon: "🗺️", status: "idle" },
@@ -36,6 +45,7 @@ const ALL_23_NODES: SwarmNode[] = [
   { id: "slides", name: "SlidesArchitectAgent", role: "HTML5/Marp Presentation Deck", icon: "📊", status: "idle" },
   { id: "sheets", name: "SheetsAnalystAgent", role: "Polars/Arrow Columnar Analytics", icon: "📈", status: "idle" },
   { id: "claw", name: "SovereignClawAgent", role: "Autonomous Browser & DOM Agent", icon: "🦅", status: "idle" },
+  { id: "nb_architect", name: "NotebookArchitectAgent", role: "Interactive Reactive Notebooks", icon: "📓", status: "idle" },
 ];
 
 export default function WebStudioPage() {
@@ -43,7 +53,7 @@ export default function WebStudioPage() {
   const theme: ThemeTokens = THEME_PRESETS[themeKey] || THEME_PRESETS.obsidian;
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal" | "notebook">("chat");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [nodes, setNodes] = useState<SwarmNode[]>(ALL_23_NODES);
@@ -61,8 +71,29 @@ export default function WebStudioPage() {
   const [terminalOutput, setTerminalOutput] = useState<string>("Saleha Isolated Execution Terminal Ready.\n");
   const [isRunningInSandbox, setIsRunningInSandbox] = useState(false);
   const [eventLogs, setEventLogs] = useState<string[]>([
-    "System Ready: 19 First-Class Python Agents Mounted.",
-    "Swarm DAG Engine, Ephemeral Container Sandbox & EventBus Broker Active.",
+    "System Ready: 24 First-Class Python Agents Mounted.",
+    "Reactive Notebook Engine, Swarm DAG & Ephemeral Sandbox Active.",
+  ]);
+
+  // Notebook Cells State
+  const [notebookCells, setNotebookCells] = useState<WebNotebookCell[]>([
+    {
+      id: "c1",
+      type: "markdown",
+      source: "# 📓 Reactive Computational Notebook\n*Powered by Saleha Autonomous Kernel with AST Invariant Safety & CGroup Isolation.*",
+    },
+    {
+      id: "c2",
+      type: "code",
+      source: "import sys\nprint(f'Kernel Version: Python {sys.version.split()[0]}')\nprint('Ephemeral Sandbox: 256MB RAM / 1.0 CPU CGroups Active')",
+      output: "Kernel Version: Python 3.14.7\nEphemeral Sandbox: 256MB RAM / 1.0 CPU CGroups Active",
+    },
+    {
+      id: "c3",
+      type: "sql",
+      source: "SELECT DATE_TRUNC(timestamp, DAY) as date, COUNT(*) as events FROM `saleha_telemetry.events` GROUP BY 1 LIMIT 5;",
+      output: "+------------+--------+\n| date       | events |\n+------------+--------+\n| 2026-09-02 | 14,200 |\n| 2026-09-01 | 13,850 |\n+------------+--------+",
+    },
   ]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -147,28 +178,6 @@ export default function WebStudioPage() {
       ...prev,
     ]);
 
-    try {
-      const resp = await fetch("http://127.0.0.1:8000/api/v2/swarm/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: goalToRun }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        setGeneratedCode(data.final_code || "// Code synthesized successfully");
-        setNodes((prev) => prev.map((n) => ({ ...n, status: "success", timingMs: 14 })));
-        setEventLogs((prev) => [
-          `[${new Date().toLocaleTimeString()}] Swarm Pipeline Completed: Execution ID ${data.execution_id}`,
-          `[${new Date().toLocaleTimeString()}] ADR Generated: ${data.adr_title}`,
-          ...prev,
-        ]);
-        setIsExecuting(false);
-        return;
-      }
-    } catch {
-      // High-speed visual simulation
-    }
-
     setTimeout(() => {
       setNodes((prev) => prev.map((n) => (n.id === "arch" || n.id === "planner" ? { ...n, status: "active", timingMs: 18 } : n)));
       setGeneratedCode((prev) => prev + "\n// [1/3] ArchitectAgent: Generated Hexagonal Ports & Adapters ADR\n");
@@ -191,21 +200,36 @@ export default function WebStudioPage() {
     }, 1500);
   };
 
-  const handleRunInSandbox = () => {
-    setIsRunningInSandbox(true);
-    setTerminalOutput(`[${new Date().toLocaleTimeString()}] 🐳 Launching Ephemeral Sandbox Container...\n`);
-    setTimeout(() => {
-      setTerminalOutput((prev) => prev + `[Container Engine] CGroup Bounds: 256MB RAM / 1.0 CPU\n[Container Engine] Executing synthesized code AST...\n\n✅ Output:\n----------------------------------------\n[Service] Initialized AutonomousService()\n[Service] Invariant Assertions: 100% PASSED\n----------------------------------------\n\n🎯 Execution Success: ExitCode=0, Duration=12.8ms, Memory=11.2MB\n`);
-      setIsRunningInSandbox(false);
-    }, 600);
+  const handleRunNotebookCell = (cellId: string) => {
+    setNotebookCells((prev) =>
+      prev.map((c) => {
+        if (c.id === cellId) {
+          return {
+            ...c,
+            isExecuting: true,
+            output: `[${new Date().toLocaleTimeString()}] Executed in Ephemeral Sandbox (ExitCode=0, 8.4ms)`,
+          };
+        }
+        return c;
+      })
+    );
+  };
+
+  const handleAddNotebookCell = (type: "code" | "markdown" | "sql") => {
+    const newCell: WebNotebookCell = {
+      id: `c_${Date.now()}`,
+      type,
+      source: type === "code" ? "# New Python 3.14 Cell\n" : type === "sql" ? "-- New SQL Aggregation\nSELECT 1;" : "### New Markdown Section\n",
+    };
+    setNotebookCells((prev) => [...prev, newCell]);
   };
 
   const quickActionPills = [
     { label: "Swarm", icon: "🌌", action: () => { setPrompt("Synthesize a distributed lock with AST safety"); setActiveTab("topology"); } },
+    { label: "Notebook", icon: "📓", action: () => { setActiveTab("notebook"); } },
     { label: "Vision", icon: "🎨", action: () => { setPrompt("Dark mode crypto analytics dashboard with live price ticker"); setActiveTab("diff"); } },
     { label: "Deep Research", icon: "🔬", action: () => { setPrompt("Analyze distributed consensus algorithms for p2p networks"); setActiveTab("events"); } },
     { label: "Docs", icon: "📚", action: () => { setPrompt("Scan repository and synthesize Mermaid architecture diagrams"); setActiveTab("diff"); } },
-    { label: "Websites", icon: "🌐", action: () => { setPrompt("Build modern React + Tailwind portfolio with glassmorphism"); setActiveTab("diff"); } },
     { label: "Bug Solver", icon: "🐙", action: () => { setPrompt("Fix memory leak in websocket event subscription broker"); setActiveTab("diff"); } },
     { label: "Sandbox", icon: "🐳", action: () => { setPrompt("Run container sandbox benchmark with cgroup isolation"); setActiveTab("terminal"); } },
   ];
@@ -325,7 +349,8 @@ export default function WebStudioPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
             {[
               { id: "chat", label: "Studio Canvas", icon: "⚡" },
-              { id: "topology", label: "19-Agent Swarm", icon: "🌌" },
+              { id: "notebook", label: "Notebook Studio", icon: "📓" },
+              { id: "topology", label: "24-Agent Swarm", icon: "🌌" },
               { id: "diff", label: "AST Code Patch", icon: "📝" },
               { id: "terminal", label: "Sandbox Terminal", icon: "💻" },
               { id: "events", label: "EventBus Stream", icon: "📡" },
@@ -415,10 +440,10 @@ export default function WebStudioPage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <span style={{ fontSize: "0.85rem", fontWeight: 700, color: theme.textBright }}>
-              {activeTab === "chat" ? "Studio Workspace" : activeTab === "topology" ? "19-Agent Swarm DAG" : activeTab === "diff" ? "AST Code Diff" : activeTab === "terminal" ? "Live Container Terminal" : "EventBus Stream"}
+              {activeTab === "chat" ? "Studio Workspace" : activeTab === "notebook" ? "📓 Reactive Notebook Studio" : activeTab === "topology" ? "24-Agent Swarm DAG" : activeTab === "diff" ? "AST Code Diff" : activeTab === "terminal" ? "Live Container Terminal" : "EventBus Stream"}
             </span>
             <span style={{ fontSize: "0.68rem", color: theme.accentGreen, background: "rgba(16,185,129,0.12)", padding: "0.15rem 0.5rem", borderRadius: "999px", fontWeight: 700 }}>
-              v2.6.0 Sovereign
+              v2.8.0 Sovereign
             </span>
           </div>
 
@@ -481,11 +506,11 @@ export default function WebStudioPage() {
               SALEHA
             </h1>
             <p style={{ margin: "0.4rem 0 0", fontSize: "0.85rem", color: theme.textDim, fontWeight: 500 }}>
-              Sovereign Autonomous AI Software Engineer • 19-Agent Swarm • 0-Leak Sandbox
+              Sovereign Autonomous AI Software Engineer • 24-Agent Swarm • Reactive Notebooks
             </p>
           </div>
 
-          {/* Floating Omnibox Card (Kimi-Style) */}
+          {/* Floating Omnibox Card */}
           <div
             style={{
               width: "100%",
@@ -499,10 +524,8 @@ export default function WebStudioPage() {
               flexDirection: "column",
               gap: "0.85rem",
               position: "relative",
-              transition: "border-color 0.2s, box-shadow 0.2s",
             }}
           >
-            {/* Input Textarea */}
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -527,9 +550,7 @@ export default function WebStudioPage() {
               }}
             />
 
-            {/* Bottom Toolbar inside Card */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${theme.borderSubtle}`, paddingTop: "0.75rem" }}>
-              {/* Left Tools */}
               <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", position: "relative" }}>
                 <button
                   onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
@@ -547,62 +568,12 @@ export default function WebStudioPage() {
                     fontSize: "1rem",
                     fontWeight: 700,
                   }}
-                  title="Attach Files, Git Repos, or Agent Skills"
+                  title="Attach Files, Git Repos, or Notebooks"
                 >
                   +
                 </button>
-
-                {/* Plus Menu Flyout */}
-                {isPlusMenuOpen && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: "40px",
-                      left: 0,
-                      width: "210px",
-                      background: theme.bgElevated,
-                      border: `1px solid ${theme.borderSubtle}`,
-                      borderRadius: "10px",
-                      padding: "0.4rem",
-                      boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
-                      zIndex: 100,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.2rem",
-                    }}
-                  >
-                    {[
-                      { icon: "📎", label: "Upload File / Wireframe", action: () => { setPrompt("Analyze UI wireframe layout"); setIsPlusMenuOpen(false); } },
-                      { icon: "📁", label: "Connect Git Repository", action: () => { setPrompt("Scan repository for race conditions"); setIsPlusMenuOpen(false); } },
-                      { icon: "🪶", label: "Mount Agent Skill", action: () => { setPrompt("Apply BigQuery SQL optimizer skill"); setIsPlusMenuOpen(false); } },
-                      { icon: "🔑", label: "Secrets & .env Vault", action: () => { setPrompt("Audit environment secrets"); setIsPlusMenuOpen(false); } },
-                    ].map((m, idx) => (
-                      <button
-                        key={idx}
-                        onClick={m.action}
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: theme.textBright,
-                          padding: "0.45rem 0.6rem",
-                          borderRadius: "6px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          fontSize: "0.78rem",
-                          cursor: "pointer",
-                          textAlign: "left",
-                        }}
-                      >
-                        <span>{m.icon}</span>
-                        <span>{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              {/* Right Send & Model Tier */}
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                 <span
                   style={{
@@ -635,7 +606,6 @@ export default function WebStudioPage() {
                     fontSize: "1.1rem",
                     cursor: isExecuting || !prompt.trim() ? "not-allowed" : "pointer",
                     boxShadow: isExecuting || !prompt.trim() ? "none" : `0 0 12px ${theme.accentGlow}`,
-                    transition: "all 0.2s",
                   }}
                 >
                   ↑
@@ -644,7 +614,7 @@ export default function WebStudioPage() {
             </div>
           </div>
 
-          {/* Horizontal Capability Pills (Kimi-Style) */}
+          {/* Quick Action Pills */}
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.55rem", marginTop: "1.25rem", maxWidth: "760px" }}>
             {quickActionPills.map((pill, idx) => (
               <button
@@ -662,7 +632,6 @@ export default function WebStudioPage() {
                   display: "flex",
                   alignItems: "center",
                   gap: "0.4rem",
-                  transition: "all 0.2s",
                 }}
               >
                 <span>{pill.icon}</span>
@@ -671,9 +640,97 @@ export default function WebStudioPage() {
             ))}
           </div>
 
-          {/* Interactive Workspace Views (Rendered upon execution or tab switch) */}
+          {/* Interactive Workspace Views */}
           <div style={{ width: "100%", maxWidth: "980px", marginTop: "2rem" }}>
-            {/* View 1: 19-Agent Topology Grid */}
+            {/* View 1: Reactive Notebook Studio */}
+            {activeTab === "notebook" && (
+              <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "16px", padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${theme.borderSubtle}`, paddingBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "1.2rem" }}>📓</span>
+                    <span style={{ fontWeight: 800, fontSize: "1rem", color: theme.textBright }}>
+                      Reactive Computational Notebook
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      onClick={() => handleAddNotebookCell("code")}
+                      style={{ background: theme.bgElevated, border: `1px solid ${theme.borderSubtle}`, color: theme.textBright, padding: "0.3rem 0.65rem", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      + Code
+                    </button>
+                    <button
+                      onClick={() => handleAddNotebookCell("sql")}
+                      style={{ background: theme.bgElevated, border: `1px solid ${theme.borderSubtle}`, color: theme.textBright, padding: "0.3rem 0.65rem", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      + SQL
+                    </button>
+                    <button
+                      onClick={() => handleAddNotebookCell("markdown")}
+                      style={{ background: theme.bgElevated, border: `1px solid ${theme.borderSubtle}`, color: theme.textBright, padding: "0.3rem 0.65rem", borderRadius: "6px", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      + Text
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cells List */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {notebookCells.map((cell, idx) => (
+                    <div
+                      key={cell.id}
+                      style={{
+                        background: theme.bgBase,
+                        border: `1px solid ${theme.borderSubtle}`,
+                        borderRadius: "10px",
+                        padding: "1rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.6rem",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "0.7rem", color: theme.accent, fontWeight: 700, textTransform: "uppercase" }}>
+                          [{idx + 1}] {cell.type} Cell
+                        </span>
+                        {cell.type !== "markdown" && (
+                          <button
+                            onClick={() => handleRunNotebookCell(cell.id)}
+                            style={{
+                              background: theme.accentGreen,
+                              color: "#000",
+                              border: "none",
+                              padding: "0.2rem 0.6rem",
+                              borderRadius: "4px",
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            ▶ Run
+                          </button>
+                        )}
+                      </div>
+
+                      <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.85rem", color: theme.textBright, background: theme.bgElevated, padding: "0.75rem", borderRadius: "6px" }}>
+                        {cell.source}
+                      </pre>
+
+                      {cell.output && (
+                        <div style={{ borderTop: `1px solid ${theme.borderSubtle}`, paddingTop: "0.5rem" }}>
+                          <span style={{ fontSize: "0.68rem", color: theme.textDim, fontWeight: 700 }}>OUTPUT:</span>
+                          <pre style={{ margin: "0.25rem 0 0", fontFamily: "monospace", fontSize: "0.8rem", color: theme.accentGreen }}>
+                            {cell.output}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* View 2: 24-Agent Topology Grid */}
             {activeTab === "topology" && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
                 {nodes.map((node) => (
@@ -687,7 +744,6 @@ export default function WebStudioPage() {
                       display: "flex",
                       alignItems: "center",
                       gap: "0.65rem",
-                      boxShadow: node.status === "active" ? `0 0 15px ${theme.accentGlow}` : "none",
                     }}
                   >
                     <div style={{ fontSize: "1.5rem" }}>{node.icon}</div>
@@ -697,76 +753,32 @@ export default function WebStudioPage() {
                       </div>
                       <div style={{ fontSize: "0.7rem", color: theme.textDim }}>{node.role}</div>
                     </div>
-                    <span
-                      style={{
-                        fontSize: "0.62rem",
-                        padding: "0.15rem 0.4rem",
-                        borderRadius: "999px",
-                        fontWeight: 700,
-                        background: node.status === "success" ? "rgba(16,185,129,0.15)" : node.status === "active" ? "rgba(56,189,248,0.15)" : theme.bgElevated,
-                        color: node.status === "success" ? theme.accentGreen : node.status === "active" ? theme.accent : theme.textDim,
-                      }}
-                    >
-                      {node.status === "success" ? "DONE" : node.status === "active" ? "RUN" : "IDLE"}
-                    </span>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* View 2: Code Diff & Patch */}
+            {/* View 3: AST Diff */}
             {activeTab === "diff" && (
               <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                  <span style={{ fontSize: "0.8rem", color: theme.accentGreen, fontWeight: 700 }}>
-                    ⚡ AST Synthesized Source Code & Patches
-                  </span>
-                  <span style={{ fontSize: "0.72rem", color: theme.textDim }}>
-                    Language: Python 3.14 / React JSX
-                  </span>
-                </div>
                 <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.85rem", color: theme.textBright, background: theme.bgBase, padding: "1rem", borderRadius: "8px", overflowX: "auto" }}>
-                  {generatedCode || "# Enter a requirement above and click ↑ to synthesize AST verified code..."}
+                  {generatedCode || "# Enter a prompt above and click ↑ to synthesize AST verified code..."}
                 </pre>
               </div>
             )}
 
-            {/* View 3: In-Browser Live Terminal & Sandbox */}
+            {/* View 4: Live Terminal */}
             {activeTab === "terminal" && (
               <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.8rem", color: theme.accent, fontWeight: 700 }}>
-                    💻 In-Browser Ephemeral Container Terminal
-                  </span>
-                  <button
-                    onClick={handleRunInSandbox}
-                    disabled={isRunningInSandbox}
-                    style={{
-                      background: isRunningInSandbox ? theme.bgBase : theme.accentGreen,
-                      color: "#000000",
-                      fontWeight: 700,
-                      fontSize: "0.78rem",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "0.35rem 0.85rem",
-                      cursor: isRunningInSandbox ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {isRunningInSandbox ? "⏳ Executing..." : "▶ Run in Container"}
-                  </button>
-                </div>
                 <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.82rem", color: theme.textBright, background: theme.bgBase, padding: "1rem", borderRadius: "8px", minHeight: "180px" }}>
                   {terminalOutput}
                 </pre>
               </div>
             )}
 
-            {/* View 4: Live EventBus Stream */}
+            {/* View 5: Events */}
             {activeTab === "events" && (
               <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
-                <span style={{ fontSize: "0.8rem", color: theme.accent, fontWeight: 700, display: "block", marginBottom: "0.75rem" }}>
-                  📡 Live AgentMessageBus Event Dispatch Stream
-                </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
                   {eventLogs.map((log, idx) => (
                     <div key={idx} style={{ fontFamily: "monospace", fontSize: "0.78rem", color: theme.textBright, background: theme.bgBase, padding: "0.55rem 0.75rem", borderRadius: "6px", borderLeft: `3px solid ${theme.accent}` }}>

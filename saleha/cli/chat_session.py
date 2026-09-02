@@ -30,6 +30,8 @@ from saleha.agents.deep_researcher import deep_researcher
 from saleha.agents.slides_architect import slides_architect
 from saleha.agents.sheets_analyst import sheets_analyst
 from saleha.agents.browser_claw import browser_claw
+from saleha.agents.notebook_architect import notebook_architect
+from saleha.core.notebook_engine import notebook_engine
 from saleha.core.task_scheduler import task_scheduler
 from saleha.core.ephemeral_container_runner import container_runner
 from saleha.tools.release_manager import release_manager
@@ -45,15 +47,16 @@ class SwarmChatSession:
 
     def render_welcome(self):
         """Renders welcome banner and slash command cheat-sheet."""
-        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.7.0[/bold cyan]")
+        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.8.0[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta", border_style="dim")
         table.add_column("Command", style="cyan", width=22)
         table.add_column("Description", style="white")
-        table.add_row("/agents", "List all 23 mounted Python agents")
+        table.add_row("/agents", "List all 24 mounted Python agents")
         table.add_row("/swarm <goal>", "Execute full autonomous multi-agent DAG pipeline")
         table.add_row("/solve <issue>", "Autonomous bug triage, patch synthesis, and PR generation")
+        table.add_row("/notebook <topic>", "Synthesize reactive Jupyter .ipynb computational notebook")
         table.add_row("/research <topic>", "Multi-hop Deep Research report with verified citations")
         table.add_row("/slides <topic>", "Synthesize interactive HTML5/Marp presentation deck")
         table.add_row("/sheet <query>", "Tabular data statistics, anomaly detection & SQL synthesis")
@@ -102,6 +105,11 @@ class SwarmChatSession:
         if cmd.startswith("/solve ") or cmd.startswith("solve ") or cmd.startswith("solve-issue "):
             issue = cmd.split(" ", 1)[1].strip()
             self._execute_solve_command(issue)
+            return True
+
+        if cmd.startswith("/notebook ") or cmd.startswith("notebook ") or cmd.startswith("make-notebook "):
+            topic = cmd.split(" ", 1)[1].strip()
+            self._execute_notebook_command(topic)
             return True
 
         if cmd.startswith("/research ") or cmd.startswith("research "):
@@ -229,6 +237,20 @@ class SwarmChatSession:
             self.console.print(Panel(res.output, title="[bold green]Stdout Output[/]", border_style="green"))
         if res.error:
             self.console.print(Panel(res.error, title="[bold red]Stderr Diagnostic[/]", border_style="red"))
+        self.console.print()
+
+    def _execute_notebook_command(self, topic: str):
+        self.console.print(f"\n[bold cyan]📓 Autonomous Notebook Engine — Structuring:[/] [yellow]\"{topic}\"[/]")
+        result = notebook_architect.synthesize_notebook(topic)
+        self.console.print(f"[bold green]✨ Synthesized {result.cell_count} Reactive Cells in {result.generation_time_ms}ms (Jupyter .ipynb v4.5)![/bold green]\n")
+        for idx, cell in enumerate(result.notebook_doc.cells):
+            self.console.print(f"[dim]── Cell [{idx+1}/{result.cell_count}] ({cell.cell_type.upper()}) ──[/dim]")
+            if cell.cell_type == "code":
+                self.console.print(Syntax(cell.source, "python", theme="monokai", line_numbers=True))
+            elif cell.cell_type == "sql":
+                self.console.print(Syntax(cell.source, "sql", theme="monokai", line_numbers=True))
+            else:
+                self.console.print(Markdown(cell.source))
         self.console.print()
 
     def _execute_research_command(self, topic: str):

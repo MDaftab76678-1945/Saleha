@@ -48,6 +48,7 @@ from saleha.agents.deep_researcher import DeepResearcherAgent, DeepResearchRepor
 from saleha.agents.slides_architect import SlidesArchitectAgent, SlideDeck, slides_architect
 from saleha.agents.sheets_analyst import SheetsAnalystAgent, SheetAnalysisResult, sheets_analyst
 from saleha.agents.browser_claw import SovereignClawAgent, ClawExecutionResult, browser_claw
+from saleha.agents.notebook_architect import NotebookArchitectAgent, NotebookSynthesisResult, notebook_architect
 
 __all__ = [
     "BaseAgent",
@@ -103,4 +104,7 @@ __all__ = [
     "SovereignClawAgent",
     "ClawExecutionResult",
     "browser_claw",
+    "NotebookArchitectAgent",
+    "NotebookSynthesisResult",
+    "notebook_architect",
 ]
