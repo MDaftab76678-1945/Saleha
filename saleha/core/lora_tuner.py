@@ -102,6 +102,10 @@ class LoRATuner:
             error="",
         )
 
+    def tune(self, config: Optional[TuningConfig] = None) -> TuningResult:
+        """Alias for fine_tune."""
+        return self.fine_tune(config)
+
     def fine_tune(self, config: Optional[TuningConfig] = None) -> TuningResult:
         """Execute the full LoRA fine-tuning pipeline."""
         cfg = config or TuningConfig()
