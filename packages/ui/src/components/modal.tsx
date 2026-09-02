@@ -5,19 +5,19 @@ export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  children?: React.ReactNode;
   theme?: ThemeTokens;
   maxWidth?: string;
+  children?: React.ReactNode;
 }
 
-export function Modal({
+export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   title,
   children,
   theme,
   maxWidth = "600px",
-}: ModalProps) {
+}) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -46,39 +46,44 @@ export function Modal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(0, 0, 0, 0.75)",
+        padding: "1rem",
+        backgroundColor: "rgba(0, 0, 0, 0.75)",
         backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-        animation: "fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: "90%",
+          width: "100%",
           maxWidth,
-          maxHeight: "85vh",
-          overflowY: "auto",
-          background: bgSurface,
+          backgroundColor: bgSurface,
           border: `1px solid ${borderBright}`,
           borderRadius: "16px",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px rgba(56, 189, 248, 0.15)",
-          display: "flex",
-          flexDirection: "column",
-          animation: "scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+          overflow: "hidden",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          animation: "modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div
           style={{
+            padding: "1.25rem 1.5rem",
+            borderBottom: `1px solid ${borderSubtle}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "1.25rem 1.5rem",
-            borderBottom: `1px solid ${borderSubtle}`,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: textBright }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "1.1rem",
+              fontWeight: 700,
+              color: textBright,
+            }}
+          >
             {title}
           </h3>
           <button
@@ -89,17 +94,21 @@ export function Modal({
               color: textDim,
               fontSize: "1.25rem",
               cursor: "pointer",
-              padding: "0.25rem 0.5rem",
+              padding: "0.25rem",
+              lineHeight: 1,
               borderRadius: "6px",
-              transition: "all 0.15s ease",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
-            aria-label="Close modal"
           >
             ✕
           </button>
         </div>
+
+        {/* Body */}
         <div style={{ padding: "1.5rem" }}>{children}</div>
       </div>
     </div>
   );
-}
+};
