@@ -12,7 +12,14 @@
         {
           "name": "saleha",
           "sidecar": true,
-          "args": ["serve", "--host", "127.0.0.1", "--port", "8000", "--no-open"]
+          "args": [
+            "serve",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            { "validator": "^\\d{1,5}$" },
+            "--no-open"
+          ]
         }
       ]
     }

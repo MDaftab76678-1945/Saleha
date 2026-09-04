@@ -31,6 +31,30 @@ fn generate_backend_token() -> String {
     format!("{:x}{:x}", std::process::id(), nanos)
 }
 
+/// Kills a process and everything it spawned.
+///
+/// The sidecar is a PyInstaller one-file binary: the executable we launch is a
+/// bootloader that unpacks itself and runs the real Python server as a child.
+/// Killing only the handle we hold leaves that child alive, still holding the
+/// backend port, so the whole tree has to go.
+fn kill_process_tree(pid: u32) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+    }
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("pkill")
+            .args(["-TERM", "-P", &pid.to_string()])
+            .status();
+    }
+}
+
 /// Finds a free TCP port by briefly binding to port 0 and reading back what
 /// the OS assigned, then releasing it. Small TOCTOU race in theory, but
 /// acceptable for a local single-user desktop app.
@@ -76,6 +100,11 @@ pub struct AppState {
     pub backend_token: Mutex<Option<String>>,
     pub backend_port: Mutex<Option<u16>>,
     pub respawn_attempts: Mutex<u32>,
+    /// Serialises "is it running? if not, start it" so two concurrent callers
+    /// cannot both conclude nothing is running and each spawn a sidecar.
+    /// React StrictMode runs the startup effect twice in development, which
+    /// reproduced exactly that and left two Python servers alive.
+    pub start_lock: Mutex<()>,
 }
 
 #[tauri::command]
@@ -197,7 +226,14 @@ fn spawn_backend(app: &tauri::AppHandle) -> Result<BackendStatus, String> {
 
                 if will_retry {
                     tokio::time::sleep(std::time::Duration::from_millis(500 * attempt as u64)).await;
-                    let _ = spawn_backend(&app_for_watcher);
+                    // The lock is taken after the sleep and held across the
+                    // spawn, so a respawn cannot race a concurrent
+                    // start_backend call into starting two sidecars.
+                    if let Ok(_start_guard) = state.start_lock.lock() {
+                        if running_status(&state).map(|s| s.is_none()).unwrap_or(false) {
+                            let _ = spawn_backend(&app_for_watcher);
+                        }
+                    }
                 }
                 return;
             }
@@ -211,24 +247,34 @@ fn spawn_backend(app: &tauri::AppHandle) -> Result<BackendStatus, String> {
     })
 }
 
+/// Returns the running backend's status, or None if no sidecar is live.
+fn running_status(state: &AppState) -> Result<Option<BackendStatus>, String> {
+    let child_guard = state.backend_child.lock().map_err(|e| e.to_string())?;
+    let token_guard = state.backend_token.lock().map_err(|e| e.to_string())?;
+    let port_guard = state.backend_port.lock().map_err(|e| e.to_string())?;
+    match (child_guard.is_some(), token_guard.as_ref(), port_guard.as_ref()) {
+        (true, Some(token), Some(port)) => Ok(Some(BackendStatus {
+            is_running: true,
+            base_url: base_url_for(*port),
+            token: token.clone(),
+        })),
+        _ => Ok(None),
+    }
+}
+
 /// Launches the bundled `saleha` sidecar binary if it isn't already running
 /// under this app instance. Idempotent: safe to call from the frontend on
-/// every app load.
+/// every app load, including twice in a row under React StrictMode.
+///
+/// Deliberately synchronous: the whole check-and-spawn runs while holding
+/// `start_lock`, and an async command holding a std MutexGuard across its body
+/// would not be Send.
 #[tauri::command]
-async fn start_backend(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<BackendStatus, String> {
-    {
-        let child_guard = state.backend_child.lock().map_err(|e| e.to_string())?;
-        let token_guard = state.backend_token.lock().map_err(|e| e.to_string())?;
-        let port_guard = state.backend_port.lock().map_err(|e| e.to_string())?;
-        if let (true, Some(token), Some(port)) =
-            (child_guard.is_some(), token_guard.as_ref(), port_guard.as_ref())
-        {
-            return Ok(BackendStatus {
-                is_running: true,
-                base_url: base_url_for(*port),
-                token: token.clone(),
-            });
-        }
+fn start_backend(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<BackendStatus, String> {
+    let _start_guard = state.start_lock.lock().map_err(|e| e.to_string())?;
+
+    if let Some(existing) = running_status(&state)? {
+        return Ok(existing);
     }
 
     {
@@ -272,6 +318,7 @@ fn main() {
             backend_token: Mutex::new(None),
             backend_port: Mutex::new(None),
             respawn_attempts: Mutex::new(0),
+            start_lock: Mutex::new(()),
         })
         .invoke_handler(tauri::generate_handler![
             check_local_ollama,
@@ -285,6 +332,10 @@ fn main() {
                 if let Some(state) = window.app_handle().try_state::<AppState>() {
                     if let Ok(mut guard) = state.backend_child.lock() {
                         if let Some(child) = guard.take() {
+                            // Tree first, then the handle. Killing the handle
+                            // first orphans the PyInstaller child, and once the
+                            // parent is gone taskkill /T has no tree to walk.
+                            kill_process_tree(child.pid());
                             let _ = child.kill();
                         }
                     }

@@ -1,0 +1,7 @@
+# pnpm reads workspace globs from this file, not the "workspaces" field in
+# package.json. Without it, pnpm tries to fetch the @saleha/* workspace
+# packages from the npm registry and fails with a 404. Kept in sync with the
+# "workspaces" globs in package.json, which npm/yarn still use.
+packages:
+  - "apps/*"
+  - "packages/*"
