@@ -1,0 +1,130 @@
+{
+  "_comment": "Hand-authored ABI mirror of contracts/M2MEscrow.sol, used as a fallback when Hardhat has not been compiled (no contracts/artifacts/ present). If contracts/artifacts/contracts/M2MEscrow.sol/M2MEscrow.json exists (produced by `npx hardhat compile` in contracts/), saleha.core.mukti_chain_bridge prefers that real, generated ABI over this file. Keep this in sync with M2MEscrow.sol if the contract's external interface changes.",
+  "contractName": "M2MEscrow",
+  "abi": [
+    {
+      "type": "constructor",
+      "stateMutability": "nonpayable",
+      "inputs": []
+    },
+    {
+      "type": "function",
+      "name": "createEscrow",
+      "stateMutability": "payable",
+      "inputs": [
+        { "name": "escrowId", "type": "string" },
+        { "name": "seller", "type": "address" },
+        { "name": "serviceDescription", "type": "string" }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "releaseEscrow",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "escrowId", "type": "string" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "refundEscrow",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "escrowId", "type": "string" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "updatePlatformFee",
+      "stateMutability": "nonpayable",
+      "inputs": [{ "name": "newFeeBps", "type": "uint256" }],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "getEscrow",
+      "stateMutability": "view",
+      "inputs": [{ "name": "escrowId", "type": "string" }],
+      "outputs": [
+        { "name": "buyer", "type": "address" },
+        { "name": "seller", "type": "address" },
+        { "name": "amount", "type": "uint256" },
+        { "name": "status", "type": "uint8" },
+        { "name": "serviceDescription", "type": "string" }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "escrows",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "string" }],
+      "outputs": [
+        { "name": "buyer", "type": "address" },
+        { "name": "seller", "type": "address" },
+        { "name": "amount", "type": "uint256" },
+        { "name": "status", "type": "uint8" },
+        { "name": "createdAt", "type": "uint256" },
+        { "name": "completedAt", "type": "uint256" },
+        { "name": "serviceDescription", "type": "string" }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "agentReputation",
+      "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "address" }],
+      "outputs": [{ "name": "", "type": "uint256" }]
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "stateMutability": "view",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address" }]
+    },
+    {
+      "type": "function",
+      "name": "platformFeeBps",
+      "stateMutability": "view",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint256" }]
+    },
+    {
+      "type": "event",
+      "name": "EscrowCreated",
+      "anonymous": false,
+      "inputs": [
+        { "name": "escrowId", "type": "string", "indexed": true },
+        { "name": "buyer", "type": "address", "indexed": false },
+        { "name": "seller", "type": "address", "indexed": false },
+        { "name": "amount", "type": "uint256", "indexed": false }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "EscrowReleased",
+      "anonymous": false,
+      "inputs": [
+        { "name": "escrowId", "type": "string", "indexed": true },
+        { "name": "amount", "type": "uint256", "indexed": false }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "EscrowRefunded",
+      "anonymous": false,
+      "inputs": [
+        { "name": "escrowId", "type": "string", "indexed": true },
+        { "name": "amount", "type": "uint256", "indexed": false }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "ReputationUpdated",
+      "anonymous": false,
+      "inputs": [
+        { "name": "agent", "type": "address", "indexed": true },
+        { "name": "newReputation", "type": "uint256", "indexed": false }
+      ]
+    }
+  ]
+}

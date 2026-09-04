@@ -15,7 +15,7 @@ Zero-dependency local HTTP server providing:
    - Mobile & IoT (/api/mobile/message, /api/iot/focus)
    - Collaborative Editing (/api/collab/*)
    - GitHub PR Generator (/api/git/pr/generate)
-2. Ultra-Luxury Silicon Valley Master UI (Claude.ai + Devin by Cognition + Google AI Studio + Bolt.new):
+2. Ultra-Luxury Sovereign Master UI Studio:
    - Dynamic In-Browser React 18 + Tailwind + Babel Standalone Live Sandbox.
    - Multi-File Virtual File System (VFS) with Tab Switcher and File Tree.
    - Live Token-by-Token Streaming Agent Reasoning Timeline.
@@ -63,6 +63,7 @@ from saleha.core.full_duplex_voice import full_duplex_voice
 from saleha.core.sentinel_rs import sentinel_rs_engine
 from saleha.core.doom_vault import doom_vault_engine
 from saleha.core.mukti_economy import mukti_economy_engine
+from saleha.core.mukti_chain_bridge import mukti_chain_bridge, ChainUnavailableError
 from saleha.core.unimax_bridge import unimax_bridge_engine
 from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
 from saleha.core.iot_domotics import iot_domotics_engine
@@ -74,6 +75,28 @@ _AUTH_TOKEN: Optional[str] = None
 def set_auth_token(token: str) -> None:
     global _AUTH_TOKEN
     _AUTH_TOKEN = token
+
+
+def _is_allowed_origin(origin: str) -> bool:
+    """Only local dev servers and the Tauri desktop webview may use CORS here.
+
+    The API is token-authenticated, so a wildcard Access-Control-Allow-Origin
+    would let any visited website probe it. Reflecting only known-local origins
+    keeps the web Studio (localhost:3000) and the desktop app working.
+    """
+    try:
+        parsed = urllib.parse.urlparse(origin)
+    except Exception:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    scheme = (parsed.scheme or "").lower()
+
+    if scheme == "tauri" and host == "localhost":
+        return True
+    if scheme in ("http", "https") and host in ("localhost", "127.0.0.1", "::1", "tauri.localhost"):
+        return True
+    return False
 
 
 def get_auth_token() -> str:
@@ -1574,11 +1597,25 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
     def _send_json(self, status_code: int, data: Any):
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8'))
 
+    def _send_cors_headers(self):
+        # Lets the Next.js web app (different port) and the Tauri desktop webview
+        # (different origin scheme) call this API, without ever emitting a wildcard:
+        # the API is token-authenticated and a wildcard would let any site probe it.
+        origin = self.headers.get('Origin', '')
+        if not origin or not _is_allowed_origin(origin):
+            return
+        self.send_header('Access-Control-Allow-Origin', origin)
+        self.send_header('Vary', 'Origin')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Saleha-Token')
+
     def do_OPTIONS(self):
         self.send_response(204)
+        self._send_cors_headers()
         self.end_headers()
 
     def _is_authorized(self, parsed) -> bool:
@@ -1821,6 +1858,17 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 "shader_pipeline": rep.shader_pipeline,
                 "estimated_tokens_per_sec": rep.estimated_tokens_per_sec,
                 "energy_efficiency_score": rep.energy_efficiency_score,
+            })
+            return
+
+        if path == "/api/souls":
+            from saleha.core.soul_engine import soul_engine
+            souls = soul_engine.list_souls()
+            active_name = soul_engine.get_active_soul_name()
+            self._send_json(200, {
+                "active_soul": active_name,
+                "total_souls": len(souls),
+                "souls": [s.to_dict() for s in souls]
             })
             return
 
@@ -2318,24 +2366,58 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             agent = payload.get("agent", "0xAgent")
             code = payload.get("code", "def fn(): pass")
             stake = float(payload.get("stake", 1000.0))
+            # Off-chain bookkeeping (policy id generation, dashboard state) stays
+            # authoritative regardless of chain availability.
             pol = mukti_economy_engine.create_insurance_policy(client, agent, code, stake)
-            self._send_json(200, {
+            resp = {
                 "policy_id": pol.policy_id,
                 "staked_mukti": pol.staked_mukti,
                 "coverage_amount_mukti": pol.coverage_amount_mukti,
                 "status": pol.status,
-            })
+            }
+            # Real on-chain leg: actually call M2MEscrow.createEscrow via web3.py.
+            # Never silently pretend this succeeded -- surface a clear error if
+            # there's no reachable chain / configured contract instead.
+            try:
+                tx = mukti_chain_bridge.create_escrow(
+                    escrow_id=pol.policy_id,
+                    client_address=client,
+                    agent_address=agent,
+                    code_hash=pol.code_hash,
+                    stake_amount=stake,
+                )
+                resp["chain_status"] = "ON_CHAIN"
+                resp["chain_tx_hash"] = tx.tx_hash
+                resp["chain_contract_address"] = tx.contract_address
+                resp["chain_rpc_url"] = tx.rpc_url
+            except ChainUnavailableError as exc:
+                resp["chain_status"] = "UNAVAILABLE_MOCK_ONLY"
+                resp["chain_error"] = str(exc)
+            self._send_json(200, resp)
             return
 
         if path == "/api/mukti/insurance/settle":
             pol_id = payload.get("policy_id", "")
             is_valid = bool(payload.get("is_ast_valid", True))
             pol = mukti_economy_engine.settle_insurance_claim(pol_id, is_valid)
-            self._send_json(200, {
+            resp = {
                 "policy_id": pol.policy_id,
                 "status": pol.status,
                 "is_settled": pol.is_settled,
-            })
+            }
+            try:
+                tx = mukti_chain_bridge.settle_escrow(
+                    escrow_id=pol.policy_id,
+                    is_ast_valid=is_valid,
+                    client_address=pol.client_address,
+                )
+                resp["chain_status"] = "ON_CHAIN"
+                resp["chain_tx_hash"] = tx.tx_hash
+                resp["chain_function"] = tx.function
+            except ChainUnavailableError as exc:
+                resp["chain_status"] = "UNAVAILABLE_MOCK_ONLY"
+                resp["chain_error"] = str(exc)
+            self._send_json(200, resp)
             return
 
         if path == "/api/vision/liveness":
@@ -2444,6 +2526,25 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                     for m, score in matches
                 ]
             })
+            return
+
+        if path == "/api/souls/use":
+            target = payload.get("soul") or payload.get("name")
+            if not target:
+                self._send_json(400, {"error": "Soul name is required"})
+                return
+            from saleha.core.soul_engine import soul_engine
+            try:
+                activated = soul_engine.set_active_soul(target)
+                self._send_json(200, {
+                    "status": "success",
+                    "active_soul": activated.name,
+                    "display_name": activated.display_name,
+                    "archetype": activated.archetype,
+                    "cognitive_params": activated.cognitive_params
+                })
+            except KeyError as err:
+                self._send_json(404, {"error": str(err)})
             return
 
         self._send_json(404, {"error": "Endpoint not found"})
