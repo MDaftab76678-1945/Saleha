@@ -95,7 +95,6 @@ struct BackendCrashedPayload {
 }
 
 pub struct AppState {
-    pub db_conn: Mutex<Option<rusqlite::Connection>>,
     pub backend_child: Mutex<Option<CommandChild>>,
     pub backend_token: Mutex<Option<String>>,
     pub backend_port: Mutex<Option<u16>>,
@@ -313,7 +312,6 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .manage(AppState {
-            db_conn: Mutex::new(None),
             backend_child: Mutex::new(None),
             backend_token: Mutex::new(None),
             backend_port: Mutex::new(None),

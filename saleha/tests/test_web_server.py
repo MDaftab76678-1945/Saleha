@@ -206,6 +206,46 @@ class WebServerTests(unittest.TestCase):
         self.assertEqual(data["active_soul"], "artisan")
         self.assertIn("Glassmorphic", data["display_name"])
 
+    def test_post_api_sandbox_execute_runs_real_code(self):
+        status, body = self._post(
+            "/api/sandbox/execute",
+            {"code": "print(2 + 2)", "language": "python", "prefer_docker": False},
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertTrue(data["success"])
+        self.assertIn("4", data["output"])
+        # prefer_docker=False must actually route to the process tier, not
+        # just claim success without running anything.
+        self.assertEqual(data["sandbox_tier"], "process")
+
+    def test_vault_set_then_delete(self):
+        key = "TEST_SECRET_" + uuid.uuid4().hex[:8]
+        status, body = self._post("/api/vault/set", {"key": key, "value": "shh"})
+        self.assertEqual(status, 200)
+
+        status, body = self._get("/api/vault/list")
+        data = json.loads(body.decode("utf-8"))
+        self.assertIn(key, [s["key"] if isinstance(s, dict) else s for s in data["secrets"]])
+
+        status, body = self._post("/api/vault/delete", {"key": key})
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertEqual(data["status"], "deleted")
+
+        # Deleting again reports not_found rather than fabricating success.
+        status, body = self._post("/api/vault/delete", {"key": key})
+        data = json.loads(body.decode("utf-8"))
+        self.assertEqual(data["status"], "not_found")
+
+    def test_get_api_agents_returns_real_roster(self):
+        status, body = self._get("/api/agents")
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertGreater(len(data["profiles"]), 0)
+        for field in ("name", "persona", "specialties", "tools"):
+            self.assertIn(field, data["profiles"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

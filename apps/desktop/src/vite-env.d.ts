@@ -4,29 +4,11 @@ declare namespace JSX {
   }
 }
 
-declare module "react" {
-  export = React;
-  export as namespace React;
-  namespace React {
-    export type ReactNode = any;
-    export type ReactElement = any;
-    export type FC<P = any> = (props: P) => any;
-    export type HTMLAttributes<T = any> = any;
-    export type ButtonHTMLAttributes<T = any> = any;
-    export type CSSProperties = any;
-    export type ChangeEvent<T = any> = { target: T; [key: string]: any };
-    export function useState<T>(initialState: T | (() => T)): [T, (newState: T | ((prev: T) => T)) => void];
-    export function useEffect(effect: () => void | (() => void), deps?: any[]): void;
-    export function useRef<T>(initialValue: T): { current: T };
-    export function createElement(type: any, props?: any, ...children: any[]): any;
-  }
-}
-
-declare module "react/jsx-runtime" {
-  export const jsx: any;
-  export const jsxs: any;
-  export const Fragment: any;
-}
+// react and react/jsx-runtime are typed by the real @types/react package
+// (a genuine devDependency) -- a hand-written ambient shim used to live here
+// with only a handful of exports (no StrictMode, no ReactDOM types, etc.),
+// which silently shadowed the real types and made anything it didn't stub
+// out look like a type error instead of just working.
 
 declare module "@saleha/ui" {
   export interface ThemeTokens {

@@ -12,7 +12,39 @@ interface AgentItem {
   status: "idle" | "active" | "success";
 }
 
-const ALL_19_DESKTOP_AGENTS: AgentItem[] = [
+interface RealAgentProfile {
+  name: string;
+  persona: string;
+  specialties: string[];
+  tools: string[];
+  system_prompt_preview: string;
+}
+
+interface MemoryEntry {
+  id: string;
+  goal: string;
+  solution_preview: string;
+  tags: string[];
+  timestamp: string;
+}
+
+interface VaultSecretMeta {
+  key: string;
+  created_at?: string;
+  updated_at?: string;
+  description?: string;
+  preview?: string;
+}
+
+interface OllamaModel {
+  name: string;
+  size_bytes: number;
+  family: string;
+}
+
+// Shown until the real roster loads from /api/agents on backend connect;
+// replaced immediately once the live fetch resolves.
+const FALLBACK_AGENTS: AgentItem[] = [
   { id: "arch", name: "ArchitectAgent", role: "ADR & System Design", icon: "🏛️", status: "idle" },
   { id: "planner", name: "PlannerAgent", role: "Task Decomposition", icon: "🗺️", status: "idle" },
   { id: "designer", name: "DesignerAgent", role: "UI/UX & Tokens", icon: "🎨", status: "idle" },
@@ -42,10 +74,23 @@ export function DesktopApp() {
   const theme: ThemeTokens = THEME_PRESETS[themeKey] || THEME_PRESETS.obsidian;
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "terminal">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "terminal" | "memory">("chat");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusOpen, setIsPlusOpen] = useState(false);
-  const [agents, setAgents] = useState<AgentItem[]>(ALL_19_DESKTOP_AGENTS);
+  const [agents, setAgents] = useState<AgentItem[]>(FALLBACK_AGENTS);
+  const [agentRosterIsLive, setAgentRosterIsLive] = useState(false);
+
+  // Real backend-derived data (replaces earlier hardcoded/decorative panels)
+  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [memoryTotal, setMemoryTotal] = useState<number>(0);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [vaultSecrets, setVaultSecrets] = useState<VaultSecretMeta[]>([]);
+  const [newSecretKey, setNewSecretKey] = useState("");
+  const [newSecretValue, setNewSecretValue] = useState("");
+  const [ollamaConnected, setOllamaConnected] = useState<boolean | null>(null);
+  const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
+  const [ollamaActiveModel, setOllamaActiveModel] = useState<string>("");
+  const [soulSwitchStatus, setSoulSwitchStatus] = useState<string>("");
 
   // Settings
   const [modelBackend, setModelBackend] = useState("ollama");
@@ -140,6 +185,162 @@ export function DesktopApp() {
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
+
+  // Loads the real agent roster, memory, vault, and Ollama status from the
+  // backend once it answers health checks. Replaces what used to be a
+  // hardcoded 19-agent array and a static "Ollama Local" badge that never
+  // reflected whether Ollama was actually running.
+  useEffect(() => {
+    if (!backendReady || !backendBaseUrl) return;
+    let cancelled = false;
+    const headers = backendToken ? { "X-Saleha-Token": backendToken } : undefined;
+
+    (async () => {
+      try {
+        const resp = await fetch(`${backendBaseUrl}/api/agents`, { headers });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const profiles: RealAgentProfile[] = data.profiles || [];
+        if (cancelled || profiles.length === 0) return;
+        setAgents(
+          profiles.map((p, i) => ({
+            id: `${p.name}-${i}`,
+            name: p.name,
+            role: (p.specialties && p.specialties[0]) || p.persona || "General",
+            icon: "⚙️",
+            status: "idle" as const,
+          }))
+        );
+        setAgentRosterIsLive(true);
+      } catch {
+        // Keep the fallback roster; the UI already labels it as such.
+      }
+    })();
+
+    (async () => {
+      try {
+        const resp = await fetch(`${backendBaseUrl}/api/desktop/status`, { headers });
+        if (!resp.ok || cancelled) return;
+        const data = await resp.json();
+        setOllamaConnected(Boolean(data?.llm_status?.is_running));
+        setOllamaActiveModel(data?.llm_status?.active_model || "");
+        setOllamaModels(data?.llm_status?.models || []);
+      } catch {
+        setOllamaConnected(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backendReady, backendBaseUrl, backendToken]);
+
+  const fetchMemory = async () => {
+    if (!backendReady || !backendBaseUrl) return;
+    setMemoryLoading(true);
+    try {
+      const resp = await fetch(`${backendBaseUrl}/api/memory`, {
+        headers: backendToken ? { "X-Saleha-Token": backendToken } : undefined,
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setMemoryEntries(data.entries || []);
+        setMemoryTotal(data.total_entries || 0);
+      }
+    } catch {
+      // Leave prior entries in place rather than clearing them on a blip.
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  const fetchVaultSecrets = async () => {
+    if (!backendReady || !backendBaseUrl) return;
+    try {
+      const resp = await fetch(`${backendBaseUrl}/api/vault/list`, {
+        headers: backendToken ? { "X-Saleha-Token": backendToken } : undefined,
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setVaultSecrets(data.secrets || []);
+      }
+    } catch {
+      // ignore transient failures
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "memory" && backendReady) void fetchMemory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, backendReady]);
+
+  useEffect(() => {
+    if (isSettingsOpen && backendReady) void fetchVaultSecrets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSettingsOpen, backendReady]);
+
+  const handleAddSecret = async () => {
+    if (!newSecretKey.trim() || !backendBaseUrl) return;
+    try {
+      const resp = await fetch(`${backendBaseUrl}/api/vault/set`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(backendToken ? { "X-Saleha-Token": backendToken } : {}),
+        },
+        body: JSON.stringify({ key: newSecretKey.trim(), value: newSecretValue }),
+      });
+      if (resp.ok) {
+        setNewSecretKey("");
+        setNewSecretValue("");
+        void fetchVaultSecrets();
+      }
+    } catch {
+      // Surfaced by the secret simply not appearing; the vault panel already
+      // supports retrying, so no separate error UI is added here.
+    }
+  };
+
+  const handleDeleteSecret = async (key: string) => {
+    if (!backendBaseUrl) return;
+    try {
+      await fetch(`${backendBaseUrl}/api/vault/delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(backendToken ? { "X-Saleha-Token": backendToken } : {}),
+        },
+        body: JSON.stringify({ key }),
+      });
+      void fetchVaultSecrets();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSoulChange = async (soul: string) => {
+    setSelectedSoul(soul);
+    if (!backendBaseUrl) return;
+    setSoulSwitchStatus("Switching...");
+    try {
+      const resp = await fetch(`${backendBaseUrl}/api/souls/use`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(backendToken ? { "X-Saleha-Token": backendToken } : {}),
+        },
+        body: JSON.stringify({ soul }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setSoulSwitchStatus(`Active: ${data.display_name || soul}`);
+      } else {
+        setSoulSwitchStatus("Switch failed");
+      }
+    } catch {
+      setSoulSwitchStatus("Switch failed (backend unreachable)");
+    }
+  };
 
   const toggleVoiceRecognition = () => {
     if (typeof window === "undefined") return;
@@ -263,17 +464,26 @@ export function DesktopApp() {
 
   const handleSandboxRun = async () => {
     setIsRunningSandbox(true);
-    setTerminalOutput(`[${new Date().toLocaleTimeString()}] 🐳 Ephemeral Container Sandbox Launching...\n`);
+    setTerminalOutput(`[${new Date().toLocaleTimeString()}] Launching hardened sandbox (Docker tier if available, else isolated subprocess)...\n`);
 
     try {
-      const resp = await fetch(`${backendBaseUrl}/api/terminal/exec`, {
+      // /api/sandbox/execute runs the real tiered engine (docker -> subprocess)
+      // and reports which tier actually ran the code, rather than the fixed
+      // shell-command allowlist /api/terminal/exec uses.
+      const resp = await fetch(`${backendBaseUrl}/api/sandbox/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Saleha-Token": backendToken },
-        body: JSON.stringify({ command: "saleha --version" }),
+        body: JSON.stringify({
+          code: prompt.trim() ? `print(${JSON.stringify(`Sandboxed check for: ${prompt.trim()}`)})` : "print('Saleha sandbox self-test: 2 + 2 =', 2 + 2)",
+          language: "python",
+        }),
       });
       if (!resp.ok) throw new Error(`backend responded ${resp.status}`);
       const data = await resp.json();
-      setTerminalOutput((prev) => `${prev}${data.output || JSON.stringify(data)}\n`);
+      setTerminalOutput(
+        (prev) =>
+          `${prev}[tier: ${data.sandbox_tier}] ${data.success ? "OK" : "FAILED"}\n${data.output || ""}${data.error ? `\n${data.error}` : ""}\n`
+      );
     } catch (err) {
       setTerminalOutput((prev) => `${prev}⚠️ Could not reach saleha backend at ${backendBaseUrl}: ${(err as Error).message}\n`);
     } finally {
@@ -417,9 +627,10 @@ export function DesktopApp() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
             {[
               { id: "chat", label: "Studio Canvas", icon: "⚡" },
-              { id: "topology", label: "19-Agent Swarm", icon: "🌌" },
+              { id: "topology", label: agentRosterIsLive ? `${agents.length}-Agent Swarm` : "Agent Swarm", icon: "🌌" },
               { id: "diff", label: "AST Code Patch", icon: "📝" },
               { id: "terminal", label: "Sandbox Terminal", icon: "💻" },
+              { id: "memory", label: "Memory", icon: "🧠" },
             ].map((item) => (
               <button
                 key={item.id}
@@ -728,7 +939,7 @@ export function DesktopApp() {
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                 <select
                   value={selectedSoul}
-                  onChange={(e) => setSelectedSoul(e.target.value)}
+                  onChange={(e) => void handleSoulChange(e.target.value)}
                   style={{
                     fontSize: "0.75rem",
                     color: theme.accent,
@@ -740,7 +951,7 @@ export function DesktopApp() {
                     outline: "none",
                     cursor: "pointer",
                   }}
-                  title="Active SoulSpec Cognitive Persona"
+                  title={soulSwitchStatus || "Active SoulSpec Cognitive Persona"}
                 >
                   <option value="sovereign">👑 Sovereign</option>
                   <option value="artisan">🎨 Artisan</option>
@@ -755,9 +966,16 @@ export function DesktopApp() {
                 </select>
 
                 <span
+                  title={
+                    ollamaConnected === null
+                      ? "Checking Ollama connection..."
+                      : ollamaConnected
+                      ? `${ollamaModels.length} local model(s) installed`
+                      : "Ollama not reachable at localhost:11434"
+                  }
                   style={{
                     fontSize: "0.75rem",
-                    color: theme.textDim,
+                    color: ollamaConnected ? theme.accentGreen : theme.textDim,
                     background: theme.bgElevated,
                     padding: "0.3rem 0.65rem",
                     borderRadius: "6px",
@@ -765,7 +983,11 @@ export function DesktopApp() {
                     fontWeight: 600,
                   }}
                 >
-                  ⚡ Ollama Local ($0/mo Offline)
+                  {ollamaConnected === null
+                    ? "⏳ Checking Ollama..."
+                    : ollamaConnected
+                    ? `⚡ ${ollamaActiveModel || "Ollama"} Connected`
+                    : "⚠️ Ollama Offline"}
                 </span>
 
                 <button
@@ -1004,6 +1226,78 @@ export function DesktopApp() {
                 </pre>
               </div>
             )}
+
+            {activeTab === "memory" && (
+              <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.8rem", color: theme.accent, fontWeight: 700 }}>
+                    🧠 Semantic Memory ({memoryTotal} {memoryTotal === 1 ? "entry" : "entries"})
+                  </span>
+                  <button
+                    onClick={() => void fetchMemory()}
+                    disabled={memoryLoading || !backendReady}
+                    style={{
+                      background: "transparent",
+                      color: theme.textDim,
+                      border: `1px solid ${theme.borderSubtle}`,
+                      borderRadius: "6px",
+                      padding: "0.3rem 0.7rem",
+                      fontSize: "0.75rem",
+                      cursor: memoryLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {memoryLoading ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
+                {memoryEntries.length === 0 ? (
+                  <div style={{ color: theme.textDim, fontSize: "0.8rem", padding: "1.5rem", textAlign: "center" }}>
+                    {memoryLoading
+                      ? "Loading memory..."
+                      : "No memory entries yet. Entries accumulate as tasks are run through the swarm pipeline and saved by the semantic memory store."}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {memoryEntries.map((entry) => (
+                      <div
+                        key={entry.id}
+                        style={{
+                          background: theme.bgElevated,
+                          border: `1px solid ${theme.borderSubtle}`,
+                          borderRadius: "8px",
+                          padding: "0.6rem 0.8rem",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+                          <span style={{ fontSize: "0.8rem", color: theme.textBright, fontWeight: 600 }}>{entry.goal}</span>
+                          <span style={{ fontSize: "0.68rem", color: theme.textDim, whiteSpace: "nowrap" }}>{entry.timestamp}</span>
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: theme.textDim, marginTop: "0.25rem" }}>
+                          {entry.solution_preview}
+                        </div>
+                        {entry.tags?.length > 0 && (
+                          <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.4rem", flexWrap: "wrap" }}>
+                            {entry.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                style={{
+                                  fontSize: "0.65rem",
+                                  color: theme.accent,
+                                  background: theme.bgBase,
+                                  padding: "0.1rem 0.4rem",
+                                  borderRadius: "999px",
+                                }}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -1038,6 +1332,96 @@ export function DesktopApp() {
 
           <Slider value={temperature} min={0.0} max={1.0} step={0.05} onChange={setTemperature} label="Sampling Temperature" theme={theme} />
           <Slider value={tokenBudget} min={2048} max={32768} step={1024} onChange={setTokenBudget} label="Context Budget" unit="tokens" theme={theme} />
+
+          <div>
+            <label style={{ fontSize: "0.8rem", color: theme.textDim, fontWeight: 700, textTransform: "uppercase" }}>
+              Secret Vault (locally encrypted)
+            </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginTop: "0.5rem" }}>
+              {vaultSecrets.length === 0 ? (
+                <div style={{ fontSize: "0.75rem", color: theme.textDim }}>No secrets stored yet.</div>
+              ) : (
+                vaultSecrets.map((s) => (
+                  <div
+                    key={s.key}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      background: theme.bgElevated,
+                      border: `1px solid ${theme.borderSubtle}`,
+                      borderRadius: "6px",
+                      padding: "0.4rem 0.6rem",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.78rem", color: theme.textBright, fontFamily: "monospace" }}>{s.key}</span>
+                    <button
+                      onClick={() => void handleDeleteSecret(s.key)}
+                      title={`Delete ${s.key}`}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: theme.accentRed,
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+              <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.3rem" }}>
+                <input
+                  value={newSecretKey}
+                  onChange={(e) => setNewSecretKey(e.target.value)}
+                  placeholder="KEY_NAME"
+                  style={{
+                    flex: "1 1 40%",
+                    background: theme.bgElevated,
+                    border: `1px solid ${theme.borderSubtle}`,
+                    color: theme.textBright,
+                    padding: "0.4rem 0.5rem",
+                    borderRadius: "6px",
+                    fontSize: "0.78rem",
+                    outline: "none",
+                  }}
+                />
+                <input
+                  value={newSecretValue}
+                  onChange={(e) => setNewSecretValue(e.target.value)}
+                  placeholder="value"
+                  type="password"
+                  style={{
+                    flex: "1 1 40%",
+                    background: theme.bgElevated,
+                    border: `1px solid ${theme.borderSubtle}`,
+                    color: theme.textBright,
+                    padding: "0.4rem 0.5rem",
+                    borderRadius: "6px",
+                    fontSize: "0.78rem",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => void handleAddSecret()}
+                  disabled={!newSecretKey.trim()}
+                  style={{
+                    background: theme.accent,
+                    color: "#04070d",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "0.4rem 0.8rem",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: newSecretKey.trim() ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </Modal>
 

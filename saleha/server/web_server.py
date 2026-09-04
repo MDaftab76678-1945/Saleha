@@ -2209,6 +2209,34 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "success", "key": key})
             return
 
+        if path == "/api/vault/delete":
+            key = payload.get("key", "")
+            if not key:
+                self._send_json(400, {"error": "key is required"})
+                return
+            deleted = vault.delete_secret(key)
+            self._send_json(200, {"status": "deleted" if deleted else "not_found", "key": key})
+            return
+
+        if path == "/api/sandbox/execute":
+            # Real tiered sandbox (docker -> subprocess), distinct from
+            # /api/terminal/exec's fixed shell-command allowlist: this runs
+            # arbitrary code and reports which isolation tier actually ran it.
+            from saleha.core.hardened_sandbox import HardenedSandboxEngine
+
+            code = payload.get("code", "")
+            language = payload.get("language", "python")
+            prefer_docker = bool(payload.get("prefer_docker", True))
+            engine = HardenedSandboxEngine(prefer_docker=prefer_docker)
+            result = engine.execute_code(code, language=language, timeout=15)
+            self._send_json(200, {
+                "success": result.success,
+                "output": result.output,
+                "error": result.error,
+                "sandbox_tier": result.sandbox_tier,
+            })
+            return
+
         if path == "/api/diff/preview":
             old_code = payload.get("old_code", "")
             new_code = payload.get("new_code", "")
