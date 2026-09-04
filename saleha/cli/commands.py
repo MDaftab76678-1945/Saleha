@@ -6444,6 +6444,7 @@ from saleha.cli.benchmark_cli import benchmark_cmd
 from saleha.cli.info_cli import info_cmd
 from saleha.cli.start_cli import start_cmd
 from saleha.cli.release_cli import release_cmd
+from saleha.cli.soul_cli import soul_group
 
 cli.add_command(monorepo_group)
 cli.add_command(dogfood_cmd)
@@ -6451,12 +6452,14 @@ cli.add_command(benchmark_cmd)
 cli.add_command(info_cmd)
 cli.add_command(start_cmd)
 cli.add_command(release_cmd)
+cli.add_command(soul_group)
 doom_group.add_command(monorepo_group)
 doom_group.add_command(dogfood_cmd)
 doom_group.add_command(benchmark_cmd)
 doom_group.add_command(info_cmd)
 doom_group.add_command(start_cmd)
 doom_group.add_command(release_cmd)
+doom_group.add_command(soul_group)
 
 # ==============================================================================
 # MAIN ENTRY POINT
