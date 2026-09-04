@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { THEME_PRESETS, ThemeTokens, Modal, Switch, Slider } from "@saleha/ui";
+import { DEFAULT_BASE_URL, getStoredToken } from "../lib/api";
 
 interface SwarmNode {
   id: string;
@@ -270,48 +271,52 @@ export default function WebStudioPage() {
       ...prev,
     ]);
 
+    // The backend requires an X-Saleha-Token on every /api/* route. Previously
+    // this call sent none, always got a 401, and fell through to a timed
+    // simulation that reported a synthesized service, "0 CWEs detected" and
+    // "5/5 assertions passed" -- a completely fabricated success for a run that
+    // never happened. Failures are now reported as failures.
+    const fail = (message: string) => {
+      setNodes((prev) => prev.map((n) => ({ ...n, status: "idle" })));
+      setGeneratedCode(`// Swarm run did not start.\n// ${message}\n`);
+      setEventLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
+      setIsExecuting(false);
+    };
+
     try {
-      const resp = await fetch("http://127.0.0.1:8000/api/v2/swarm/execute", {
+      const token = getStoredToken();
+      const resp = await fetch(`${DEFAULT_BASE_URL}/api/v2/swarm/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "X-Saleha-Token": token } : {}),
+        },
         body: JSON.stringify({ goal: goalToRun }),
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        setGeneratedCode(data.final_code || "// Code synthesized successfully");
-        setNodes((prev) => prev.map((n) => ({ ...n, status: "success", timingMs: 14 })));
-        setEventLogs((prev) => [
-          `[${new Date().toLocaleTimeString()}] Swarm Pipeline Completed: Execution ID ${data.execution_id}`,
-          `[${new Date().toLocaleTimeString()}] ADR Generated: ${data.adr_title}`,
-          ...prev,
-        ]);
-        setIsExecuting(false);
+
+      if (resp.status === 401) {
+        fail(
+          "Backend rejected the request: no valid token. The server prints one at startup; open /admin to enter it."
+        );
         return;
       }
-    } catch {
-      // High-speed visual simulation
-    }
+      if (!resp.ok) {
+        fail(`Backend returned ${resp.status}.`);
+        return;
+      }
 
-    setTimeout(() => {
-      setNodes((prev) => prev.map((n) => (n.id === "arch" || n.id === "planner" ? { ...n, status: "active", timingMs: 18 } : n)));
-      setGeneratedCode((prev) => prev + "\n// [1/3] ArchitectAgent: Generated Hexagonal Ports & Adapters ADR\n");
-    }, 400);
-
-    setTimeout(() => {
-      setNodes((prev) => prev.map((n) => (n.id === "coder" || n.id === "vision" ? { ...n, status: "active", timingMs: 22 } : n)));
-      setGeneratedCode((prev) => prev + `\nclass AutonomousService:\n    """Synthesized AST-hardened production service."""\n    def __init__(self):\n        self.active = True\n\n    def execute(self) -> bool:\n        return self.active\n`);
-    }, 900);
-
-    setTimeout(() => {
+      const data = await resp.json();
+      setGeneratedCode(data.final_code || "// Run completed but returned no code.");
       setNodes((prev) => prev.map((n) => ({ ...n, status: "success" })));
-      setGeneratedCode((prev) => prev + "\n// [3/3] SecurityGuardAgent AST Scan: PASS (0 CWEs detected)\n// [3/3] QALeadAgent: 100% Invariant Assertions PASSED\n");
       setEventLogs((prev) => [
-        `[${new Date().toLocaleTimeString()}] SecuritySAST: 0 Vulnerabilities Detected (PASS)`,
-        `[${new Date().toLocaleTimeString()}] TestExecution: 5/5 Invariant Assertions Passed`,
+        `[${new Date().toLocaleTimeString()}] Swarm pipeline completed: execution ID ${data.execution_id}`,
+        `[${new Date().toLocaleTimeString()}] ADR generated: ${data.adr_title}`,
         ...prev,
       ]);
       setIsExecuting(false);
-    }, 1500);
+    } catch {
+      fail(`Could not reach the backend at ${DEFAULT_BASE_URL}. Start it with: saleha serve`);
+    }
   };
 
   const handleRunInSandbox = () => {
@@ -754,9 +759,15 @@ export default function WebStudioPage() {
                   onChange={(e) => {
                     const newSoul = e.target.value;
                     setSelectedSoul(newSoul);
-                    fetch("/api/souls/use", {
+                    // Was posting to a relative path (the Next.js origin, which
+                    // serves no such route) with no auth token, so the soul was
+                    // never actually switched on the backend.
+                    fetch(`${DEFAULT_BASE_URL}/api/souls/use`, {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(getStoredToken() ? { "X-Saleha-Token": getStoredToken() } : {}),
+                      },
                       body: JSON.stringify({ soul: newSoul }),
                     }).catch(() => {});
                   }}

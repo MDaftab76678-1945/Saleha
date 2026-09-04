@@ -1872,6 +1872,36 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # Admin panel. Each route reads data the system actually recorded during
+        # real use; see saleha/server/admin_metrics.py for which telemetry-shaped
+        # sources are deliberately excluded and why.
+        if path.startswith("/api/admin/"):
+            from saleha.server import admin_metrics
+
+            query = urllib.parse.parse_qs(parsed.query)
+            try:
+                limit = int((query.get("limit") or ["20"])[0])
+            except ValueError:
+                limit = 20
+            limit = max(1, min(limit, 200))
+
+            admin_routes = {
+                "/api/admin/overview": lambda: admin_metrics.overview(),
+                "/api/admin/runs": lambda: admin_metrics.runs(limit),
+                "/api/admin/audit": lambda: admin_metrics.audit(limit),
+                "/api/admin/history": lambda: admin_metrics.history(limit),
+                "/api/admin/models": lambda: admin_metrics.models(),
+            }
+            handler = admin_routes.get(path)
+            if handler is None:
+                self._send_json(404, {"error": "Endpoint not found"})
+                return
+            try:
+                self._send_json(200, handler())
+            except Exception as exc:
+                self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def do_POST(self):

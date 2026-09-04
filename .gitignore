@@ -12,8 +12,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Root-anchored: a bare "lib/" matches at any depth and was silently swallowing
+# source directories such as apps/web/src/lib/, whose files never reached git.
+/lib/
+/lib64/
 parts/
 sdist/
 var/
