@@ -1,8 +1,17 @@
 """
-Saleha Core: Graph RAG & Natural Language Codebase Q&A Engine
+Saleha Core: Graph-augmented Codebase Q&A Engine
 
-Fuses Abstract Syntax Tree (AST) Dependency Call Graphs with subword vector embeddings
-to deliver deep, multi-file architectural Q&A and code comprehension across large codebases.
+Answers architectural questions by matching keywords from the question against
+symbol names in a real AST-derived call graph (saleha.core.dependency_graph),
+then walking that graph's caller/callee edges for the matched symbols.
+
+Despite the module's docstring claiming "subword vector embeddings" in an
+earlier version, symbol matching here is plain substring matching on
+lower-cased words (`if any(w in sym_lower for w in words)`) -- there are no
+embeddings, no vector store, and no semantic similarity search anywhere in
+this file. The call-graph traversal itself is real; only the "vector
+embeddings" claim was fiction. For actual embedding-backed retrieval, see
+saleha.core.semantic_search / vector_store.py.
 """
 
 from dataclasses import dataclass, field

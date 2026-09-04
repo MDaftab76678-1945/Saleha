@@ -14,15 +14,23 @@ from saleha.core.apex_97_validator import Apex97Validator, apex_97_validator, Ap
 
 class TestApex97FrontierSuite(unittest.TestCase):
     def test_formal_smt_verifier_proves_satisfiability(self):
+        # A function with no division has nothing for the Z3-backed checker
+        # to prove or disprove.
         verifier = FormalSMTVerifier()
         code = '''def solve(x: int) -> dict:
     return {"res": x}
 '''
         proof: FormalProofContract = verifier.verify_function_contract(code, function_name="solve")
-        self.assertTrue(proof.is_satisfiable)
-        self.assertGreater(len(proof.preconditions), 0)
-        self.assertGreater(len(proof.postconditions), 0)
-        self.assertIn("SMT_Z3_CERTIFICATE_SAT", proof.mathematical_certificate)
+        self.assertTrue(proof.z3_available)
+        self.assertEqual(proof.divisions_found, 0)
+
+        # A genuinely guarded division is genuinely provable.
+        guarded = '''def safe_ratio(x: int, y: int) -> float:
+    assert y != 0
+    return x / y
+'''
+        guarded_proof = verifier.verify_function_contract(guarded, function_name="safe_ratio")
+        self.assertEqual(guarded_proof.divisions_proven_safe, 1)
 
     def test_extreme_contrastive_trainer_separates_triplets(self):
         trainer = ExtremeContrastiveTrainer()

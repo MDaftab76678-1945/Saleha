@@ -45,6 +45,9 @@ codeintel = [
 chain = [
     "web3>=6.0.0"
 ]
+formal = [
+    "z3-solver>=4.12"
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0"
@@ -57,7 +60,8 @@ all = [
     "tree-sitter-python>=0.21",
     "tree-sitter-javascript>=0.21",
     "tree-sitter-typescript>=0.21",
-    "web3>=6.0.0"
+    "web3>=6.0.0",
+    "z3-solver>=4.12"
 ]
 
 [project.scripts]

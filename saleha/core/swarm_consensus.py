@@ -1,10 +1,21 @@
 """
-Saleha Core: Swarm PBFT Byzantine Fault Tolerance Consensus (SwarmConsensus)
+Saleha Core: Swarm quorum voting for multi-agent proposals
 
-Implements Practical Byzantine Fault Tolerance (PBFT) consensus for multi-agent swarms:
-1. Three-Phase Protocol: Pre-Prepare -> Prepare -> Commit.
-2. Quorum Threshold: Requires 2f + 1 votes out of 3f + 1 agents to commit code or AST diffs.
-3. Automatically rejects hallucinations and rogue agent suggestions before touching disk.
+Multiple agents vote on whether to accept a proposed code change, and a
+proposal commits once it reaches a 2f+1 quorum out of 3f+1 registered
+voters -- the vote-counting arithmetic PBFT (Practical Byzantine Fault
+Tolerance) uses.
+
+What this module is honestly scoped to: in-process vote counting against
+that threshold, with no cryptographic signatures, no network transport, and
+no protection against a compromised process forging votes -- all agents here
+are Python objects being called directly in the same process, not
+independent parties that could actually be Byzantine (malicious and
+undetectable) toward each other. Real PBFT exists to survive up to f
+genuinely adversarial *nodes* in a distributed system; there is no
+distributed system here, so there is nothing to be Byzantine-fault-tolerant
+against. The class and its docstrings below still say "PBFT" for backward
+compatibility with existing callers -- this note is the accurate scope.
 """
 
 import hashlib

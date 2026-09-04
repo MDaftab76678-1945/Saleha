@@ -104,12 +104,19 @@ class FutureEnginesTests(unittest.TestCase):
 
     # --- Phase 3: Formal Verification & Spatial UI ---
     def test_formal_lean4_verifier(self):
+        # This is an unverified Lean 4 scaffold, not a checked proof: no Lean
+        # toolchain runs, so lean_verified must stay False and the guarantee
+        # text must say so rather than claiming correctness.
         res = formal_verifier.synthesize_proof_for_function("transfer_funds", "def transfer_funds(a, b): pass")
         self.assertTrue(res.is_valid_syntax)
         self.assertIn("Mathlib", res.lean4_code)
+        self.assertFalse(res.lean_verified)
+        self.assertIn("UNVERIFIED", res.correctness_guarantee)
 
         data = self._post("/api/formal/verify", {"function_name": "verify_vault", "code": "def verify(): pass"})
-        self.assertTrue(data["is_valid_syntax"])
+        self.assertTrue(data["lean_scaffold"]["is_valid_syntax"])
+        self.assertFalse(data["lean_scaffold"]["lean_verified"])
+        self.assertIn("smt_division_check", data)
 
     def test_spatial_3d_coder(self):
         res = spatial_coder.synthesize_spatial_ui("3D Crypto Dashboard")

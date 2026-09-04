@@ -129,13 +129,19 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
         self.assertTrue(cargo_outcome.success)
         self.assertEqual(cargo_outcome.passed, 18)
 
-        # SWE-bench real test assertion evaluation
+        # SWE-bench assertion evaluation runs against the code the harness
+        # was actually given (mock_generated_code stands in for a real
+        # generation result in mock mode) -- not a hardcoded correct
+        # implementation regardless of input, which is what this module used
+        # to do for exactly this function name.
         runner = SWEBenchRunner(model="mock")
+        generated = "def safe_divide(a, b):\n    return 0.0 if b == 0 else a / b\n"
         passing_task = SWEBenchTask(
             instance_id="pass_test",
             repo_name="test/repo",
             problem_statement="Test statement",
             test_assertion="assert safe_divide(10, 2) == 5.0",
+            mock_generated_code=generated,
         )
         res_pass = runner.evaluate_task(passing_task)
         self.assertTrue(res_pass.resolved)
@@ -145,9 +151,20 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
             repo_name="test/repo",
             problem_statement="Test statement",
             test_assertion="assert safe_divide(10, 2) == 999.0",
+            mock_generated_code=generated,
         )
         res_fail = runner.evaluate_task(failing_task)
         self.assertFalse(res_fail.resolved)
+
+        # And with no generated code at all, the same assertion must fail --
+        # there is no longer a hardcoded fallback to make it pass anyway.
+        unresolved_task = SWEBenchTask(
+            instance_id="no_code_test",
+            repo_name="test/repo",
+            problem_statement="Test statement",
+            test_assertion="assert safe_divide(10, 2) == 5.0",
+        )
+        self.assertFalse(runner.evaluate_task(unresolved_task).resolved)
 
     # ------------------------------------------------------------------
     # 3. RAG Engineering
@@ -190,26 +207,34 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # 6. Verification & Quality
     # ------------------------------------------------------------------
     def test_verification_formal_smt_ast_sat_and_unsat(self):
+        # formal_smt_verifier now asks Z3 a real, narrow question (can a
+        # guarded division by a variable actually be zero?) instead of
+        # emitting fixed "SMT_Z3_CERTIFICATE_SAT" text regardless of input.
         verifier = FormalSMTVerifier()
+        self.assertTrue(verifier.verify_function_contract("def f(): pass", "f").z3_available)
 
-        # Valid function -> SAT
-        valid_code = "def add(x: int, y: int) -> int:\n    return x + y\n"
-        proof_sat = verifier.verify_function_contract(valid_code, "add")
-        self.assertTrue(proof_sat.is_satisfiable)
-        self.assertIn("SMT_Z3_CERTIFICATE_SAT", proof_sat.mathematical_certificate)
-        self.assertGreater(len(proof_sat.preconditions), 0)
+        # A function with no division has nothing to prove.
+        no_div_code = "def add(x: int, y: int) -> int:\n    return x + y\n"
+        result_no_div = verifier.verify_function_contract(no_div_code, "add")
+        self.assertEqual(result_no_div.divisions_found, 0)
 
-        # Zero-division bug -> UNSAT
+        # A division guarded by `assert y != 0` is genuinely provable safe.
+        guarded_code = "def safe_div(x, y):\n    assert y != 0\n    return x / y\n"
+        result_guarded = verifier.verify_function_contract(guarded_code, "safe_div")
+        self.assertEqual(result_guarded.divisions_proven_safe, 1)
+        self.assertEqual(result_guarded.checks[0].status, "proven_safe")
+
+        # Literal division by zero is never provable safe.
         bad_div_code = "def divide(x: int) -> float:\n    return x / 0\n"
-        proof_unsat = verifier.verify_function_contract(bad_div_code, "divide")
-        self.assertFalse(proof_unsat.is_satisfiable)
-        self.assertIn("SMT_PROOF_UNSAT", proof_unsat.mathematical_certificate)
+        result_bad = verifier.verify_function_contract(bad_div_code, "divide")
+        self.assertEqual(result_bad.divisions_proven_safe, 0)
+        self.assertEqual(result_bad.checks[0].status, "not_proven")
 
-        # Unbounded infinite loop -> UNSAT
-        bad_loop_code = "def loop_forever():\n    while True:\n        pass\n"
-        proof_loop_unsat = verifier.verify_function_contract(bad_loop_code, "loop_forever")
-        self.assertFalse(proof_loop_unsat.is_satisfiable)
-        self.assertIn("SMT_PROOF_UNSAT", proof_loop_unsat.mathematical_certificate)
+        # An unguarded division by a variable is not provable safe either --
+        # the checker does not assume success in the absence of evidence.
+        unguarded_code = "def divide2(x, y):\n    return x / y\n"
+        result_unguarded = verifier.verify_function_contract(unguarded_code, "divide2")
+        self.assertEqual(result_unguarded.checks[0].status, "not_proven")
 
     # ------------------------------------------------------------------
     # 7. Telemetry & Observability

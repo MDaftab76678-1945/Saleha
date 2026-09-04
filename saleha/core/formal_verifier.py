@@ -1,12 +1,22 @@
 """
-Saleha Core: Formal Verification & Mathematical Invariant Prover
+Saleha Core: AST invariant checks, and a Lean 4 proof scaffold generator.
 
-Applies formal methods, Hoare-logic invariant verification, and Lean 4 proof synthesis:
-1. Pre-condition (@requires) and Post-condition (@ensures) verification.
-2. Loop termination proofs and variant functions.
-3. Arithmetic boundary & division-by-zero proofs.
-4. Lean 4 / Mathlib formal theorem proof synthesis.
-5. Emits formal correctness guarantees for mission-critical code.
+Two genuinely different things live here and must not be confused:
+
+1. ``verify_code`` is real: it walks the AST looking for a handful of concrete
+   patterns (literal division by zero, unguarded `while True`, presence of
+   assert statements) and reports what it actually found. For a real,
+   solver-backed proof that a *guarded* division is safe, see
+   ``saleha.core.formal_smt_verifier``, which asks Z3 rather than pattern-matching.
+
+2. ``synthesize_proof_for_function`` is text generation, not verification. It
+   emits Lean 4 syntax shaped like a proof, but no Lean toolchain is ever
+   invoked, so nothing about the input function is actually checked -- the
+   emitted theorem is a fixed, trivial arithmetic fact
+   (``a + b >= a``) unrelated to what the function does. An earlier version of
+   this module labelled that output "Mathematical Correctness Proven"; it
+   is a scaffold for a human (or a real `lake build` / `lean` run) to
+   complete and check, not a guarantee, and is now labelled that way.
 """
 
 import ast
@@ -38,7 +48,8 @@ class FormalProofReport:
 
 @dataclass
 class Lean4ProofResult:
-    """Synthesized Lean 4 mathematical theorem proof specification."""
+    """An unverified Lean 4 proof scaffold. No Lean toolchain has run over
+    this; `lean_verified` is always False until something actually does."""
     function_name: str
     is_valid_syntax: bool
     lean4_code: str
@@ -46,7 +57,12 @@ class Lean4ProofResult:
     proof_script: str
     theorem_name: str = ""
     verified_invariants: List[str] = field(default_factory=list)
-    correctness_guarantee: str = "Mathematical Correctness Proven"
+    lean_verified: bool = False
+    correctness_guarantee: str = (
+        "UNVERIFIED SCAFFOLD: no Lean toolchain was run. This Lean 4 syntax "
+        "has not been type-checked or proof-checked; treat it as a starting "
+        "point, not a guarantee."
+    )
     tactics_used: List[str] = field(default_factory=list)
 
     def __post_init__(self):
@@ -54,6 +70,17 @@ class Lean4ProofResult:
             self.theorem_name = f"{self.function_name}_correctness"
         if not self.verified_invariants:
             self.verified_invariants = ["precondition_sound", "postcondition_bounded", "no_underflow"]
+
+
+def lean_toolchain_available() -> bool:
+    """True if a `lean` binary is on PATH. This codebase does not bundle or
+    install a Lean toolchain (elan + lake + Mathlib is several GB), so on a
+    typical install this is False and synthesize_proof_for_function's output
+    stays an unverified scaffold until someone runs it through a real Lean
+    installation themselves."""
+    import shutil
+
+    return shutil.which("lean") is not None
 
 
 class FormalVerifier:
@@ -114,7 +141,13 @@ class FormalVerifier:
             theorem_name=f"{clean_fn}_correctness",
             proof_script=f"exact Nat.le_add_right {first_param} {last_param}",
             verified_invariants=extracted_invariants,
-            correctness_guarantee="Synthesized Lean 4 Invariant Template (SMT solver verification available via formal_smt_verifier)",
+            lean_verified=False,
+            correctness_guarantee=(
+                "UNVERIFIED SCAFFOLD: this Lean 4 theorem is a fixed template "
+                "unrelated to the analyzed function's actual logic. No Lean "
+                "toolchain checked it. For a real, solver-backed proof of "
+                "division-by-zero safety, use formal_smt_verifier instead."
+            ),
             tactics_used=["exact", "intro", "simp"],
         )
 

@@ -6,10 +6,13 @@ calculate percentile latencies (p50, p95, p99), and discover backend performance
 """
 
 import time
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
+
+ALLOWED_SCHEMES = ("http", "https")
 
 
 @dataclass
@@ -38,6 +41,13 @@ class LoadTester:
         dry_run: bool = False
     ) -> LoadTestResult:
         """Executes concurrent load test against target URL."""
+        # urlopen also happily follows file:// and ftp:// URIs; restricting
+        # to http(s) stops this from being used as a local-file or
+        # internal-port existence probe via an attacker-supplied URL.
+        scheme = urllib.parse.urlsplit(url).scheme.lower()
+        if scheme not in ALLOWED_SCHEMES:
+            raise ValueError(f"Refusing to load-test URL with scheme '{scheme}'; only http/https are allowed.")
+
         if dry_run:
             return LoadTestResult(
                 url=url,

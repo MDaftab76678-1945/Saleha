@@ -1,8 +1,19 @@
 """
-Saleha Core: Autonomous SRE Incident Responder & Log Analyzer
+Saleha Core: Incident Log Parser & Generic Hotfix Template Picker
 
-Ingests production stack traces, error dumps, and syslog messages to perform automated
-Root Cause Analysis (RCA), pinpoint offending source lines, and synthesize emergency hotfix patches.
+Parses Python and JS stack traces with regexes to identify the exception
+type, message, and offending file/line -- that part is genuine text
+extraction, not fabricated.
+
+`hotfix_patch`, however, is not a patch synthesized from the actual failing
+code: it is one of four fixed generic snippets selected purely by exception
+type (ZeroDivisionError / KeyError+IndexError / AttributeError / anything
+else), using placeholder names like `denominator` and `target_dict` that are
+not the real variable names from the analyzed code. It is a copy-paste
+starting point for a human to adapt, not code Saleha derived from the
+incident -- despite an earlier version of this docstring calling it
+"synthesized". See `saleha.core.self_healer` for the module that actually
+generates a fix by running and inspecting the specific failing code.
 """
 
 import re
@@ -18,6 +29,7 @@ class SREIncidentReport:
     offending_line: Optional[int]
     root_cause_analysis: str
     hotfix_patch: str
+    hotfix_is_generic_template: bool
     severity: str  # 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
 
 
@@ -91,6 +103,7 @@ class SREResponder:
             offending_line=offending_line,
             root_cause_analysis=rca,
             hotfix_patch=hotfix,
+            hotfix_is_generic_template=True,
             severity=severity
         )
 

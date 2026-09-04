@@ -2154,14 +2154,49 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/sre/analyze":
             log_text = payload.get("log", "")
             report = sre_responder.analyze_log(log_text)
-            self._send_json(200, {"error_type": report.error_type, "severity": report.severity, "rca": report.root_cause_analysis, "hotfix": report.hotfix_patch})
+            self._send_json(200, {
+                "error_type": report.error_type,
+                "severity": report.severity,
+                "rca": report.root_cause_analysis,
+                "hotfix": report.hotfix_patch,
+                # The hotfix is a generic snippet selected by exception type,
+                # not code derived from the specific failing file -- flagged
+                # explicitly rather than presented as a tailored fix.
+                "hotfix_is_generic_template": report.hotfix_is_generic_template,
+            })
             return
 
         if path == "/api/loadtest/run":
+            # Previously this always passed dry_run=True regardless of what
+            # was requested, silently returning fixed numbers (0.12s, 2.4ms
+            # avg latency, literal constants) dressed up as a live load-test
+            # result. It now actually generates the requested HTTP traffic
+            # unless dry_run is explicitly requested, with bounds so a
+            # request can't accidentally launch an unbounded flood.
             url = payload.get("url", "http://localhost:8000/api/status")
-            reqs = payload.get("requests", 20)
-            res = load_tester.run_load_test(url=url, total_requests=reqs, dry_run=True)
-            self._send_json(200, {"url": res.url, "rps": res.requests_per_sec, "p95_ms": res.p95_ms})
+            reqs = max(1, min(int(payload.get("requests", 20)), 500))
+            concurrency = max(1, min(int(payload.get("concurrency", 10)), 50))
+            dry_run = bool(payload.get("dry_run", False))
+            try:
+                res = load_tester.run_load_test(
+                    url=url, concurrency=concurrency, total_requests=reqs, dry_run=dry_run
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            self._send_json(200, {
+                "url": res.url,
+                "dry_run": dry_run,
+                "total_requests": res.total_requests,
+                "successful_requests": res.successful_requests,
+                "failed_requests": res.failed_requests,
+                "duration_sec": res.duration_sec,
+                "rps": res.requests_per_sec,
+                "avg_latency_ms": res.avg_latency_ms,
+                "p50_ms": res.p50_ms,
+                "p95_ms": res.p95_ms,
+                "p99_ms": res.p99_ms,
+            })
             return
 
         if path == "/api/vault/set":
@@ -2436,14 +2471,31 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/formal/verify":
             func_name = payload.get("function_name", "compute_balance")
             code = payload.get("code", "def compute_balance(x, y): return x / y")
-            from saleha.core.formal_verifier import formal_verifier
-            res = formal_verifier.synthesize_proof_for_function(func_name=func_name, code=code)
+            from saleha.core.formal_verifier import formal_verifier, lean_toolchain_available
+            from saleha.core.formal_smt_verifier import formal_smt_verifier
+
+            lean_scaffold = formal_verifier.synthesize_proof_for_function(func_name=func_name, code=code)
+            smt_result = formal_smt_verifier.verify_function_contract(code, func_name)
             self._send_json(200, {
-                "is_valid_syntax": res.is_valid_syntax,
-                "theorem_name": res.theorem_name,
-                "lean4_code": res.lean4_code,
-                "verified_invariants": res.verified_invariants,
-                "correctness_guarantee": res.correctness_guarantee,
+                "lean_scaffold": {
+                    "is_valid_syntax": lean_scaffold.is_valid_syntax,
+                    "theorem_name": lean_scaffold.theorem_name,
+                    "lean4_code": lean_scaffold.lean4_code,
+                    "lean_verified": lean_scaffold.lean_verified,
+                    "lean_toolchain_available": lean_toolchain_available(),
+                    "correctness_guarantee": lean_scaffold.correctness_guarantee,
+                },
+                "smt_division_check": {
+                    "z3_available": smt_result.z3_available,
+                    "divisions_found": smt_result.divisions_found,
+                    "divisions_proven_safe": smt_result.divisions_proven_safe,
+                    "divisions_not_analyzed": smt_result.divisions_not_analyzed,
+                    "checks": [
+                        {"line": c.line_number, "divisor": c.divisor_expr, "status": c.status, "detail": c.detail}
+                        for c in smt_result.checks
+                    ],
+                    "certificate": smt_result.mathematical_certificate,
+                },
             })
             return
 
