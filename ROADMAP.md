@@ -5,6 +5,7 @@ An executive-level, multi-horizon strategic roadmap outlining the technological 
 ---
 
 ## 🎯 Strategic North Star Metric
+
 > **"Sub-100μs Latency, Zero Cloud Dependency, 100% Deterministic Safety, and Autonomous Self-Evolving Codebases."**
 
 ```mermaid
@@ -31,6 +32,7 @@ timeline
 ## 🏛️ Comprehensive Horizon Breakdown
 
 ### 🌟 Horizon 1 (Q4 2026): Pure Client-Side Wasm & Collaborative Studio
+
 *Objective: Eliminate server dependency entirely for standard web workflows and introduce real-time multiplayer developer pairing.*
 
 1. **In-Browser WebAssembly (Wasm) Polyglot Sandbox:**
@@ -44,6 +46,7 @@ timeline
 ---
 
 ### 🌌 Horizon 2 (Q1 2027): Decentralized Swarm & Hardware Acceleration
+
 *Objective: Unlock distributed swarm compute across developer machines and leverage consumer NPUs/GPUs.*
 
 1. **Decentralized P2P Multi-Agent Swarm (Libp2p):**
@@ -57,6 +60,7 @@ timeline
 ---
 
 ### 🎨 Horizon 3 (Q2 2027): Spatial Computing & Formal Proof Verification
+
 *Objective: Expand beyond 2D code into spatial UI development and mathematically verified software.*
 
 1. **Spatial 3D Neural UI & Scene Generation (Vision Pro / WebXR):**
@@ -69,6 +73,7 @@ timeline
 ---
 
 ### ⚛️ Horizon 4 (Q3 2027+): Quantum-Safe Self-Compiling Intelligence
+
 *Objective: Unbreakable security and native standalone executable synthesis.*
 
 1. **Post-Quantum Cryptographic Guard (NIST PQC):**
@@ -93,7 +98,7 @@ timeline
 
 ## 🛠️ Phase-by-Phase Execution Plan
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 📅 PHASE 1 (Immediate Next Sprints - Q4 2026)                               │
 │ 1. Build In-Browser Wasm Runtime in apps/web.                               │
@@ -111,4 +116,3 @@ timeline
 │ 3. Release 1-Click Native Standalone Binary Compiler (LLVM backend).        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
-

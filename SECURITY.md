@@ -21,6 +21,7 @@ We take the security of Saleha AI extremely seriously. If you discover a vulnera
 ## Built-in SAST & Constitutional Guardrails
 
 Saleha incorporates multi-tier security engines:
+
 - **Constitutional AI Guard** (`saleha constitutional-check`): Rule-based runtime enforcement against unauthorized socket exfiltration and destructive system commands.
 - **Hardware RTL SAST Scanner** (`saleha scan-sec`): AST-level scanning for Software and Verilog/SystemVerilog hardware designs.
 - **Isolated Process Sandbox** (`saleha/core/sandbox_runner.py`): Zero unauthenticated disk/network escape policy.
