@@ -15,13 +15,17 @@ ollama pull qwen2.5-coder:7b            # fast local model for manual testing
 ## ✅ Before Opening a PR
 
 1. **Tests pass:**
+
    ```bash
    python -m pytest saleha/tests/ -q
    ```
+
 2. **Review-AI passes:**
+
    ```bash
    saleha review-ai <modified_file>
    ```
+
 3. **No new mandatory dependencies.** Heavy capabilities go into extras with graceful fallback.
 4. **Security posture:** code execution must respect sandbox policies (`saleha/core/sandbox_runner.py`) and constitutional AI rails (`saleha/core/constitutional_guard.py`).
 5. **CHANGELOG.md** — add a line under `Unreleased`.
