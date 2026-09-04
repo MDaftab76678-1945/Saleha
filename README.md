@@ -1,12 +1,12 @@
 # 🧠 Saleha AI: Sovereign Autonomous Software Engineering Platform (v2.6.0)
 
-[![Version](https://img.shields.io/badge/Version-2.6.0-blue.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-879%2F879%20Passed%20(100%25)-brightgreen.svg)]()
-[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)]()
-[![Ollama](https://img.shields.io/badge/Ollama-100%25%20Local%20First%20($0/mo)-orange.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
-[![Privacy](https://img.shields.io/badge/Privacy-Air%20Gapped%20Zero%20Data%20Leakage-green.svg)]()
-[![VSCode](https://img.shields.io/badge/VS%20Code-VSIX%20Ready-blue.svg)]()
+![Version](https://img.shields.io/badge/Version-2.6.0-blue.svg)
+![Tests](https://img.shields.io/badge/Tests-879%2F879%20Passed%20(100%25)-brightgreen.svg)
+![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)
+![Ollama](https://img.shields.io/badge/Ollama-100%25%20Local%20First%20($0/mo)-orange.svg)
+![License](https://img.shields.io/badge/License-MIT-purple.svg)
+![Privacy](https://img.shields.io/badge/Privacy-Air%20Gapped%20Zero%20Data%20Leakage-green.svg)
+![VSCode](https://img.shields.io/badge/VS%20Code-VSIX%20Ready-blue.svg)
 
 **Saleha** is a local-first, self-healing **Autonomous Multi-Agent AI Software Engineering Platform**. Operating entirely on local hardware via **Ollama** with **$0.00 cloud API costs**, Saleha orchestrates a 34-system sovereign intelligence architecture featuring **PBFT Byzantine Fault Tolerance**, **Formal Logic Verification (Lean 4)**, **Causal World Models ($L_1 \to L_3$)**, **Headless Browser UI Inspection**, and **Process & Container Sandboxing**.
 
@@ -77,6 +77,7 @@ graph TD
 ## 🚀 Quickstart
 
 ### 1. Installation
+
 ```bash
 git clone https://github.com/MDaftab76678-1945/Saleha.git
 cd Saleha
@@ -84,11 +85,13 @@ pip install -e .
 ```
 
 ### 2. Connect Local LLM (Ollama)
+
 ```bash
 ollama run qwen2.5-coder:7b
 ```
 
 ### 3. Launch Interactive Terminal TUI
+
 ```bash
 saleha tui
 ```
@@ -100,13 +103,17 @@ saleha tui
 Saleha comes with an official VS Code / Cursor extension package:
 
 1. Package the `.vsix` bundle:
+
    ```bash
    python editors/vscode/build_extension.py
    ```
+
 2. Install in VS Code or Cursor:
+
    ```bash
    code --install-extension editors/vscode/dist/saleha-vscode-2.6.0.vsix
    ```
+
 3. Use `Ctrl+Shift+P` and type `Saleha` to trigger auto-healing, code review, formal verification, or swarm consensus directly from the editor!
 
 ---
@@ -148,7 +155,9 @@ Saleha comes with an official VS Code / Cursor extension package:
 ```bash
 python -m pytest saleha/tests/ -q
 ```
+
 **Result**:
+
 ```text
 879 passed in 57.50s (100% PASS, 0 FAILURES, 0 ERRORS)
 ```
@@ -158,4 +167,5 @@ All 34 modules score **$\ge 93/100$ on `saleha review-ai`**.
 ---
 
 ## 📜 License
+
 MIT License. Built with sovereign intelligence for the open-source engineering community.
