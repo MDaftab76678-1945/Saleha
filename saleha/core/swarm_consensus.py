@@ -77,18 +77,42 @@ class SwarmPBFTConsensus:
         self.commit_votes[prop_id] = []
         return proposal
 
-    def cast_prepare_vote(self, proposal_id: str, voter_id: str, approved: bool, reason: str = "") -> ConsensusVote:
+    def cast_prepare_vote(
+        self,
+        proposal_id: str,
+        voter_id: str,
+        approved: bool,
+        reason: str = "",
+        signature: Optional[str] = None,
+    ) -> ConsensusVote:
         """Records a Prepare phase vote from an authorized swarm validator."""
         if proposal_id not in self.proposals:
             raise ValueError(f"Proposal '{proposal_id}' does not exist.")
+        if self.validators and voter_id not in self.validators:
+            raise PermissionError(f"Unauthorized voter '{voter_id}'. Not a registered PBFT validator.")
+
+        # Deduplicate: replace any previous vote by this validator in the prepare phase
+        self.prepare_votes[proposal_id] = [v for v in self.prepare_votes[proposal_id] if v.voter_agent_id != voter_id]
         vote = ConsensusVote(voter_id, proposal_id, "prepare", approved, reason)
         self.prepare_votes[proposal_id].append(vote)
         return vote
 
-    def cast_commit_vote(self, proposal_id: str, voter_id: str, approved: bool, reason: str = "") -> ConsensusVote:
+    def cast_commit_vote(
+        self,
+        proposal_id: str,
+        voter_id: str,
+        approved: bool,
+        reason: str = "",
+        signature: Optional[str] = None,
+    ) -> ConsensusVote:
         """Records a Commit phase vote from an authorized swarm validator."""
         if proposal_id not in self.proposals:
             raise ValueError(f"Proposal '{proposal_id}' does not exist.")
+        if self.validators and voter_id not in self.validators:
+            raise PermissionError(f"Unauthorized voter '{voter_id}'. Not a registered PBFT validator.")
+
+        # Deduplicate: replace any previous vote by this validator in the commit phase
+        self.commit_votes[proposal_id] = [v for v in self.commit_votes[proposal_id] if v.voter_agent_id != voter_id]
         vote = ConsensusVote(voter_id, proposal_id, "commit", approved, reason)
         self.commit_votes[proposal_id].append(vote)
         return vote

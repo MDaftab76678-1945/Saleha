@@ -80,14 +80,29 @@ class CausalWorldModel:
                 val *= factor
         return round(val, 2)
 
+    def compute_causal_confidence(self, evidence: Dict[str, Any], target: str) -> float:
+        """Calculates dynamic causal confidence based on incoming edge coverage and weights."""
+        incoming = [e for e in self.edges if e.effect == target]
+        if not incoming:
+            return 0.50
+
+        total_weight = sum(abs(e.weight) for e in incoming)
+        if total_weight == 0:
+            return 0.50
+
+        covered_weight = sum(abs(e.weight) for e in incoming if e.cause in evidence)
+        coverage_ratio = min(1.0, max(0.0, covered_weight / total_weight))
+        return round(0.65 + (coverage_ratio * 0.30), 2)
+
     def simulate_l2_intervention(self, intervention: Dict[str, Any], target: str) -> CausalEvaluationReport:
         """L2 Intervention: Computes causal outcome of do(X=x) intervention."""
         outcome = self.query_l1_association(intervention, target)
         orig_val = self.variables[target].observed_value if target in self.variables else outcome
+        conf = self.compute_causal_confidence(intervention, target)
 
         reasoning = (
             f"Applying causal intervention do({intervention}): target '{target}' "
-            f"transitions from {orig_val} to predicted {outcome}."
+            f"transitions from {orig_val} to predicted {outcome} (causal confidence: {conf})."
         )
 
         return CausalEvaluationReport(
@@ -96,7 +111,7 @@ class CausalWorldModel:
             original_state={target: orig_val},
             intervened_state=intervention,
             expected_outcome=outcome,
-            confidence=0.92,
+            confidence=conf,
             reasoning=reasoning,
         )
 
@@ -109,12 +124,15 @@ class CausalWorldModel:
         """L3 Counterfactual: What would have happened to target if we had chosen counterfactual_action?"""
         factual_outcome = self.query_l1_association(factual_state, target)
         counterfactual_outcome = self.query_l1_association(counterfactual_action, target)
+        f_conf = self.compute_causal_confidence(factual_state, target)
+        cf_conf = self.compute_causal_confidence(counterfactual_action, target)
+        conf = round((f_conf + cf_conf) / 2.0, 2)
 
         delta = round(counterfactual_outcome - factual_outcome, 2)
         reasoning = (
             f"Counterfactual Analysis: Given factual outcome={factual_outcome}, "
             f"if {counterfactual_action} had occurred instead, '{target}' would have been "
-            f"{counterfactual_outcome} (Delta: {delta:+})."
+            f"{counterfactual_outcome} (Delta: {delta:+}, causal confidence: {conf})."
         )
 
         return CausalEvaluationReport(
@@ -123,7 +141,7 @@ class CausalWorldModel:
             original_state=factual_state,
             intervened_state=counterfactual_action,
             expected_outcome=counterfactual_outcome,
-            confidence=0.88,
+            confidence=conf,
             reasoning=reasoning,
         )
 

@@ -34,6 +34,22 @@ class TestSwarmConsensus(unittest.TestCase):
         dec = self.consensus.evaluate_consensus(prop.proposal_id)
         self.assertFalse(dec.committed)
 
+    def test_unauthorized_voter_rejected(self):
+        prop = self.consensus.propose("AgentA", "mod.py", "pass")
+        with self.assertRaises(PermissionError):
+            self.consensus.cast_prepare_vote(prop.proposal_id, "RogueHackerAgent", True)
+
+    def test_duplicate_vote_not_counted_twice(self):
+        prop = self.consensus.propose("AgentA", "mod.py", "pass")
+        # AgentA votes 5 times
+        for _ in range(5):
+            self.consensus.cast_prepare_vote(prop.proposal_id, "AgentA", True)
+            self.consensus.cast_commit_vote(prop.proposal_id, "AgentA", True)
+
+        dec = self.consensus.evaluate_consensus(prop.proposal_id)
+        self.assertEqual(dec.prepare_votes, 1)
+        self.assertFalse(dec.committed)
+
 
 if __name__ == "__main__":
     unittest.main()

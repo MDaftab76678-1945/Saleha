@@ -34,7 +34,7 @@ def info_cmd():
     table.add_row("Swarm Topology", "10 Departments (250 Agents)", "🟢 POINCARÉ 16D")
     table.add_row("AST Safety Verifier", "Gamma AST 2PC + ASan Guard", "🟢 0 LEAKS")
     table.add_row("Monorepo Packages", "@saleha/{ui,db,api,auth,core}", "🟢 SYNCHRONIZED")
-    table.add_row("Automated Test Suite", "685 / 685 Unit & System Tests", "🟢 100% PASS")
+    table.add_row("Automated Test Suite", "879 / 879 Unit & System Tests", "🟢 100% PASS")
 
     console.print(table)
     console.print("\n[bold green]Ready for autonomous software engineering tasks.[/bold green]\n")

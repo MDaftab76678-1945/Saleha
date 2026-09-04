@@ -1,7 +1,7 @@
 # 🧠 Saleha AI: Sovereign Autonomous Software Engineering Platform (v2.6.0)
 
 [![Version](https://img.shields.io/badge/Version-2.6.0-blue.svg)]()
-[![Tests](https://img.shields.io/badge/Tests-783%2F783%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-879%2F879%20Passed%20(100%25)-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-100%25%20Local%20First%20($0/mo)-orange.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)]()
@@ -150,7 +150,7 @@ python -m pytest saleha/tests/ -q
 ```
 **Result**:
 ```text
-783 passed, 4 skipped in 51.42s (100% PASS, 0 FAILURES, 0 ERRORS)
+879 passed in 57.50s (100% PASS, 0 FAILURES, 0 ERRORS)
 ```
 
 All 34 modules score **$\ge 93/100$ on `saleha review-ai`**.
