@@ -208,3 +208,4 @@ class MockProvider(ModelProvider):
 
 # Default active provider singleton
 default_provider: ModelProvider = FallbackChainProvider()
+model_provider = default_provider

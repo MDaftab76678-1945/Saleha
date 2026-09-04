@@ -1,0 +1,22 @@
+# k8s/helm/mukti/templates/servicemonitor.yaml
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "mukti.fullname" . }}
+  labels:
+    {{- include "mukti.labels" . | nindent 4 }}
+    release: {{ .Values.monitoring.prometheusRelease | default "prometheus" }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "mukti.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.scrapeInterval | default "30s" }}
+      scrapeTimeout: {{ .Values.monitoring.scrapeTimeout | default "10s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

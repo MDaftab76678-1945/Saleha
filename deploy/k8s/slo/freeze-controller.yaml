@@ -1,0 +1,75 @@
+# k8s/slo/freeze-controller.yaml
+# Change-freeze controller – blocks ArgoCD syncs on budget exhaustion
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mukti-freeze-controller
+  namespace: mukti-monitoring
+---
+# Needs to patch AppProjects in the argocd namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mukti-freeze-controller
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["appprojects"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mukti-freeze-controller
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mukti-freeze-controller
+subjects:
+  - kind: ServiceAccount
+    name: mukti-freeze-controller
+    namespace: mukti-monitoring
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mukti-freeze-controller
+  namespace: mukti-monitoring
+spec:
+  replicas: 1   # Single instance – it's a controller
+  selector:
+    matchLabels:
+      app: mukti-freeze-controller
+  template:
+    metadata:
+      labels:
+        app: mukti-freeze-controller
+    spec:
+      serviceAccountName: mukti-freeze-controller
+      containers:
+        - name: controller
+          image: ghcr.io/mukti-foundation/mukti-api:5.0.0
+          command: ["python", "-m", "mukti.slo.freeze_runner"]
+          env:
+            - name: PROMETHEUS_URL
+              value: "http://prometheus-k8s.mukti-monitoring.svc:9090"
+            - name: FREEZE_PROJECT
+              value: "mukti"
+            - name: FREEZE_NAMESPACE
+              value: "argocd"
+            - name: FREEZE_THRESHOLD
+              value: "0.05"
+            - name: UNFREEZE_THRESHOLD
+              value: "0.15"
+            - name: FREEZE_OVERRIDE
+              value: "auto"      # auto | on | off
+            - name: SLACK_SLO_WEBHOOK
+              valueFrom:
+                secretKeyRef:
+                  name: mukti-slack-webhook
+                  key: url
+                  optional: true
+          resources:
+            requests: {cpu: 25m, memory: 64Mi}
+            limits: {cpu: 100m, memory: 128Mi}

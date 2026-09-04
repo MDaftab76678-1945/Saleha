@@ -1,0 +1,89 @@
+# ================================================================
+# MUKTI - Daily Backup Schedule
+# Production-grade scheduled backups with retention
+# ================================================================
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: mukti-daily-backup
+  namespace: velero
+  labels:
+    app: mukti
+    backup-type: daily
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM UTC
+  template:
+    includedNamespaces:
+      - mukti
+      - mukti-monitoring
+      - mukti-database
+    excludedNamespaces:
+      - kube-system
+      - velero
+    includedResources:
+      - deployments
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - persistentvolumes
+      - statefulsets
+      - daemonsets
+      - ingresses
+      - networkpolicies
+    excludedResources:
+      - events
+      - pods/log
+    snapshotVolumes: true
+    ttl: 720h  # 30 days retention
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+    orLabelSelectors:
+      - matchLabels:
+          backup: mukti
+---
+# Weekly full backup with longer retention
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: mukti-weekly-full-backup
+  namespace: velero
+  labels:
+    app: mukti
+    backup-type: weekly
+spec:
+  schedule: "0 3 * * 0"  # Sunday at 3 AM UTC
+  template:
+    includedNamespaces:
+      - mukti
+      - mukti-monitoring
+      - mukti-database
+      - argocd
+    snapshotVolumes: true
+    ttl: 2160h  # 90 days retention
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+    includeClusterResources: true
+---
+# Critical data - hourly backup
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: mukti-critical-hourly
+  namespace: velero
+  labels:
+    app: mukti
+    backup-type: critical
+spec:
+  schedule: "*/60 * * * *"  # Every hour
+  template:
+    includedNamespaces:
+      - mukti-database
+    labelSelector:
+      matchLabels:
+        backup-priority: critical
+    snapshotVolumes: true
+    ttl: 168h  # 7 days
+    storageLocation: default

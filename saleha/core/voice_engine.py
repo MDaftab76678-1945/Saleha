@@ -61,8 +61,26 @@ Explain the action you will take to solve their request."""
             os.makedirs(audio_dir, exist_ok=True)
             audio_path = os.path.join(audio_dir, "response.wav")
             try:
+                import struct
+                sample_rate = 8000
+                num_samples = 400
+                raw_data = b"\x00\x00" * num_samples
+                data_size = len(raw_data)
+                file_size = 36 + data_size
                 with open(audio_path, "wb") as fp:
-                    fp.write(b"RIFF_MOCK_WAV_AUDIO_DATA")
+                    fp.write(b"RIFF")
+                    fp.write(struct.pack("<I", file_size))
+                    fp.write(b"WAVEfmt ")
+                    fp.write(struct.pack("<I", 16))         # PCM chunk size
+                    fp.write(struct.pack("<H", 1))          # PCM format
+                    fp.write(struct.pack("<H", 1))          # 1 channel (mono)
+                    fp.write(struct.pack("<I", sample_rate))# 8000 Hz
+                    fp.write(struct.pack("<I", sample_rate * 2)) # byte rate
+                    fp.write(struct.pack("<H", 2))          # block align
+                    fp.write(struct.pack("<H", 16))         # 16-bit depth
+                    fp.write(b"data")
+                    fp.write(struct.pack("<I", data_size))
+                    fp.write(raw_data)
             except OSError:
                 pass
 

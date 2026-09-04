@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Any
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.codebase_indexer import codebase_indexer
+from saleha.core.codebase_indexer import codebase_indexer, SmartPatcher
 from saleha.core.git_native import git_engine
 from saleha.core.path_utils import safe_relpath
 
@@ -48,6 +48,10 @@ class HealResult:
     verified: bool = False
     commit_hash: str = ""
     error: str = ""
+
+    @property
+    def attempts_used(self) -> int:
+        return self.attempts_made
 
 
 class SelfHealingEngine:
@@ -190,14 +194,14 @@ Rules:
             return False, "", f"LLM error: {resp.error_message}"
 
         patch_text = resp.content or ""
-        applied, patched_content, err = codebase_indexer.apply_aider_diff(content, patch_text)
+        applied, patched_content, err = SmartPatcher.apply_aider_diff(content, patch_text)
         if applied:
             return True, patched_content, abs_file
 
         # Fallback: check if the LLM produced pure python code
         code_block = re.search(r"```(?:python)?\s*\n(.*?)```", patch_text, re.DOTALL)
         if code_block and "def " in code_block.group(1):
-            applied_sr, patched_content_sr, err_sr = codebase_indexer.apply_search_replace(
+            applied_sr, patched_content_sr, err_sr = SmartPatcher.apply_search_replace(
                 content,
                 lines[line_idx].strip(),
                 code_block.group(1).strip()
@@ -279,4 +283,6 @@ Rules:
 
 # Global instance
 self_healer = SelfHealingEngine()
+SelfHealer = SelfHealingEngine
+
 

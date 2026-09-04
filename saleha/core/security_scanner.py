@@ -349,3 +349,8 @@ class ASTSecurityScanner:
                 report.low_count += 1
 
         return report
+
+
+SecurityScanner = ASTSecurityScanner
+security_scanner = ASTSecurityScanner()
+

@@ -1,0 +1,24 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nexus-backend-pdb
+  namespace: nexus-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: nexus-omni
+      component: backend
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nexus-frontend-pdb
+  namespace: nexus-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: nexus-omni
+      component: frontend

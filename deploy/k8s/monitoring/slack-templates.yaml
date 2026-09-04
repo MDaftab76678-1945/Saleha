@@ -1,0 +1,12 @@
+# k8s/monitoring/slack-templates.yaml
+# Custom Slack title template
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-slack-templates
+  namespace: mukti-monitoring
+data:
+  slack.tmpl: |
+    {{ define "slack.title" }}
+    [MUKTI] {{ .CommonLabels.severity | toUpper }} — {{ .CommonLabels.service }}
+    {{ end }}

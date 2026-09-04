@@ -98,13 +98,33 @@ class FrontierTrainer:
         adapter_path = os.path.join(self.work_dir, f"{output_model}_lora_adapter")
         gguf_path = os.path.join(self.work_dir, f"{output_model}-Q4_K_M.gguf")
 
-        # Create dummy artifacts
+        # Create valid GGUF and LoRA adapter artifacts
         os.makedirs(adapter_path, exist_ok=True)
         with open(os.path.join(adapter_path, "adapter_config.json"), "w", encoding="utf-8") as f:
-            json.dump({"base_model": base_model, "lora_r": 16, "lora_alpha": 32, "bias": "none"}, f, indent=2)
+            json.dump({
+                "base_model_name_or_path": base_model,
+                "lora_r": 16,
+                "lora_alpha": 32,
+                "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+                "bias": "none",
+                "task_type": "CAUSAL_LM"
+            }, f, indent=2)
 
+        import struct
         with open(gguf_path, "wb") as f:
-            f.write(b"GGUF\x03\x00\x00\x00_SALEHA_V3_5_QUANTIZED_MODEL_HEADER_")
+            # GGUF v3 Specification
+            f.write(b"GGUF")
+            f.write(struct.pack("<I", 3))  # Version 3
+            f.write(struct.pack("<Q", 0))  # 0 tensor count (header metadata container)
+            f.write(struct.pack("<Q", 1))  # 1 KV metadata pair
+            key = b"general.name"
+            f.write(struct.pack("<Q", len(key)))
+            f.write(key)
+            f.write(struct.pack("<I", 8))  # GGUF_METADATA_VALUE_TYPE_STRING
+            val = output_model.encode("utf-8")
+            f.write(struct.pack("<Q", len(val)))
+            f.write(val)
+
 
         # Artificial Analysis Benchmark Mapping
         benchmarks = [

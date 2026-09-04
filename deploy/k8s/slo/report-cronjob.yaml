@@ -1,0 +1,75 @@
+# k8s/slo/report-cronjob.yaml
+# Weekly + monthly SLO report delivery
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mukti-slo-report-weekly
+  namespace: mukti-monitoring
+spec:
+  schedule: "0 8 * * 1"            # Mondays 08:00 UTC (previous week)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: report
+              image: ghcr.io/mukti-foundation/mukti-api:5.0.0
+              command: ["mukti", "slo", "report"]
+              args:
+                - "--period=weekly"
+                - "--send-slack"
+                - "--prometheus-url=http://prometheus-k8s.mukti-monitoring.svc:9090"
+              env:
+                - name: SLACK_SLO_WEBHOOK
+                  valueFrom:
+                    secretKeyRef:
+                      name: mukti-slack-webhook
+                      key: url
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mukti-slo-report-monthly
+  namespace: mukti-monitoring
+spec:
+  schedule: "0 8 1 * *"            # 1st of month 08:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: report
+              image: ghcr.io/mukti-foundation/mukti-api:5.0.0
+              command: ["mukti", "slo", "report"]
+              args:
+                - "--period=monthly"
+                - "--send-slack"
+                - "--send-email"
+                - "--recipients=platform-team@mukti.ai"
+                - "--prometheus-url=http://prometheus-k8s.mukti-monitoring.svc:9090"
+              env:
+                - name: SLACK_SLO_WEBHOOK
+                  valueFrom:
+                    secretKeyRef:
+                      name: mukti-slack-webhook
+                      key: url
+                - name: SMTP_HOST
+                  value: "smtp.gmail.com"
+                - name: SMTP_PORT
+                  value: "587"
+                - name: SMTP_USER
+                  valueFrom:
+                    secretKeyRef: {name: mukti-smtp, key: user}
+                - name: SMTP_PASS
+                  valueFrom:
+                    secretKeyRef: {name: mukti-smtp, key: pass}
+                - name: SMTP_FROM
+                  value: "slo-reports@mukti.ai"

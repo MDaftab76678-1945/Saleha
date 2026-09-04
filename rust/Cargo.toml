@@ -1,0 +1,16 @@
+# Rust workspace for saleha-0.1 — the native performance / sovereign layer.
+# Assembled from Notebook/ + nexus-universe/ (see ../NOTEBOOK_IMPORT.md).
+#
+# NOTE: many crate dirs below carry only 1-2 source files pulled from chat
+# exports and have no Cargo.toml yet. Add manifests + fill stubs before
+# enabling them as workspace members.
+[workspace]
+resolver = "2"
+members = [
+    "intent-kernel",
+]
+# candidates to promote once they build:
+#   "meridian-core/src"
+#   "nexus-l1", "nexus-l1-core", "nexus-executor"
+#   "crates/nexus-consensus", "crates/nexus-core", "crates/nexus-safety",
+#   "crates/agent-crypto", "crates/agent-tee-core", "crates/secure-node"

@@ -1,0 +1,110 @@
+# .github/workflows/deploy-gated.yml
+# Deployment pipeline with SLO release gate
+name: Gated Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image tag to deploy"
+        required: true
+  push:
+    tags: ["v*"]
+
+jobs:
+  # ── Job 1: SLO release gate ────────────────────────
+  slo-gate:
+    name: SLO Release Gate
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install MUKTI CLI
+        run: pip install -e .
+
+      - name: Configure kube access
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Reach cluster Prometheus
+        run: |
+          kubectl -n mukti-monitoring port-forward svc/prometheus-k8s 9090 \
+            > /dev/null 2>&1 &
+          echo "Waiting for Prometheus..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:9090/-/healthy > /dev/null; then
+              echo "Prometheus reachable"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Prometheus not reachable"; exit 1
+
+      - name: Run release gate
+        id: gate
+        run: |
+          set +e
+          mukti slo gate \
+            --prometheus-url http://localhost:9090 \
+            --min-budget 0.10 \
+            --max-burn 6.0 \
+            --json > gate-report.json
+          GATE_EXIT=$?
+          cat gate-report.json
+
+          if [ $GATE_EXIT -eq 0 ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Gate passed"
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "🚫 Gate blocked deployment"
+          fi
+          exit 0   # don't fail the job; deploy job checks the output
+
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slo-gate-report
+          path: gate-report.json
+
+  # ── Job 2: Deploy (only if gate passed) ────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: slo-gate
+    if: needs.slo-gate.outputs.allowed == 'true'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          MUKTI_VERSION="${VERSION#v}" ./deploy/deploy-gated.sh
+
+  # ── Job 3: Report block reason ─────────────────────
+  gate-blocked:
+    name: Report Gate Block
+    runs-on: ubuntu-latest
+    needs: slo-gate
+    if: needs.slo-gate.outputs.allowed != 'true'
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              text: "🚫 MUKTI deployment blocked by SLO gate – error budget unhealthy. See workflow artifacts."
+            }
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

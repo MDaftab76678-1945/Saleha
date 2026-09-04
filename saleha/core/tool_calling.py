@@ -288,7 +288,19 @@ class ToolCallingLoop:
         self.registry = registry or global_tool_registry
 
     def parse_tool_call(self, text: str) -> Optional[ToolCall]:
-        """Looks for tool call blocks formatted as ```tool_call {"tool": "name", "args": {...}} ```."""
+        """Looks for tool call blocks formatted as ```tool_call {...}``` or XML <tool_call>{...}</tool_call>."""
+        if not text:
+            return None
+
+        # 1. Check XML <tool_call> format
+        xml_match = re.search(r"<tool_call>\s*(.*?)\s*</tool_call>", text, re.DOTALL | re.IGNORECASE)
+        if xml_match:
+            from saleha.core.structured_reasoner import structured_reasoner
+            parsed = structured_reasoner._parse_single_tool_call(xml_match.group(1).strip())
+            if parsed:
+                return ToolCall(tool_name=parsed.name, arguments=parsed.arguments)
+
+        # 2. Check markdown code fence format
         match = re.search(r"```(?:tool_call|json)\s*(\{.*?\})\s*```", text, re.DOTALL)
         if not match:
             return None
@@ -308,6 +320,9 @@ class ToolCallingLoop:
             return None
         return self.registry.execute(call.tool_name, **call.arguments)
 
+
+# Aliases
+ToolDispatcher = ToolCallingLoop
 
 # Global tool registry instance
 global_tool_registry = ToolRegistry()

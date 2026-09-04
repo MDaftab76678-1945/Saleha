@@ -1,0 +1,23 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: mukti-replica-kill
+  namespace: mukti
+spec:
+  appinfo:
+    appns: mukti
+    applabel: "app=mukti-postgres-replica"
+    appkind: statefulset
+  engineState: active
+  chaosServiceAccount: chaos-runner
+  experiments:
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+            - name: FORCE
+              value: "true"
+            - name: PODS_AFFECTED_PERC
+              value: "100"

@@ -95,13 +95,17 @@ class TokenAnalyticsEngine:
 
     def record_invocation(
         self,
-        prompt_tokens: int,
-        completion_tokens: int,
-        response_time_sec: float,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        response_time_sec: Optional[float] = None,
         model: str = "local",
-        reasoning_tokens: int = 0
+        reasoning_tokens: int = 0,
+        duration_sec: Optional[float] = None,
     ) -> InvocationRecord:
         """Logs an LLM invocation and updates cumulative token economics."""
+        if response_time_sec is None:
+            response_time_sec = duration_sec if duration_sec is not None else 0.01
+
         prompt_tokens = max(1, prompt_tokens)
         completion_tokens = max(1, completion_tokens)
         total_toks = prompt_tokens + completion_tokens

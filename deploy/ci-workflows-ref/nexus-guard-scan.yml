@@ -1,0 +1,41 @@
+name: 🛡️ NEXUS Guard: AI Agent Security Scan
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  nexus-guard-scan:
+    name: Scan Agent Configuration
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔍 Run NEXUS Guard Scanner
+        id: scan
+        run: |
+          echo "Running NEXUS Guard on sample_agent.yaml..."
+          # Run the CLI. If it finds CRITICAL or HIGH issues, it will exit with code 1 (or we can enforce it)
+          python cli.py --config sample_agent.yaml
+          
+      - name: 🚫 Block PR on Critical/High Findings
+        if: failure()
+        run: |
+          echo "::error::🛑 NEXUS Guard detected critical security or compliance violations!"
+          echo "::error::Please fix the agent configuration before merging."
+          exit 1

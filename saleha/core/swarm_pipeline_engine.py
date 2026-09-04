@@ -7,6 +7,7 @@ persists checkpoints to disk for zero-waste session resumption, and broadcasts e
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -93,8 +94,22 @@ class AutonomousSwarmRouter:
 class SwarmPipelineEngine:
     """Executes Dynamic Multi-Agent DAG Pipelines with Checkpointing & Session Resumption."""
 
-    def __init__(self, router: Optional[AutonomousSwarmRouter] = None):
+    def __init__(self, router: Optional[AutonomousSwarmRouter] = None, model: str = "auto"):
         self.router = router or AutonomousSwarmRouter()
+        self.model = model
+
+    def _resolve_model(self, task_role: str) -> str:
+        """Dynamically resolves model: uses test mock when in test mode or explicitly requested,
+        otherwise routes to real local models via smart_router."""
+        if os.environ.get("SALEHA_TEST_MODE") == "1" or self.model == "mock":
+            return "mock"
+        if self.model and self.model != "auto":
+            return self.model
+        try:
+            from saleha.core.smart_router import smart_router
+            return smart_router.select_model_for_task(task_role)
+        except Exception:
+            return "auto"
 
     def execute_swarm(
         self,
@@ -147,7 +162,7 @@ class SwarmPipelineEngine:
             # Lazy load agents to avoid circular imports
             if role == "Architect":
                 from saleha.agents.architect import ArchitectAgent
-                agent = ArchitectAgent(model="mock")
+                agent = ArchitectAgent(model=self._resolve_model("architect"))
                 design = agent.design_system(goal)
                 adr_title = design.adr_title
                 contract = ArchitectOutputContract(
@@ -168,7 +183,7 @@ class SwarmPipelineEngine:
 
             elif role == "Coder":
                 from saleha.agents.coder import CoderAgent
-                agent = CoderAgent(model="mock")
+                agent = CoderAgent(model=self._resolve_model("coder"))
                 resp = agent.generate_code(goal)
                 source_code = resp.code if resp.success else f"# Synthesized Code for: {goal}\ndef execute():\n    return True\n"
                 contract = CoderOutputContract(source_code=source_code)
@@ -182,7 +197,7 @@ class SwarmPipelineEngine:
 
             elif role == "SecurityGuard":
                 from saleha.agents.security_guard import SecurityGuardAgent
-                agent = SecurityGuardAgent(model="mock")
+                agent = SecurityGuardAgent(model=self._resolve_model("security"))
                 audit = agent.audit_and_harden(goal, source_code or "def f(): pass")
                 is_secure = audit.is_secure
                 source_code = audit.hardened_code
@@ -202,7 +217,7 @@ class SwarmPipelineEngine:
 
             elif role == "QALead":
                 from saleha.agents.qa_lead import QALeadAgent
-                agent = QALeadAgent(model="mock")
+                agent = QALeadAgent(model=self._resolve_model("qa"))
                 suite = agent.generate_test_suite(goal, source_code or "def f(): pass", framework="pytest")
                 tests_passed = True
                 contract = QAOutputContract(
@@ -222,7 +237,7 @@ class SwarmPipelineEngine:
 
             elif role == "Reviewer":
                 from saleha.agents.reviewer import ReviewerAgent
-                agent = ReviewerAgent(model="mock")
+                agent = ReviewerAgent(model=self._resolve_model("reviewer"))
                 rev = agent.review_code(goal, source_code or "def f(): pass")
                 contract = ReviewerOutputContract(
                     approved=rev.approved,
@@ -240,7 +255,7 @@ class SwarmPipelineEngine:
 
             elif role == "FinOpsOptimizer":
                 from saleha.agents.finops_optimizer import FinOpsOptimizerAgent
-                agent = FinOpsOptimizerAgent(model="mock")
+                agent = FinOpsOptimizerAgent(model=self._resolve_model("finops"))
                 res = agent.compress_and_optimize(source_code or goal)
                 savings_pct = res.token_savings_pct
                 contract = FinOpsOutputContract(

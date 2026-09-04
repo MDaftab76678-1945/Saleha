@@ -1,0 +1,24 @@
+name: Welcome & Triage
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const isPR = context.payload.pull_request !== undefined;
+            const comment = isPR
+              ? `👋 Thanks for your PR! A maintainer will review within 48h.\n✅ Please ensure:\n- [ ] cargo fmt + clippy clean\n- [ ] Tests added/updated\n- [ ] Linked issue in description`
+              : `🔍 Thanks for opening this issue!\n📌 Please add:\n- Rust version, OS, hardware (if RDMA)\n- Minimal repro steps\n- cargo nextest output\n⏱️ Triage within 24h.`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

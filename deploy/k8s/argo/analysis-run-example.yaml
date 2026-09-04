@@ -1,0 +1,13 @@
+# k8s/argo/analysis-run-example.yaml
+# Manual Analysis Run – for testing or one-off analysis
+
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisRun
+metadata:
+  name: mukti-canary-analysis-run-{{ timestamp }}
+  namespace: mukti
+spec:
+  analysisTemplate: mukti-canary-analysis
+  args:
+    - name: service-name
+      value: mukti-backend-canary

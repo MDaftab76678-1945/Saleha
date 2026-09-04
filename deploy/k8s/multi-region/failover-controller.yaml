@@ -1,0 +1,84 @@
+# ================================================================
+# MUKTI - Cross-Region Failover Controller
+# Monitors health and triggers failover when needed
+# ================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mukti-failover-controller
+  namespace: mukti
+  labels:
+    app: mukti-failover-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mukti-failover-controller
+  template:
+    metadata:
+      labels:
+        app: mukti-failover-controller
+    spec:
+      serviceAccountName: mukti-failover-controller
+      containers:
+        - name: failover-controller
+          image: ghcr.io/mukti-foundation/failover-controller:1.0.0
+          env:
+            - name: PRIMARY_REGION
+              value: "us-east-1"
+            - name: SECONDARY_REGION
+              value: "eu-west-1"
+            - name: HEALTH_CHECK_ENDPOINT
+              value: "https://api.mukti.ai/health"
+            - name: HEALTH_CHECK_INTERVAL
+              value: "30"
+            - name: FAILOVER_THRESHOLD
+              value: "3"
+            - name: AUTO_FAILBACK
+              value: "true"
+            - name: DNS_ZONE_ID
+              value: "Z1234567890"
+            - name: DNS_RECORD_NAME
+              value: "api.mukti.ai"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+# RBAC for failover controller
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mukti-failover-controller
+  namespace: mukti
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mukti-failover-controller
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: ["dnsendpoints"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mukti-failover-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mukti-failover-controller
+subjects:
+  - kind: ServiceAccount
+    name: mukti-failover-controller
+    namespace: mukti

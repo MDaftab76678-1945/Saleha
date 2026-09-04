@@ -118,3 +118,8 @@ class PadicIsolationValidator:
             "semantic_bleeding_risk": "0.0% (Strong Ultrametric Hardlock)" if is_fully_isolated else "VIOLATION",
         }
 
+
+padic_validator = PadicIsolationValidator()
+
+
+

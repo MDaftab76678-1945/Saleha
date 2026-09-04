@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MKView — MUKTI Knowledge Machine Dashboard</title>
+    <script src="/static/htmx.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+            background: #0b0f14;
+            color: #d7e1ea;
+        }
+
+        header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #223041;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #7dd3fc;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+            padding: 16px 24px;
+        }
+
+        .card {
+            background: #111823;
+            border: 1px solid #223041;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        button {
+            background: #0ea5e9;
+            color: #031018;
+            border: 0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 6px;
+        }
+
+        button.secondary {
+            background: #223041;
+            color: #d7e1ea;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #223041;
+            font-size: 13px;
+        }
+
+        .status-created { color: #94a3b8; }
+        .status-validating { color: #fbbf24; }
+        .status-validated { color: #34d399; }
+        .status-running { color: #60a5fa; }
+        .status-completed { color: #22c55e; }
+        .status-signed { color: #a78bfa; }
+
+        .logs {
+            height: 420px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .log-time {
+            color: #64748b;
+        }
+
+        .toolbar {
+            margin-bottom: 12px;
+        }
+
+        .progress {
+            width: 80px;
+            height: 8px;
+            background: #223041;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #22c55e;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MKView — MKMX Control Plane</h1>
+        <div>
+            <button hx-post="/tasks"
+                    hx-target="#task-list"
+                    hx-swap="beforeend">
+                + New MKL Task
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2>Tasks</h2>
+
+            <div id="task-list"
+                 hx-get="/tasks/list"
+                 hx-trigger="every 2s"
+                 hx-swap="innerHTML">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>MKMX Logs</h2>
+
+            <div id="logs"
+                 class="logs"
+                 hx-get="/logs"
+                 hx-trigger="every 1s"
+                 hx-swap="innerHTML">
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card" id="proof-panel">
+            <h2>Proof Certificate</h2>
+            <p>Select a signed task to view proof.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: genesis-api
+  namespace: genesis
+  labels:
+    app: genesis
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app: genesis
+    component: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genesis-collab
+  namespace: genesis
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9000
+    targetPort: 9000
+    protocol: TCP
+    name: websocket
+  selector:
+    app: genesis
+    component: collab

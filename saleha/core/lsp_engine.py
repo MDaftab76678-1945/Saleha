@@ -38,8 +38,13 @@ class LSPEngine:
     def __init__(self, root_dir: str = "."):
         self.root_dir = os.path.abspath(root_dir)
 
+    def check_code(self, code: str, filename: str = "snippet.py") -> List[LSPDiagnostic]:
+        """Runs AST diagnostics directly against an in-memory code string."""
+        return self.diagnose_python_ast(filename, code)
+
     def diagnose_python_ast(self, file_path: str, code: str) -> List[LSPDiagnostic]:
         """Performs deep AST syntax and type annotation validation for Python."""
+
         diagnostics = []
         try:
             tree = ast.parse(code, filename=file_path)

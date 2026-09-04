@@ -150,6 +150,10 @@ class SandboxRunner:
         """Executes a Python snippet directly in an isolated child Python process."""
         return self.run_command([self.python_bin, "-c", python_code], timeout_sec=timeout_sec)
 
+    def run(self, python_code: str, timeout_sec: Optional[float] = None) -> SandboxResult:
+        """Convenience alias for running Python code in the sandbox."""
+        return self.run_python_code(python_code, timeout_sec=timeout_sec)
+
     def run_in_sandbox(
         self,
         script_code_or_file: str,

@@ -28,7 +28,8 @@ from collections import defaultdict
 import hashlib
 INSTALL_PROBE_TTL_SEC = 60.0
 _OLLAMA_TAGS_URL = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434") + "/api/tags"
-_probe_cache: Dict[str, object] = {"at": 0.0, "models": frozenset()}
+_probe_cache_at: float = 0.0
+_probe_cache_models: Set[str] = set()
 
 
 def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
@@ -37,10 +38,10 @@ def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
     Return empty set ka matlab: Ollama down ya unreachable -- is case me
     router ko static catalog pe fall back karna chahiye.
     """
-    global _probe_cache
+    global _probe_cache_at, _probe_cache_models
     now = time.time()
-    if not force_refresh and (now - float(_probe_cache["at"])) < INSTALL_PROBE_TTL_SEC:
-        return set(_probe_cache["models"])  # type: ignore[arg-type]
+    if not force_refresh and (now - _probe_cache_at) < INSTALL_PROBE_TTL_SEC:
+        return set(_probe_cache_models)
 
     models: Set[str] = set()
     try:
@@ -58,7 +59,8 @@ def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
     except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
         models = set()
 
-    _probe_cache = {"at": now, "models": frozenset(models)}
+    _probe_cache_at = now
+    _probe_cache_models = set(models)
     return models
 
 
@@ -317,6 +319,9 @@ class SmartRouter:
 
     def route_task(self, task: str, complexity: float = 0.0) -> str:
         return self.select_model(task, complexity_score=complexity)
+
+    def select_model_for_task(self, task: str, complexity_score: float = 0.0) -> str:
+        return self.select_model(task, complexity_score=complexity_score)
 
     def record_result(self, task: str, complexity: float, model_used: str, 
                      response_time: float, success: bool):

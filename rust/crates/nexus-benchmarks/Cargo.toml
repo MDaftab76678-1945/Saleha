@@ -1,0 +1,13 @@
+[package]
+name = "nexus-benchmarks"
+version.workspace = true
+edition.workspace = true
+
+[[bench]]
+name = "pbft_throughput"
+harness = false
+
+[dependencies]
+nexus-consensus = { path = "../nexus-consensus" }
+tokio = { workspace = true }
+criterion = { workspace = true }

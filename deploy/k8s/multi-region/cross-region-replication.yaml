@@ -1,0 +1,76 @@
+# ================================================================
+# MUKTI - Cross-Region Data Replication
+# Aurora Global Database + Redis Global Datastore
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mukti-replication-config
+  namespace: mukti
+data:
+  replication-config.yaml: |
+    database:
+      engine: aurora-postgresql
+      primaryRegion: us-east-1
+      secondaryRegions:
+        - eu-west-1
+        - ap-southeast-1
+      globalClusterIdentifier: mukti-global-cluster
+      storageEncrypted: true
+      backupRetentionPeriod: 35
+      preferredBackupWindow: "03:00-04:00"
+      preferredMaintenanceWindow: "sun:04:00-sun:05:00"
+      
+    redis:
+      engine: redis
+      primaryRegion: us-east-1
+      secondaryRegions:
+        - eu-west-1
+      globalDatastoreIdentifier: mukti-global-redis
+      engineVersion: "7.1"
+      nodeType: cache.r6g.large
+      numNodeGroups: 3
+      replicasPerNodeGroup: 2
+      
+    s3:
+      bucket: mukti-backups
+      replicationRules:
+        - id: cross-region-backup
+          status: Enabled
+          destination:
+            bucket: arn:aws:s3:::mukti-backups-eu
+            storageClass: STANDARD_IA
+          filter:
+            prefix: backups/
+---
+# Kubernetes CronJob for replication monitoring
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mukti-replication-monitor
+  namespace: mukti
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: mukti-replication-monitor
+          containers:
+            - name: replication-monitor
+              image: ghcr.io/mukti-foundation/replication-monitor:1.0.0
+              env:
+                - name: AWS_REGION
+                  value: "us-east-1"
+                - name: GLOBAL_CLUSTER_ID
+                  value: "mukti-global-cluster"
+                - name: REDIS_GLOBAL_DATASTORE
+                  value: "mukti-global-redis"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+          restartPolicy: OnFailure

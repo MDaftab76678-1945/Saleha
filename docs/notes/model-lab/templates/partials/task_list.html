@@ -1,0 +1,17 @@
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>MKL</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for task in tasks %}
+            {% include "partials/task_row.html" %}
+        {% endfor %}
+    </tbody>
+</table>

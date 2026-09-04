@@ -1,6 +1,5 @@
-"""Unit and Integration Test Suite for Saleha Sovereign Super-Suite (Advanced Kimi Feature Matrix)."""
+"""Unit and Integration Test Suite for Saleha Sovereign Super-Suite (Advanced Sovereign Feature Matrix)."""
 
-import pytest
 from unittest.mock import MagicMock
 
 from saleha.agents.deep_researcher import DeepResearcherAgent, deep_researcher

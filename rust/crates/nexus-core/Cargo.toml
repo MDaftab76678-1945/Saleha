@@ -1,0 +1,13 @@
+[dependencies]
+# ... existing deps ...
+rdma-core-sys = "0.3"      # Raw FFI bindings to libibverbs
+libc = "0.2"               # For RawFd, mmap, etc.
+io-uring = "0.6"           # Kernel-bypass completion queue notifications
+tracing = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[features]
+default = ["tcp-fallback"]
+rdma = []                  # Enable only when ConnectX-7/RoCEv2 hardware present
+tcp-fallback = []          # Always enabled as safety net

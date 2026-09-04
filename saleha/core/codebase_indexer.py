@@ -207,6 +207,14 @@ class CodebaseIndexer:
             "syntax_error_files": errors,
         }
 
+    @staticmethod
+    def apply_aider_diff(original_code: str, diff_text: str) -> Tuple[bool, str, Optional[str]]:
+        return SmartPatcher.apply_aider_diff(original_code, diff_text)
+
+    @staticmethod
+    def apply_search_replace(original_code: str, search_block: str, replace_block: str) -> Tuple[bool, str, Optional[str]]:
+        return SmartPatcher.apply_search_replace(original_code, search_block, replace_block)
+
 
 class SmartPatcher:
     """Applies surgical diff patches and validates code syntax before writing."""
@@ -343,5 +351,7 @@ class SmartPatcher:
 
 # Global instance
 codebase_indexer = CodebaseIndexer()
+smart_patcher = SmartPatcher()
+
 
 

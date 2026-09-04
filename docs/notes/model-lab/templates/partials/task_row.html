@@ -1,0 +1,40 @@
+<tr class="task-row" id="task-{{ task.id }}">
+    <td>{{ task.id }}</td>
+    <td>{{ task.name }}</td>
+    <td>{{ task.mkl_file }}</td>
+    <td class="status-{{ task.status }}">{{ task.status }}</td>
+    <td>
+        <div class="progress">
+            <div class="progress-bar" style="width: {{ task.progress }}%;"></div>
+        </div>
+    </td>
+    <td>
+        <button class="secondary"
+                hx-post="/tasks/{{ task.id }}/validate"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML">
+            Validate
+        </button>
+
+        <button class="secondary"
+                hx-post="/tasks/{{ task.id }}/run"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML">
+            Run
+        </button>
+
+        <button class="secondary"
+                hx-post="/tasks/{{ task.id }}/sign"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML">
+            Sign
+        </button>
+
+        <button class="secondary"
+                hx-get="/tasks/{{ task.id }}/proof"
+                hx-target="#proof-panel"
+                hx-swap="innerHTML">
+            Proof
+        </button>
+    </td>
+</tr>

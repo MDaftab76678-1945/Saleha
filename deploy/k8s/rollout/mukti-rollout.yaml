@@ -1,0 +1,108 @@
+# k8s/rollout/mukti-rollout.yaml
+# Argo Rollout – replaces the plain Deployment for progressive delivery.
+# Traffic shifts 5% → 25% → 50% → 75% → 100%, with SLO analysis at each step.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: mukti-api
+  namespace: mukti
+  labels:
+    app.kubernetes.io/name: mukti
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mukti
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mukti
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      serviceAccountName: mukti-api
+      containers:
+        - name: api
+          image: ghcr.io/mukti-foundation/mukti-api:{{ .Values.image.tag }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MUKTI_ENVIRONMENT
+              value: "production"
+          readinessProbe:
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 20
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1Gi}
+
+  strategy:
+    canary:
+      canaryService: mukti-api-canary
+      stableService: mukti-api-stable
+
+      # NGINX traffic routing (matches your existing ingress controller)
+      trafficRouting:
+        nginx:
+          stableIngress: mukti-api
+
+      # Progressive steps with SLO-gated analysis
+      steps:
+        # Step 1: 5% canary + immediate SLO check
+        - setWeight: 5
+        - analysis:
+            templates:
+              - templateName: mukti-canary-slo
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+
+        # Step 2: 25% + pause + analysis
+        - setWeight: 25
+        - pause: {duration: 5m}
+        - analysis:
+            templates:
+              - templateName: mukti-canary-slo
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+
+        # Step 3: 50% + pause + analysis
+        - setWeight: 50
+        - pause: {duration: 10m}
+        - analysis:
+            templates:
+              - templateName: mukti-canary-slo
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+
+        # Step 4: 75% + pause + analysis
+        - setWeight: 75
+        - pause: {duration: 5m}
+        - analysis:
+            templates:
+              - templateName: mukti-canary-slo
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+
+        # Step 5: 100% (promote)
+        - setWeight: 100
+
+      # On analysis failure: abort + auto-revert to stable
+      abortScaleDownDelaySeconds: 30
+      dynamicStableScale: true
+
+      # Anti-affinity so canary/stable spread across nodes
+      antiAffinity:
+        requiredDuringSchedulingIgnoreDuringExecution: {}

@@ -1,0 +1,24 @@
+# k8s/argo/virtualservice.yaml
+# Istio VirtualService for traffic routing
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mukti-backend-vs
+  namespace: mukti
+spec:
+  hosts:
+    - mukti-backend.mukti.svc.cluster.local
+  http:
+    - name: primary
+      route:
+        - destination:
+            host: mukti-backend-stable
+            port:
+              number: 80
+          weight: 100
+        - destination:
+            host: mukti-backend-canary
+            port:
+              number: 80
+          weight: 0

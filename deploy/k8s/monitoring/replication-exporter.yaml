@@ -1,0 +1,81 @@
+# k8s/monitoring/replication-exporter.yaml
+# Deployment + Service + ServiceMonitor for the replication exporter
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mukti-replication-exporter
+  namespace: mukti-monitoring
+  labels:
+    app: mukti-replication-exporter
+spec:
+  replicas: 1   # Single instance – it probes, not serves user traffic
+  selector:
+    matchLabels:
+      app: mukti-replication-exporter
+  template:
+    metadata:
+      labels:
+        app: mukti-replication-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9102"
+    spec:
+      containers:
+        - name: exporter
+          image: ghcr.io/mukti-foundation/mukti-api:5.0.0
+          command: ["python", "-m", "mukti.observability.replication_exporter"]
+          args:
+            - "--writer-url=$(WRITER_URL)"
+            - "--reader-url=$(READER_URL)"
+            - "--interval=10"
+            - "--port=9102"
+          env:
+            - name: WRITER_URL
+              value: "https://api-us.mukti.ai"
+            - name: READER_URL
+              value: "https://api-eu.mukti.ai"
+            - name: REPLTEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mukti-repltest-token
+                  key: token
+          ports:
+            - name: metrics
+              containerPort: 9102
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mukti-replication-exporter
+  namespace: mukti-monitoring
+  labels:
+    app: mukti-replication-exporter
+spec:
+  selector:
+    app: mukti-replication-exporter
+  ports:
+    - name: metrics
+      port: 9102
+      targetPort: 9102
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mukti-replication-exporter
+  namespace: mukti-monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: mukti-replication-exporter
+  endpoints:
+    - port: metrics
+      interval: 15s

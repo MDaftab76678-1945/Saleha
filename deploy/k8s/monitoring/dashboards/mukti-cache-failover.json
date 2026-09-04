@@ -1,0 +1,100 @@
+{
+  "uid": "mukti-cache-failover",
+  "title": "MUKTI - Cache & Failover",
+  "tags": ["mukti", "cache", "failover"],
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Cache Hit Rate",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "orange", "value": 0.3},
+            {"color": "green", "value": 0.6}
+          ]}
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(mukti_cache_hits_total[5m])) / (sum(rate(mukti_cache_hits_total[5m])) + sum(rate(mukti_cache_misses_total[5m])))"
+      }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cache Savings (24h)",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}},
+      "targets": [{"expr": "sum(increase(mukti_cache_savings_usd_total[24h]))"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Failover State",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {
+              "0": {"text": "NORMAL", "color": "green"},
+              "1": {"text": "FAILED OVER", "color": "red"},
+              "2": {"text": "FAILING BACK", "color": "orange"}
+            }}
+          ]
+        }
+      },
+      "targets": [{"expr": "mukti_failover_state"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active Region",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{"expr": "topk(1, mukti_failover_active_region_info == 1)"}]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Cache Hits vs Misses",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "sum(rate(mukti_cache_hits_total[5m]))", "legendFormat": "hits"},
+        {"expr": "sum(rate(mukti_cache_misses_total[5m]))", "legendFormat": "misses"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Region Health",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "mukti_failover_health", "legendFormat": "{{region}}"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Health Check Latency by Region",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(mukti_failover_health_latency_seconds_bucket[5m])) by (le, region))", "legendFormat": "{{region}} p95"}
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Embedding Latency",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(mukti_cache_embed_latency_seconds_bucket[5m])) by (le, embedder))", "legendFormat": "{{embedder}} p95"}
+      ]
+    }
+  ]
+}

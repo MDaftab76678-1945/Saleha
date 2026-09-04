@@ -190,6 +190,22 @@ class WebServerTests(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertIn("return x * 10", data["patched"])
 
+    def test_get_api_souls(self):
+        status, body = self._get("/api/souls")
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertIn("active_soul", data)
+        self.assertEqual(data["total_souls"], 10)
+        self.assertTrue(len(data["souls"]) == 10)
+
+    def test_post_api_souls_use(self):
+        status, body = self._post("/api/souls/use", {"soul": "artisan"})
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["active_soul"], "artisan")
+        self.assertIn("Glassmorphic", data["display_name"])
+
 
 if __name__ == "__main__":
     unittest.main()

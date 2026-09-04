@@ -80,42 +80,8 @@ class CodeExecutor:
             return f"{danger.description} (pattern: '{danger.pattern}')"
         return None
 
-    def execute(
-        self,
-        code: str,
-        timeout: Optional[int] = None,
-        allow_dangerous: bool = False,
-    ) -> ExecutionResult:
-        """
-        Python code ko execute karta hai aur output return karta hai.
-        `timeout` diya jaye to constructor wale default ko override karta hai.
-        """
-        effective_timeout = timeout if timeout is not None else self.timeout
-
-        if self.python_cmd is None:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error="Neither 'python' nor 'python3' found on PATH. "
-                      "Please ensure Python is installed and on PATH.",
-                exit_code=-1,
-            )
-
-        if not allow_dangerous:
-            reason = self._check_dangerous(code)
-            if reason:
-                if self.audit_log:
-                    self.audit_log.record(code=code, allowed=False, reason=reason)
-                return ExecutionResult(
-                    success=False,
-                    output="",
-                    error="",
-                    exit_code=-1,
-                    blocked=True,
-                    block_reason=reason,
-                )
-
     def _prepare_temp_file(self, code: str) -> str:
+
         """Writes code to a secure temporary Python file."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".py", delete=False, encoding="utf-8"
@@ -204,7 +170,7 @@ class CodeExecutor:
                     executed=True, success=False, exit_code=-1,
                 )
             return ExecutionResult(success=False, output="", error=timeout_error, exit_code=-1, backend=backend)
-        except (subprocess.SubprocessError, OSError) as e:
+        except Exception as e:
             if self.audit_log:
                 self.audit_log.record(code=code, allowed=True, reason=str(e), executed=True, success=False, exit_code=-1)
             return ExecutionResult(success=False, output="", error=str(e), exit_code=-1, backend=backend)
@@ -215,7 +181,10 @@ class CodeExecutor:
                 pass  # noqa
 
 
+code_executor = CodeExecutor()
+
+
 if __name__ == "__main__":
     _executor = CodeExecutor()
     _test_code = "def hello():\n    return 'Hello from Saleha!'\nhello()\n"
-    _res = _executor.execute(_test_code)
+    _res = _executor.execute(_test_code)

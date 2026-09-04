@@ -1,0 +1,12 @@
+[package]
+name = "agent-nexus-l1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agent-common = { path = "../agent-common" }
+agent-crypto = { path = "../agent-crypto" }
+anyhow.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true

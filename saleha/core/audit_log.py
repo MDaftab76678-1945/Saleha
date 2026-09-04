@@ -14,6 +14,9 @@ import time
 import hashlib
 
 
+from typing import Optional
+
+
 DEFAULT_AUDIT_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "audit_log.jsonl")
 
 
@@ -27,9 +30,10 @@ class AuditLog:
         allowed: bool,
         reason: str = "",
         executed: bool = False,
-        success: bool = None,
-        exit_code: int = None,
+        success: Optional[bool] = None,
+        exit_code: Optional[int] = None,
     ):
+
         entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "code_hash": hashlib.sha256(code.encode("utf-8")).hexdigest()[:16],
@@ -76,6 +80,7 @@ if __name__ == "__main__":
         print("Recent entries:")
         for e in log.recent():
             status = "✅ allowed" if e["allowed"] else "🚫 blocked"
-            print(f"  [{e['timestamp']}] {status} -- {e['code_preview']} ({e['reason'] or 'no issue'})")
-
         print(f"\nBlocked count: {len(log.blocked_entries())}")
+
+
+audit_log = AuditLog()

@@ -1,0 +1,6 @@
+{% for log in logs %}
+<div>
+    <span class="log-time">[{{ log.time }}]</span>
+    {{ log.message }}
+</div>
+{% endfor %}

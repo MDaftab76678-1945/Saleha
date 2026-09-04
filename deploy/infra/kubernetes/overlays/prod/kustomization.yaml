@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: nexus-production
+
+resources:
+  - ../../base/
+  - pdb.yaml
+  - network-policies.yaml
+
+patchesStrategicMerge:
+  - patches/backend-deployment.yaml
+  - patches/frontend-deployment.yaml
+  - patches/hpa.yaml
+
+configMapGenerator:
+  - name: nexus-config
+    literals:
+      - APP_ENV=production
+      - LOG_LEVEL=WARNING
+      - MAX_CONCURRENT_WORKERS=10
+      - TOKEN_BUDGET_PER_TASK=16000
+      - WASM_STRICT_MODE=true
+      - ENABLE_RATE_LIMITING=true
+
+images:
+  - name: nexus-omni/backend
+    newTag: v1.0.0
+  - name: nexus-omni/frontend
+    newTag: v1.0.0
+
+replicas:
+  - name: nexus-backend
+    count: 3
+  - name: nexus-frontend
+    count: 3

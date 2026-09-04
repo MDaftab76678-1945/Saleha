@@ -37,6 +37,31 @@ class REPLTests(unittest.TestCase):
         self.assertTrue(self.repl.handle_slash_command("/status"))
         self.assertTrue(self.repl.handle_slash_command("/outline setup.py"))
 
+    def test_slash_command_soul_and_souls(self):
+        self.assertTrue(self.repl.handle_slash_command("/souls"))
+        self.assertTrue(self.repl.handle_slash_command("/soul artisan"))
+        from saleha.core.soul_engine import soul_engine
+        self.assertEqual(soul_engine.get_active_soul_name(), "artisan")
+
+    def test_slash_command_cost_and_compact(self):
+        self.assertTrue(self.repl.handle_slash_command("/cost"))
+        for i in range(10):
+            self.repl.history.append({"role": "user", "content": f"msg {i}"})
+        self.assertTrue(self.repl.handle_slash_command("/compact"))
+        self.assertTrue(len(self.repl.history) <= 5)
+
+    def test_slash_command_mode(self):
+        self.assertTrue(self.repl.handle_slash_command("/mode auto"))
+        self.assertEqual(self.repl.security_mode, "auto")
+        self.assertTrue(self.repl.handle_slash_command("/mode guard"))
+        self.assertEqual(self.repl.security_mode, "guard")
+        self.assertTrue(self.repl.handle_slash_command("/mode readonly"))
+        self.assertEqual(self.repl.security_mode, "readonly")
+
+    def test_slash_command_search(self):
+        self.assertTrue(self.repl.handle_slash_command("/search"))
+        self.assertTrue(self.repl.handle_slash_command("/search calculate"))
+
 
 if __name__ == "__main__":
     unittest.main()

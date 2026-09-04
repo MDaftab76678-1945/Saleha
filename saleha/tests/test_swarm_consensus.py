@@ -50,6 +50,35 @@ class TestSwarmConsensus(unittest.TestCase):
         self.assertEqual(dec.prepare_votes, 1)
         self.assertFalse(dec.committed)
 
+    def test_confidence_weighted_consensus_high_confidence(self):
+        weighted_consensus = SwarmPBFTConsensus(
+            ["ArchitectAgent", "SecurityAgent", "TesterAgent", "CoderAgent"],
+            weights={"ArchitectAgent": 2.0, "SecurityAgent": 2.5, "TesterAgent": 1.5, "CoderAgent": 1.0}
+        )
+        prop = weighted_consensus.propose("CoderAgent", "core.py", "def execute(): return True")
+        # High-weight agents approve with high confidence
+        weighted_consensus.cast_prepare_vote(prop.proposal_id, "ArchitectAgent", True, confidence=0.95)
+        weighted_consensus.cast_prepare_vote(prop.proposal_id, "SecurityAgent", True, confidence=0.9)
+        weighted_consensus.cast_commit_vote(prop.proposal_id, "ArchitectAgent", True, confidence=0.95)
+        weighted_consensus.cast_commit_vote(prop.proposal_id, "SecurityAgent", True, confidence=0.9)
+
+        dec = weighted_consensus.evaluate_confidence_weighted_consensus(prop.proposal_id, threshold=0.5)
+        self.assertTrue(dec.committed)
+        self.assertIn("CP-WBFT Weighted Consensus", dec.summary)
+
+    def test_confidence_weighted_consensus_low_confidence_rejected(self):
+        weighted_consensus = SwarmPBFTConsensus(
+            ["ArchitectAgent", "SecurityAgent", "TesterAgent", "CoderAgent"],
+            weights={"ArchitectAgent": 1.0, "SecurityAgent": 1.0, "TesterAgent": 1.0, "CoderAgent": 1.0}
+        )
+        prop = weighted_consensus.propose("CoderAgent", "risky.py", "eval(user_input)")
+        # Agents vote with low confidence
+        weighted_consensus.cast_prepare_vote(prop.proposal_id, "ArchitectAgent", True, confidence=0.2)
+        weighted_consensus.cast_commit_vote(prop.proposal_id, "ArchitectAgent", True, confidence=0.2)
+
+        dec = weighted_consensus.evaluate_confidence_weighted_consensus(prop.proposal_id, threshold=0.66)
+        self.assertFalse(dec.committed)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,7 @@
+[dependencies]
+blst = "0.3.13"          # Supranational BLS12-381 (audited, constant-time)
+rand = "0.8"
+sha3 = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }

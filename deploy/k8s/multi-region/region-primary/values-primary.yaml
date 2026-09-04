@@ -1,0 +1,61 @@
+# ================================================================
+# MUKTI - Primary Region (us-east-1) Helm Values
+# ================================================================
+global:
+  region: us-east-1
+  role: primary
+  clusterName: mukti-primary
+  domain: api.mukti.ai
+  
+replicaCount: 5
+
+image:
+  repository: ghcr.io/mukti-foundation/mukti
+  tag: "5.0.0"
+  pullPolicy: IfNotPresent
+
+# Primary region has more resources
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 5
+  maxReplicas: 50
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+# Database - Primary is writable
+database:
+  host: mukti-primary-db.cluster-xxx.us-east-1.rds.amazonaws.com
+  port: 5432
+  name: mukti
+  readOnly: false
+  replication:
+    enabled: true
+    role: primary
+    replicaRegions:
+      - eu-west-1
+
+# Redis - Primary
+redis:
+  host: mukti-primary-redis.xxx.us-east-1.cache.amazonaws.com
+  port: 6379
+  readOnly: false
+
+# Global Accelerator
+globalAccelerator:
+  enabled: true
+  acceleratorArn: arn:aws:globalaccelerator::123456789:accelerator/xxx
+
+# Cross-region health check
+healthCheck:
+  enabled: true
+  endpoint: https://api.mukti.ai/health
+  interval: 30
+  failureThreshold: 3

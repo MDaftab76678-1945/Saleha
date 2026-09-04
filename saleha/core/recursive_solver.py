@@ -241,6 +241,10 @@ class RecursiveSolver:
         return text.strip()
 
 
+recursive_solver = RecursiveSolver()
+
+
 if __name__ == "__main__":
     _solver = RecursiveSolver()
     _res = _solver.solve("Write an optimal algorithm to find the longest palindromic substring")
+

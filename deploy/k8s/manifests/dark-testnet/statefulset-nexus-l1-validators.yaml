@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nexus-l1-validator
+  namespace: dark-testnet
+spec:
+  serviceName: "nexus-l1-rpc"
+  replicas: 10
+  selector:
+    matchLabels:
+      app: nexus-l1-validator
+  template:
+    metadata:
+      labels:
+        app: nexus-l1-validator
+    spec:
+      nodeSelector:
+        node-pool: "high-cpu-secure" # वैलिडेटर्स के लिए सुरक्षित, हाई-सीपीयू नोड्स
+      containers:
+      - name: validator-engine
+        image: nexus-l1/validator:dark-genesis-v1
+        ports:
+        - containerPort: 9000 # gRPC RPC
+        - containerPort: 9001 # P2P Gossip
+        env:
+        - name: RUST_LOG
+          value: "info,nexus_l1_core=debug"
+        - name: GENESIS_FILE
+          value: "/etc/nexus/genesis_dark_testnet.json"
+        volumeMounts:
+        - name: validator-state
+          mountPath: /var/lib/nexus/data
+        - name: genesis-config
+          mountPath: /etc/nexus
+        resources:
+          limits:
+            cpu: "8"
+            memory: "16Gi"
+            hugepages-1Gi: "2" # zkML वेरिफिकेशन के लिए हाई-स्पीड मेमोरी
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      volumes:
+      - name: genesis-config
+        configMap:
+          name: nexus-genesis-config
+  volumeClaimTemplates:
+  - metadata:
+      name: validator-state
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "fast-ssd"
+      resources:
+        requests:
+          storage: 100Gi

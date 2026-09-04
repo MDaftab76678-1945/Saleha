@@ -72,11 +72,13 @@ class FileFacts:
 def _load_parsers() -> Dict[str, tuple]:
     """Available grammars se parsers banao; jo na milein fallback engine handle karega."""
     parsers: Dict[str, tuple] = {}
-    try:
-        from tree_sitter import Language, Parser
-    except ImportError:
-        return parsers
     import importlib
+    try:
+        ts = importlib.import_module("tree_sitter")
+        Language = getattr(ts, "Language")
+        Parser = getattr(ts, "Parser")
+    except (ImportError, AttributeError):
+        return parsers
     for lang_key, module_name in LANG_MODULES.items():
         try:
             mod = importlib.import_module(module_name)
@@ -225,3 +227,7 @@ class TreeContextRanker:
                     boost += 2.0 * math.log1p(n_referrers)
             boosts[rel] = round(boost, 3)
         return boosts
+
+
+tree_context_ranker = TreeContextRanker()
+

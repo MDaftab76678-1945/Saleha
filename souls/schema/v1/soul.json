@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://soulspec.org/schema/v1/soul.json",
+  "title": "SoulSpec Persona Manifest",
+  "description": "JSON Schema definition for SoulSpec v1.0 cognitive persona packages.",
+  "type": "object",
+  "required": [
+    "name",
+    "displayName",
+    "version",
+    "archetype",
+    "description"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI of the SoulSpec JSON schema specification."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+$",
+      "description": "Unique lowercase identifier slug for the soul persona."
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable display name of the persona."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Semantic version string of the persona package."
+    },
+    "author": {
+      "type": "string",
+      "description": "Author, organization, or team responsible for creating the persona."
+    },
+    "archetype": {
+      "type": "string",
+      "description": "High-level cognitive role, archetype, or domain specialization."
+    },
+    "description": {
+      "type": "string",
+      "description": "Comprehensive summary of the persona's role, behavioral heuristics, and philosophy."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Categorical tags and keywords associated with this persona."
+    },
+    "cognitive_params": {
+      "type": "object",
+      "description": "LLM inference hyperparameters tailored for this persona's cognitive style.",
+      "properties": {
+        "temperature": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "description": "Sampling temperature for output randomness and creativity."
+        },
+        "top_p": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Nucleus sampling probability threshold."
+        },
+        "presence_penalty": {
+          "type": "number",
+          "minimum": -2.0,
+          "maximum": 2.0,
+          "description": "Penalty for repeating topics."
+        },
+        "frequency_penalty": {
+          "type": "number",
+          "minimum": -2.0,
+          "maximum": 2.0,
+          "description": "Penalty for verbatim token repetition."
+        }
+      },
+      "additionalProperties": true
+    },
+    "allowed_tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of tool IDs that this persona is permitted to invoke."
+    }
+  },
+  "additionalProperties": true
+}

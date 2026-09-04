@@ -1,0 +1,53 @@
+# k8s/chaos/litmus/experiments/api-pod-delete.yaml
+# Validates IR-01 (API outage recovery)
+# Hypothesis: API recovers within 2 min, error rate spike < 30s
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: mukti-api-pod-delete
+  namespace: mukti
+spec:
+  appinfo:
+    appns: mukti
+    applabel: app.kubernetes.io/name=mukti
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: chaos-runner
+  experiments:
+    - name: pod-delete
+      spec:
+        probe:
+          # Steady-state probe: API must stay healthy during chaos
+          - name: api-health-check
+            type: httpProbe
+            httpProbe/inputs:
+              url: "http://mukti-api.mukti.svc:8000/health"
+              method:
+                get:
+                  criteria: ==
+                  responseCode: "200"
+            mode: Continuous
+            runProperties:
+              probeTimeout: 5
+              interval: 5
+              retry: 2
+          # Latency probe: p95 must stay < 5s
+          - name: api-latency-check
+            type: httpProbe
+            httpProbe/inputs:
+              url: "http://mukti-api.mukti.svc:8000/health"
+              method:
+                get:
+                  criteria: <
+                  responseCode: "3000"   # < 3s response time
+            mode: Continuous
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "60"           # 60s of chaos
+            - name: CHAOS_INTERVAL
+              value: "15"           # Kill a pod every 15s
+            - name: FORCE
+              value: "false"        # Graceful delete
+            - name: PODS_AFFECTED_PERC
+              value: "50"           # Kill 50% of replicas

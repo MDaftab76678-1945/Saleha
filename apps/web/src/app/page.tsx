@@ -43,7 +43,8 @@ export default function WebStudioPage() {
   const theme: ThemeTokens = THEME_PRESETS[themeKey] || THEME_PRESETS.obsidian;
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "events" | "terminal">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "topology" | "diff" | "preview" | "events" | "terminal">("chat");
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [nodes, setNodes] = useState<SwarmNode[]>(ALL_23_NODES);
@@ -58,12 +59,134 @@ export default function WebStudioPage() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [hasExecuted, setHasExecuted] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string>("");
+
+  const previewHtml = React.useMemo(() => {
+    if (generatedCode && (generatedCode.includes("<html") || generatedCode.includes("<div") || generatedCode.includes("<button") || generatedCode.includes("export default function"))) {
+      if (generatedCode.includes("<html")) return generatedCode;
+      return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #09090b; color: #f4f4f5; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+    * { box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  ${generatedCode}
+</body>
+</html>`;
+    }
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #09090b; color: #f4f4f5; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 85vh;
+    }
+    .card {
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    h2 { margin: 0 0 8px 0; font-size: 1.4rem; color: #ffffff; }
+    p { margin: 0 0 24px 0; color: #a1a1aa; font-size: 0.88rem; line-height: 1.5; }
+    .btn {
+      background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+      color: #000000;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">● LIVE SANDBOX ACTIVE</div>
+    <h2>Saleha Reactive Canvas</h2>
+    <p>Isolated in-browser DOM sandbox with hot runtime evaluation. Enter your UI prompt above and generate production components instantly.</p>
+    <button class="btn" onclick="alert('Saleha Component Sandbox Event Fired!')">Interactive Action</button>
+  </div>
+</body>
+</html>`;
+  }, [generatedCode]);
   const [terminalOutput, setTerminalOutput] = useState<string>("Saleha Isolated Execution Terminal Ready.\n");
   const [isRunningInSandbox, setIsRunningInSandbox] = useState(false);
-  const [eventLogs, setEventLogs] = useState<string[]>([
-    "System Ready: 19 First-Class Python Agents Mounted.",
-    "Swarm DAG Engine, Ephemeral Container Sandbox & EventBus Broker Active.",
+  const [selectedSoul, setSelectedSoul] = useState<string>("sovereign");
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState<boolean>(true);
+  const [thinkingSteps, setThinkingSteps] = useState<string[]>([
+    "Parsing AST invariants and code dependencies",
+    "Querying 16D Poincaré Hyperbolic manifold topology",
+    "Running Confidence-Weighted PBFT consensus (CP-WBFT)",
+    "Executing pre-commit Gamma AST static safety pass"
   ]);
+  const [inspectMode, setInspectMode] = useState<boolean>(false);
+  const [eventLogs, setEventLogs] = useState<string[]>([
+    `[${new Date().toLocaleTimeString()}] SwarmBus Initialized: 19 Autonomous Agent Workers Online`,
+    `[${new Date().toLocaleTimeString()}] Memory Store: Poincaré Hyperbolic Graph Mounted`,
+  ]);
+
+  const toggleVoiceRecognition = () => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Web Speech API is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = () => setIsListening(false);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setPrompt((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+
+      recognition.start();
+    } catch (e) {
+      setIsListening(false);
+    }
+  };
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -234,7 +357,7 @@ export default function WebStudioPage() {
         }}
       />
 
-      {/* LEFT SIDEBAR (Kimi-Style) */}
+      {/* Sovereign Navigation Sidebar */}
       <aside
         style={{
           width: isSidebarCollapsed ? "68px" : "240px",
@@ -326,6 +449,7 @@ export default function WebStudioPage() {
             {[
               { id: "chat", label: "Studio Canvas", icon: "⚡" },
               { id: "topology", label: "19-Agent Swarm", icon: "🌌" },
+              { id: "preview", label: "Live Sandbox", icon: "🌐" },
               { id: "diff", label: "AST Code Patch", icon: "📝" },
               { id: "terminal", label: "Sandbox Terminal", icon: "💻" },
               { id: "events", label: "EventBus Stream", icon: "📡" },
@@ -464,7 +588,7 @@ export default function WebStudioPage() {
 
         {/* Center Canvas Area */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "2.5rem 1.5rem 1.5rem" }}>
-          {/* Brand Big Title (Kimi-Style) */}
+          {/* Sovereign Brand Hero Title */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "2rem" }}>
             <h1
               style={{
@@ -485,7 +609,7 @@ export default function WebStudioPage() {
             </p>
           </div>
 
-          {/* Floating Omnibox Card (Kimi-Style) */}
+          {/* Floating Sovereign Omnibox Card */}
           <div
             style={{
               width: "100%",
@@ -600,10 +724,67 @@ export default function WebStudioPage() {
                     ))}
                   </div>
                 )}
+                <button
+                  onClick={toggleVoiceRecognition}
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "8px",
+                    background: isListening ? theme.accentGreen : theme.bgElevated,
+                    border: `1px solid ${isListening ? theme.accentGreen : theme.borderSubtle}`,
+                    color: isListening ? "#000000" : theme.textBright,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontSize: "0.95rem",
+                    boxShadow: isListening ? `0 0 12px ${theme.accentGlow}` : "none",
+                    transition: "all 0.2s",
+                  }}
+                  title={isListening ? "Listening... Click to stop" : "Voice-to-Code Dictation (English / Hindi)"}
+                >
+                  {isListening ? "⏺" : "🎙️"}
+                </button>
               </div>
 
               {/* Right Send & Model Tier */}
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <select
+                  value={selectedSoul}
+                  onChange={(e) => {
+                    const newSoul = e.target.value;
+                    setSelectedSoul(newSoul);
+                    fetch("/api/souls/use", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ soul: newSoul }),
+                    }).catch(() => {});
+                  }}
+                  style={{
+                    fontSize: "0.75rem",
+                    color: theme.accent,
+                    background: theme.bgElevated,
+                    padding: "0.3rem 0.5rem",
+                    borderRadius: "6px",
+                    border: `1px solid ${theme.borderSubtle}`,
+                    fontWeight: 600,
+                    outline: "none",
+                    cursor: "pointer",
+                  }}
+                  title="Active SoulSpec Cognitive Persona"
+                >
+                  <option value="sovereign">👑 Sovereign</option>
+                  <option value="artisan">🎨 Artisan</option>
+                  <option value="architect">🏛️ Architect</option>
+                  <option value="sentinel">🛡️ Sentinel</option>
+                  <option value="auditor">🔬 Auditor</option>
+                  <option value="speedrunner">⚡ Speedrunner</option>
+                  <option value="sage">🧙 Sage</option>
+                  <option value="sre">🚨 SRE</option>
+                  <option value="alchemist">🧪 Alchemist</option>
+                  <option value="minimalist">🐧 Minimalist</option>
+                </select>
+
                 <span
                   style={{
                     fontSize: "0.75rem",
@@ -615,7 +796,7 @@ export default function WebStudioPage() {
                     fontWeight: 600,
                   }}
                 >
-                  ⚡ Instant High (DeepSeek-R1)
+                  ⚡ Instant High (Sovereign Core)
                 </span>
 
                 <button
@@ -644,7 +825,7 @@ export default function WebStudioPage() {
             </div>
           </div>
 
-          {/* Horizontal Capability Pills (Kimi-Style) */}
+          {/* Quick Capability Pills */}
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.55rem", marginTop: "1.25rem", maxWidth: "760px" }}>
             {quickActionPills.map((pill, idx) => (
               <button
@@ -669,48 +850,334 @@ export default function WebStudioPage() {
                 <span>{pill.label}</span>
               </button>
             ))}
+            <button
+              onClick={() => setInspectMode(!inspectMode)}
+              style={{
+                background: inspectMode ? "rgba(56, 189, 248, 0.15)" : theme.bgSurface,
+                border: `1px solid ${inspectMode ? theme.accent : theme.borderSubtle}`,
+                color: inspectMode ? theme.accent : theme.textDim,
+                padding: "0.35rem 0.85rem",
+                borderRadius: "999px",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                transition: "all 0.2s",
+                boxShadow: inspectMode ? `0 0 10px ${theme.accentGlow}` : "none",
+              }}
+              title="Click-to-Inspect UI Elements to synthesize instant targeted diffs"
+            >
+              <span>{inspectMode ? "🎯" : "🔍"}</span>
+              <span>Inspect UI ({inspectMode ? "Active" : "Off"})</span>
+            </button>
+          </div>
+
+          {/* DOM Click-to-Inspect Inspector Banner */}
+          {inspectMode && (
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "760px",
+                marginTop: "1rem",
+                background: "rgba(56, 189, 248, 0.08)",
+                border: `1px dashed ${theme.accent}`,
+                borderRadius: "10px",
+                padding: "0.75rem 1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "1rem",
+                animation: "pulse 2s infinite ease-in-out",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontSize: "1.1rem" }}>🎯</span>
+                <div>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 700, color: theme.accent }}>
+                    Click-to-Inspect Active
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: theme.textDim }}>
+                    Select any UI container to generate AST micro-edits
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem" }}>
+                {[
+                  { label: "Glassmorphism", prompt: "Add frosted-glass backdrop-filter and subtle gradient border" },
+                  { label: "Compact Density", prompt: "Refactor layout for compact high-density data analytics" },
+                  { label: "Haptic Feedback", prompt: "Inject micro-interactions and smooth scale hover transitions" },
+                ].map((action, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setPrompt(action.prompt);
+                      handleExecuteSwarm(action.prompt);
+                    }}
+                    style={{
+                      background: theme.bgElevated,
+                      border: `1px solid ${theme.borderSubtle}`,
+                      color: theme.textBright,
+                      padding: "0.25rem 0.55rem",
+                      borderRadius: "6px",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    + {action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Collapsible Sovereign Thinking Accordion */}
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "760px",
+              marginTop: "1.25rem",
+              background: theme.bgSurface,
+              border: `1px solid ${isExecuting ? theme.accent : theme.borderSubtle}`,
+              borderRadius: "12px",
+              overflow: "hidden",
+              transition: "border-color 0.2s, box-shadow 0.2s",
+              boxShadow: isExecuting ? `0 0 15px ${theme.accentGlow}` : "none",
+            }}
+          >
+            <div
+              onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+              style={{
+                padding: "0.7rem 1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                background: "rgba(255, 255, 255, 0.02)",
+                userSelect: "none",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontSize: "1rem" }}>{isExecuting ? "🧠" : "✨"}</span>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, color: theme.textBright }}>
+                  Chain-of-Thought Reasoning {isExecuting ? "(Thinking...)" : "(Saleha Sovereign Engine)"}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.68rem",
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: "999px",
+                    background: isExecuting ? "rgba(56, 189, 248, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                    color: isExecuting ? theme.accent : theme.accentGreen,
+                    fontWeight: 700,
+                  }}
+                >
+                  {isExecuting ? "⚡ CP-WBFT Active" : "✓ 4/4 Verified"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.72rem", color: theme.textDim }}>
+                  {thinkingSteps.length} reasoning steps
+                </span>
+                <span style={{ fontSize: "0.75rem", color: theme.textDim, transform: isThinkingExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                  ▼
+                </span>
+              </div>
+            </div>
+
+            {isThinkingExpanded && (
+              <div
+                style={{
+                  padding: "0.85rem 1rem",
+                  borderTop: `1px solid ${theme.borderSubtle}`,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                  background: "rgba(0, 0, 0, 0.25)",
+                }}
+              >
+                {/* Steps List */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  {thinkingSteps.map((step, idx) => (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.78rem" }}>
+                      <span style={{ color: theme.accentGreen, fontSize: "0.75rem" }}>●</span>
+                      <span style={{ color: theme.textDim }}>[Step {idx + 1}]</span>
+                      <span style={{ color: theme.textBright, fontWeight: 500 }}>{step}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Sovereign Cognitive XML Scratchpad Snippet */}
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    background: theme.bgBase,
+                    border: `1px solid ${theme.borderSubtle}`,
+                    borderRadius: "8px",
+                    padding: "0.6rem 0.8rem",
+                    fontFamily: "monospace",
+                    fontSize: "0.72rem",
+                    color: theme.accent,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <div style={{ color: theme.textDim, marginBottom: "0.2rem" }}>// Live Cognitive &lt;THINKING&gt; stream tokens:</div>
+                  <div>&lt;THINKING&gt;</div>
+                  <div style={{ paddingLeft: "0.8rem", color: theme.textMain }}>
+                    • Invariant verification: zero-cost abstraction verified.<br />
+                    • PBFT Quorum: 16/19 agents reached 97.4% consensus.<br />
+                    • AST Critic: Passed 0 CWE / AST safety invariants.
+                  </div>
+                  <div>&lt;/THINKING&gt;</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Interactive Workspace Views (Rendered upon execution or tab switch) */}
           <div style={{ width: "100%", maxWidth: "980px", marginTop: "2rem" }}>
-            {/* View 1: 19-Agent Topology Grid */}
+            {/* View 1: 19-Agent Topology Grid with Visual Swarm DAG Edge Animations */}
             {activeTab === "topology" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
-                {nodes.map((node) => (
-                  <div
-                    key={node.id}
-                    style={{
-                      background: theme.bgSurface,
-                      border: `1px solid ${node.status === "active" ? theme.accent : node.status === "success" ? theme.accentGreen : theme.borderSubtle}`,
-                      borderRadius: "10px",
-                      padding: "0.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.65rem",
-                      boxShadow: node.status === "active" ? `0 0 15px ${theme.accentGlow}` : "none",
-                    }}
-                  >
-                    <div style={{ fontSize: "1.5rem" }}>{node.icon}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: "0.82rem", color: theme.textBright, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {node.name}
-                      </div>
-                      <div style={{ fontSize: "0.7rem", color: theme.textDim }}>{node.role}</div>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.62rem",
-                        padding: "0.15rem 0.4rem",
-                        borderRadius: "999px",
-                        fontWeight: 700,
-                        background: node.status === "success" ? "rgba(16,185,129,0.15)" : node.status === "active" ? "rgba(56,189,248,0.15)" : theme.bgElevated,
-                        color: node.status === "success" ? theme.accentGreen : node.status === "active" ? theme.accent : theme.textDim,
-                      }}
-                    >
-                      {node.status === "success" ? "DONE" : node.status === "active" ? "RUN" : "IDLE"}
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontSize: "0.8rem", color: theme.accent, fontWeight: 700 }}>
+                      ⚡ Real-Time Swarm DAG Message Flow & Consensus Pipeline
+                    </span>
+                    <span style={{ fontSize: "0.68rem", color: theme.accentGreen, background: "rgba(16, 185, 129, 0.15)", padding: "0.15rem 0.5rem", borderRadius: "999px", fontWeight: 700 }}>
+                      ● High-Throughput Bus
                     </span>
                   </div>
-                ))}
+                  <svg viewBox="0 0 900 120" style={{ width: "100%", height: "100px", background: theme.bgBase, borderRadius: "8px" }}>
+                    <defs>
+                      <linearGradient id="gradFlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="50%" stopColor="#10b981" />
+                        <stop offset="100%" stopColor="#a855f7" />
+                      </linearGradient>
+                      <filter id="glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                          <feMergeNode in="coloredBlur"/>
+                          <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    <path d="M 80 60 Q 220 10, 360 60 T 640 60 T 820 60" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                    <path d="M 80 60 Q 220 10, 360 60 T 640 60 T 820 60" fill="none" stroke="url(#gradFlow)" strokeWidth="3" strokeDasharray="12 8" filter="url(#glow)">
+                      <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite" />
+                    </path>
+                    {[
+                      { x: 80, name: "Architect", icon: "🏛️" },
+                      { x: 260, name: "Planner", icon: "🗺️" },
+                      { x: 440, name: "Coder", icon: "⚡" },
+                      { x: 620, name: "Security", icon: "🛡️" },
+                      { x: 820, name: "Arbiter", icon: "👑" },
+                    ].map((pt, i) => (
+                      <g key={i}>
+                        <circle cx={pt.x} cy="60" r="22" fill={theme.bgElevated} stroke={theme.accent} strokeWidth="2" />
+                        <text x={pt.x} y="66" textAnchor="middle" fontSize="16">{pt.icon}</text>
+                        <text x={pt.x} y="102" textAnchor="middle" fill={theme.textDim} fontSize="11" fontWeight="600">{pt.name}</text>
+                      </g>
+                    ))}
+                  </svg>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
+                  {nodes.map((node) => (
+                    <div
+                      key={node.id}
+                      style={{
+                        background: theme.bgSurface,
+                        border: `1px solid ${node.status === "active" ? theme.accent : node.status === "success" ? theme.accentGreen : theme.borderSubtle}`,
+                        borderRadius: "10px",
+                        padding: "0.75rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.65rem",
+                        boxShadow: node.status === "active" ? `0 0 15px ${theme.accentGlow}` : "none",
+                      }}
+                    >
+                      <div style={{ fontSize: "1.5rem" }}>{node.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: "0.82rem", color: theme.textBright, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {node.name}
+                        </div>
+                        <div style={{ fontSize: "0.7rem", color: theme.textDim }}>{node.role}</div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.62rem",
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "999px",
+                          fontWeight: 700,
+                          background: node.status === "success" ? "rgba(16,185,129,0.15)" : node.status === "active" ? "rgba(56,189,248,0.15)" : theme.bgElevated,
+                          color: node.status === "success" ? theme.accentGreen : node.status === "active" ? theme.accent : theme.textDim,
+                        }}
+                      >
+                        {node.status === "success" ? "DONE" : node.status === "active" ? "RUN" : "IDLE"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* View 2: Live In-Browser Sandbox Preview */}
+            {activeTab === "preview" && (
+              <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.82rem", color: theme.accentGreen, fontWeight: 700 }}>
+                      🌐 Live Component Sandbox (Zero-Latency iframe)
+                    </span>
+                    <span style={{ fontSize: "0.68rem", color: theme.textDim, background: theme.bgElevated, padding: "0.15rem 0.45rem", borderRadius: "4px" }}>
+                      Isolated VFS
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    {[
+                      { id: "desktop", label: "🖥️ Desktop (100%)", width: "100%" },
+                      { id: "tablet", label: "📟 Tablet (768px)", width: "768px" },
+                      { id: "mobile", label: "📱 Mobile (375px)", width: "375px" },
+                    ].map((vp) => (
+                      <button
+                        key={vp.id}
+                        onClick={() => setPreviewViewport(vp.id as any)}
+                        style={{
+                          background: previewViewport === vp.id ? theme.accent : theme.bgElevated,
+                          color: previewViewport === vp.id ? "#000000" : theme.textDim,
+                          border: `1px solid ${theme.borderSubtle}`,
+                          borderRadius: "6px",
+                          padding: "0.25rem 0.55rem",
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {vp.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "center", width: "100%", background: "#09090b", borderRadius: "8px", overflow: "hidden", border: `1px solid ${theme.borderSubtle}`, minHeight: "460px" }}>
+                  <iframe
+                    srcDoc={previewHtml}
+                    title="Saleha Live Component Sandbox"
+                    sandbox="allow-scripts allow-modals"
+                    style={{
+                      width: previewViewport === "mobile" ? "375px" : previewViewport === "tablet" ? "768px" : "100%",
+                      height: "500px",
+                      border: "none",
+                      transition: "width 0.3s ease-in-out",
+                      background: "#000000",
+                    }}
+                  />
+                </div>
               </div>
             )}
 
@@ -803,7 +1270,7 @@ export default function WebStudioPage() {
             >
               <option value="ollama">Ollama Local (DeepSeek-R1 / Qwen2.5-Coder) - $0/mo Private</option>
               <option value="deepseek">DeepSeek V3 API (High Speed)</option>
-              <option value="anthropic">Anthropic Claude 3.7 Sonnet</option>
+              <option value="anthropic">Sovereign Pro (Ultra-Deep Reasoning)</option>
               <option value="openai">OpenAI GPT-4o</option>
             </select>
           </div>

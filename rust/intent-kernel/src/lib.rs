@@ -1,0 +1,17 @@
+pub mod agi;
+pub mod architecture;
+pub mod capability;
+pub mod compiler;
+pub mod eval;
+pub mod executor;
+pub mod intelligence;
+pub mod intent;
+pub mod llm;
+pub mod memory;
+pub mod negotiation;
+pub mod plan;
+pub mod proof;
+pub mod runtime;
+pub mod security;
+pub mod supabase;
+pub mod verify;

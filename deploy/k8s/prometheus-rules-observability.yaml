@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mukti-observability-alerts
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: mukti.pbft
+      rules:
+        - alert: PBFTHighViewChangeRate
+          expr: rate(mukti_pbft_view_changes_total[5m]) > 0.5
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "PBFT view change rate is high on {{ $labels.replica }}"
+            description: "View changes occurring > 0.5/s, possible instability."
+
+        - alert: PBFTSlowConsensus
+          expr: histogram_quantile(0.95, rate(mukti_pbft_round_duration_seconds_bucket[5m])) > 5
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "PBFT consensus rounds are slow"
+            description: "p95 consensus round duration > 5s."
+
+        - alert: PBFTQuorumFailure
+          expr: increase(mukti_pbft_quorum_failures_total[5m]) > 3
+          labels: { severity: critical }
+          annotations:
+            summary: "PBFT quorum failures detected on {{ $labels.replica }}"
+
+    - name: mukti.federated
+      rules:
+        - alert: FLPrivacyBudgetLow
+          expr: mukti_fl_privacy_epsilon_remaining < 1.0
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: "Participant {{ $labels.participant }} privacy budget nearly exhausted"
+
+        - alert: FLHighDropoutRate
+          expr: rate(mukti_fl_participant_dropouts_total[10m]) > 0.2
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "High federated learning dropout rate"
+
+    - name: mukti.cost
+      rules:
+        - alert: TenantCostSpike
+          expr: increase(mukti_cost_llm_usd_total[1h]) > 50
+          labels: { severity: warning }
+          annotations:
+            summary: "Tenant {{ $labels.tenant }} cost spike > $50 in last hour"

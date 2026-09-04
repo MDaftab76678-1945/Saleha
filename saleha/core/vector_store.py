@@ -20,7 +20,7 @@ class VectorDocument:
     doc_id: str
     text: str
     metadata: Dict[str, Any] = field(default_factory=dict)
-    vector: Dict[str, float] = field(default_factory=dict)
+    vector: Any = field(default_factory=dict)
 
 
 @dataclass
@@ -154,7 +154,7 @@ class VectorStore:
         if not all_docs:
             return
 
-        if self._resolve_mode() == "dense":
+        if self._resolve_mode() == "dense" and self.dense_embedder is not None:
             vectors = self.dense_embedder.embed_batch([d.text for d in all_docs])
             if vectors is not None and len(vectors) == len(all_docs):
                 for doc, vec in zip(all_docs, vectors):
@@ -178,7 +178,7 @@ class VectorStore:
             return []
         self._ensure_index()
 
-        if self.mode == "dense":
+        if self.mode == "dense" and self.dense_embedder is not None:
             query_vecs = self.dense_embedder.embed_batch([query])
             if query_vecs and query_vecs[0]:
                 query_vec = query_vecs[0]
@@ -186,7 +186,10 @@ class VectorStore:
                 return []
             results = []
             for doc in self.documents.values():
-                score = dense_cosine(query_vec, doc.vector)
+                if isinstance(doc.vector, list):
+                    score = dense_cosine(query_vec, doc.vector)
+                else:
+                    continue
                 if score >= min_score:
                     results.append(VectorSearchResult(
                         doc_id=doc.doc_id, text=doc.text,
@@ -220,4 +223,8 @@ class VectorStore:
     def clear(self):
         self.documents.clear()
         self._dirty = False
+
+
+vector_store = VectorStore()
+
 

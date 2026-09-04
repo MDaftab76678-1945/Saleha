@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognitive-zkml-fhe-provers
+  namespace: dark-testnet
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: cognitive-zkml-fhe
+  template:
+    spec:
+      nodeSelector:
+        node-pool: "gpu-mem-heavy" # A100/H100 GPUs और 256GB+ RAM वाले नोड्स
+      containers:
+      - name: zkml-fhe-engine
+        image: agentstack/crypto-engine:cuda-fhe-v1
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1"
+        resources:
+          limits:
+            nvidia.com/gpu: "2"
+            cpu: "32"
+            memory: "256Gi"
+            ephemeral-storage: "50Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognitive-snn-reflex
+  namespace: dark-testnet
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      app: cognitive-snn
+  template:
+    spec:
+      nodeSelector:
+        node-pool: "neuromorphic-edge" # Intel Loihi या FPGA नोड्स
+      containers:
+      - name: snn-engine
+        image: agentstack/reflex-engine:loihi-v1
+        resources:
+          limits:
+            cpu: "2"
+            memory: "1Gi"
+            intel.com/loihi: "1"

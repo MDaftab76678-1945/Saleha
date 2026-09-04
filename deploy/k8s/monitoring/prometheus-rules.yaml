@@ -1,0 +1,389 @@
+# k8s/monitoring/prometheus-rules.yaml
+# MUKTI v10 – Complete Prometheus Alerting Rules
+# Covers: Agents, LLM, Tools, Memory, WebSocket, ZK, DeFi, Infrastructure
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mukti-alerts
+  namespace: mukti
+  labels:
+    app: mukti
+    release: prometheus
+spec:
+  groups:
+    # ===================================================================
+    # Group 1: Agent Health Alerts
+    # ===================================================================
+    - name: mukti.agent.rules
+      rules:
+        # High error rate (>5% for 5 minutes)
+        - alert: AgentErrorRateHigh
+          expr: |
+            (
+              sum(rate(mukti_tasks_total{status="failure"}[5m])) by (agent)
+              /
+              sum(rate(mukti_tasks_total[5m])) by (agent)
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Agent {{ $labels.agent }} has high error rate"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+            runbook_url: "https://docs.mukti.ai/runbooks/agent-errors"
+
+        # Agent not producing tasks (possible hang)
+        - alert: AgentNoTasks
+          expr: |
+            sum(rate(mukti_tasks_total[10m])) by (agent) == 0
+            and
+            sum(mukti_active_agents) by (agent) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Agent {{ $labels.agent }} has no tasks for 10 minutes"
+            description: "Agent may be hung or disconnected"
+
+        # High task latency (p95 > 30s)
+        - alert: AgentLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(mukti_task_duration_seconds_bucket[5m])) by (le, agent)
+            ) > 30
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Agent {{ $labels.agent }} p95 latency > 30s"
+            description: "p95 latency is {{ $value }}s"
+
+        # Active agents count dropped
+        - alert: ActiveAgentsDropped
+          expr: |
+            sum(mukti_active_agents) < 2
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Active agents count dropped below 2"
+            description: "Only {{ $value }} agents active"
+
+    # ===================================================================
+    # Group 2: LLM Provider Alerts
+    # ===================================================================
+    - name: mukti.llm.rules
+      rules:
+        # LLM API failure rate (>10% for 3 minutes)
+        - alert: LLMFailureRateHigh
+          expr: |
+            (
+              sum(rate(mukti_llm_requests_total{status="failure"}[3m]))
+              /
+              sum(rate(mukti_llm_requests_total[3m]))
+            ) > 0.10
+          for: 3m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "LLM API failure rate > 10%"
+            description: "Failure rate is {{ $value | humanizePercentage }}"
+
+        # LLM latency spike (p99 > 60s)
+        - alert: LLMLatencySpike
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(mukti_llm_latency_seconds_bucket[5m])) by (le, model)
+            ) > 60
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "LLM {{ $labels.model }} p99 latency > 60s"
+            description: "p99 latency is {{ $value }}s"
+
+        # Token usage spike (possible runaway agent)
+        - alert: TokenUsageSpike
+          expr: |
+            sum(rate(mukti_tokens_total[5m])) > 10000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Token usage spike detected"
+            description: "Token rate is {{ $value }}/s"
+
+        # Cost spike (> $50/hour)
+        - alert: CostSpike
+          expr: |
+            sum(rate(mukti_cost_usd_total[1h])) > 50
+          for: 15m
+          labels:
+            severity: warning
+            team: finance
+          annotations:
+            summary: "Cost spike detected"
+            description: "Cost rate is ${{ $value }}/hour"
+
+    # ===================================================================
+    # Group 3: Tool Execution Alerts
+    # ===================================================================
+    - name: mukti.tools.rules
+      rules:
+        # Tool failure rate (>20% for 5 minutes)
+        - alert: ToolFailureRateHigh
+          expr: |
+            (
+              sum(rate(mukti_tool_calls_total{status="failure"}[5m])) by (tool)
+              /
+              sum(rate(mukti_tool_calls_total[5m])) by (tool)
+            ) > 0.20
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tool {{ $labels.tool }} has high failure rate"
+            description: "Failure rate is {{ $value | humanizePercentage }}"
+
+        # Tool timeout rate (>10%)
+        - alert: ToolTimeoutRateHigh
+          expr: |
+            (
+              sum(rate(mukti_tool_timeouts_total[5m])) by (tool)
+              /
+              sum(rate(mukti_tool_calls_total[5m])) by (tool)
+            ) > 0.10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tool {{ $labels.tool }} timeout rate > 10%"
+
+    # ===================================================================
+    # Group 4: Memory Alerts
+    # ===================================================================
+    - name: mukti.memory.rules
+      rules:
+        # Memory recall latency (p95 > 500ms)
+        - alert: MemoryRecallLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(mukti_memory_recall_seconds_bucket[5m])) by (le, agent)
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Memory recall latency high for {{ $labels.agent }}"
+            description: "p95 latency is {{ $value }}s"
+
+        # Memory store errors
+        - alert: MemoryStoreErrors
+          expr: |
+            sum(rate(mukti_memory_store_errors_total[5m])) > 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Memory store errors detected"
+
+    # ===================================================================
+    # Group 5: WebSocket Alerts
+    # ===================================================================
+    - name: mukti.websocket.rules
+      rules:
+        # WebSocket connections dropped
+        - alert: WebSocketConnectionsDropped
+          expr: |
+            sum(mukti_websocket_connections) < 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No active WebSocket connections"
+            description: "Dashboard may be disconnected"
+
+        # High WebSocket message rate (possible spam)
+        - alert: WebSocketMessageRateHigh
+          expr: |
+            sum(rate(mukti_websocket_messages_total[5m])) > 1000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High WebSocket message rate"
+            description: "Message rate is {{ $value }}/s"
+
+    # ===================================================================
+    # Group 6: ZK Proof Alerts
+    # ===================================================================
+    - name: mukti.zk.rules
+      rules:
+        # ZK verification failures
+        - alert: ZKVerificationFailures
+          expr: |
+            sum(rate(mukti_zk_verifications_total{result="invalid"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+            team: security
+          annotations:
+            summary: "ZK proof verification failures detected"
+            description: "Invalid proofs are being submitted - possible attack"
+
+        # ZK verification latency (p95 > 5s)
+        - alert: ZKVerificationLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(mukti_zk_verification_seconds_bucket[5m])) by (le)
+            ) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ZK verification latency high"
+            description: "p95 latency is {{ $value }}s"
+
+    # ===================================================================
+    # Group 7: DeFi / Blockchain Alerts
+    # ===================================================================
+    - name: mukti.defi.rules
+      rules:
+        # Staking APY dropped significantly
+        - alert: StakingAPYDropped
+          expr: |
+            mukti_staking_apy < 2
+          for: 30m
+          labels:
+            severity: warning
+            team: finance
+          annotations:
+            summary: "Staking APY dropped below 2%"
+            description: "Current APY is {{ $value }}%"
+
+        # Treasury balance low
+        - alert: TreasuryBalanceLow
+          expr: |
+            mukti_treasury_balance_mkt < 10000
+          for: 10m
+          labels:
+            severity: critical
+            team: finance
+          annotations:
+            summary: "Treasury balance low"
+            description: "Balance is {{ $value }} MKT"
+
+        # Bridge transaction failures
+        - alert: BridgeTransactionFailures
+          expr: |
+            sum(rate(mukti_bridge_transactions_total{status="failure"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Bridge transaction failures detected"
+
+    # ===================================================================
+    # Group 8: Infrastructure Alerts
+    # ===================================================================
+    - name: mukti.infrastructure.rules
+      rules:
+        # Pod restarts
+        - alert: PodRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace="mukti"
+            }[1h]) > 3
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} restarting frequently"
+            description: "{{ $value }} restarts in the last hour"
+
+        # Pod not ready
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="mukti"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} not ready"
+
+        # High CPU usage
+        - alert: HighCPUUsage
+          expr: |
+            (
+              sum(rate(container_cpu_usage_seconds_total{namespace="mukti"}[5m]))
+              /
+              sum(kube_pod_container_resource_limits{namespace="mukti", resource="cpu"})
+            ) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage in mukti namespace"
+            description: "CPU usage is {{ $value | humanizePercentage }}"
+
+        # High memory usage
+        - alert: HighMemoryUsage
+          expr: |
+            (
+              sum(container_memory_working_set_bytes{namespace="mukti"})
+              /
+              sum(kube_pod_container_resource_limits{namespace="mukti", resource="memory"})
+            ) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage in mukti namespace"
+            description: "Memory usage is {{ $value | humanizePercentage }}"
+
+        # PVC almost full
+        - alert: PVCAlmostFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes{namespace="mukti"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="mukti"}
+            ) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVC {{ $labels.persistentvolumeclaim }} almost full"
+            description: "Usage is {{ $value | humanizePercentage }}"
+
+    # ===================================================================
+    # Group 9: Queue & Scaling Alerts
+    # ===================================================================
+    - name: mukti.scaling.rules
+      rules:
+        # Queue depth high
+        - alert: QueueDepthHigh
+          expr: |
+            mukti_queue_depth > 100
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Agent queue depth high"
+            description: "Queue depth is {{ $value }}"
+
+        # HPA at max replicas
+        - alert: HPAAtMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="mukti"}
+            ==
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace="mukti"}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "HPA at max replicas for {{ $labels.horizontalpodautoscaler }}"
+            description: "Consider increasing max replicas"

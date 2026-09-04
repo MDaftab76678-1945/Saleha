@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package agentstack.execution;
+
+// एजेंट के टूल्स और स्किल्स का इंटरफेस
+message ToolCall {
+  string tool_name = 1;
+  bytes arguments_json = 2;
+}
+
+message ExecutionRequest {
+  string agent_did = 1;          // Decentralized Identifier
+  string task_id = 2;
+  bytes prompt_context = 3;      // Serialized context
+  repeated ToolCall allowed_tools = 4;
+  uint64 compute_limit_ms = 5;   // Sandbox time limit
+}
+
+message ExecutionResult {
+  string task_id = 1;
+  enum Status {
+    SUCCESS = 0;
+    FAILED = 1;
+    QUARANTINED = 2;             // Security breach detected
+    TIMEOUT = 3;
+  }
+  Status status = 2;
+  bytes output_payload = 3;
+  string error_message = 4;
+}
+
+service AgentExecutionService {
+  rpc ExecuteTask (ExecutionRequest) returns (ExecutionResult);
+}

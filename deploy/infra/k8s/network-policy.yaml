@@ -1,0 +1,71 @@
+# infra/k8s/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nexus-zero-trust-policy
+  namespace: nexus-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: nexus-web
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # 1. INGRESS: Only allow traffic from the Nginx Ingress Controller
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+
+  # 2. EGRESS: Strictly define where the web pod can send traffic
+  egress:
+    # Allow DNS resolution (CRITICAL for all external calls)
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Allow connection to the internal PostgreSQL Database
+    - to:
+        - podSelector:
+            matchLabels:
+              app: nexus-db
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow connection to internal Redis (Upstash/Cluster)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: nexus-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+
+    # Allow outbound HTTPS (Port 443) for external APIs (Clerk, Resend, IPFS, Web3 RPC)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8      # Block internal private ranges to prevent SSRF
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16  # Block AWS metadata endpoint (CRITICAL for preventing container escape)
+      ports:
+        - protocol: TCP
+          port: 443

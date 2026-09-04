@@ -1,0 +1,69 @@
+# k8s/helm/mukti/values-production.yaml
+# Production-specific overrides
+
+replicaCount: 3
+
+image:
+  tag: "5.0.0"
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 30
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2   # Survive 1-node loss during voluntary disruption
+
+topologySpreadConstraints:
+  enabled: true       # Spread across availability zones
+  maxSkew: 1
+  topologyKey: topology.kubernetes.io/zone
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+  hosts:
+    - host: api.mukti.ai
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mukti-api-tls
+      hosts:
+        - api.mukti.ai
+
+persistence:
+  enabled: true
+  size: 100Gi
+  storageClass: gp3-encrypted
+
+env:
+  MUKTI_ENVIRONMENT: "production"
+  MUKTI_LOG_LEVEL: "INFO"
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  prometheusRules:
+    enabled: true

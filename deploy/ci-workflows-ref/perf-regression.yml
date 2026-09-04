@@ -1,0 +1,89 @@
+# .github/workflows/perf-regression.yml
+# Performance regression gate on PRs
+name: Performance Regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mukti/**'
+      - 'loadtest/**'
+  schedule:
+    # Nightly full regression on main
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  perf-regression:
+    name: Load Test + Regression Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A364245707D0A5F54E3F5C6B4 || true
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -e . httpx structlog
+
+      - name: Start MUKTI API
+        run: |
+          uvicorn mukti.api.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10
+          curl -sf http://localhost:8000/health
+
+      - name: Run baseline load test
+        run: |
+          mkdir -p loadtest-results
+          k6 run --out json=loadtest-results/baseline.ndjson \
+            loadtest/scenarios/baseline.js || true
+
+      - name: Download historical results (for trending)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: perf-history
+          path: perf-history
+
+      - name: Run regression check
+        env:
+          SLACK_PERF_WEBHOOK: ${{ secrets.SLACK_PERF_WEBHOOK }}
+        run: |
+          python -m loadtest.regression.check \
+            --results loadtest-results/baseline.ndjson \
+            --test baseline \
+            --db perf-history/results.db \
+            --ci
+
+      - name: Upload results for future trending
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-history
+          path: perf-history/results.db
+          retention-days: 90
+
+      - name: Comment PR on regression
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Performance regression detected!**\n\nThis PR introduces a performance regression. See the workflow logs for details.'
+            })

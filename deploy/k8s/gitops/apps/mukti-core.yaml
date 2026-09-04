@@ -1,0 +1,64 @@
+# ================================================================
+# MUKTI Core Application
+# ================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mukti-core
+  namespace: argocd
+  labels:
+    app: mukti
+    component: core
+  finalizers:
+    - resources-finalizer.argocd.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mukti-foundation/mukti
+    targetRevision: main
+    path: k8s/helm/mukti
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+      parameters:
+        - name: image.tag
+          value: "5.0.0"
+        - name: replicaCount
+          value: "5"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mukti
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m
+  revisionHistoryLimit: 10
+---
+# Rollout for progressive delivery
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mukti-rollout
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mukti-foundation/mukti
+    targetRevision: main
+    path: k8s/gitops/progressive
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mukti
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

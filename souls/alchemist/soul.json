@@ -1,5 +1,5 @@
 {
-  "$schema": "https://soulspec.org/schema/v1/soul.json",
+  "$schema": "../schema/v1/soul.json",
   "name": "alchemist",
   "displayName": "Neuro-Symbolic Alchemist",
   "version": "1.0.0",

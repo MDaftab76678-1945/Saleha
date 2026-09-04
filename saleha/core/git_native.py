@@ -51,6 +51,8 @@ class GitAutomationEngine:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False
             )
         except (subprocess.SubprocessError, OSError, FileNotFoundError) as e:
@@ -83,6 +85,18 @@ class GitAutomationEngine:
             "dirty_count": len(dirty_files),
             "files": dirty_files[:20]
         }
+
+    def get_diff(self, path: Optional[str] = None, staged: bool = False) -> str:
+        """Returns the current git diff for working tree or specific path."""
+        if not self.is_git_repo():
+            return ""
+        args = ["diff"]
+        if staged:
+            args.append("--cached")
+        if path:
+            args.extend(["--", path])
+        res = self._run_git(args)
+        return res.stdout if res.returncode == 0 else ""
 
     def create_task_branch(self, goal: str) -> str:
         """Generates a clean semantic branch name and checks it out."""
@@ -167,6 +181,15 @@ class GitAutomationEngine:
             files_changed=staged_files
         )
 
+    def commit_deliverable(
+        self,
+        task_name: str,
+        task_type: str = "feat",
+        files: Optional[List[str]] = None,
+    ) -> GitCommitResult:
+        """Alias for auto_commit_task to commit deliverable task changes."""
+        return self.auto_commit_task(goal=task_name, files=files, task_type=task_type)
+
     def rollback_last_commit(self, soft: bool = True) -> Dict[str, Any]:
         """Aider-style safe undo to revert the last commit."""
         if not self.is_git_repo():
@@ -219,5 +242,8 @@ class GitAutomationEngine:
 
 # Global instance
 git_engine = GitAutomationEngine()
+git_native = git_engine
+GitNativeManager = GitAutomationEngine
+
 
 

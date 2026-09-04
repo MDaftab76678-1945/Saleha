@@ -1,0 +1,29 @@
+# ================================================================
+# MUKTI - Backup Retention Policies
+# ================================================================
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: mukti-backup-cleanup
+  namespace: velero
+spec:
+  schedule: "0 4 * * 0"  # Sunday at 4 AM
+  template:
+    includedNamespaces:
+      - mukti
+    ttl: 24h
+    storageLocation: default
+---
+# Backup verification schedule
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: mukti-backup-verification
+  namespace: velero
+spec:
+  schedule: "0 5 * * *"  # Daily at 5 AM
+  template:
+    includedNamespaces:
+      - mukti
+    ttl: 48h
+    storageLocation: default

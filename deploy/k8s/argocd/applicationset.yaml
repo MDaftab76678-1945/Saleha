@@ -1,0 +1,50 @@
+# k8s/argocd/applicationset.yaml
+# Deploy MUKTI to every cluster labeled env=production
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: mukti-clusters
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            deploy-mukti: "true"
+  template:
+    metadata:
+      name: "mukti-{{name}}"
+    spec:
+      project: mukti
+      source:
+        repoURL: https://github.com/mukti-foundation/mukti
+        targetRevision: main
+        path: k8s/helm/mukti
+        helm:
+          valueFiles:
+            - values.yaml
+            - values-production.yaml
+      destination:
+        server: "{{server}}"
+        namespace: mukti
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+      # Progressive sync: sync one cluster at a time
+      strategy:
+        type: RollingSync
+        rollingSync:
+          steps:
+            - matchExpressions:
+                - key: envLabel
+                  operator: In
+                  values: ["staging"]
+            - matchExpressions:
+                - key: envLabel
+                  operator: In
+                  values: ["production"]

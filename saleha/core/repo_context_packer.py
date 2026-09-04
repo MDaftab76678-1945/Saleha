@@ -20,7 +20,7 @@ import ast
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from saleha.core.path_utils import safe_relpath
 
 # Skip dirs -- indexer conventions se aligned
@@ -95,25 +95,22 @@ def _tokenize(text: str) -> set:
 class RepoContextPacker:
     def __init__(self, root_dir: str = ".", max_files: int = 400,
                  excerpt_lines: int = 40,
-                 symbol_ranker: Optional[object] = None):
+                 symbol_ranker: Optional[Any] = None):
         self.root_dir = os.path.abspath(root_dir)
         self.max_files = max_files
         self.excerpt_lines = excerpt_lines
         # B1.5: tree-sitter ranker -- diya gaya to use karo, warna ek hi baar
-        # lazy probe (grammars installed na hon to False -> legacy path)
-        if symbol_ranker is not None:
-            self.ranker = symbol_ranker
-        else:
-            self.ranker = self._default_ranker()
+        # lazy probe (grammars installed na hon to None -> legacy path)
+        self.ranker: Any = symbol_ranker if symbol_ranker is not None else self._default_ranker()
 
     @staticmethod
-    def _default_ranker():
+    def _default_ranker() -> Optional[Any]:
         try:
             from saleha.core.tree_context_ranker import TreeContextRanker
             ranker = TreeContextRanker()
-            return ranker if ranker.available else False
+            return ranker if ranker.available else None
         except Exception:
-            return False
+            return None
 
     # ------------------------------------------------------------------
     # Scanning & scoring
@@ -156,12 +153,13 @@ class RepoContextPacker:
         symbol_name_list: List[str] = []
         doc_list: List[str] = []
 
-        ranker = self.ranker or None
-        if ranker is not None and ranker.supported(ext):
-            if ranker.index_file(rel, content) is not None:
-                for (lineno, label) in ranker.extract_symbols(rel, content):
-                    display_symbols.append(f"{label} (L{lineno})")
-                    symbol_name_list.append(label.split(" ", 1)[1])
+        ranker: Any = self.ranker
+        if ranker is not None and hasattr(ranker, "supported") and ranker.supported(ext):
+            if hasattr(ranker, "index_file") and ranker.index_file(rel, content) is not None:
+                if hasattr(ranker, "extract_symbols"):
+                    for (lineno, label) in ranker.extract_symbols(rel, content):
+                        display_symbols.append(f"{label} (L{lineno})")
+                        symbol_name_list.append(label.split(" ", 1)[1])
 
         if not display_symbols and path.lower().endswith(".py"):
             sym_entries = _python_symbols(path)
@@ -229,7 +227,7 @@ class RepoContextPacker:
 
         # C+: tree-sitter hub-popularity boost (jab ranker available ho) --
         # shared symbols define karne wali "hub" files ko up-rank karta hai.
-        if self.ranker:
+        if self.ranker and hasattr(self.ranker, "popularity_boost"):
             try:
                 boosts = self.ranker.popularity_boost()
                 for sf in scored:
@@ -305,3 +303,7 @@ class RepoContextPacker:
     def stats(self) -> Dict[str, object]:
         files = self._iter_code_files()
         return {"root": self.root_dir, "code_files": len(files)}
+
+
+repo_context_packer = RepoContextPacker()
+

@@ -21,7 +21,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, asdict
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 
 
 DEFAULT_HISTORY_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "history.jsonl")
@@ -36,6 +36,7 @@ class TaskRecord:
     attempts: int
     code: str
     error: Optional[str] = None
+    extra: Optional[Dict[str, Any]] = None
 
 
 class TaskHistory:
@@ -46,10 +47,11 @@ class TaskHistory:
         self,
         goal: str,
         model: str,
-        success: bool,
-        attempts: int,
+        success: bool = True,
+        attempts: int = 1,
         code: str = "",
         error: Optional[str] = None,
+        **kwargs: Any,
     ):
         record = TaskRecord(
             timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -59,6 +61,7 @@ class TaskHistory:
             attempts=attempts,
             code=code,
             error=error,
+            extra=kwargs if kwargs else None,
         )
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         # Append-only -- ek task ek line, koi read-modify-write race nahi
@@ -76,7 +79,12 @@ class TaskHistory:
                     continue
                 try:
                     data = json.loads(line)
-                    records.append(TaskRecord(**data))
+                    valid_keys = {"timestamp", "goal", "model", "success", "attempts", "code", "error", "extra"}
+                    extra_data = {k: v for k, v in data.items() if k not in valid_keys}
+                    base_data = {k: v for k, v in data.items() if k in valid_keys}
+                    if extra_data:
+                        base_data["extra"] = {**(base_data.get("extra") or {}), **extra_data}
+                    records.append(TaskRecord(**base_data))
                 except (json.JSONDecodeError, TypeError) as e:
                     # Ek kharab line pura history nahi todegi -- skip karo, warn karo
                     print(f"[TaskHistory] warning: skipping corrupt line {line_num}: {e}")

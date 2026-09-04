@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentstack-snn-reflex
+spec:
+  replicas: 10
+  template:
+    spec:
+      nodeSelector:
+        hardware-type: "neuromorphic-edge" # Intel Loihi या FPGA नोड्स
+      containers:
+      - name: snn-engine
+        image: agentstack/reflex-engine:latest
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+            # कस्टम रिसोर्स (Neuromorphic chips)
+            intel.com/loihi: "1" 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentstack-gnn-swarm
+spec:
+  replicas: 4
+  template:
+    spec:
+      nodeSelector:
+        hardware-type: "gpu-compute"
+      containers:
+      - name: gnn-engine
+        image: agentstack/swarm-engine:latest
+        resources:
+          limits:
+            nvidia.com/gpu: "2" # A100 या H100 GPUs
+            memory: "32Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentstack-zkml-fhe-provers
+spec:
+  replicas: 5
+  template:
+    spec:
+      nodeSelector:
+        hardware-type: "high-memory-cpu"
+      containers:
+      - name: zkml-fhe-engine
+        image: agentstack/crypto-engine:latest
+        resources:
+          limits:
+            cpu: "16"
+            memory: "128Gi" # zkML और FHE को भारी RAM चाहिए

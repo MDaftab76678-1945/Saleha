@@ -66,9 +66,20 @@ __all__ = [
     "UniversalMCPHub",
     "MCPHub",
     "mcp_hub",
+    # 2026 Modular Domain Subsystems
+    "loop",
+    "harness",
+    "rag",
+    "graph",
+    "cognitive",
+    "verification",
+    "telemetry",
+    "swarm",
+    "platform",
 ]
 
 _MOD_MAP = {
+
     "TreeOfThoughtsOrchestrator": "tot_orchestrator",
     "tot_orchestrator": "tot_orchestrator",
     "ToTResult": "tot_orchestrator",
@@ -115,7 +126,15 @@ _MOD_MAP = {
 }
 
 
+_SUBPACKAGES = {
+    "loop", "harness", "rag", "graph", "cognitive",
+    "verification", "telemetry", "swarm", "platform"
+}
+
+
 def __getattr__(name: str) -> Any:
+    if name in _SUBPACKAGES:
+        return importlib.import_module(f"saleha.core.{name}")
     if name == "MCPHub":
         mod = importlib.import_module("saleha.core.mcp_hub")
         return getattr(mod, "UniversalMCPHub")
@@ -123,3 +142,4 @@ def __getattr__(name: str) -> Any:
         mod = importlib.import_module(f"saleha.core.{_MOD_MAP[name]}")
         return getattr(mod, name)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+

@@ -313,13 +313,23 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 emit({"step": step_no, "action": "error", "observation": result.error})
                 return result
 
-            # 1. DeepSeek-R1 / CoT Reasoning extraction (<think>...</think>)
+            # 1. Structured Cognitive CoT Extraction (<think>, <THINKING>, <SCRATCHPAD>)
             raw_content = resp.content or ""
-            think_match = re.search(r"<think>(.*?)</think>", raw_content, re.DOTALL)
-            clean_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip() if think_match else raw_content
+            from saleha.core.structured_reasoner import StructuredReasoner
+            parsed_reasoning = StructuredReasoner.parse_turn(raw_content)
 
+            think_match = re.search(r"<think>(.*?)</think>", raw_content, re.DOTALL)
+            thought_str = ""
             if think_match:
                 thought_str = think_match.group(1).strip()
+            elif parsed_reasoning.thinking:
+                thought_str = parsed_reasoning.thinking
+
+            clean_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL)
+            clean_content = re.sub(r"<(?:THINKING|thinking)>.*?</(?:THINKING|thinking)>", "", clean_content, flags=re.DOTALL)
+            clean_content = re.sub(r"<(?:SCRATCHPAD|scratchpad)>.*?</(?:SCRATCHPAD|scratchpad)>", "", clean_content, flags=re.DOTALL).strip()
+
+            if thought_str:
                 emit({"step": step_no, "action": "think", "thought": thought_str[:500]})
 
             # 2. Finish check
@@ -368,6 +378,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
     @staticmethod
     def _parse_call(text: str) -> Optional[Tuple[str, Dict]]:
+        # 1. Open XML tool call format (<tool_call>{"name": ..., "arguments": ...}</tool_call>)
+        from saleha.core.structured_reasoner import StructuredReasoner
+        parsed_turn = StructuredReasoner.parse_turn(text)
+        if parsed_turn.tool_calls:
+            call = parsed_turn.tool_calls[0]
+            return call.name, call.arguments
+
+        # 2. Markdown fenced block ```tool_call {...}``` or ```json {...}```
         m = re.search(r"```(?:tool_call|json)?\s*(\{.*?\})\s*```", text or "", re.DOTALL)
         data = None
         if m:

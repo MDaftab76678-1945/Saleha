@@ -1,0 +1,91 @@
+# k8s/monitoring/prometheus-rules-replication.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mukti-replication-alerts
+  namespace: mukti-monitoring
+  labels:
+    app: mukti
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: mukti.replication
+      rules:
+        - alert: MuktiReplicationLagHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(mukti_replication_lag_seconds_bucket[5m])) by (le)
+            ) > 5
+          for: 5m
+          labels:
+            severity: warning
+            service: replication
+            slack: "true"
+          annotations:
+            summary: "Replication lag p95 > 5s"
+            description: |
+              Cross-region replication p95 lag is {{ $value }}s.
+              Check network between regions and replica load.
+            runbook_url: "https://docs.mukti.ai/runbooks/region-failover"
+
+        - alert: MuktiReplicationLagCritical
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(mukti_replication_lag_seconds_bucket[5m])) by (le)
+            ) > 30
+          for: 5m
+          labels:
+            severity: critical
+            service: replication
+            pagerduty: "true"
+          annotations:
+            summary: "Replication lag p95 > 30s – replication nearly broken"
+            description: |
+              Readers are serving data > 30s stale. Writes during this
+              window are at risk if the primary fails.
+
+        - alert: MuktiReplicationBroken
+          expr: |
+            (
+              sum(rate(mukti_replication_checks_total{status="success"}[5m]))
+              /
+              sum(rate(mukti_replication_checks_total[5m]))
+            ) < 0.5
+            and
+            sum(rate(mukti_replication_checks_total[5m])) > 0
+          for: 5m
+          labels:
+            severity: critical
+            service: replication
+            pagerduty: "true"
+          annotations:
+            summary: "Replication is BROKEN (< 50% checks succeeding)"
+            description: |
+              Markers are not replicating. Either the reader is down or
+              the replication stream is severed. Pending markers show the
+              backlog; catch-up lag will appear when it recovers.
+            runbook_url: "https://docs.mukti.ai/runbooks/region-failover"
+
+        - alert: MuktiReplicationBacklog
+          expr: mukti_replication_pending_markers > 20
+          for: 10m
+          labels:
+            severity: warning
+            service: replication
+            slack: "true"
+          annotations:
+            summary: "Replication backlog: {{ $value }} pending markers"
+            description: |
+              Markers written during an outage have not replicated for
+              10+ minutes. Verify the reader region has recovered.
+
+        - alert: MuktiReplicationExporterDown
+          expr: absent(up{job="mukti-replication-exporter"} == 1)
+          for: 5m
+          labels:
+            severity: warning
+            service: replication
+            slack: "true"
+          annotations:
+            summary: "Replication lag exporter is down"
+            description: "Without the exporter, replication lag is unmonitored."

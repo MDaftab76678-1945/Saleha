@@ -1,0 +1,74 @@
+# ================================================================
+# MUKTI - ArgoCD RBAC Configuration
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  policy.csv: |
+    # Admin role
+    g, mukti-admins, role:admin
+    
+    # Developer role - read only
+    g, mukti-developers, role:readonly
+    
+    # Ops role - can sync but not delete
+    g, mukti-ops, role:sync
+    
+    # Project-specific roles
+    p, role:mukti-project-admin, applications, *, mukti/*, allow
+    p, role:mukti-project-admin, clusters, get, mukti/*, allow
+    p, role:mukti-project-admin, repositories, *, mukti/*, allow
+    
+    g, mukti-project-admins, role:mukti-project-admin
+    
+  policy.default: role:readonly
+---
+# ArgoCD project for MUKTI
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: mukti
+  namespace: argocd
+spec:
+  description: MUKTI AI Agent Framework
+  sourceRepos:
+    - https://github.com/mukti-foundation/mukti
+  destinations:
+    - namespace: mukti
+      server: https://kubernetes.default.svc
+    - namespace: mukti-monitoring
+      server: https://kubernetes.default.svc
+    - namespace: mukti-database
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+  roles:
+    - name: mukti-admin
+      description: MUKTI administrators
+      policies:
+        - p, proj:mukti:mukti-admin, applications, *, mukti/*, allow
+        - p, proj:mukti:mukti-admin, clusters, *, mukti/*, allow
+      groups:
+        - mukti-admins
+    - name: mukti-developer
+      description: MUKTI developers
+      policies:
+        - p, proj:mukti:mukti-developer, applications, get, mukti/*, allow
+        - p, proj:mukti:mukti-developer, applications, sync, mukti/*, allow
+      groups:
+        - mukti-developers

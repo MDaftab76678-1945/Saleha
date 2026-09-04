@@ -1,0 +1,19 @@
+# ... inside the API Deployment spec ...
+      containers:
+      - name: nexus-api
+        image: nexus-omni-api:latest
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true # Prevents malware from writing to disk
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"

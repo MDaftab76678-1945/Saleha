@@ -1,0 +1,59 @@
+# ================================================================
+# MUKTI - Secondary Region (eu-west-1) Helm Values
+# ================================================================
+global:
+  region: eu-west-1
+  role: secondary
+  clusterName: mukti-secondary
+  domain: api.mukti.ai
+  
+replicaCount: 3
+
+image:
+  repository: ghcr.io/mukti-foundation/mukti
+  tag: "5.0.0"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 30
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 75
+
+# Database - Read replica
+database:
+  host: mukti-secondary-db.cluster-replica-xxx.eu-west-1.rds.amazonaws.com
+  port: 5432
+  name: mukti
+  readOnly: true
+  replication:
+    enabled: true
+    role: replica
+    primaryRegion: us-east-1
+
+# Redis - Read replica
+redis:
+  host: mukti-secondary-redis.xxx.eu-west-1.cache.amazonaws.com
+  port: 6379
+  readOnly: true
+
+# Global Accelerator
+globalAccelerator:
+  enabled: true
+  acceleratorArn: arn:aws:globalaccelerator::123456789:accelerator/xxx
+
+# Failover configuration
+failover:
+  enabled: true
+  healthCheckEndpoint: https://api.mukti.ai/health
+  failoverThreshold: 3
+  autoFailback: true

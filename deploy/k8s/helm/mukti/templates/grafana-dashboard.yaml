@@ -1,0 +1,76 @@
+# k8s/helm/mukti/templates/grafana-dashboard.yaml
+{{- if and .Values.monitoring.enabled .Values.monitoring.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mukti.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "mukti.labels" . | nindent 4 }}
+    grafana_dashboard: "1"  # Label for Grafana sidecar auto-discovery
+data:
+  mukti-dashboard.json: |-
+    {
+      "title": "MUKTI Agents Overview",
+      "uid": "mukti-agents",
+      "tags": ["mukti", "agents"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "title": "Active Agents",
+          "type": "stat",
+          "targets": [{"expr": "mukti_active_agents"}],
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0}
+        },
+        {
+          "title": "Tasks/sec",
+          "type": "graph",
+          "targets": [{"expr": "sum(rate(mukti_tasks_total[1m]))"}],
+          "gridPos": {"h": 8, "w": 12, "x": 4, "y": 0}
+        },
+        {
+          "title": "Error Rate",
+          "type": "graph",
+          "targets": [
+            {"expr": "sum(rate(mukti_errors_total[5m])) / sum(rate(mukti_tasks_total[5m]))"}
+          ],
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}
+        },
+        {
+          "title": "Task Duration (p95)",
+          "type": "graph",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(mukti_task_duration_seconds_bucket[5m])) by (le))"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+        },
+        {
+          "title": "LLM Latency (p95)",
+          "type": "graph",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(mukti_llm_latency_seconds_bucket[5m])) by (le))"
+            }
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+        },
+        {
+          "title": "ZK Verifications",
+          "type": "graph",
+          "targets": [
+            {"expr": "sum(rate(mukti_zk_verifications_total[5m])) by (result)"}
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+        },
+        {
+          "title": "Tool Calls by Tool",
+          "type": "graph",
+          "targets": [
+            {"expr": "sum(rate(mukti_tool_calls_total[5m])) by (tool)"}
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+        }
+      ]
+    }
+{{- end }}

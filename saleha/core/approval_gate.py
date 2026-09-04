@@ -75,3 +75,29 @@ def approve(action_type: str, description: str,
         return bool(confirm(f"[Saleha {action_type}] {description} -- approve?"))
     except Exception:
         return False
+
+
+class ApprovalGate:
+    """Object-oriented interface for human-in-the-loop permission checking."""
+
+    def __init__(self, mode: Optional[str] = None):
+        self._override_mode = mode
+
+    def get_mode(self) -> str:
+        return self._override_mode or get_mode()
+
+    def requires_approval(self, action_type: str) -> bool:
+        if self._override_mode:
+            if self._override_mode == "always":
+                return True
+            if self._override_mode == "dangerous":
+                return action_type in DANGEROUS_ACTIONS
+            return False
+        return requires_approval(action_type)
+
+    def check(self, action_type: str, description: str, confirmer: Optional[Callable[[str], bool]] = None) -> bool:
+        return approve(action_type, description, confirmer=confirmer)
+
+
+approval_gate = ApprovalGate()
+

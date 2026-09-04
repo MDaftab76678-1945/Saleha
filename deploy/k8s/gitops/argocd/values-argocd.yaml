@@ -1,0 +1,85 @@
+# ================================================================
+# MUKTI - ArgoCD Helm Values
+# ================================================================
+global:
+  domain: argocd.mukti.ai
+  image:
+    tag: v2.10.0
+
+configs:
+  params:
+    server.insecure: false
+    server.insecure-skip-tls-verify: false
+    timeout.reconciliation: 180s
+    timeout.hard.reconciliation: 300s
+    
+  cm:
+    admin.enabled: true
+    statusbadge.enabled: true
+    users.anonymous.enabled: false
+    
+  rbac:
+    policy.csv: |
+      g, mukti-admins, role:admin
+      g, mukti-developers, role:readonly
+      g, mukti-ops, role:admin
+    policy.default: role:readonly
+    
+  repositories:
+    mukti-repo:
+      url: https://github.com/mukti-foundation/mukti
+      type: git
+
+server:
+  service:
+    type: LoadBalancer
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789:certificate/xxx
+    tls: true
+    hosts:
+      - argocd.mukti.ai
+
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    - name: ARGOCD_RECONCILIATION_TIMEOUT
+      value: "180s"
+
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+notifications:
+  enabled: true
+  argocdUrl: https://argocd.mukti.ai
+  subscriptions:
+    - recipients: [slack:mukti-alerts]
+      triggers:
+        - on-sync-status-unknown
+        - on-sync-failed
+        - on-health-degraded

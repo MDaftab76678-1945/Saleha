@@ -1,0 +1,91 @@
+# k8s/rollout/analysis-templates.yaml
+# SLO-gated analysis – the canary only advances if these pass.
+# Uses the same Prometheus recording rules as the SLO dashboard.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: mukti-canary-slo
+  namespace: mukti
+spec:
+  args:
+    - name: canary-hash   # pod-template-hash of the canary, injected by Rollout
+
+  metrics:
+    # ── Metric 1: canary error rate must stay low ──
+    - name: canary-error-rate
+      interval: 60s
+      successCondition: "result[0] < 0.01"      # < 1% errors
+      failureLimit: 2                            # allow 2 transient breaches
+      provider:
+        prometheus:
+          address: http://prometheus-k8s.mukti-monitoring.svc:9090
+          query: |
+            sum(rate(http_requests_total{
+              job="mukti-api",
+              pod_template_hash="{{args.canary-hash}}",
+              status=~"5.."
+            }[2m]))
+            /
+            sum(rate(http_requests_total{
+              job="mukti-api",
+              pod_template_hash="{{args.canary-hash}}"
+            }[2m]))
+
+    # ── Metric 2: canary p95 latency must stay under 2s ──
+    - name: canary-latency-p95
+      interval: 60s
+      successCondition: "result[0] < 2.0"
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus-k8s.mukti-monitoring.svc:9090
+          query: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{
+                job="mukti-api",
+                pod_template_hash="{{args.canary-hash}}"
+              }[2m])) by (le)
+            )
+
+    # ── Metric 3: canary pods must not be crash-looping ──
+    - name: canary-restarts
+      interval: 60s
+      successCondition: "result[0] < 2"
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus-k8s.mukti-monitoring.svc:9090
+          query: |
+            sum(increase(kube_pod_container_status_restarts_total{
+              namespace="mukti",
+              pod=~"mukti-api-{{args.canary-hash}}-.*"
+            }[5m]))
+---
+# Stricter template for the final promotion step (optional)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: mukti-canary-slo-strict
+  namespace: mukti
+spec:
+  args:
+    - name: canary-hash
+  metrics:
+    - name: canary-error-rate-strict
+      interval: 120s
+      successCondition: "result[0] < 0.005"     # < 0.5% for final step
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus-k8s.mukti-monitoring.svc:9090
+          query: |
+            sum(rate(http_requests_total{
+              job="mukti-api",
+              pod_template_hash="{{args.canary-hash}}",
+              status=~"5.."
+            }[3m]))
+            /
+            sum(rate(http_requests_total{
+              job="mukti-api",
+              pod_template_hash="{{args.canary-hash}}"
+            }[3m]))

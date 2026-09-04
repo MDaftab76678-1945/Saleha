@@ -200,3 +200,7 @@ SDE Performance Critique:
             return match.group(1).strip()
         return text.strip()
 
+
+deliberation_engine = DeliberationEngine()
+
+

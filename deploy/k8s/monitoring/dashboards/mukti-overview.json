@@ -1,0 +1,193 @@
+{
+  "uid": "mukti-overview",
+  "title": "MUKTI - Platform Overview",
+  "tags": ["mukti", "overview"],
+  "style": "dark",
+  "timezone": "utc",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "graphTooltip": 1,
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Request Rate",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+        },
+        "overrides": []
+      },
+      "options": {"colorMode": "value", "graphMode": "area", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{job='mukti-api'}[5m]))"}]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "HTTP Error Rate (5xx)",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}
+        },
+        "overrides": []
+      },
+      "options": {"colorMode": "background", "graphMode": "area", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "expr": "100 * sum(rate(http_requests_total{job='mukti-api',status=~'5..'}[5m])) / sum(rate(http_requests_total{job='mukti-api'}[5m]))"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "p95 Latency",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 2}]}
+        },
+        "overrides": []
+      },
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job='mukti-api'}[5m])) by (le))"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active Agents",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "expr": "mukti_active_agents"}]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Availability (30d)",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 3,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 99.9}, {"color": "green", "value": 99.95}]}
+        },
+        "overrides": []
+      },
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "expr": "100 * (1 - (sum(increase(http_requests_total{job='mukti-api',status=~'5..'}[30d])) / sum(increase(http_requests_total{job='mukti-api'}[30d]))))"}]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "LLM Cost Rate",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 5}, {"color": "red", "value": 20}]}
+        },
+        "overrides": []
+      },
+      "options": {"colorMode": "value", "graphMode": "area", "textMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"refId": "A", "expr": "sum(rate(mukti_cost_usd_total[1h]))"}]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Request Rate by Status",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {"drawStyle": "line", "fillOpacity": 20, "lineWidth": 2}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "table", "calcs": ["mean", "max"]}},
+      "targets": [{"refId": "A", "expr": "sum by (status) (rate(http_requests_total{job='mukti-api'}[5m]))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "API Latency Percentiles",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "calcs": []}},
+      "targets": [
+        {"refId": "A", "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job='mukti-api'}[5m])) by (le))", "legendFormat": "p50"},
+        {"refId": "B", "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job='mukti-api'}[5m])) by (le))", "legendFormat": "p95"},
+        {"refId": "C", "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job='mukti-api'}[5m])) by (le))", "legendFormat": "p99"}
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Agent Task Throughput",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {"drawStyle": "bars", "fillOpacity": 60, "stacking": {"mode": "normal"}}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "calcs": []}},
+      "targets": [{"refId": "A", "expr": "sum by (status) (rate(mukti_tasks_total[5m]))", "legendFormat": "{{status}}"}]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "LLM Cost $/h by Model",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {"drawStyle": "line", "fillOpacity": 40, "stacking": {"mode": "normal"}, "lineWidth": 1}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "table", "calcs": ["sum"]}},
+      "targets": [{"refId": "A", "expr": "sum by (model) (rate(mukti_cost_usd_total[1h]))", "legendFormat": "{{model}}"}]
+    }
+  ],
+  "links": [
+    {"title": "Agents & LLM", "type": "link", "url": "/d/mukti-agents-llm", "targetBlank": false}
+  ]
+}

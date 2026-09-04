@@ -75,6 +75,7 @@ class TeamOrchestrator:
         _event_counter = {"n": 0}
 
         def emit(stage: str, content: str):
+            nonlocal log
             if on_event is None:
                 return
             _event_counter["n"] += 1
@@ -249,7 +250,8 @@ Format output as:
                         stages_completed=stages_done, attempts=1
                     )
                     self.history.log(
-                        goal=f"[Team Swarm] {goal}", model=self.model, prd=prd_text,
+                        goal=f"[Team Swarm] {goal}", model=self.model,
+                        success=False, prd=prd_text,
                         design=design_text, code=extracted_code,
                         security_report=security_text, test_code="",
                         execution_output="", execution_error=result.execution_error,
@@ -436,4 +438,8 @@ if __name__ == '__main__':
             f.write(summary)
 
         return os.path.abspath(output_dir)
+
+
+team_orchestrator = TeamOrchestrator()
+
 

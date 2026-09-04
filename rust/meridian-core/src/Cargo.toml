@@ -1,0 +1,79 @@
+[package]
+name = "meridian-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Aftab <aftab@mukti.ai>"]
+description = "Agentic local LLM runtime — the brain of MERIDIAN"
+license = "MIT"
+repository = "https://github.com/mukti-ai/meridian"
+
+[features]
+default = []
+llama-cpp = ["llama-cpp-2"]
+multimodal = ["image"]
+distributed = []
+observability = ["opentelemetry", "tracing-opentelemetry", "opentelemetry-otlp"]
+security = ["regex", "lazy_static"]
+
+[dependencies]
+# Async
+tokio = { version = "1.40", features = ["full", "process"] }
+tokio-util = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Traits
+async-trait = "0.1"
+
+# Errors
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Utils
+uuid = { version = "1.10", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+dirs = "5.0"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+base64 = "0.22"
+
+# LLM (optional, requires compiled llama.cpp)
+llama-cpp-2 = { version = "0.1", optional = true }
+
+# Vector DB & Graph
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Security
+regex = { version = "1.11", optional = true }
+lazy_static = { version = "1.5", optional = true }
+
+# Multi-modal
+image = { version = "0.25", optional = true }
+
+# Observability (optional)
+opentelemetry = { version = "0.27", optional = true }
+tracing-opentelemetry = { version = "0.28", optional = true }
+opentelemetry-otlp = { version = "0.27", optional = true, features = ["grpc-tonic"] }
+
+# HTTP API
+axum = "0.7"
+reqwest = { version = "0.12", features = ["json"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[example]]
+name = "agent_demo"
+path = "examples/agent_demo.rs"
+
+[[example]]
+name = "swarm_demo"
+path = "examples/swarm_demo.rs"
+
+[[example]]
+name = "evolution_demo"
+path = "examples/evolution_demo.rs"

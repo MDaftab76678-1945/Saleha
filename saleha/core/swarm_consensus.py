@@ -32,6 +32,7 @@ class ConsensusVote:
     phase: str  # "prepare" or "commit"
     approved: bool
     reason: str = ""
+    confidence: float = 1.0
 
 
 @dataclass
@@ -49,16 +50,24 @@ class ConsensusDecision:
 
 
 class SwarmPBFTConsensus:
-    """PBFT-based multi-agent consensus engine."""
+    """PBFT-based multi-agent consensus engine with Confidence-Weighted BFT (CP-WBFT)."""
 
-    def __init__(self, validator_agent_ids: Optional[List[str]] = None):
-        """Initializes the PBFT consensus engine with a set of registered validator agents."""
+    def __init__(self, validator_agent_ids: Optional[List[str]] = None, weights: Optional[Dict[str, float]] = None):
+        """Initializes the PBFT consensus engine with a set of registered validator agents and optional weights."""
         self.validators: Set[str] = set(
             validator_agent_ids or ["ArchitectAgent", "CoderAgent", "SecurityAgent", "TesterAgent"]
         )
+        self.weights: Dict[str, float] = weights or {v: 1.0 for v in self.validators}
+        for v in self.validators:
+            if v not in self.weights:
+                self.weights[v] = 1.0
         self.proposals: Dict[str, SwarmProposal] = {}
         self.prepare_votes: Dict[str, List[ConsensusVote]] = {}
         self.commit_votes: Dict[str, List[ConsensusVote]] = {}
+
+    def set_validator_weight(self, voter_id: str, weight: float) -> None:
+        """Sets the reputation or domain weight for an authorized validator."""
+        self.weights[voter_id] = max(0.0, weight)
 
     def propose(self, proposer_id: str, target_file: str, code_patch: str) -> SwarmProposal:
         """Submits a new code or architecture proposal into the Pre-Prepare phase."""
@@ -84,6 +93,7 @@ class SwarmPBFTConsensus:
         approved: bool,
         reason: str = "",
         signature: Optional[str] = None,
+        confidence: float = 1.0,
     ) -> ConsensusVote:
         """Records a Prepare phase vote from an authorized swarm validator."""
         if proposal_id not in self.proposals:
@@ -93,7 +103,7 @@ class SwarmPBFTConsensus:
 
         # Deduplicate: replace any previous vote by this validator in the prepare phase
         self.prepare_votes[proposal_id] = [v for v in self.prepare_votes[proposal_id] if v.voter_agent_id != voter_id]
-        vote = ConsensusVote(voter_id, proposal_id, "prepare", approved, reason)
+        vote = ConsensusVote(voter_id, proposal_id, "prepare", approved, reason, confidence=confidence)
         self.prepare_votes[proposal_id].append(vote)
         return vote
 
@@ -104,6 +114,7 @@ class SwarmPBFTConsensus:
         approved: bool,
         reason: str = "",
         signature: Optional[str] = None,
+        confidence: float = 1.0,
     ) -> ConsensusVote:
         """Records a Commit phase vote from an authorized swarm validator."""
         if proposal_id not in self.proposals:
@@ -113,7 +124,7 @@ class SwarmPBFTConsensus:
 
         # Deduplicate: replace any previous vote by this validator in the commit phase
         self.commit_votes[proposal_id] = [v for v in self.commit_votes[proposal_id] if v.voter_agent_id != voter_id]
-        vote = ConsensusVote(voter_id, proposal_id, "commit", approved, reason)
+        vote = ConsensusVote(voter_id, proposal_id, "commit", approved, reason, confidence=confidence)
         self.commit_votes[proposal_id].append(vote)
         return vote
 
@@ -145,6 +156,55 @@ class SwarmPBFTConsensus:
             required_quorum=required_quorum,
             prepare_votes=prep_ok,
             commit_votes=comm_ok,
+            summary=summary,
+        )
+
+    def evaluate_confidence_weighted_consensus(
+        self,
+        proposal_id: str,
+        threshold: float = 0.66
+    ) -> ConsensusDecision:
+        """Evaluates consensus using Confidence-Weighted Byzantine Fault Tolerance (CP-WBFT)."""
+        if proposal_id not in self.proposals:
+            raise ValueError(f"Proposal '{proposal_id}' does not exist.")
+
+        total_weight = sum(self.weights.get(v, 1.0) for v in self.validators)
+        if total_weight <= 0:
+            total_weight = 1.0
+
+        prep_approved_weight = sum(
+            self.weights.get(v.voter_agent_id, 1.0) * max(0.0, min(1.0, v.confidence))
+            for v in self.prepare_votes.get(proposal_id, [])
+            if v.approved
+        )
+        comm_approved_weight = sum(
+            self.weights.get(v.voter_agent_id, 1.0) * max(0.0, min(1.0, v.confidence))
+            for v in self.commit_votes.get(proposal_id, [])
+            if v.approved
+        )
+
+        prep_ratio = prep_approved_weight / total_weight
+        comm_ratio = comm_approved_weight / total_weight
+
+        is_committed = (prep_ratio >= threshold) and (comm_ratio >= threshold)
+        summary = (
+            f"CP-WBFT Weighted Consensus for '{proposal_id}': "
+            f"Prepare ({prep_approved_weight:.2f}/{total_weight:.2f} = {prep_ratio:.1%}) & "
+            f"Commit ({comm_approved_weight:.2f}/{total_weight:.2f} = {comm_ratio:.1%}) -> "
+            f"{'COMMITTED' if is_committed else 'REJECTED'}"
+        )
+
+        n = len(self.validators)
+        f = max(0, (n - 1) // 3)
+        return ConsensusDecision(
+            proposal_id=proposal_id,
+            committed=is_committed,
+            total_validators=n,
+            votes_received=len(self.prepare_votes.get(proposal_id, [])) + len(self.commit_votes.get(proposal_id, [])),
+            f_faults_tolerated=f,
+            required_quorum=int(total_weight * threshold),
+            prepare_votes=int(prep_approved_weight),
+            commit_votes=int(comm_approved_weight),
             summary=summary,
         )
 

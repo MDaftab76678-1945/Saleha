@@ -210,7 +210,6 @@ class TestRunner:
         if not result.passed and not result.failures and not exec_res.success:
             result.error = exec_res.error or f"runner exit {exec_res.exit_code}"
         return result
-
     @staticmethod
     def _extract_marker(output: str) -> Optional[str]:
         for line in reversed((output or "").splitlines()):
@@ -218,3 +217,8 @@ class TestRunner:
             if line.startswith(TEST_JSON_MARKER):
                 return line[len(TEST_JSON_MARKER):]
         return None
+
+
+test_runner = TestRunner()
+
+

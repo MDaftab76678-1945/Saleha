@@ -1,0 +1,12 @@
+# Drill 4 is orchestrated at the deployment level (scale to 0) rather than
+# via Litmus, because it spans regions. This manifest documents the drill.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mukti-region-failover-drill
+  namespace: mukti
+data:
+  description: |
+    Drill 4: scale primary region API to 0, shift DNS/traffic to secondary.
+    The RegionFailoverInjector handles scaling + DNS switching.
+    Recovery: scale primary back up, shift traffic back.

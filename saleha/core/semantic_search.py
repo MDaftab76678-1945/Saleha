@@ -175,8 +175,10 @@ class SemanticSearchEngine:
 
         return dot_product / (math.sqrt(q_norm_sq) * math.sqrt(d_norm_sq))
 
-    def search(self, query: str, top_k: int = 10, semantic: bool = True) -> List[SearchResult]:
+    def search(self, query: str, top_k: int = 10, semantic: bool = True, limit: Optional[int] = None) -> List[SearchResult]:
         """Searches the codebase using hybrid BM25 lexical + TF-IDF cosine score."""
+        if limit is not None:
+            top_k = limit
         if not self.is_indexed:
             self.index_codebase()
 

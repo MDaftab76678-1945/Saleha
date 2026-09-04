@@ -170,6 +170,24 @@ class AgentLoopTests(unittest.TestCase):
         self.assertGreaterEqual(len(think_events), 2)
         self.assertIn("Analyzing billing", think_events[0]["thought"])
 
+    def test_structured_xml_tool_call_and_thinking_parsing(self):
+        events = []
+        agent = ScriptedAgent([
+            "<THINKING>Formulating plan to read and analyze app.py code structure.</THINKING>\n"
+            + '<tool_call>{"name": "read_file", "arguments": {"path": "app.py"}}</tool_call>',
+            "<THINKING>Verification complete, returning summary.</THINKING>\n"
+            + _finish("structured loop completed"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("inspect via structured loop", on_event=events.append)
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(res.final_message, "structured loop completed")
+        self.assertEqual(res.steps[0].action, "read_file")
+        self.assertIn("def charge", res.steps[0].observation)
+        think_events = [e for e in events if e.get("action") == "think"]
+        self.assertGreaterEqual(len(think_events), 2)
+        self.assertIn("Formulating plan", think_events[0]["thought"])
+
 
 class patch_gate:
     """approval_gate.approve ko force-approve karta hai (context manager)."""
