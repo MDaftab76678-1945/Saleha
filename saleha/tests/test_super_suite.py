@@ -84,9 +84,15 @@ class TestTaskSchedulerEngine:
         assert len(engine.list_tasks()) == initial_count + 1
 
     def test_trigger_and_cancel_task(self):
+        from unittest.mock import patch
+
         engine = TaskSchedulerEngine()
         task = engine.register_task("*/10 * * * *", "Health Check", "TesterAgent")
-        result = engine.trigger_task_now(task.task_id)
+        with patch(
+            "saleha.core.team_orchestrator.TeamOrchestrator.run_team_workflow",
+            return_value=MagicMock(success=True, code=""),
+        ):
+            result = engine.trigger_task_now(task.task_id)
         assert result is not None
         assert result["status"] == "SUCCESS"
         assert task.total_executions == 1

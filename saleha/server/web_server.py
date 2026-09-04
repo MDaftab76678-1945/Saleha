@@ -1865,6 +1865,12 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"secrets": secrets_list})
             return
 
+        if path == "/api/scheduler/list":
+            from dataclasses import asdict as _asdict
+            from saleha.core.task_scheduler import task_scheduler
+            self._send_json(200, {"tasks": [_asdict(t) for t in task_scheduler.list_tasks()]})
+            return
+
         if path == "/api/vault/ticker":
             prices = doom_vault_engine.get_ticker_prices()
             self._send_json(200, {"prices": prices})
@@ -2216,6 +2222,16 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 return
             deleted = vault.delete_secret(key)
             self._send_json(200, {"status": "deleted" if deleted else "not_found", "key": key})
+            return
+
+        if path == "/api/scheduler/trigger":
+            from saleha.core.task_scheduler import task_scheduler
+            task_id = payload.get("task_id", "")
+            result = task_scheduler.trigger_task_now(task_id)
+            if result is None:
+                self._send_json(404, {"error": f"No such task: {task_id}"})
+                return
+            self._send_json(200, result)
             return
 
         if path == "/api/sandbox/execute":
