@@ -3,8 +3,9 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build",
+    "build:sidecar": "python ../../scripts/build_desktop_sidecar.py",
+    "dev": "npm run build:sidecar && tauri dev",
+    "build": "npm run build:sidecar && tauri build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -11,6 +11,9 @@ import shutil
 import subprocess
 import argparse
 
+if sys.stdout.encoding is not None and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 
 def build_binary(clean: bool = False, use_nuitka: bool = False):
     print("=" * 60)

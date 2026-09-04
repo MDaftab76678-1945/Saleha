@@ -9,6 +9,9 @@
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"
   },
+  "bundle": {
+    "externalBin": ["binaries/saleha"]
+  },
   "app": {
     "windows": [
       {
