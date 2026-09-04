@@ -86,6 +86,63 @@ export async function apiGet<T>(
   return (await response.json()) as T;
 }
 
+export interface AccountUser {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+  last_login_at: string | null;
+  disabled: boolean;
+}
+
+/**
+ * Exchanges a username and password for a session token.
+ *
+ * The backend answers a bad password and an unknown username identically, so
+ * the error shown here is deliberately non-specific too.
+ */
+export async function login(
+  username: string,
+  password: string,
+  baseUrl: string = DEFAULT_BASE_URL
+): Promise<{ token: string; user: AccountUser }> {
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+  } catch {
+    throw new ApiError(`Could not reach the backend at ${baseUrl}.`, 0, false);
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new ApiError(
+      data?.error || "Sign in failed.",
+      response.status,
+      response.status === 401
+    );
+  }
+  return data as { token: string; user: AccountUser };
+}
+
+export async function logout(baseUrl: string = DEFAULT_BASE_URL): Promise<void> {
+  const token = getStoredToken();
+  if (token) {
+    try {
+      await fetch(`${baseUrl}/api/auth/logout`, {
+        method: "POST",
+        headers: { "X-Saleha-Token": token },
+      });
+    } catch {
+      // Clearing locally still signs this browser out.
+    }
+  }
+  clearStoredToken();
+}
+
 /** Hits the one route that needs no token, to tell "server down" apart from "bad token". */
 export async function checkHealth(
   baseUrl: string = DEFAULT_BASE_URL

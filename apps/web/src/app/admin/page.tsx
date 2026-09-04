@@ -3,12 +3,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { THEME_PRESETS, ThemeTokens } from "@saleha/ui";
 import {
+  AccountUser,
   ApiError,
   DEFAULT_BASE_URL,
   apiGet,
   checkHealth,
-  clearStoredToken,
   getStoredToken,
+  login as apiLogin,
+  logout as apiLogout,
   storeToken,
 } from "../../lib/api";
 
@@ -124,6 +126,13 @@ export default function AdminPage() {
   const [needsToken, setNeedsToken] = useState(false);
   const [serverUp, setServerUp] = useState<boolean | null>(null);
 
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [account, setAccount] = useState<AccountUser | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState("");
+  const [useSharedToken, setUseSharedToken] = useState(false);
+
   const [overview, setOverview] = useState<OverviewPayload | null>(null);
   const [runs, setRuns] = useState<RunsPayload | null>(null);
   const [audit, setAudit] = useState<AuditPayload | null>(null);
@@ -159,8 +168,16 @@ export default function AdminPage() {
         setNeedsToken(false);
       } catch (err) {
         const apiError = err as ApiError;
-        setError(apiError.message || "Request failed.");
-        if (apiError.isAuthError) setNeedsToken(true);
+        if (apiError.status === 403) {
+          // Signed in, but without the admin role. Prompting for credentials
+          // again would imply the sign-in failed, which it did not.
+          setError(
+            "This account is not an admin, so operational data is refused. Ask an admin to grant the role, or sign in as one."
+          );
+        } else {
+          setError(apiError.message || "Request failed.");
+          if (apiError.isAuthError) setNeedsToken(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -180,6 +197,36 @@ export default function AdminPage() {
     setToken(next);
     setTokenDraft("");
     setNeedsToken(false);
+  };
+
+  const submitSignIn = async () => {
+    if (!username.trim() || !password) return;
+    setSigningIn(true);
+    setSignInError("");
+    try {
+      const result = await apiLogin(username.trim(), password);
+      storeToken(result.token);
+      setAccount(result.user);
+      setToken(result.token);
+      setPassword("");
+      setNeedsToken(false);
+      if (result.user.role !== "admin") {
+        setSignInError(
+          "Signed in, but this account is not an admin, so the panel's data will be refused."
+        );
+      }
+    } catch (err) {
+      setSignInError((err as ApiError).message || "Sign in failed.");
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const signOut = async () => {
+    await apiLogout();
+    setToken("");
+    setAccount(null);
+    setNeedsToken(true);
   };
 
   const s = styles(theme);
@@ -203,31 +250,81 @@ export default function AdminPage() {
           {overview?.approval_mode && (
             <span style={s.badge}>approval: {overview.approval_mode}</span>
           )}
+          {account && (
+            <span style={s.badge}>
+              {account.username} · {account.role}
+            </span>
+          )}
         </div>
       </header>
 
       {needsToken && (
         <section style={s.tokenPanel}>
-          <h2 style={s.sectionTitle}>Backend token required</h2>
+          <h2 style={s.sectionTitle}>Sign in</h2>
           <p style={s.muted}>
-            The API is token-authenticated. The backend prints its token on startup, and generates a
-            new one each launch unless <code style={s.code}>SALEHA_STUDIO_TOKEN</code> is set.
+            The admin panel needs an account with the admin role. Create the first one on the
+            machine running the backend:{" "}
+            <code style={s.code}>saleha user create &lt;name&gt; --admin</code>
           </p>
-          <div style={s.tokenRow}>
-            <input
-              style={s.input}
-              type="password"
-              value={tokenDraft}
-              placeholder="Paste X-Saleha-Token"
-              onChange={(e) => setTokenDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitToken();
-              }}
-            />
-            <button style={s.primaryButton} onClick={submitToken}>
-              Connect
-            </button>
-          </div>
+
+          {!useSharedToken ? (
+            <>
+              <div style={s.tokenRow}>
+                <input
+                  style={s.input}
+                  value={username}
+                  placeholder="Username"
+                  autoComplete="username"
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+                <input
+                  style={s.input}
+                  type="password"
+                  value={password}
+                  placeholder="Password"
+                  autoComplete="current-password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void submitSignIn();
+                  }}
+                />
+                <button style={s.primaryButton} onClick={() => void submitSignIn()} disabled={signingIn}>
+                  {signingIn ? "Signing in…" : "Sign in"}
+                </button>
+              </div>
+              <button style={s.linkButton} onClick={() => setUseSharedToken(true)}>
+                Use the server&apos;s launch token instead
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={s.muted}>
+                The backend prints a shared token when it starts, and regenerates it each launch
+                unless <code style={s.code}>SALEHA_STUDIO_TOKEN</code> is set. It grants admin
+                access, so treat it as a break-glass credential rather than a everyday login.
+              </p>
+              <div style={s.tokenRow}>
+                <input
+                  style={s.input}
+                  type="password"
+                  value={tokenDraft}
+                  placeholder="Paste the launch token"
+                  onChange={(e) => setTokenDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitToken();
+                  }}
+                />
+                <button style={s.primaryButton} onClick={submitToken}>
+                  Connect
+                </button>
+              </div>
+              <button style={s.linkButton} onClick={() => setUseSharedToken(false)}>
+                Back to signing in with an account
+              </button>
+            </>
+          )}
+
+          {signInError && <div style={s.signInError}>{signInError}</div>}
         </section>
       )}
 
@@ -246,15 +343,8 @@ export default function AdminPage() {
           {loading ? "Loading…" : "Refresh"}
         </button>
         {token && (
-          <button
-            style={s.ghostButton}
-            onClick={() => {
-              clearStoredToken();
-              setToken("");
-              setNeedsToken(true);
-            }}
-          >
-            Forget token
+          <button style={s.ghostButton} onClick={() => void signOut()}>
+            Sign out
           </button>
         )}
       </nav>
@@ -669,6 +759,24 @@ function styles(theme: ThemeTokens): Record<string, React.CSSProperties> {
       borderRadius: 10,
     },
     tokenRow: { display: "flex", gap: "0.6rem", marginTop: "0.8rem", flexWrap: "wrap" },
+    linkButton: {
+      background: "none",
+      border: "none",
+      color: theme.accent,
+      fontSize: "0.78rem",
+      cursor: "pointer",
+      padding: "0.6rem 0 0",
+      textDecoration: "underline",
+    },
+    signInError: {
+      marginTop: "0.8rem",
+      color: theme.textMain,
+      fontSize: "0.8rem",
+      borderLeft: `3px solid ${theme.accentAmber}`,
+      background: theme.bgElevated,
+      borderRadius: 6,
+      padding: "0.6rem 0.8rem",
+    },
     input: {
       flex: "1 1 320px",
       background: theme.bgElevated,

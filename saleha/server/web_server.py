@@ -1618,15 +1618,114 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
 
-    def _is_authorized(self, parsed) -> bool:
+    def _presented_token(self, parsed) -> str:
         provided = self.headers.get('X-Saleha-Token', '') or ''
         if not provided and parsed is not None:
             query = urllib.parse.parse_qs(parsed.query)
             provided = (query.get('token') or [''])[0]
-        return bool(provided) and secrets.compare_digest(provided, get_auth_token())
+        return provided
+
+    def _current_user(self, parsed):
+        """Resolves the caller to a user account, or None.
+
+        The shared launch token predates user accounts and still works: it is
+        held by whoever started the server, so it is treated as an admin
+        credential and also keeps the bootstrap path open when no accounts
+        exist yet. A session token from a real account resolves to that account.
+        """
+        from saleha.core.user_store import User, user_store
+
+        provided = self._presented_token(parsed)
+        if not provided:
+            return None
+
+        if secrets.compare_digest(provided, get_auth_token()):
+            return User(
+                id="shared-launch-token",
+                username="shared-launch-token",
+                role="admin",
+                created_at="",
+            )
+        try:
+            return user_store.resolve_session(provided)
+        except Exception:
+            return None
+
+    def _is_authorized(self, parsed) -> bool:
+        return self._current_user(parsed) is not None
+
+    def _is_admin(self, parsed) -> bool:
+        user = self._current_user(parsed)
+        return bool(user and user.role == "admin")
 
     def _reject_unauthorized(self):
         self._send_json(401, {"error": "Unauthorized: valid X-Saleha-Token header required"})
+
+    def _reject_forbidden(self):
+        self._send_json(403, {"error": "Forbidden: this endpoint requires an admin account"})
+
+    def _handle_auth_post(self, path: str, parsed, payload) -> bool:
+        """Authenticated /api/auth/* writes. Returns True if the path was handled.
+
+        Login is not here: it has to run before the authorization check, so it
+        is handled directly in do_POST.
+        """
+        from saleha.core.user_store import UserStoreError, user_store
+
+        if path == "/api/auth/logout":
+            revoked = user_store.revoke_session(self._presented_token(parsed))
+            self._send_json(200, {"revoked": revoked})
+            return True
+
+        if path == "/api/auth/password":
+            # A user may change their own password; an admin may change anyone's.
+            caller = self._current_user(parsed)
+            target = str(payload.get("username") or (caller.username if caller else ""))
+            if caller is None:
+                self._reject_unauthorized()
+                return True
+            if target != caller.username and caller.role != "admin":
+                self._reject_forbidden()
+                return True
+            try:
+                user_store.set_password(target, str(payload.get("password", "")))
+            except UserStoreError as err:
+                self._send_json(400, {"error": str(err)})
+                return True
+            self._send_json(200, {"status": "password updated", "sessions_revoked": True})
+            return True
+
+        # Everything below manages other people's accounts.
+        if not self._is_admin(parsed):
+            self._reject_forbidden()
+            return True
+
+        try:
+            if path == "/api/auth/users/create":
+                user = user_store.create_user(
+                    str(payload.get("username", "")),
+                    str(payload.get("password", "")),
+                    str(payload.get("role", "user")),
+                )
+                self._send_json(200, {"user": user.to_dict()})
+                return True
+
+            if path == "/api/auth/users/role":
+                user = user_store.set_role(
+                    str(payload.get("username", "")), str(payload.get("role", "user"))
+                )
+                self._send_json(200, {"user": user.to_dict()})
+                return True
+
+            if path == "/api/auth/users/delete":
+                user_store.delete_user(str(payload.get("username", "")))
+                self._send_json(200, {"status": "deleted"})
+                return True
+        except UserStoreError as err:
+            self._send_json(400, {"error": str(err)})
+            return True
+
+        return False
 
     def _collab_error(self, err: CollabError):
         code_map = {"not_found": 404, "conflict": 409, "not_joined": 409, "limit": 429, "too_large": 413}
@@ -1878,6 +1977,12 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/admin/"):
             from saleha.server import admin_metrics
 
+            # Operational data is admin-only. Ordinary accounts pass the
+            # _is_authorized check above but must not read the audit log.
+            if not self._is_admin(parsed):
+                self._reject_forbidden()
+                return
+
             query = urllib.parse.parse_qs(parsed.query)
             try:
                 limit = int((query.get("limit") or ["20"])[0])
@@ -1902,6 +2007,26 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 self._send_json(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
 
+        if path == "/api/auth/me":
+            user = self._current_user(parsed)
+            if user is None:
+                self._reject_unauthorized()
+                return
+            self._send_json(200, {"user": user.to_dict()})
+            return
+
+        if path == "/api/auth/users":
+            from saleha.core.user_store import user_store
+
+            if not self._is_admin(parsed):
+                self._reject_forbidden()
+                return
+            self._send_json(200, {
+                "users": [u.to_dict() for u in user_store.list_users()],
+                "active_sessions": user_store.active_session_count(),
+            })
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def do_POST(self):
@@ -1915,6 +2040,34 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
         body = self.rfile.read(content_len).decode('utf-8')
 
+        # Login must be reachable without credentials, so it is handled before
+        # the authorization check below.
+        if path == "/api/auth/login":
+            from saleha.core.user_store import AuthenticationError, user_store
+
+            try:
+                credentials = json.loads(body) if body else {}
+            except Exception:
+                credentials = {}
+            try:
+                session = user_store.authenticate(
+                    credentials.get("username", ""), credentials.get("password", "")
+                )
+            except AuthenticationError as err:
+                # 401 with a deliberately non-specific message: distinguishing
+                # "no such user" from "wrong password" would enumerate accounts.
+                self._send_json(401, {"error": str(err)})
+                return
+            except Exception as err:
+                self._send_json(500, {"error": f"{type(err).__name__}: {err}"})
+                return
+            self._send_json(200, {
+                "token": session.token,
+                "expires_at": session.expires_at,
+                "user": session.user.to_dict(),
+            })
+            return
+
         if not self._is_authorized(parsed):
             self.close_connection = True
             self._reject_unauthorized()
@@ -1924,6 +2077,10 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             payload = json.loads(body) if body else {}
         except Exception:
             payload = {}
+
+        if path.startswith("/api/auth/"):
+            if self._handle_auth_post(path, parsed, payload):
+                return
 
         if self._handle_collab_post(path, payload):
             return
