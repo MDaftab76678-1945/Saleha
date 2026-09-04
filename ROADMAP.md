@@ -1,118 +1,36 @@
-# 🗺️ Saleha AI 2.0: Master Strategic Roadmap & Future Engineering Blueprint (2026–2028)
+# Saleha Roadmap
 
-An executive-level, multi-horizon strategic roadmap outlining the technological evolution of **Saleha AI** from an autonomous developer workbench into the world's preeminent **Autonomous Artificial General Software Intelligence (A-GSI)**.
-
----
-
-## 🎯 Strategic North Star Metric
-
-> **"Sub-100μs Latency, Zero Cloud Dependency, 100% Deterministic Safety, and Autonomous Self-Evolving Codebases."**
-
-```mermaid
-timeline
-    title 🚀 Saleha AI Multi-Horizon Evolution
-    section Horizon 1 (Q4 2026)
-        In-Browser WebAssembly (Wasm) WebContainers : Live npm/pip inside browser
-        Autonomous Multi-Agent Git Conflict Autopilot : 100% Conflict-Free Merges
-        Live Collaborative Multi-Cursor Pairing (CRDT) : Google Docs for Code
-    section Horizon 2 (Q1 2027)
-        Decentralized P2P Swarm Network (Libp2p) : Distributed Agent Computing
-        Local WebGPU & NPU Kernel Accelerators : 100+ Tokens/sec on Consumer GPUs
-        Autonomous SRE Cloud Self-Healing Engine : Auto-Mitigating Production Outages
-    section Horizon 3 (Q2 2027)
-        Spatial 3D Neural Scene & UI Generation : Apple Vision Pro / WebXR Studio
-        Formal Mathematical Proof Synthesizer (Lean 4) : 100% Mathematically Verified Code
-    section Horizon 4 (Q3 2027+)
-        Quantum-Safe Post-Quantum Cryptography : Kyber & Dilithium Zero-Trust Guard
-        Self-Compiling Native Binary JIT : Generating Standalone Native C/Rust Binaries
-```
+This is a list of directions Saleha could go, not a set of commitments or dates. Nothing in this document is implemented yet — see [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md) for what exists today. Items are grouped by theme rather than quarter, since none of the previous dates reflected actual planning.
 
 ---
 
-## 🏛️ Comprehensive Horizon Breakdown
+## Near-term, plausible next steps
 
-### 🌟 Horizon 1 (Q4 2026): Pure Client-Side Wasm & Collaborative Studio
+- **Audit CORS origin handling** in `saleha/server/web_server.py`. The server now reflects only known-local origins (localhost, `127.0.0.1`, and the Tauri webview) and never emits a wildcard on authenticated JSON responses. If additional deployment targets are added later, the allowlist in `_is_allowed_origin` needs to be revisited deliberately rather than widened to `*`.
+- **Decide the fate of the "formal verification" modules.** `formal_verifier.py`/`formal_smt_verifier.py` currently emit Lean 4-/SMT-shaped template text without invoking a real toolchain. Either wire them up to an actual Lean 4 or Z3 process and validate the output, or rename/relabel them clearly as "proof-template generators" so nobody mistakes their output for a checked proof.
+- **Rename or clearly scope the "consensus"/"swarm" modules.** `swarm_consensus.py` implements a real in-process multi-phase voting scheme; deciding whether to (a) actually build out cross-process/distributed behavior, or (b) keep it in-process and rename away from "PBFT"/"Byzantine," would remove a recurring source of confusion (this rewrite of the docs took the second approach for now).
+- **Harden the desktop (`apps/desktop`) sidecar integration.** It's newer than the CLI/web-app path; more end-to-end testing of startup, shutdown, and error states would be valuable before calling it stable.
+- **Widen test coverage of the ~220 `saleha/core/` modules** relative to what the CLI actually calls — some modules currently have thin or no direct test coverage; auditing this would clarify which modules are "supported" versus experimental scaffolding.
 
-*Objective: Eliminate server dependency entirely for standard web workflows and introduce real-time multiplayer developer pairing.*
+## Medium-term ideas (unscheduled)
 
-1. **In-Browser WebAssembly (Wasm) Polyglot Sandbox:**
-   - Compile Python (Pyodide), Node.js (WebContainer), and Rust (Wasm-Pack) directly into client browser threads.
-   - Run full FastAPI or Express backends entirely inside the user's browser with zero backend server overhead.
-2. **Conflict-Free Replicated Data Type (CRDT) Multi-Cursor Collaboration:**
-   - Implement Yjs / Automerge CRDT state engine in `@saleha/collab` allowing multiple human developers and 250 AI agents to co-edit the same file simultaneously without lock contention.
-3. **Automated Visual Regression & Pixel-Diff AI Verifier:**
-   - Canvas-based visual diff engine capturing viewport screenshots before and after code changes to guarantee 0 visual regressions on mobile, tablet, and desktop breakpoints.
+- **Sandboxed in-browser execution** for the web app (e.g. Pyodide/WebContainer-style), so simple demos don't require a local backend.
+- **Local hardware acceleration** for model inference (better use of NPUs/GPUs via existing local runtimes), beyond whatever Ollama already provides.
+- **Multi-user collaborative editing** in the web app, if there's demand — no CRDT or collaboration engine exists in the codebase today.
+- **Deeper `rust/` and `contracts/` integration.** These subsystems (zkVM/blockchain research, Solidity contracts) are currently separate from the Python agent runtime. If real integration work happens, it should be documented in ARCHITECTURE.md once it's actually wired up, not described in advance here.
 
----
+## Longer-term / speculative
 
-### 🌌 Horizon 2 (Q1 2027): Decentralized Swarm & Hardware Acceleration
-
-*Objective: Unlock distributed swarm compute across developer machines and leverage consumer NPUs/GPUs.*
-
-1. **Decentralized P2P Multi-Agent Swarm (Libp2p):**
-   - Connect developer instances into a private peer-to-peer compute cluster where heavy tasks (such as fuzzing 10,000 code mutations or running complete integration test matrices) are distributed across local devices.
-2. **Direct WebGPU & NPU Acceleration Engine:**
-   - Execute quantized Qwen2.5-Coder and DeepSeek models directly on Apple Silicon Neural Engine (NNE), Intel NPU, Qualcomm Snapdragon X Elite, and Nvidia WebGPU shaders.
-   - Achieve **120+ tokens/sec** local inference at **0 Watt** server cost.
-3. **Autonomous Production SRE & Kubernetes Hotfixer:**
-   - Ingest live Prometheus metrics and Grafana alerts; autonomously generate, test, and deploy canary patches to Kubernetes clusters with automatic rollback guards.
+- **A real formal-verification pipeline** (Lean 4 or another checker actually invoked and validated), if the templated scaffolding above is worth building out.
+- **A genuinely distributed multi-agent protocol**, if a use case emerges that needs agents running across separate machines/processes rather than the current in-process model.
+- **Post-quantum cryptography** for any secrets/vault storage, if and when there's a concrete security requirement driving it.
 
 ---
 
-### 🎨 Horizon 3 (Q2 2027): Spatial Computing & Formal Proof Verification
+## Ground rules for adding to this roadmap
 
-*Objective: Expand beyond 2D code into spatial UI development and mathematically verified software.*
+To avoid regressing to the previous version of this document:
 
-1. **Spatial 3D Neural UI & Scene Generation (Vision Pro / WebXR):**
-   - Direct spatial UI synthesis using Three.js, React Three Fiber, and WebXR for Apple Vision Pro and Meta Quest devices.
-2. **Formal Lean 4 / Coq Theorem Prover Integration:**
-   - Integrate the Lean 4 mathematical theorem prover into the Gamma AST pipeline. Critical cryptographic, financial, and avionics algorithms are proven formally correct before compilation.
-3. **Zero-Knowledge Code Proofs (ZK-SNARKs):**
-   - Generate ZK-proofs proving that proprietary code contains no backdoors or CVEs without revealing the private source code to third-party auditors.
-
----
-
-### ⚛️ Horizon 4 (Q3 2027+): Quantum-Safe Self-Compiling Intelligence
-
-*Objective: Unbreakable security and native standalone executable synthesis.*
-
-1. **Post-Quantum Cryptographic Guard (NIST PQC):**
-   - Upgrade all Vault secrets, RPC channels, and AST signatures to CRYSTALS-Kyber key encapsulation and CRYSTALS-Dilithium digital signatures.
-2. **Autonomous Self-Compiling Native JIT Binary Generator:**
-   - Transform high-level natural language requirements directly into ultra-optimized, standalone native machine code binaries (ELF/PE/Mach-O) with zero runtime dependencies.
-
----
-
-## 📊 Feature Prioritization & ROI Impact Matrix
-
-| Milestone / Feature | Technical Complexity | Developer Value | Market Impact |
-| :--- | :--- | :--- | :--- |
-| **In-Browser Wasm WebContainer** | Medium ($\approx 3$ Weeks) | 🌟🌟🌟🌟🌟 | Zero Server Hosting Costs |
-| **CRDT Real-Time Multiplayer Pairing** | Medium ($\approx 2$ Weeks) | 🌟🌟🌟🌟🌟 | Replaces Figma + Replit |
-| **WebGPU & NPU Local Acceleration** | High ($\approx 4$ Weeks) | 🌟🌟🌟🌟🌟 | $0 Token Bill at 120 tok/s |
-| **P2P Decentralized Swarm Clusters** | High ($\approx 5$ Weeks) | 🌟🌟🌟🌟 | Unlimited Distributed Compute |
-| **Formal Lean 4 Mathematical Proofs** | Very High ($\approx 6$ Weeks) | 🌟🌟🌟🌟🌟 | Critical Enterprise Adoption |
-| **Post-Quantum Cryptography (PQC)** | Medium ($\approx 2$ Weeks) | 🌟🌟🌟🌟 | Government/Defense Grade |
-
----
-
-## 🛠️ Phase-by-Phase Execution Plan
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 📅 PHASE 1 (Immediate Next Sprints - Q4 2026)                               │
-│ 1. Build In-Browser Wasm Runtime in apps/web.                               │
-│ 2. Integrate Yjs CRDT real-time multiplayer cursor sharing.                 │
-│ 3. Add Automated Visual Screenshot Diffing in Web Studio Live Preview.      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 📅 PHASE 2 (Scalability & Hardware - Q1 2027)                               │
-│ 1. Implement WebGPU/NPU Shaders for sub-10ms local token generation.        │
-│ 2. Deploy Libp2p private multi-agent mesh networking.                       │
-│ 3. Build live Kubernetes SRE telemetry auto-mitigation agent.               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 📅 PHASE 3 (Enterprise Supremacy - Q2-Q3 2027)                              │
-│ 1. Integrate Lean 4 Formal Verification in Gamma AST Engine.                │
-│ 2. Implement NIST Post-Quantum Kyber/Dilithium Vault Encryption.            │
-│ 3. Release 1-Click Native Standalone Binary Compiler (LLVM backend).        │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+1. Don't claim a feature is "coming next quarter" without an owner and a plan; put it in an unscheduled bucket instead.
+2. Don't describe a template, stub, or heuristic as if it were the finished feature.
+3. When something here ships, move its description to README.md/ARCHITECTURE.md and remove it from here — don't leave both versions in the repo at once.

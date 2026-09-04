@@ -18,11 +18,13 @@ We take the security of Saleha AI extremely seriously. If you discover a vulnera
 3. Include code snippets, proof-of-concept, and your environment setup.
 4. We will respond within 48 hours and work with you to release a patch.
 
-## Built-in SAST & Constitutional Guardrails
+## Built-in security tooling
 
-Saleha incorporates multi-tier security engines:
+Saleha includes a few security-relevant modules, described plainly (see ARCHITECTURE.md for details):
 
-- **Constitutional AI Guard** (`saleha constitutional-check`): Rule-based runtime enforcement against unauthorized socket exfiltration and destructive system commands.
-- **Hardware RTL SAST Scanner** (`saleha scan-sec`): AST-level scanning for Software and Verilog/SystemVerilog hardware designs.
-- **Isolated Process Sandbox** (`saleha/core/sandbox_runner.py`): Zero unauthenticated disk/network escape policy.
-- **Merkle Provenance Audit** (`saleha merkle-audit`): SHA-256 cryptographic immutable patch trail.
+- **Rule-based code audit** (`saleha constitutional-check <path>`, `saleha/core/constitutional_guard.py`): static checks against a fixed set of rules (e.g. flags obviously destructive or exfiltration-shaped patterns). It is a heuristic linter, not a runtime sandbox enforcement mechanism.
+- **Static security scanner** (`saleha sast <path>`, `saleha/core/security_scanner.py`): AST-level checks for common Python issues (`shell=True`, bare `except`, hardcoded secrets, string-built SQL), with limited Verilog/SystemVerilog pattern checks.
+- **Sandboxed execution** (`saleha sandbox <file>`, `saleha/core/sandbox_runner.py` / `docker_sandbox.py`): runs generated or untrusted code in a resource-limited subprocess or Docker container rather than directly on the host. This reduces blast radius; it is not a formally verified isolation guarantee.
+- **Hash-chained audit log** (`saleha merkle-audit`, `saleha/core/merkle_provenance.py`): verifies that the recorded action log has not been tampered with, using a SHA-256 hash chain.
+
+None of the above is a substitute for an independent security review of your own deployment.
