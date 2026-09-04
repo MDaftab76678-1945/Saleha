@@ -90,3 +90,19 @@ yarn-error.log*
 
 # Next.js build output
 apps/web/.next/
+
+# Rust / Tauri build output
+target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
+
+# PyInstaller build artifacts
+saleha.spec
+/dist/
+/build/
+
+# Model checkpoints and adapters (multi-GB, distributed out of band)
+models/
+
+# Claude Code agent worktrees and session scratch
+.claude/
