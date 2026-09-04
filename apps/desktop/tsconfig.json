@@ -16,6 +16,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "paths": {
+      "@saleha/core": ["../../packages/core/src/index.ts"],
+      "@saleha/core/*": ["../../packages/core/src/*"],
       "@saleha/ui": ["../../packages/ui/src/index.ts"],
       "@saleha/ui/*": ["../../packages/ui/src/*"]
     }

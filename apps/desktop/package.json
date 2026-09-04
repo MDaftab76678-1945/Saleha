@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@saleha/core": "*",
     "@saleha/ui": "*",
     "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/plugin-shell": "^2.2.0",
@@ -24,4 +25,3 @@
     "vite": "^6.1.0"
   }
 }
-

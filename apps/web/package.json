@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@saleha/core": "*",
     "@saleha/ui": "*",
     "next": "^15.1.0",
     "react": "^19.0.0",
@@ -24,4 +25,3 @@
     "typescript": "^5.7.0"
   }
 }
-

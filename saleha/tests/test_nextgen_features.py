@@ -92,6 +92,17 @@ class NextGenFeaturesTests(unittest.TestCase):
         self.assertFalse(data["success"])
         self.assertIn("restricted", data["output"])
 
+    def test_terminal_exec_blocks_injection(self):
+        # Semicolon injection
+        data = self._post("/api/terminal/exec", {"command": "git status; whoami"})
+        self.assertFalse(data["success"])
+        self.assertIn("restricted for security", data["output"])
+
+        # AND chaining injection
+        data2 = self._post("/api/terminal/exec", {"command": "echo safe && calc.exe"})
+        self.assertFalse(data2["success"])
+        self.assertIn("restricted for security", data2["output"])
+
     def test_workspace_sync_endpoint(self):
         tmp_dir = tempfile.mkdtemp()
         try:

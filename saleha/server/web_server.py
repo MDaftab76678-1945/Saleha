@@ -2102,9 +2102,30 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/terminal/exec":
             command = payload.get("command", "echo 'Saleha Shell'")
+            disallowed_chars = [";", "&&", "||", "|", "&", ">", "<", "`", "$(", "${", "\n", "\r"]
+            if any(char in command for char in disallowed_chars):
+                self._send_json(200, {
+                    "success": False,
+                    "output": "Command rejected: shell chaining and redirection operators are restricted for security.",
+                })
+                return
+
+            try:
+                import shlex
+                import shutil
+                import sys
+                parts = shlex.split(command, posix=False)
+            except Exception as e:
+                self._send_json(200, {"success": False, "output": f"Invalid command syntax: {str(e)}"})
+                return
+
+            if not parts:
+                self._send_json(200, {"success": False, "output": "Empty command provided."})
+                return
+
             allowed_prefixes = ["echo", "python", "pytest", "git", "saleha", "dir", "ls", "node", "npm"]
-            first_word = command.split()[0] if command.split() else ""
-            if first_word.lower() not in allowed_prefixes:
+            first_word = parts[0].strip("\"'").lower()
+            if first_word not in allowed_prefixes:
                 self._send_json(200, {
                     "success": False,
                     "output": f"Command '{first_word}' restricted. Safe shell allowed: {', '.join(allowed_prefixes)}",
@@ -2112,9 +2133,14 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 return
 
             try:
+                if sys.platform == "win32" and first_word in ["dir", "echo"]:
+                    exec_args = ["cmd.exe", "/c"] + parts
+                else:
+                    resolved = shutil.which(parts[0])
+                    exec_args = [resolved or parts[0]] + parts[1:]
+
                 out = subprocess.check_output(
-                    command,
-                    shell=True,
+                    exec_args,
                     stderr=subprocess.STDOUT,
                     timeout=15,
                     text=True,

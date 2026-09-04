@@ -9,6 +9,11 @@ declare module "react" {
   export as namespace React;
   namespace React {
     export type ReactNode = any;
+    export type ReactElement = any;
+    export type FC<P = any> = (props: P) => any;
+    export type HTMLAttributes<T = any> = any;
+    export type ButtonHTMLAttributes<T = any> = any;
+    export type CSSProperties = any;
     export type ChangeEvent<T = any> = { target: T; [key: string]: any };
     export function useState<T>(initialState: T | (() => T)): [T, (newState: T | ((prev: T) => T)) => void];
     export function useEffect(effect: () => void | (() => void), deps?: any[]): void;

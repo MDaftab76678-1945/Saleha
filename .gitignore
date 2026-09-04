@@ -81,7 +81,9 @@ desktop.ini
 # Node, JavaScript & Extension Bundles
 # ==============================================================================
 node_modules/
+*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.vsix
+.venv_train/

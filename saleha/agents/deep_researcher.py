@@ -95,6 +95,11 @@ class DeepResearcherAgent(BaseAgent):
         ]
 
         # Synthesize Markdown Whitepaper
+        citations_block = chr(10).join(
+            f"- **[{c.source_id}]** *{c.title}* ({c.credibility_score*100:.0f}% Credibility) — "
+            f"[{c.url_or_doi}]({c.url_or_doi})\n  > *Finding:* {c.key_finding}"
+            for c in citations
+        )
         markdown = f"""# 🔬 Deep Technical Research Report: {clean_topic}
 
 ## 📋 Executive Summary
@@ -116,7 +121,7 @@ The research framework executed a 3-stage validation pipeline:
 ---
 
 ## 📚 Verified Citations & References
-{chr(10).join(f"- **[{c.source_id}]** *{c.title}* ({c.credibility_score*100:.0f}% Credibility) — [{c.url_or_doi}]({c.url_or_doi})\\n  > *Finding:* {c.key_finding}" for c in citations)}
+{citations_block}
 
 ---
 *Synthesized autonomously by **Saleha DeepResearcherAgent v2.7.0** ($0 Token Waste).*
