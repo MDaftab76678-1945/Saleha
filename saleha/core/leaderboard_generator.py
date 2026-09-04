@@ -102,9 +102,13 @@ class LeaderboardGenerator:
 
     def generate_html(self) -> str:
         """Generates interactive, responsive HTML dashboard."""
+        # Badge markup is built outside the f-string: escaped quotes are not
+        # allowed inside f-string expression parts before Python 3.12.
+        local_badge = '<span class="badge local">100% Local</span>'
+        cloud_badge = '<span class="badge cloud">Cloud API</span>'
         md_table_rows = "".join(
             f"<tr><td><strong>{s.platform_name}</strong></td>"
-            f"<td>{'<span class=\"badge local\">100% Local</span>' if s.is_local_sovereign else '<span class=\"badge cloud\">Cloud API</span>'}</td>"
+            f"<td>{local_badge if s.is_local_sovereign else cloud_badge}</td>"
             f"<td><strong>{s.swe_bench_lite_pass}%</strong></td>"
             f"<td>{s.humaneval_pass_at_1}%</td>"
             f"<td>{s.privacy_grade}</td>"

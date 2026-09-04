@@ -57,8 +57,12 @@ class SwarmAsciiVisualizer:
         print("─" * 70)
         print(f"  • Execution ID      : \033[1;33m{result.execution_id}\033[0m")
         print(f"  • Architecture ADR  : \033[1;32m{result.adr_title}\033[0m")
-        print(f"  • Security Audit    : {'\033[1;32m0 CWEs Detected (PASS)\033[0m' if result.security_clean else 'Hardened'}")
-        print(f"  • Test Suite (QA)   : {'\033[1;32mAll Invariant Tests Passed\033[0m' if result.tests_passed else 'Failed'}")
+        # Built outside the f-string expressions: backslashes are not allowed
+        # inside f-string expression parts before Python 3.12.
+        security_label = "\033[1;32m0 CWEs Detected (PASS)\033[0m" if result.security_clean else "Hardened"
+        tests_label = "\033[1;32mAll Invariant Tests Passed\033[0m" if result.tests_passed else "Failed"
+        print(f"  • Security Audit    : {security_label}")
+        print(f"  • Test Suite (QA)   : {tests_label}")
         print(f"  • Token Optimization: \033[1;36m{result.token_savings_pct}% Context Compressed ($0 Waste)\033[0m")
         print(f"  • Total Runtime     : \033[1;37m{result.total_duration_ms}ms\033[0m")
         print(f"  • Episodic Memories : \033[1;35m{result.memory_recalled_count} prior patterns recalled\033[0m")

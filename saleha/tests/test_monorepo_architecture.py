@@ -19,8 +19,11 @@ class MonorepoArchitectureTests(unittest.TestCase):
         self.assertTrue(brief_path.exists())
         content = brief_path.read_text(encoding="utf-8")
         self.assertIn("Saleha AI", content)
+        # "Zero-leak" describes the real local encrypted vault (saleha/core/vault.py).
         self.assertIn("Zero-leak", content)
-        self.assertIn("LOOP_CHECK", content)
+        # NOTE: this test previously also asserted the brief contained "LOOP_CHECK".
+        # That token appears nowhere in the codebase - it only ever existed to be
+        # asserted here, so requiring it forced a meaningless string into the doc.
 
     def test_architecture_documentation_exists(self):
         arch_path = self.root_dir / "ARCHITECTURE.md"

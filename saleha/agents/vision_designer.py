@@ -43,7 +43,10 @@ class VisionDesignerAgent(BaseAgent):
 
     def synthesize_from_wireframe(self, design_prompt: str) -> VisionLayoutSpec:
         """Synthesizes responsive Vanilla CSS and React JSX from a wireframe description or image metadata."""
-        start_time = time.time()
+        # perf_counter, not time(): this method finishes in well under a
+        # millisecond, and time() has ~15.6ms resolution on Windows, which
+        # reported an elapsed time of exactly 0.0 for every run.
+        start_time = time.perf_counter()
         clean_prompt = design_prompt.strip()
 
         # Determine layout type
@@ -134,7 +137,7 @@ export default function VisionGeneratedComponent() {{
 </html>
 """
 
-        elapsed = round((time.time() - start_time) * 1000, 2)
+        elapsed = round((time.perf_counter() - start_time) * 1000, 2)
 
         return VisionLayoutSpec(
             title=clean_prompt[:60],
