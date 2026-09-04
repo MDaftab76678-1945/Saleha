@@ -2706,8 +2706,26 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/v2/swarm/execute":
             from saleha.core.swarm_pipeline_engine import swarm_engine
+            from saleha.core.task_history import TaskHistory
             goal = payload.get("goal", "Build a high-performance Python microservice")
             res = swarm_engine.execute_swarm(goal)
+            # The swarm pipeline has its own checkpoint/semantic-memory
+            # persistence, but never wrote to history.jsonl, so a run through
+            # the web app's main feature was invisible to /api/admin/history
+            # and /api/admin/runs -- the operator's most-used action left no
+            # trace in the panel built to show real usage.
+            try:
+                TaskHistory().log(
+                    goal=res.goal,
+                    model="swarm_pipeline",
+                    success=res.success,
+                    attempts=1,
+                    code=res.final_code,
+                    execution_id=res.execution_id,
+                    total_duration_ms=res.total_duration_ms,
+                )
+            except Exception:
+                pass  # Never let history logging fail the actual request.
             self._send_json(200, {
                 "execution_id": res.execution_id,
                 "goal": res.goal,
