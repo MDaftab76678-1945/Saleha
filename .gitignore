@@ -87,3 +87,6 @@ yarn-debug.log*
 yarn-error.log*
 *.vsix
 .venv_train/
+
+# Next.js build output
+apps/web/.next/
