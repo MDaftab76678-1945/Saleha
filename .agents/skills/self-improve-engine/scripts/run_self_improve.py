@@ -96,11 +96,15 @@ def cmd_cycle(args: argparse.Namespace) -> None:
 
 
 def cmd_batch(args: argparse.Namespace) -> None:
-    """Runs N cycles sequentially, skipping modules that repeatedly fail generation."""
+    """Runs N cycles sequentially, skipping modules that repeatedly fail
+    generation OR repeatedly fail their pytest check (max 2 attempts each) --
+    a module stuck on either failure mode used to consume the whole batch."""
     attempts = args.cycles
     skip_set = set()
+    fail_counts: dict[str, int] = {}
     results = []
     committed_count = 0
+    MAX_TRIES_PER_MODULE = 2
 
     print(f"Starting batch of up to {attempts} cycles...")
     for i in range(1, attempts + 1):
@@ -119,10 +123,14 @@ def cmd_batch(args: argparse.Namespace) -> None:
         elif res.status == "no_candidate":
             print(f"[{i}/{attempts}] No remaining untested candidate modules.")
             break
-        elif res.status == "generation_failed":
-            print(f"[{i}/{attempts}] Generation failed for {res.module}; skipping in this batch.")
+        elif res.status in ("generation_failed", "test_failed"):
+            print(f"[{i}/{attempts}] {res.status} for {res.module}")
             if res.module:
-                skip_set.add(res.module[:-3] if res.module.endswith(".py") else res.module)
+                key = res.module[:-3] if res.module.endswith(".py") else res.module
+                fail_counts[key] = fail_counts.get(key, 0) + 1
+                if fail_counts[key] >= MAX_TRIES_PER_MODULE:
+                    skip_set.add(key)
+                    print(f"  -> skipping {res.module} after {MAX_TRIES_PER_MODULE} failures")
         else:
             print(f"[{i}/{attempts}] Status: {res.status} for {res.module}")
 
