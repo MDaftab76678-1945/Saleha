@@ -1381,6 +1381,33 @@ def user_delete(username):
 
 
 @cli.group()
+def self_improve():
+    """Autonomous self-improvement: finds an untested core module, writes and
+    verifies a real test for it, commits to auto/self-improve locally. Never
+    pushes to a remote -- that stays a human decision."""
+
+
+@self_improve.command(name="run")
+def self_improve_run():
+    from saleha.core.self_improve import run_self_improvement_cycle
+    result = run_self_improvement_cycle()
+    color = "green" if result.status == "committed" else "yellow"
+    console.print(f"[bold {color}]{result.status}[/] — {result.module or '(none)'}")
+    if result.status == "committed":
+        console.print(f"  branch: {result.branch}  commit: {result.commit_sha[:10]}")
+    else:
+        console.print(f"  {result.detail[:300]}")
+
+
+@self_improve.command(name="log")
+@click.option("--limit", default=20)
+def self_improve_log(limit):
+    from saleha.core.self_improve import read_log
+    for entry in read_log(limit):
+        console.print(f"  [{entry['timestamp']}] {entry['status']:18} {entry['module']}")
+
+
+@cli.group()
 def scheduler():
     """Manage cron-scheduled agent tasks. Nothing runs these automatically --
     use 'scheduler run-due' from an external cron job/Task Scheduler entry."""
