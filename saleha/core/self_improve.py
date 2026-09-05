@@ -52,14 +52,35 @@ def _run(cmd: list, cwd: str = REPO_ROOT) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=120)
 
 
-def find_untested_module() -> Optional[str]:
+def _tested_on_auto_branch() -> set:
+    """Tests already committed to auto/self-improve don't exist in the
+    working tree once we switch back to the branch we started on (git
+    checkout removes files tracked only on the branch being left) -- without
+    this, the same module would be picked again on every subsequent cycle."""
+    proc = _run(["git", "ls-tree", "-r", "--name-only", BRANCH_NAME, "--", "saleha/tests"])
+    if proc.returncode != 0:
+        return set()
+    names = set()
+    for line in proc.stdout.splitlines():
+        base = os.path.basename(line.strip())
+        if base.startswith("test_") and base.endswith(".py"):
+            names.add(base[len("test_"):-len(".py")])
+    return names
+
+
+def find_untested_module(skip: Optional[set] = None) -> Optional[str]:
     """Returns one saleha/core/*.py filename with no saleha/tests/test_<name>.py,
-    skipping __init__ files and anything already covered."""
+    skipping __init__ files and anything already covered (including tests
+    already committed to auto/self-improve but not present on this branch).
+    `skip` lets a caller exclude modules that repeatedly failed generation in
+    the same run, without writing anything to disk."""
     tested = {
         f[len("test_"):-len(".py")]
         for f in os.listdir(TEST_DIR)
         if f.startswith("test_") and f.endswith(".py")
     }
+    tested |= _tested_on_auto_branch()
+    tested |= (skip or set())
     candidates = sorted(
         f for f in os.listdir(CORE_DIR)
         if f.endswith(".py") and not f.startswith("__") and f[:-3] not in tested
@@ -74,8 +95,17 @@ def _generate_test_source(module_filename: str) -> Optional[str]:
     from saleha.core.model_provider import default_provider
     from saleha.core.smart_router import get_installed_ollama_models
 
-    installed = get_installed_ollama_models()
-    model_name = next((m for m in installed if "coder" in m), next(iter(installed), None))
+    # get_installed_ollama_models() includes bare aliases without a tag
+    # (e.g. "deepseek-coder" alongside the real "deepseek-coder:6.7b"); the
+    # bare form 404s against Ollama's /api/generate, so only tagged names
+    # are valid picks here.
+    installed = {m for m in get_installed_ollama_models() if ":" in m}
+    # Smaller models load and respond faster locally; a large model cold-
+    # starting can exceed the provider's request timeout on this hardware.
+    preference = ["qwen2.5-coder:1.5b", "qwen2.5-coder:3b", "deepseek-coder:6.7b"]
+    model_name = next((m for m in preference if m in installed), None) or next(
+        (m for m in sorted(installed) if "coder" in m), next(iter(sorted(installed)), None)
+    )
     if not model_name:
         return None
 
@@ -110,8 +140,8 @@ def _generate_test_source(module_filename: str) -> Optional[str]:
     return None
 
 
-def run_self_improvement_cycle() -> SelfImproveResult:
-    module = find_untested_module()
+def run_self_improvement_cycle(skip: Optional[set] = None) -> SelfImproveResult:
+    module = find_untested_module(skip=skip)
     if module is None:
         result = SelfImproveResult(
             timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -164,7 +194,13 @@ def run_self_improvement_cycle() -> SelfImproveResult:
         f.write(test_source)
 
     original_branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
-    _run(["git", "checkout", "-B", BRANCH_NAME])
+    # `checkout -B` resets an EXISTING branch to the current HEAD, discarding
+    # every prior commit on it -- this silently destroyed every earlier
+    # cycle's commit except the last one until this check was added. Only
+    # create with -b the first time; otherwise a plain checkout that keeps
+    # the branch's own history.
+    branch_exists = _run(["git", "show-ref", "--verify", "--quiet", f"refs/heads/{BRANCH_NAME}"]).returncode == 0
+    _run(["git", "checkout", BRANCH_NAME] if branch_exists else ["git", "checkout", "-b", BRANCH_NAME])
     _run(["git", "add", os.path.relpath(test_path, REPO_ROOT)])
     commit_msg = f"test: autonomous test for saleha/core/{module}\n\nGenerated and verified passing by saleha's self-improvement engine."
     commit_proc = _run(["git", "commit", "-m", commit_msg])
