@@ -19,6 +19,7 @@ Usage:
 
 import json
 import os
+import sys
 import time
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Any, Dict
@@ -86,8 +87,13 @@ class TaskHistory:
                         base_data["extra"] = {**(base_data.get("extra") or {}), **extra_data}
                     records.append(TaskRecord(**base_data))
                 except (json.JSONDecodeError, TypeError) as e:
-                    # Ek kharab line pura history nahi todegi -- skip karo, warn karo
-                    print(f"[TaskHistory] warning: skipping corrupt line {line_num}: {e}")
+                    # Ek kharab line pura history nahi todegi -- skip karo, warn karo.
+                    # stderr par -- stdout par nahi, warna `saleha history --json`
+                    # jaise commands ka JSON output corrupt ho jaata hai (real bug:
+                    # a pre-fix TaskRecord schema on a divergent branch had no
+                    # `extra` field, so decoding an extra-field record raised
+                    # TypeError here, and the warning text landed inside JSON stdout).
+                    print(f"[TaskHistory] warning: skipping corrupt line {line_num}: {e}", file=sys.stderr)
         return records
 
     def recent(self, n: int = 10) -> List[TaskRecord]:

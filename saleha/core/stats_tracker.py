@@ -18,6 +18,7 @@ Usage:
 
 import json
 import os
+import sys
 import time
 from dataclasses import dataclass, field, asdict
 from typing import Optional
@@ -63,7 +64,7 @@ class StatsTracker:
             try:
                 os.replace(self.path, backup_path)
                 print(f"[StatsTracker] warning: {self.path} was corrupt ({e}); "
-                      f"backed up to {backup_path} and starting fresh.")
+                      f"backed up to {backup_path} and starting fresh.", file=sys.stderr)
             except OSError:
                 pass
             return {}
