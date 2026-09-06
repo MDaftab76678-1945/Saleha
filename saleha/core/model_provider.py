@@ -48,7 +48,15 @@ class OllamaProvider(ModelProvider):
         self.generate_url = f"{base_url}/api/generate"
         self.tags_url = f"{base_url}/api/tags"
 
-    def generate(self, model: str, prompt: str, options: Optional[dict] = None) -> ProviderResponse:
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None) -> ProviderResponse:
+        """
+        `response_format` is Ollama's structured-output JSON schema. When
+        given, the server constrains decoding so the reply *must* match the
+        schema -- the model cannot emit malformed output at all. Used by the
+        action-menu loop to force a single integer choice, which removes the
+        parse-failure class of errors entirely rather than recovering from it.
+        """
         payload = {
             "model": model,
             "prompt": prompt,
@@ -60,6 +68,8 @@ class OllamaProvider(ModelProvider):
                 "top_p": 0.9,
             },
         }
+        if response_format:
+            payload["format"] = response_format
 
         start_time = time.time()
         try:
