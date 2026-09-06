@@ -114,5 +114,5 @@ token_ledger = TokenLedger()
 
 if __name__ == "__main__":
     _ledger = TokenLedger()
-    _ledger.record_transaction("task_1", "qwen2.5-coder:1.5b", 500, 300, saved_tokens=1200, duration_sec=1.5)
+    _ledger.record_transaction("task_1", "qwen2.5-coder:3b", 500, 300, saved_tokens=1200, duration_sec=1.5)
     _summary = _ledger.get_summary()

@@ -59,7 +59,7 @@ class SalehaHarnessTests(unittest.TestCase):
 
     def test_reporter_save_load_and_export(self):
         report = HarnessReport(
-            model_name="qwen2.5-coder:1.5b",
+            model_name="qwen2.5-coder:3b",
             timestamp="2026-08-24 22:00:00",
             total_tasks=10,
             overall_pass_at_1=90.0,
@@ -81,7 +81,7 @@ class SalehaHarnessTests(unittest.TestCase):
 
         history = self.reporter.load_history()
         self.assertEqual(len(history), 1)
-        self.assertEqual(history[0]["model"], "qwen2.5-coder:1.5b")
+        self.assertEqual(history[0]["model"], "qwen2.5-coder:3b")
 
         export_file = os.path.join(self.temp_dir, "report.md")
         exp_ok = self.reporter.export_markdown(report, export_file)

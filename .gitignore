@@ -121,3 +121,6 @@ COORDINATION.md
 # history already has the pre-cleanup content, no need to also carry it
 # in the working tree / commit it again.
 datasets/_pre_cleanup_backup_*/
+
+# graphify AST cache / generated graph output (regenerated on demand)
+graphify-out/

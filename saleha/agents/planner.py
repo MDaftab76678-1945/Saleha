@@ -30,7 +30,7 @@ class PlanResult:
 # ==============================================================================
 
 class PlannerAgent(BaseAgent):
-    def __init__(self, model: str = "qwen2.5-coder:1.5b"):
+    def __init__(self, model: str = "qwen2.5-coder:3b"):
         # BaseAgent को "Planner" की भूमिका के साथ इनिशियलाइज़ करें
         super().__init__(role="Planner", model=model)
         self.math_engine = MathLogicEngine()
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     print("📋 SALEHA PLANNER AGENT - LIVE TEST")
     print("="*70)
 
-    planner = PlannerAgent(model="qwen2.5-coder:1.5b")
+    planner = PlannerAgent(model="qwen2.5-coder:3b")
 
     test_goals = [
         "एक simple Python script बनाओ जो hello world print करे।",

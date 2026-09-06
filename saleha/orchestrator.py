@@ -49,7 +49,7 @@ class OrchestrationResult:
 # ==============================================================================
 
 class SalehaOrchestrator:
-    def __init__(self, model: str = "qwen2.5-coder:1.5b", max_healing_attempts: int = 3, profile: Optional[str] = None):
+    def __init__(self, model: str = "qwen2.5-coder:3b", max_healing_attempts: int = 3, profile: Optional[str] = None):
         """Initializes the multi-agent orchestrator with Planner, Coder, Debugger, Tester, and Reviewer."""
         self.model = model
         self.planner = PlannerAgent(model=model)
@@ -496,5 +496,5 @@ class SalehaOrchestrator:
 # ==============================================================================
 
 if __name__ == "__main__":
-    _orchestrator = SalehaOrchestrator(model="qwen2.5-coder:1.5b", max_healing_attempts=3)
+    _orchestrator = SalehaOrchestrator(model="qwen2.5-coder:3b", max_healing_attempts=3)
     _res = _orchestrator.execute_task("def add(a, b): return a + b")

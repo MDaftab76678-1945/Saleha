@@ -19,7 +19,7 @@ class ModelManagerTests(unittest.TestCase):
                 success=True,
                 content="def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        yield a\n        a, b = b, a + b\n"
             )
-            bench = self.manager.benchmark_model("qwen2.5-coder:1.5b")
+            bench = self.manager.benchmark_model("qwen2.5-coder:3b")
             self.assertTrue(bench.success)
             self.assertGreater(bench.tokens_generated, 0)
             self.assertGreater(bench.tokens_per_sec, 0)

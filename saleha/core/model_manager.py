@@ -16,7 +16,7 @@ from saleha.agents.base_agent import BaseAgent
 
 
 RECOMMENDED_MODELS = {
-    "fast": "qwen2.5-coder:1.5b",
+    "fast": "qwen2.5-coder:3b",
     "reasoning": "deepseek-r1:8b",
     "flagship": "qwen2.5-coder:7b"
 }
@@ -50,7 +50,7 @@ class ModelManager:
         except FileNotFoundError:
             return False, "Ollama CLI not found on PATH. Please install Ollama from https://ollama.ai"
 
-    def benchmark_model(self, model_name: str = "qwen2.5-coder:1.5b") -> BenchmarkResult:
+    def benchmark_model(self, model_name: str = "qwen2.5-coder:3b") -> BenchmarkResult:
         """Executes a standardized code generation benchmark to measure inference speed."""
         agent = BaseAgent(role="Speed Benchmarker", model=model_name)
         start_t = time.time()

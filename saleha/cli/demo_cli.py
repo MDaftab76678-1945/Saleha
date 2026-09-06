@@ -43,7 +43,7 @@ def dogfood_cmd():
 
         # 1. Test Model Provider Fallback
         t1 = progress.add_task("[cyan]1. Verifying Multi-Tier Model Provider Cascade...", total=1)
-        res = default_provider.generate("qwen2.5-coder:1.5b", "def verify(): return True")
+        res = default_provider.generate("qwen2.5-coder:3b", "def verify(): return True")
         provider_name = getattr(res, "provider_name", "fallback")
         results.append(("1️⃣ Backend & AI Provider", f"Active: {provider_name.upper()}", "🟢 PASS", f"{res.response_time:.3f}s"))
         progress.advance(t1)

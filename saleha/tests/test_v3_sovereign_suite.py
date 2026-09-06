@@ -32,7 +32,7 @@ class TestLocalInferenceEngine:
     def test_list_and_set_model(self):
         engine = LocalInferenceEngine()
         models = engine.list_available_models()
-        assert "qwen2.5-coder:1.5b" in models
+        assert "qwen2.5-coder:3b" in models
         assert engine.set_active_model("deepseek-r1:1.5b") is True
         assert engine.active_model == "deepseek-r1:1.5b"
 

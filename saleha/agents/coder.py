@@ -26,7 +26,7 @@ class CodeResult:
         self.code = code
         self.error = error
         self.attempts = attempts  # now actually set by caller, not hardcoded
-        self.model_used = model_used  # real model name (e.g. "qwen3.5:0.8b"), not "auto"
+        self.model_used = model_used  # real model name (e.g. "qwen3.5:4b"), not "auto"
 
 
 class CoderAgent(BaseAgent):

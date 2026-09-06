@@ -121,7 +121,7 @@ class LoRATunerTests(unittest.TestCase):
                 quality_score=0.9
             )
         cfg = TuningConfig(
-            base_model="qwen2.5-coder:0.5b", epochs=1, batch_size=1,
+            base_model="qwen2.5-coder:3b", epochs=1, batch_size=1,
             output_model_name="test_real_tune", deploy_to_ollama=False, run_benchmark=False,
         )
         result = self.tuner.fine_tune(cfg)
@@ -139,7 +139,7 @@ class LoRATunerTests(unittest.TestCase):
         for i in range(6):
             self.tuner.collector.add_sample(f"Write function returning {i}", f"def f(): return {i}", quality_score=0.9)
         cfg = TuningConfig(
-            base_model="qwen2.5-coder:0.5b", epochs=1, batch_size=1,
+            base_model="qwen2.5-coder:3b", epochs=1, batch_size=1,
             output_model_name="test_fields_tune", deploy_to_ollama=False, run_benchmark=False,
         )
         result = self.tuner.fine_tune(cfg)

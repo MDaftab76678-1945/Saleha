@@ -290,5 +290,5 @@ class ProjectBuilder:
 
 
 if __name__ == "__main__":
-    _builder = ProjectBuilder(model="qwen2.5-coder:1.5b")
+    _builder = ProjectBuilder(model="qwen2.5-coder:3b")
     _res = _builder.build("A simple command-line calculator with add, subtract, multiply, divide")

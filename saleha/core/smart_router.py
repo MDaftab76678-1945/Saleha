@@ -142,23 +142,21 @@ class SmartRouter:
                 best_for=["utility", "convert", "parse", "medium"]
             ),
             # ---------- legacy catalog (backward compatibility) ----------
-            "qwen3.5:0.8b": ModelProfile(
-                name="qwen3.5:0.8b",
+            "qwen3.5:4b": ModelProfile(
+                name="qwen3.5:4b",
                 size_gb=0.8,
                 speed="ultra_fast",
                 best_for=["test", "check", "validate", "simple"]
             ),
-            "qwen2.5-coder:1.5b": ModelProfile(
-                name="qwen2.5-coder:1.5b",
-                size_gb=1.5,
-                speed="very_fast",
-                best_for=["script", "small", "quick", "fix", "function"]
-            ),
+            # Was two entries (1.5b and 3b). The 1.5b model was removed from
+            # this machine, so its profile is folded into 3b rather than left
+            # as a duplicate dict key that silently shadowed the other.
             "qwen2.5-coder:3b": ModelProfile(
                 name="qwen2.5-coder:3b",
-                size_gb=3.0,
-                speed="fast",
-                best_for=["code", "api", "class", "bug"]
+                size_gb=1.9,
+                speed="very_fast",
+                best_for=["script", "small", "quick", "fix", "function",
+                          "code", "api", "class", "bug"]
             ),
             "deepseek-coder:6.7b": ModelProfile(
                 name="deepseek-coder:6.7b",
@@ -249,7 +247,7 @@ class SmartRouter:
             elif complexity >= 5.0:
                 return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b"])
             else:
-                return self._filter_installed(["qwen2.5-coder:1.5b", "qwen2.5-coder:3b"])
+                return self._filter_installed(["qwen2.5-coder:3b"])
 
         elif thermal_state == "warm":
             if complexity >= 9.0:
@@ -257,7 +255,7 @@ class SmartRouter:
             elif complexity >= 5.0:
                 return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
             else:
-                return self._filter_installed(["qwen2.5-coder:3b", "qwen2.5-coder:1.5b"])
+                return self._filter_installed(["qwen2.5-coder:3b"])
 
         else:
             if complexity >= 9.0:
@@ -265,9 +263,9 @@ class SmartRouter:
             elif complexity >= 5.0:
                 return self._filter_installed(["devstral:24b", "deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
             elif complexity >= 2.0:
-                return self._filter_installed(["qwen2.5-coder:3b", "qwen3:4b", "qwen2.5-coder:1.5b"])
+                return self._filter_installed(["qwen2.5-coder:3b", "qwen3:4b"])
             else:
-                return self._filter_installed(["qwen2.5-coder:1.5b", "qwen2.5-coder:3b"])
+                return self._filter_installed(["qwen2.5-coder:3b"])
 
     def _score_model(self, model_name: str, task: str, complexity: float) -> float:
         profile = self.models[model_name]

@@ -68,7 +68,7 @@ def benchmark_cmd(model, limit, dry_run, as_json):
     """
     Benchmark local Ollama models on HumanEval-style coding challenges.
     
-    Example: saleha benchmark -m qwen2.5-coder:1.5b
+    Example: saleha benchmark -m qwen2.5-coder:3b
     Example dry run: saleha benchmark --dry-run
     """
     from saleha.core.evaluator import evaluator

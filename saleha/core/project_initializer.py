@@ -68,7 +68,7 @@ class ProjectInitializer:
 - Never commit unmasked secrets, private keys, or plain-text credentials.
 
 [models]
-fast_tier = "qwen2.5-coder:1.5b"
+fast_tier = "qwen2.5-coder:3b"
 reasoning_flagship = "deepseek-r1:8b"
 
 [sandboxing]

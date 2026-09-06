@@ -77,6 +77,17 @@ class OllamaProvider(ModelProvider):
         if response_format:
             payload["format"] = response_format
 
+        # Some community-published models ship a Modelfile carrying option
+        # values this Ollama build rejects outright -- observed with
+        # wcamaralopes/bonsai-27b, whose `repeat_last_n: -1` makes every
+        # request fail with HTTP 400 ("Value must be between 0 and
+        # 2147483647, but got -1") before the model ever runs. Sending a
+        # valid explicit value overrides the bad default, so a model that
+        # works is not written off as broken.
+        opts = payload.get("options")
+        if isinstance(opts, dict) and opts.get("repeat_last_n", 0) < 0:
+            opts["repeat_last_n"] = 64
+
         start_time = time.time()
         try:
             response = requests.post(self.generate_url, json=payload, timeout=60)

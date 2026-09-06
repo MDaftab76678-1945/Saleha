@@ -465,15 +465,15 @@ def doctor_cmd(fix, as_json):
         ollama_detail = f"Online ({len(installed_models)} models: {', '.join(models_sample)})"
     else:
         ollama_status = 'WARN'
-        ollama_detail = "Offline or no models pulled yet (run 'ollama serve' / 'ollama pull qwen2.5-coder:1.5b')"
+        ollama_detail = "Offline or no models pulled yet (run 'ollama serve' / 'ollama pull qwen2.5-coder:3b')"
         if fix:
             try:
-                subprocess.run(['ollama', 'pull', 'qwen2.5-coder:1.5b'], check=False)
+                subprocess.run(['ollama', 'pull', 'qwen2.5-coder:3b'], check=False)
                 installed_models = get_installed_ollama_models()
                 if installed_models:
                     ollama_status = 'PASS'
                     models_sample = list(installed_models)[:4]
-                    ollama_detail = f"Auto-pulled qwen2.5-coder:1.5b ({len(installed_models)} models: {', '.join(models_sample)})"
+                    ollama_detail = f"Auto-pulled qwen2.5-coder:3b ({len(installed_models)} models: {', '.join(models_sample)})"
             except Exception:
                 pass
     checks.append({'component': 'Ollama LLM Service', 'status': ollama_status, 'detail': ollama_detail})
@@ -667,14 +667,14 @@ def pull_cmd(model_name, benchmark):
             console.print(f'[bold yellow]⚠️ {msg}[/]')
 
 @cli.command(name='tune')
-@click.option('--model', default='qwen2.5-coder:1.5b', help='Base model to fine-tune')
+@click.option('--model', default='qwen2.5-coder:3b', help='Base model to fine-tune')
 @click.option('--epochs', default=3, help='Training epochs')
 @click.option('--name', default='saleha-custom', help='Output model name')
 def tune_cmd(model, epochs, name):
     """
     Run Local LoRA Fine-Tuning Pipeline on collected codebase data.
     
-    Example: saleha tune --model qwen2.5-coder:1.5b --epochs 3
+    Example: saleha tune --model qwen2.5-coder:3b --epochs 3
     """
     from saleha.core.lora_tuner import lora_tuner, TuningConfig
     cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=name)

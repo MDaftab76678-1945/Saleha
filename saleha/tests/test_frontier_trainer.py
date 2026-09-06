@@ -36,7 +36,7 @@ class TestFrontierTrainer(unittest.TestCase):
     )
     def test_run_training_real_sft_and_honest_skips(self):
         report: TrainingRunReport = self.trainer.run_training(
-            base_model="qwen2.5-coder:0.5b",
+            base_model="qwen2.5-coder:3b",
             output_model="saleha-test-model",
             epochs=1,
             enable_dpo=True,
@@ -71,11 +71,18 @@ class TestFrontierTrainer(unittest.TestCase):
         self.assertFalse(hasattr(report, "gguf_path"))
         self.assertFalse(hasattr(report, "benchmarks"))
 
+    @unittest.skipUnless(
+        os.environ.get("SALEHA_RUN_GPU_TESTS") == "1",
+        "runs a real SFT pass; it was fast enough to leave enabled while the "
+        "default base model was qwen2.5-coder:0.5b, but that model has been "
+        "removed and 3b takes minutes -- it then hung the suite at ~30%. "
+        "Set SALEHA_RUN_GPU_TESTS=1 to run it.",
+    )
     def test_dpo_attempts_real_dataset_honestly(self):
         """With enable_dpo=False, Phase 2 must be cleanly skipped (caller opted out).
         With real data present, it must never report the old 'no dataset found' reason."""
         report = self.trainer.run_training(
-            base_model="qwen2.5-coder:0.5b", output_model="saleha-test-model-2",
+            base_model="qwen2.5-coder:3b", output_model="saleha-test-model-2",
             epochs=1, enable_dpo=False, deploy_to_ollama=False, run_benchmark=False,
         )
         skip_msgs = [p for p in report.phases_skipped if p.startswith("Phase 2")]

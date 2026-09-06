@@ -2,7 +2,7 @@
 Saleha Core: Stats Tracker (New file -- fixes the persistence gap)
 
 Problem this solves:
-The CLI showed things like "qwen3.5:0.8b -- 16 uses, 100% success" but this
+The CLI showed things like "qwen3.5:4b -- 16 uses, 100% success" but this
 lived only in memory. Restart Saleha and it's gone -- the router can never
 actually learn across sessions.
 
@@ -11,8 +11,8 @@ default), similar in spirit to Intent Kernel's ~/.intent-kernel/memory.json.
 
 Usage:
     tracker = StatsTracker()
-    tracker.record(model="qwen3.5:0.8b", task_type="coding", success=True, attempts=1)
-    stats = tracker.get_model_stats("qwen3.5:0.8b")
+    tracker.record(model="qwen3.5:4b", task_type="coding", success=True, attempts=1)
+    stats = tracker.get_model_stats("qwen3.5:4b")
     best = tracker.best_model_for(task_type="coding")
 """
 
@@ -145,9 +145,9 @@ if __name__ == "__main__":
         demo_path = os.path.join(tmp, "stats.json")
         tracker = StatsTracker(path=demo_path)
 
-        tracker.record(model="qwen3.5:0.8b", success=True, attempts=1, task_type="coding")
-        tracker.record(model="qwen3.5:0.8b", success=True, attempts=1, task_type="coding")
-        tracker.record(model="qwen3.5:0.8b", success=False, attempts=3, task_type="coding")
+        tracker.record(model="qwen3.5:4b", success=True, attempts=1, task_type="coding")
+        tracker.record(model="qwen3.5:4b", success=True, attempts=1, task_type="coding")
+        tracker.record(model="qwen3.5:4b", success=False, attempts=3, task_type="coding")
         tracker.record(model="deepseek-coder:6.7b", success=True, attempts=1, task_type="coding")
 
         print(tracker.summary(task_type="coding"))

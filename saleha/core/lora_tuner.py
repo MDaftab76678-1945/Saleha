@@ -120,7 +120,7 @@ def _convert_to_gguf_via_llama_cpp(merged_dir: str, out_path: str) -> Optional[s
 
 
 # Qwen2.5-Coder's real ChatML template (copied verbatim from `ollama show
-# qwen2.5-coder:0.5b --modelfile`). Ollama's raw-safetensors import does NOT
+# qwen2.5-coder:3b --modelfile`). Ollama's raw-safetensors import does NOT
 # reliably pick up a HF chat_template.jinja -- without this, imported models
 # fall back to a bare `TEMPLATE {{ .Prompt }}` passthrough with no
 # <|im_start|>/<|im_end|> role markers. The base model was never trained to
@@ -182,7 +182,7 @@ For each function call, return a json object with function name and arguments wi
 
 @dataclass
 class TuningConfig:
-    base_model: str = "qwen2.5-coder:1.5b"
+    base_model: str = "qwen2.5-coder:3b"
     lora_rank: int = 16
     lora_alpha: float = 32.0
     learning_rate: float = 2e-4

@@ -11,7 +11,7 @@ Default location: ~/.saleha/history.jsonl
 
 Usage:
     history = TaskHistory()
-    history.log(goal="...", model="qwen2.5-coder:1.5b", success=True,
+    history.log(goal="...", model="qwen2.5-coder:3b", success=True,
                 attempts=1, code="...")
     recent = history.recent(5)          # last 5 tasks
     failed = history.failed_tasks()     # sirf jo fail hue
@@ -129,14 +129,14 @@ if __name__ == "__main__":
 
         history.log(
             goal="Create a function to add two numbers",
-            model="qwen2.5-coder:1.5b",
+            model="qwen2.5-coder:3b",
             success=True,
             attempts=1,
             code="def add(a, b): return a + b",
         )
         history.log(
             goal="Create a broken REST API",
-            model="qwen3.5:0.8b",
+            model="qwen3.5:4b",
             success=False,
             attempts=3,
             code="",

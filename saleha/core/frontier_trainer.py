@@ -64,7 +64,7 @@ class FrontierTrainer:
 
     def run_training(
         self,
-        base_model: str = "qwen2.5-coder:1.5b",
+        base_model: str = "qwen2.5-coder:3b",
         output_model: str = "saleha-frontier",
         epochs: int = 3,
         enable_dpo: bool = True,

@@ -143,7 +143,7 @@ class DebugCliTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         payload = json.loads(result.output)
         self.assertIn("models", payload)
-        self.assertIn("qwen2.5-coder:1.5b", payload["models"])
+        self.assertIn("qwen2.5-coder:3b", payload["models"])
 
     def test_skills_json_returns_registered_skills(self):
         result = CliRunner().invoke(cli, ["skills", "--json"])

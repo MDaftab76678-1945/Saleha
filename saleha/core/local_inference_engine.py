@@ -20,10 +20,10 @@ class LocalInferenceResult:
 class LocalInferenceEngine:
     """Sovereign local inference engine supporting GGUF, Ollama, and local vLLM runtimes."""
 
-    def __init__(self, default_model: str = "qwen2.5-coder:1.5b"):
+    def __init__(self, default_model: str = "qwen2.5-coder:3b"):
         self.active_model = default_model
         self.available_models = [
-            "qwen2.5-coder:1.5b",
+            "qwen2.5-coder:3b",
             "qwen2.5-coder:7b",
             "deepseek-r1:1.5b",
             "deepseek-coder:1.3b",

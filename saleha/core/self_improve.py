@@ -102,7 +102,7 @@ def _generate_test_source(module_filename: str) -> Optional[str]:
     installed = {m for m in get_installed_ollama_models() if ":" in m}
     # Smaller models load and respond faster locally; a large model cold-
     # starting can exceed the provider's request timeout on this hardware.
-    preference = ["qwen2.5-coder:1.5b", "qwen2.5-coder:3b", "deepseek-coder:6.7b"]
+    preference = ["qwen2.5-coder:3b", "qwen2.5-coder:3b", "deepseek-coder:6.7b"]
     model_name = next((m for m in preference if m in installed), None) or next(
         (m for m in sorted(installed) if "coder" in m), next(iter(sorted(installed)), None)
     )

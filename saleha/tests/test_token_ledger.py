@@ -23,7 +23,7 @@ class TestTokenLedger(unittest.TestCase):
     def test_record_transaction_and_summary(self):
         entry = self.ledger.record_transaction(
             task_id="task_101",
-            model="qwen2.5-coder:1.5b",
+            model="qwen2.5-coder:3b",
             prompt_tokens=400,
             completion_tokens=200,
             saved_tokens=800,

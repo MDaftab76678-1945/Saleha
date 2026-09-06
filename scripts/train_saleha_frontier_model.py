@@ -64,7 +64,7 @@ def main():
             time.sleep(0.003)
             progress.update(t_gguf, advance=1)
 
-    report = trainer.run_training(base_model="qwen2.5-coder:1.5b", output_model="saleha-frontier-v3.5")
+    report = trainer.run_training(base_model="qwen2.5-coder:3b", output_model="saleha-frontier-v3.5")
 
     console.print("\n[bold green]✅ Training & Alignment Complete in {}s![/bold green]\n".format(report.training_duration_sec))
 

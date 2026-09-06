@@ -101,7 +101,7 @@ if __name__ == "__main__":
     print("=" * 70)
     print("Note: is test ke liye Ollama chalu hona chahiye.")
 
-    reviewer = ReviewerAgent(model="qwen2.5-coder:1.5b")
+    reviewer = ReviewerAgent(model="qwen2.5-coder:3b")
 
     task = "Create a function to divide two numbers"
     code_with_bug = """def divide(a, b):

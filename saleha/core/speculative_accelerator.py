@@ -30,7 +30,7 @@ class SpeculativeMetrics:
 class SpeculativeAccelerator:
     """High-throughput speculative decoding accelerator."""
 
-    def __init__(self, draft_model: str = "qwen2.5-coder:1.5b", target_model: str = "qwen2.5-coder:7b", gamma_spec_depth: int = 4):
+    def __init__(self, draft_model: str = "qwen2.5-coder:3b", target_model: str = "qwen2.5-coder:7b", gamma_spec_depth: int = 4):
         self.draft_model = draft_model
         self.target_model = target_model
         self.gamma = max(1, gamma_spec_depth)
