@@ -48,10 +48,13 @@ class DeliberationResult:
 
 
 class DeliberationEngine:
-    def __init__(self, model: str = "auto", max_healing_attempts: int = 3):
+    def __init__(self, model: str = "auto", max_healing_attempts: int = 3,
+                 inference=None):
         """Initializes the multi-agent deliberation engine."""
         self.model = model
         self.max_healing_attempts = max_healing_attempts
+        # Injected in tests; built lazily so import opens no connection.
+        self.inference = inference
         self.executor = CodeExecutor(timeout=20)
         self.debugger = DebuggerAgent(model=model)
 
@@ -76,28 +79,61 @@ Include:
         prop_resp = designer.think(proposal_prompt)
         return prop_resp.content if prop_resp.success else f"Architecture for {goal}"
 
-    def _run_critique_round(self, goal: str, initial_design: str) -> Tuple[str, str]:
-        """Round 2: Runs security and distributed systems critiques."""
-        sec_agent = self._get_agent("agent_security_engineer", "Security Engineer")
-        sec_prompt = f"""
-Task: Critically review this proposed architecture for security risks, injection vectors, authorization flaws, and secret handling.
-Goal: {goal}
-Architecture Proposal:
-{initial_design[:1500]}
-"""
-        sec_resp = sec_agent.think(sec_prompt)
-        sec_critique = sec_resp.content if sec_resp.success else "No critical security blockers identified."
+    # The two critics review the same design and never read each other, so
+    # they are genuinely independent and are issued concurrently.
+    _CRITIC_SPECS = (
+        ("security", "agent_security_engineer", "Security Engineer",
+         "Critically review this proposed architecture for security risks, "
+         "injection vectors, authorization flaws, and secret handling."),
+        ("performance", "agent_sde", "Distributed Systems SDE",
+         "Critically review this proposed architecture for algorithmic "
+         "complexity, scalability bottlenecks, race conditions, and memory "
+         "efficiency."),
+    )
 
-        sde_agent = self._get_agent("agent_sde", "Distributed Systems SDE")
-        sde_prompt = f"""
-Task: Critically review this proposed architecture for algorithmic complexity, scalability bottlenecks, race conditions, and memory efficiency.
-Goal: {goal}
-Architecture Proposal:
-{initial_design[:1500]}
-"""
-        sde_resp = sde_agent.think(sde_prompt)
-        sde_critique = sde_resp.content if sde_resp.success else "Performance profile acceptable."
-        return sec_critique, sde_critique
+    # Returned when a critic does not answer. The previous fallbacks were
+    # "No critical security blockers identified." and "Performance profile
+    # acceptable." -- a model that failed to respond produced a written
+    # all-clear that nobody issued. A missing review must never read as a
+    # clean review.
+    CRITIQUE_UNAVAILABLE = ("[review unavailable: {} did not respond -- "
+                            "this is NOT an all-clear]")
+
+    def _run_critique_round(self, goal: str, initial_design: str) -> Tuple[str, str]:
+        """
+        Round 2: security and scalability critiques, run concurrently.
+
+        Returns (security_critique, performance_critique). A critic that fails
+        yields an explicit "unavailable" marker, never a reassuring default.
+        """
+        from saleha.core.fast_inference import (
+            FastInference, InferenceRequest,
+        )
+
+        engine = getattr(self, "inference", None) or FastInference()
+        model = self.model if self.model and self.model != "auto" \
+            else "qwen2.5-coder:3b"
+
+        reqs = [
+            InferenceRequest(
+                prompt=("Task: " + task + "\nGoal: " + goal
+                        + "\nArchitecture Proposal:\n" + (initial_design or "")[:1500]),
+                model=model,
+                options={"temperature": 0.3, "num_predict": 700},
+                tag=tag,
+            )
+            for tag, _pid, _role, task in self._CRITIC_SPECS
+        ]
+        results = {r.tag: r for r in engine.run_batch(reqs, use_cache=False)}
+
+        out = []
+        for tag, _pid, role, _task in self._CRITIC_SPECS:
+            res = results.get(tag)
+            if res is not None and res.success and res.content.strip():
+                out.append(res.content.strip())
+            else:
+                out.append(self.CRITIQUE_UNAVAILABLE.format(role))
+        return out[0], out[1]
 
     def _synthesize_consensus(self, goal: str, initial_design: str, sec_critique: str, sde_critique: str, designer: BaseAgent) -> str:
         """Round 3: Synthesizes final hardened architecture specification."""

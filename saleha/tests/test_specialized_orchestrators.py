@@ -4,6 +4,9 @@ Unit tests for Specialized Orchestrators and New Agent Personas in Saleha v2.6.0
 
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
+
+from saleha.core.fast_inference import InferenceResult
 
 from saleha.core.cloud_infra_orchestrator import CloudInfraOrchestrator, CloudInfraPlan
 from saleha.core.multirepo_orchestrator import MultiRepoOrchestrator, MultiRepoSyncPlan
@@ -17,7 +20,18 @@ class SpecializedOrchestratorsTests(unittest.TestCase):
         self.cloud = CloudInfraOrchestrator()
         self.multirepo = MultiRepoOrchestrator()
         self.silicon = SiliconCircuitOrchestrator()
-        self.debate = DebateConsensusOrchestrator()
+        # The debate orchestrator now makes real model calls (it used to
+        # return f-string templates and a hardcoded 0.948 confidence). Inject
+        # a fake engine so this stays a unit test and does not need Ollama.
+        fake = MagicMock()
+        fake.run.side_effect = lambda req, **kw: InferenceResult(
+            success=True,
+            content="## Decision" + chr(10) + "Adopt ClickHouse for the event log.",
+            tag=req.tag)
+        fake.run_batch.side_effect = lambda reqs, **kw: [
+            InferenceResult(success=True, content="critique of " + r.tag, tag=r.tag)
+            for r in reqs]
+        self.debate = DebateConsensusOrchestrator(inference=fake)
 
     def test_cloud_infra_orchestrator(self):
         plan: CloudInfraPlan = self.cloud.plan_and_generate_infra(
@@ -66,7 +80,10 @@ class SpecializedOrchestratorsTests(unittest.TestCase):
         self.assertEqual(verdict.rounds_conducted, 2)
         self.assertEqual(len(verdict.rounds), 2)
         self.assertIn("Architecture Decision Record", verdict.adr_markdown)
-        self.assertGreaterEqual(verdict.elo_confidence_score, 0.9)
+        # Confidence is now measured participation, not the old 0.948 constant:
+        # all 8 persona slots answered, so it is exactly 1.0.
+        self.assertEqual(verdict.elo_confidence_score, 1.0)
+        self.assertFalse(verdict.degraded)
         self.assertGreaterEqual(len(verdict.key_tradeoffs), 1)
 
     def test_new_agent_persona_files_exist_and_valid(self):

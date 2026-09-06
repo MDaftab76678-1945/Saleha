@@ -55,6 +55,49 @@ class TeamOrchestrator:
         self.history = TaskHistory()
         self.stats = StatsTracker()
 
+    # Security and complexity reviews of the same design. Neither reads the
+    # other, so they are independent and can be issued together.
+    _CRITIQUE_TASKS = (
+        ("security", "Critique this design for security:"),
+        ("sde", "Critique this design for complexity:"),
+    )
+
+    def _parallel_critiques(self, design_text: str):
+        """
+        Run the security and SDE critiques concurrently.
+
+        Returns (security_text, sde_text). A critic that fails returns an
+        explicit marker, never a reassuring default -- a missing security
+        review must not read as a clean one.
+        """
+        from saleha.core.fast_inference import (
+            FastInference, InferenceRequest,
+        )
+
+        engine = getattr(self, "inference", None) or FastInference()
+        model = self.model if getattr(self, "model", None) not in (None, "", "auto") \
+            else "qwen2.5-coder:3b"
+
+        reqs = [
+            InferenceRequest(
+                prompt=task + " " + (design_text or "")[:1000],
+                model=model,
+                options={"temperature": 0.3, "num_predict": 600},
+                tag=tag,
+            )
+            for tag, task in self._CRITIQUE_TASKS
+        ]
+        results = {r.tag: r for r in engine.run_batch(reqs, use_cache=False)}
+
+        out = []
+        for tag, _task in self._CRITIQUE_TASKS:
+            res = results.get(tag)
+            if res is not None and res.success and res.content.strip():
+                out.append(res.content.strip())
+            else:
+                out.append("[%s review unavailable -- NOT an all-clear]" % tag)
+        return out[0], out[1]
+
     def _get_agent(self, profile_id: str, default_role_name: str) -> BaseAgent:
         profile = profile_registry.get(profile_id)
         if profile:
@@ -133,9 +176,13 @@ Include:
 
         if debate:
             log += "   ⚔️ Deliberating with Security Engineer and SDE for Consensus...\n"
-            sec_crit = self._get_agent("agent_security_engineer", "Security").think(f"Critique this design for security: {design_text[:1000]}")
-            sde_crit = self._get_agent("agent_sde", "SDE").think(f"Critique this design for complexity: {design_text[:1000]}")
-            consensus_prompt = f"Refine design with Security Critique ({sec_crit.content[:400] if sec_crit.success else ''}) and SDE Critique ({sde_crit.content[:400] if sde_crit.success else ''}):\n{design_text[:800]}"
+            # The two critics review the same design and never read each
+            # other, so they are independent -- run them together instead of
+            # paying for two round trips in sequence.
+            sec_text, sde_text = self._parallel_critiques(design_text)
+            consensus_prompt = (
+                "Refine design with Security Critique (" + sec_text[:400] + ") "
+                "and SDE Critique (" + sde_text[:400] + "):" + chr(10) + design_text[:800])
             refined_resp = designer_agent.think(consensus_prompt)
             if refined_resp.success:
                 design_text = refined_resp.content

@@ -57,10 +57,17 @@ class RecursiveSolveResult:
 class RecursiveSolver:
     """7-Node Recursive Intelligence Network for advanced algorithmic problem solving."""
 
-    def __init__(self, model: str = "auto", max_healing_attempts: int = 3):
+    def __init__(self, model: str = "auto", max_healing_attempts: int = 3,
+                 inference: Optional[Any] = None):
         """Initializes the recursive intelligence solver with agent roles and executor."""
         self.model = model
         self.max_healing_attempts = max_healing_attempts
+        # Injected in tests; built lazily in _generate_reasoning_paths so that
+        # constructing a solver opens no connection.
+        self.inference = inference
+        # Set by _cross_evaluate_paths; True when the top score was not unique.
+        self.last_evaluation_was_tied = False
+        self.last_tied_paths: List[str] = []
         self.agent = BaseAgent(role="RecursiveArchitect", model=model)
         self.coder = CoderAgent(model=model)
         self.debugger = DebuggerAgent(model=model)
@@ -88,46 +95,122 @@ class RecursiveSolver:
             return lines[:5] or ["Data Structure Optimization", "Algorithmic Invariants"]
         return ["Dynamic Programming", "Iterative Streaming", "Boundary Value Invariants"]
 
-    def _generate_reasoning_paths(self, goal: str, problem_spec: str) -> List[ReasoningPath]:
-        """Node 3: Generates 3 distinct reasoning trajectories (Iterative, DP/Memoized, Functional/Stream)."""
-        paths = [
-            ReasoningPath(
-                path_id="path_a",
-                name="Iterative / Space-Optimized Trajectory",
-                strategy="Low memory footprint with in-place pointer/register mutations.",
-                complexity_time="O(n)",
-                complexity_space="O(1)",
-                pros=["Minimal memory overhead", "Cache-locality friendly"],
-                cons=["Slightly more complex loop invariants"],
-                score=8.5,
-            ),
-            ReasoningPath(
-                path_id="path_b",
-                name="Dynamic Programming / High-Throughput Trajectory",
-                strategy="Tabulation or memoization for subproblem reuse.",
-                complexity_time="O(n)",
-                complexity_space="O(n)",
-                pros=["Optimal asymptotic time", "Guaranteed optimal substructure"],
-                cons=["Higher memory consumption"],
-                score=9.0,
-            ),
-            ReasoningPath(
-                path_id="path_c",
-                name="Functional / Stream Generator Trajectory",
-                strategy="Lazy evaluation generator pipeline.",
-                complexity_time="O(n)",
-                complexity_space="O(1)",
-                pros=["Infinite dataset scalability", "Composable pipelines"],
-                cons=["Generator recursion limit considerations"],
-                score=8.0,
-            ),
+    # Trajectory framings. These bias the model toward genuinely different
+    # designs; the model still writes the strategy for THIS goal. Previously
+    # this method returned these three as finished ReasoningPath objects with
+    # hardcoded scores (8.5/9.0/8.0), so `_cross_evaluate_paths` picked
+    # `path_b` for every goal ever submitted -- the "multi-path exploration"
+    # never looked at the problem.
+    PATH_FRAMINGS = [
+        ("path_a", "Iterative / Space-Optimized",
+         "Minimise memory: in-place updates, no auxiliary structures."),
+        ("path_b", "Dynamic Programming / Memoized",
+         "Reuse overlapping subproblems via tabulation or memoization."),
+        ("path_c", "Functional / Streaming",
+         "Lazy generator pipeline, composable and constant-space."),
+    ]
+
+    _PATH_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "strategy": {"type": "string"},
+            "time_complexity": {"type": "string"},
+            "space_complexity": {"type": "string"},
+            "pros": {"type": "array", "items": {"type": "string"}},
+            "cons": {"type": "array", "items": {"type": "string"}},
+            "suitability": {"type": "number"},
+        },
+        "required": ["strategy", "time_complexity", "space_complexity",
+                     "pros", "cons", "suitability"],
+    }
+
+    def _generate_reasoning_paths(self, goal: str,
+                                  problem_spec: str) -> List[ReasoningPath]:
+        """
+        Node 3: three real trajectories for THIS goal, generated concurrently.
+
+        The three framings are independent of each other, so they go out in one
+        batch. Each returns its own complexity analysis and a suitability score
+        for this specific problem -- a DP framing should score itself low on a
+        problem with no overlapping subproblems, which is exactly the judgement
+        the old hardcoded scores could not make.
+        """
+        from saleha.core.fast_inference import (
+            FastInference, InferenceRequest,
+        )
+        import json
+
+        engine = getattr(self, "inference", None) or FastInference()
+        model = self.model if self.model and self.model != "auto" \
+            else "qwen2.5-coder:3b"
+
+        reqs = [
+            InferenceRequest(
+                prompt=("Analyse ONE approach to this problem and reply as JSON.\n\n"
+                        "Goal: " + goal + "\n"
+                        "Spec: " + (problem_spec or "")[:600] + "\n\n"
+                        "Approach to analyse: " + name + " -- " + hint + "\n\n"
+                        "Give the concrete strategy for THIS problem, its time and "
+                        "space complexity, real pros and cons, and `suitability`: "
+                        "0-10 for how well this approach fits THIS problem "
+                        "specifically. Score it low if it is a poor fit."),
+                model=model,
+                options={"temperature": 0.3, "num_predict": 600},
+                response_format=self._PATH_SCHEMA,
+                tag=pid,
+            )
+            for pid, name, hint in self.PATH_FRAMINGS
         ]
+        results = engine.run_batch(reqs, use_cache=False)
+
+        paths: List[ReasoningPath] = []
+        for (pid, name, hint), res in zip(self.PATH_FRAMINGS, results):
+            data = {}
+            if res.success and res.content:
+                try:
+                    parsed = json.loads(res.content)
+                    if isinstance(parsed, dict):
+                        data = parsed
+                except (ValueError, TypeError):
+                    data = {}
+            try:
+                score = float(data.get("suitability", 0.0))
+            except (TypeError, ValueError):
+                score = 0.0
+            paths.append(ReasoningPath(
+                path_id=pid,
+                name=name,
+                # An unanalysed path keeps score 0.0 so it cannot win by
+                # default; the framing hint is recorded, not passed off as
+                # analysis.
+                strategy=str(data.get("strategy") or hint),
+                complexity_time=str(data.get("time_complexity") or "unknown"),
+                complexity_space=str(data.get("space_complexity") or "unknown"),
+                pros=[str(x) for x in (data.get("pros") or [])][:5],
+                cons=[str(x) for x in (data.get("cons") or [])][:5],
+                score=max(0.0, min(10.0, score)),
+            ))
         return paths
 
     def _cross_evaluate_paths(self, paths: List[ReasoningPath]) -> Tuple[str, ReasoningPath]:
-        """Node 4 & 5: Evaluates and ranks trajectories against performance and correctness criteria."""
-        best_path = max(paths, key=lambda p: p.score)
-        return best_path.path_id, best_path
+        """
+        Nodes 4 & 5: rank the trajectories by their per-problem suitability.
+
+        Ties break on generation order so the result is deterministic; with the
+        old hardcoded scores there were never any ties, because path_b's 9.0
+        always won regardless of the goal.
+        """
+        if not paths:
+            raise ValueError("no reasoning paths to evaluate")
+        best = max(paths, key=lambda p: (p.score, -paths.index(p)))
+        # A tie at the top means the model did not actually discriminate
+        # between the approaches, so the "winner" is just the first framing.
+        # Record that rather than letting an arbitrary pick look like a
+        # judgement -- measured: a stairs/DP problem scored all three 8.0.
+        tied = [p.path_id for p in paths if p.score == best.score]
+        self.last_evaluation_was_tied = len(tied) > 1
+        self.last_tied_paths = tied
+        return best.path_id, best
 
     def _synthesize_solution(self, goal: str, winning_path: ReasoningPath, problem_spec: str) -> Tuple[str, str]:
         """Node 6: Synthesizes production-ready implementation along with comprehensive unit tests."""

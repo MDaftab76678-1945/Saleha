@@ -13,12 +13,18 @@ class DeliberationEngineTests(unittest.TestCase):
         self.engine = DeliberationEngine(model="test-model")
 
     def test_deliberate_and_build_mock(self):
-        with patch.object(self.engine, "_get_agent") as mock_get_agent:
+        # The two critiques no longer go through `_get_agent`: they are
+        # independent of each other and now run concurrently through
+        # FastInference, so they are mocked at `_run_critique_round`.
+        with patch.object(self.engine, "_get_agent") as mock_get_agent, \
+             patch.object(self.engine, "_run_critique_round") as mock_critiques:
+            mock_critiques.return_value = (
+                "2. Security Critique: Add rate limiting",
+                "3. SDE Critique: Use O(1) hash map",
+            )
             mock_agent = MagicMock()
             mock_agent.think.side_effect = [
                 MagicMock(success=True, content="1. Initial LLD"),
-                MagicMock(success=True, content="2. Security Critique: Add rate limiting"),
-                MagicMock(success=True, content="3. SDE Critique: Use O(1) hash map"),
                 MagicMock(success=True, content="4. Consensus Architecture Specification"),
                 MagicMock(success=True, content="```python\nimport unittest\nclass Test(unittest.TestCase):\n    def test_run(self): pass\n```"),
                 MagicMock(success=True, content="```python\ndef solve(): return True\n```"),

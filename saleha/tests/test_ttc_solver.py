@@ -58,7 +58,9 @@ def compute(x: int) -> int:
     assert result.best_trajectory.trajectory_id == "C3"
     assert result.best_trajectory.overall_score > c2.overall_score
     assert c2.overall_score > c1.overall_score
-    assert result.passed is True
+    # No test suite was supplied, so nothing was ever executed. `passed` means
+    # "proved by running tests", not "scored well" -- ranking still works.
+    assert result.passed is False
 
 
 def test_ttc_with_test_code_verification():
@@ -167,3 +169,93 @@ def generate_code() -> str:
     assert result.best_trajectory is not None
     assert result.best_trajectory.trajectory_id == "CLEAN"
     assert c_leaked.overall_score < c_clean.overall_score
+
+
+# ---------------------------------------------------------------------------
+# Regressions for the two bugs found auditing this module:
+#   1. `/ttc <anything>` returned a hardcoded `return 'solved'` stub and scored
+#      it 90/100 with passed=True, without ever calling a model.
+#   2. The scorer rated EMPTY code 100.0 -- higher than real code (96.0) --
+#      because the AST quality check finds no defects in nothing. Since the
+#      reranker sorts descending, failed generations sorted to the TOP.
+# ---------------------------------------------------------------------------
+
+from unittest.mock import MagicMock
+
+from saleha.core.fast_inference import InferenceResult
+
+GOOD_REPLY = "```python\ndef merge(a, b):\n    return sorted(a + b)\n```"
+REAL_CODE = "def compute(x: int) -> int:\n    return x * 2\n"
+
+
+def _fake_engine(contents):
+    fi = MagicMock()
+    fi.run_batch.side_effect = lambda reqs, **kw: [
+        InferenceResult(success=bool(c), content=c or "",
+                        error="" if c else "connection refused", tag=r.tag)
+        for c, r in zip(contents, reqs)]
+    return fi
+
+
+def test_empty_code_scores_zero_not_one_hundred():
+    solver = TTCTrajectorySolver()
+    empty = CandidateTrajectory(trajectory_id="E", strategy_name="none",
+                                code="", explanation="failed")
+    real = CandidateTrajectory(trajectory_id="R", strategy_name="real",
+                               code=REAL_CODE, explanation="works")
+    e = solver.evaluate_candidate(empty)
+    r = solver.evaluate_candidate(real)
+    assert e.overall_score == 0.0
+    assert e.metadata.get("rejected") == "empty code"
+    # The whole point: real code must outrank a failed generation.
+    assert r.overall_score > e.overall_score
+
+
+def test_whitespace_only_code_is_also_rejected():
+    solver = TTCTrajectorySolver()
+    c = solver.evaluate_candidate(
+        CandidateTrajectory(trajectory_id="W", strategy_name="ws",
+                            code="   \n\t\n", explanation="blank"))
+    assert c.overall_score == 0.0
+
+
+def test_no_generator_calls_a_real_model_not_a_stub():
+    fi = _fake_engine([GOOD_REPLY] * 3)
+    res = TTCTrajectorySolver(inference=fi).solve(
+        problem="merge two sorted lists", num_candidates=3)
+    assert fi.run_batch.call_count == 1
+    assert res.candidate_count == 3
+    assert "return 'solved'" not in (res.best_trajectory.code or "")
+    assert "def merge" in res.best_trajectory.code
+
+
+def test_default_candidates_use_distinct_strategies():
+    """Three samples of one prompt is best-of-N, not multi-trajectory."""
+    fi = _fake_engine([GOOD_REPLY] * 3)
+    TTCTrajectorySolver(inference=fi).solve(problem="p", num_candidates=3)
+    prompts = [r.prompt for r in fi.run_batch.call_args.args[0]]
+    assert len(set(prompts)) == 3
+
+
+def test_default_candidates_are_generated_uncached():
+    fi = _fake_engine([GOOD_REPLY] * 3)
+    TTCTrajectorySolver(inference=fi).solve(problem="p", num_candidates=3)
+    assert fi.run_batch.call_args.kwargs["use_cache"] is False
+
+
+def test_unreachable_model_does_not_report_success():
+    fi = _fake_engine([None, None, None])
+    res = TTCTrajectorySolver(inference=fi).solve(problem="p", num_candidates=3)
+    assert res.passed is False
+    assert res.best_trajectory.overall_score == 0.0
+
+
+def test_passed_requires_executed_tests_not_a_score():
+    """`passed` used to be `overall_score >= 70`, true without running anything."""
+    res = TTCTrajectorySolver().solve(
+        problem="p",
+        provided_candidates=[CandidateTrajectory(
+            trajectory_id="C", strategy_name="s",
+            code=REAL_CODE, explanation="ok")])
+    assert res.best_trajectory.overall_score > 70.0
+    assert res.passed is False        # nothing was ever executed

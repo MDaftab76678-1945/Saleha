@@ -57,7 +57,11 @@ class ToTResult:
 class TreeOfThoughtsOrchestrator:
     """State-Space Search Orchestrator using Tree-of-Thoughts & Backtracking."""
 
-    def __init__(self, memory_dir: str = ".saleha"):
+    def __init__(self, memory_dir: str = ".saleha",
+                 model: str = "qwen2.5-coder:3b", inference=None):
+        self.model = model
+        # Injected in tests; built lazily so import opens no connection.
+        self.inference = inference
         self.memory_dir = Path(memory_dir)
         self.heuristics_file = self.memory_dir / "learned_heuristics.json"
         self.sandbox = SandboxRunner()
@@ -183,16 +187,16 @@ class TreeOfThoughtsOrchestrator:
 
             # Generate k child hypothesis branches
             hypotheses = [
-                f"Branch A: Boundary edge check and null guards for {goal}",
-                f"Branch B: Algorithmic transformation and return restructuring for {goal}",
-                f"Branch C: Type coercion and exception isolation for {goal}"
+                f"Branch {chr(65 + i)}: {nm}"
+                for i, (nm, _) in enumerate(self.BRANCH_STRATEGIES)
             ][:branching_factor]
 
             for i, hyp in enumerate(hypotheses):
                 child_id = f"node_d{curr.depth + 1}_{i}_{str(uuid.uuid4())[:4]}"
                 
                 # Apply simulated branch patch refinement
-                refined_code = self._generate_branch_code(curr.code_patch, i, curr.test_output)
+                refined_code = self._generate_branch_code(
+                    curr.code_patch, i, curr.test_output, goal=goal)
                 score, passed, test_out = self.evaluate_code_node(refined_code, test_suite)
 
                 child_node = ThoughtNode(
@@ -250,18 +254,61 @@ class TreeOfThoughtsOrchestrator:
             execution_log=log
         )
 
-    def _generate_branch_code(self, base_code: str, branch_idx: int, error_msg: str) -> str:
-        """Applies targeted algorithmic mutation based on branch strategy."""
-        lines = base_code.strip().split("\n")
-        if branch_idx == 0:
-            # Guard injection
-            return f"# Guard Invariant Applied\nif not True:\n    pass\n{base_code}"
-        elif branch_idx == 1:
-            # Boundary refinement
-            return base_code + "\n\n# Boundary refinement\n"
-        else:
-            # Default formatting pass
-            return base_code.strip()
+    # Repair angles. Each branch attacks the failure differently so the three
+    # children are genuinely distinct hypotheses rather than one patch applied
+    # three times.
+    BRANCH_STRATEGIES = [
+        ("Boundary and null guards",
+         "Fix the failure by handling boundary conditions, empty input and None."),
+        ("Algorithmic restructuring",
+         "Fix the failure by correcting the core logic or return structure."),
+        ("Type and exception handling",
+         "Fix the failure by correcting types and handling the raised exception."),
+    ]
+
+    def _generate_branch_code(self, base_code: str, branch_idx: int,
+                              error_msg: str, goal: str = "") -> str:
+        """
+        Produce one repaired variant of `base_code` for this branch.
+
+        This used to ignore both `error_msg` and the branch semantics entirely:
+        branch 0 prepended a literal `if not True: pass` block, branch 1
+        appended a comment, branch 2 called `.strip()`. None of them changed
+        behaviour, so a failing test still failed and the "search" only ever
+        explored cosmetic variants of the same broken code. The parameter
+        `error_msg` was accepted and never read.
+
+        Now the model is asked for a real fix, given the actual error. If it is
+        unreachable the ORIGINAL code is returned unchanged -- a no-op variant
+        scores the same as its parent and gets pruned, which is the honest
+        outcome, rather than a cosmetic edit masquerading as a repair.
+        """
+        from saleha.core.fast_inference import (
+            FastInference, InferenceRequest,
+        )
+        from saleha.core.parallel_solver import extract_code
+
+        name, instruction = self.BRANCH_STRATEGIES[
+            branch_idx % len(self.BRANCH_STRATEGIES)]
+        engine = getattr(self, "inference", None) or FastInference()
+
+        res = engine.run(InferenceRequest(
+            prompt=("This Python code fails its tests. Repair it.\n\n"
+                    + ("Goal: " + goal + "\n\n" if goal else "")
+                    + "Code:\n```python\n" + (base_code or "") + "\n```\n\n"
+                    + "Test failure:\n" + (error_msg or "(no output captured)")[:1200]
+                    + "\n\nRepair strategy: " + instruction
+                    + "\nReply with the complete fixed code in one ```python "
+                      "block and nothing else."),
+            model=self.model,
+            options={"temperature": 0.2 + 0.2 * branch_idx, "num_predict": 1200},
+            tag="branch%d" % branch_idx,
+        ), use_cache=False)
+
+        if not res.success:
+            return base_code
+        fixed = extract_code(res.content)
+        return fixed if fixed.strip() else base_code
 
 
 # Global Singleton ToT Orchestrator
