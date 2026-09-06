@@ -114,41 +114,77 @@ def write_predictions(predictions: List[SWEBenchPrediction], out_path: str) -> i
 
 def run_benchmark(instances_path: str, output_path: str,
                   model: str = "auto", limit: Optional[int] = None,
+                  max_steps: int = 15, allow_write: bool = True,
                   on_event=None) -> Dict[str, Any]:
-    """Full loop: instances read -> orchestrator run -> predictions write."""
-    from saleha.orchestrator import SalehaOrchestrator
+    """
+    Full loop: instances read -> real multi-file AgentLoop run against a
+    real repo checkout -> predictions write.
 
-    orchestrator = SalehaOrchestrator(model=model)
+    REAL BUG FIXED (2026-09-06): this used to call
+    `SalehaOrchestrator.execute_task()` (a single-prompt-to-code generator
+    with no repo access) and then, even when a real `local_repo_dir` was
+    given, hardcoded the changed filename as "saleha_solution.py" --
+    meaning the "real diff" path could only ever add an unrelated new file,
+    never fix the actual buggy file(s) in the repo. That made a correct
+    model response structurally impossible to score, independent of model
+    quality.
+
+    Now: each instance MUST supply a real `local_repo_dir` (a real checkout
+    of `repo` at `base_commit`) to get a non-empty patch attempt. Saleha's
+    real `AgentLoop` (the same machinery behind `saleha agent`/`saleha
+    run`) explores and edits that real repo with the actual problem
+    statement as its goal -- no gold-patch info, no assumed filename. The
+    patch is a real `git diff` of whatever the agent actually changed. An
+    instance with no `local_repo_dir` gets an honest empty patch (the
+    official SWE-bench harness scores an empty patch as unresolved, not a
+    fabricated success) instead of a fake new-file diff.
+    """
+    import subprocess
+    from saleha.core.agentic_loop import AgentLoop
+    from saleha.agents.base_agent import BaseAgent
+
     predictions: List[SWEBenchPrediction] = []
     skipped = 0
 
     for i, inst in enumerate(iter_instances(instances_path)):
         if limit and i >= limit:
             break
-        prompt = build_prompt(inst.get("problem_statement", ""),
-                              inst.get("hints_text", ""))
-        res = orchestrator.execute_task(prompt)
-        if not res.success or not res.final_code.strip():
-            # Official format: empty patch bhi record hota hai (score 0)
-            patch = ""
+
+        local_repo = inst.get("local_repo_dir")
+        patch = ""
+        attempts = 0
+        if not local_repo or not os.path.isdir(local_repo):
+            # Official format: empty patch bhi record hota hai (score 0) --
+            # no repo means no real fix is possible, so this is honest, not
+            # a bug to work around with a fabricated diff.
             skipped += 1
         else:
-            local_repo = inst.get("local_repo_dir")
-            if local_repo and os.path.isdir(local_repo):
-                patch = real_diff_from_repo(local_repo,
-                                            {"saleha_solution.py": res.final_code})
-            else:
-                patch = synth_newfile_patch(res.final_code)
+            goal = build_prompt(inst.get("problem_statement", ""),
+                                inst.get("hints_text", ""))
+            agent = BaseAgent(role="SWE-bench Solver", model=model)
+            loop = AgentLoop(agent=agent, root_dir=local_repo,
+                             max_steps=max_steps, allow_write=allow_write)
+            result = loop.run(goal)
+            attempts = len(result.steps)
+            try:
+                proc = subprocess.run(["git", "diff"], cwd=local_repo,
+                                      capture_output=True, text=True, timeout=60)
+                patch = proc.stdout if proc.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                patch = ""
+            if not patch.strip():
+                skipped += 1
+
         pred = SWEBenchPrediction(
             instance_id=inst["instance_id"],
             model_name_or_path=model,
             model_patch=patch,
-            meta={"attempts": res.attempts},
+            meta={"attempts": attempts},
         )
         predictions.append(pred)
         if on_event:
             on_event({"instance_id": inst["instance_id"], "index": i + 1,
-                      "success": bool(patch)})
+                      "success": bool(patch.strip())})
 
     written = write_predictions(predictions, output_path)
     return {"total": len(predictions), "written": written,

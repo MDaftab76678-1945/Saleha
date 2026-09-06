@@ -13,6 +13,7 @@ from saleha.core.swe_bench_runner import (
     build_prompt,
     iter_instances,
     real_diff_from_repo,
+    run_benchmark,
     synth_newfile_patch,
     write_predictions,
 )
@@ -109,6 +110,72 @@ class SWEBenchRunnerTests(unittest.TestCase):
                 f.write('{"no_id": true}\n')
             ids = [i["instance_id"] for i in iter_instances(path)]
         self.assertEqual(ids, ["a__1"])
+
+    def test_run_benchmark_no_local_repo_is_honest_empty_patch(self):
+        """No real repo checkout -> no real fix is possible; must record an
+        honest empty patch, not a fabricated new-file diff."""
+        with tempfile.TemporaryDirectory() as tmp:
+            inst_path = os.path.join(tmp, "inst.jsonl")
+            with open(inst_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "instance_id": "repo__issue-1",
+                    "problem_statement": "Fix the bug",
+                }) + "\n")
+            out_path = os.path.join(tmp, "preds.jsonl")
+            report = run_benchmark(inst_path, out_path, model="fixed-model")
+            self.assertEqual(report["empty_patches"], 1)
+            preds = [json.loads(l) for l in open(out_path, encoding="utf-8")]
+            self.assertEqual(preds[0]["model_patch"], "")
+
+    def test_run_benchmark_real_repo_produces_real_git_diff(self):
+        """Real bug fixed here: run_benchmark() used to hardcode the changed
+        filename as 'saleha_solution.py' even with a real repo, so a good
+        model response could never produce a patch that actually fixes the
+        real buggy file. Now it uses AgentLoop + a real `git diff` of
+        whatever the agent actually changed."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_dir = os.path.join(tmp, "repo")
+            os.makedirs(repo_dir)
+            buggy_path = os.path.join(repo_dir, "buggy.py")
+            with open(buggy_path, "w") as f:
+                f.write("def add(a, b):\n    return a - b\n")
+            subprocess.run(["git", "init", "-q"], cwd=repo_dir, check=True)
+            subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo_dir, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_dir, check=True)
+            subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo_dir, check=True)
+
+            inst_path = os.path.join(tmp, "inst.jsonl")
+            with open(inst_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "instance_id": "repo__issue-1",
+                    "problem_statement": "add() uses - instead of +",
+                    "local_repo_dir": repo_dir,
+                }) + "\n")
+            out_path = os.path.join(tmp, "preds.jsonl")
+
+            fake_agent = MagicMock()
+            fake_agent.think.side_effect = [
+                MagicMock(success=True, content=(
+                    '```tool_call\n{"tool": "patch_file", '
+                    '"args": {"path": "buggy.py", "search": "a - b", "replace": "a + b"}}\n```'
+                )),
+                MagicMock(success=True, content='```json\n{"finish": "fixed"}\n```'),
+            ]
+            # SALEHA_APPROVAL defaults to "off" (auto-approve) so patch_file
+            # works without a human confirmer in this test environment.
+            with patch("saleha.agents.base_agent.BaseAgent", return_value=fake_agent):
+                report = run_benchmark(inst_path, out_path, model="fixed-model")
+
+            self.assertEqual(report["empty_patches"], 0)
+            with open(buggy_path) as f:
+                self.assertIn("a + b", f.read())  # the real file was actually changed
+            preds = [json.loads(l) for l in open(out_path, encoding="utf-8")]
+            patch_text = preds[0]["model_patch"]
+            self.assertIn("buggy.py", patch_text)  # real file, not "saleha_solution.py"
+            self.assertIn("+    return a + b", patch_text)
+            self.assertIn("-    return a - b", patch_text)
 
     def test_write_predictions_official_format(self):
         from saleha.core.swe_bench_runner import SWEBenchPrediction
