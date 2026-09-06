@@ -297,12 +297,32 @@ def godel_utility_cmd():
     
     Example: saleha godel-utility
     """
-    from saleha.core.godel_utility import godel_utility_engine, SystemStateUtility
-    s_curr = SystemStateUtility(0.92, 0.88, 1.0, 0.75)
-    s_cand = SystemStateUtility(0.96, 0.94, 1.0, 0.82)
-    dec = godel_utility_engine.evaluate_modification(s_curr, s_cand, 'Autonomous Refactoring')
-    col = 'green' if dec.is_authorized else 'red'
-    console.print(Panel(f'[bold {col}]⚖️ Gödel Machine Self-Proving Utility Proof[/bold {col}]\n{dec.proof_summary}', border_style=col))
+    from saleha.core.godel_utility import godel_utility_engine, measure_current_state
+    # This used to build both states from literals -- SystemStateUtility(0.92,
+    # 0.88, 1.0, 0.75) vs (0.96, 0.94, 1.0, 0.82) -- and print "AUTHORIZED"
+    # about a refactoring that did not exist. The engine's maths was fine; the
+    # inputs were invented. Measure the real system instead.
+    state = measure_current_state()
+    dec = godel_utility_engine.evaluate_modification(state, state, 'current system state')
+    col = 'green' if dec.is_authorized else ('yellow' if state.unmeasured_fields else 'red')
+    lines = [
+        f'U(s) = {state.total_utility}',
+        '',
+        f'  task_pass_rate    {state.task_pass_rate:.3f}   '
+        f'{"measured" if state.measured.get("task_pass_rate") else "UNMEASURED"}',
+        f'  safety_score      {state.safety_score:.3f}   '
+        f'{"measured" if state.measured.get("safety_score") else "UNMEASURED"}',
+        f'  efficiency_score  {state.efficiency_score:.3f}   '
+        f'{"measured" if state.measured.get("efficiency_score") else "UNMEASURED"}',
+        f'  alignment_score   {state.alignment_score:.3f}   '
+        f'{"measured" if state.measured.get("alignment_score") else "UNMEASURED"}',
+    ]
+    if state.unmeasured_fields:
+        lines += ['', 'Unmeasured: ' + ', '.join(state.unmeasured_fields),
+                  'alignment_score is deliberately never self-scored -- a system',
+                  'rating its own alignment proves nothing.']
+    console.print(Panel(f'[bold {col}]⚖️ Gödel Machine Utility Measurement[/bold {col}]\n'
+                        + '\n'.join(lines), border_style=col))
 
 @cli.command(name='emergence-check')
 def emergence_check_cmd():
