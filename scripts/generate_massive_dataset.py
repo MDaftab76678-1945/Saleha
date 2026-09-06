@@ -1,14 +1,29 @@
 """
-Saleha: Massive Training Dataset Generator (500+ Invariant-Verified Samples)
+Saleha: Training Dataset Generator -- SEED_TEMPLATES are real, `synthesize_variation` is BROKEN (disabled)
 
-Generates 500+ high-quality, diverse instruction-tuning samples across:
-1. Core Algorithms & Data Structures (Graph, DP, Trees, Sorting, Math)
-2. Backend & API Engineering (FastAPI, Pydantic, Auth, Database Models)
-3. Frontend & UI Engineering (React TypeScript, Tailwind CSS, State Management)
-4. DevSecOps, System Invariants, & Concurrency (AsyncIO, Worker Pools, SAST Sanitizers)
-5. Autonomous Agent Tool Calling & JSON-RPC Protocols (MCP Tools, AST Parsers)
+REAL BUG FOUND (2026-09-06, during a training-data-quality investigation):
+`synthesize_variation()` below does NOT generate a real solution for its
+topic -- for every one of the 24 VARIATION_TOPICS (BST traversal, AVL tree,
+Dijkstra's dual, FFT, etc.) it emits the exact same generic no-op "Engine"
+stub (an `__init__`/`process`/`get_metrics` class that just increments a
+counter), with only the class name and docstring text swapped to mention
+the topic. `ast.parse()` only checks the code is *syntactically* valid
+Python, not that it does what the prompt asks -- so this passed that check
+500 times while never once implementing a BST, AVL tree, FFT, etc.
 
-Every single sample is strictly validated with Python AST to guarantee 100% syntax correctness.
+This produced 493 mismatched (prompt, completion) pairs -- 94% of the real
+training_collector dataset -- that were used, undiluted, as real SFT
+training data. Confirmed root cause of a measured regression (4/5 -> 2/5 on
+held-out hard tasks) after a 7B QLoRA run: the model was actively taught
+"when asked to implement any algorithm, emit this unrelated stub."
+
+Fix applied: the 493 bad samples were purged from
+~/.saleha/training_data/saleha_training.jsonl (backed up first). This
+generator's variation-synthesis path is now disabled (raises, see
+`synthesize_variation`) so it can't silently repopulate the same bug.
+SEED_TEMPLATES below are real, hand-written, verified-correct and are
+unaffected -- use `scripts/train_saleha_targeted.py` for adding more real
+hand-authored samples instead of re-enabling this synthesis path.
 """
 
 from __future__ import annotations
@@ -259,11 +274,25 @@ VARIATION_TOPICS = [
 
 
 def synthesize_variation(topic: str, category: str, idx: int) -> Tuple[str, str]:
-    """Generates a syntactically verified Python solution for a topic."""
+    """
+    DISABLED -- see module docstring. This never generated a real solution
+    for `topic`; it emitted the same generic Engine stub for all 24 topics
+    (only syntactically valid, never semantically correct), which is how
+    493 mismatched samples ended up in the real training set. Raises
+    instead of silently producing more of them. A real fix would need an
+    actual per-topic implementation (like scripts/train_saleha_targeted.py's
+    hand-written samples), not a templated stub.
+    """
+    raise NotImplementedError(
+        f"synthesize_variation('{topic}') is disabled: it only ever emitted a "
+        "generic stub unrelated to the topic (see module docstring for the "
+        "real bug this caused). Add real hand-written samples via "
+        "scripts/train_saleha_targeted.py instead."
+    )
     func_name = topic.lower().replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "").replace(".", "_")[:30]
-    
+
     prompt = f"Implement a clean, robust, type-annotated Python module for: {topic}."
-    
+
     code = f'''"""
 Module for: {topic} (Sample #{idx+1})
 Generated autonomously with deterministic AST type annotations.
@@ -323,20 +352,14 @@ def generate_dataset(target_count: int = 500, output_path: str = "datasets/saleh
         except SyntaxError as e:
             print(f"Skipping invalid template: {e}")
 
-    # 2. Synthesize Topic Variations until target_count is reached
-    idx = 0
-    while samples_added < target_count:
-        for topic, cat in VARIATION_TOPICS:
-            if samples_added >= target_count:
-                break
-            prompt, code = synthesize_variation(f"{topic} (Variant-{idx+1})", cat, idx)
-            try:
-                ast.parse(code)
-                training_collector.add_sample(prompt, code, quality_score=0.98, source="ast_synthesized", tags=[cat])
-                samples_added += 1
-                idx += 1
-            except SyntaxError as e:
-                print(f"Skipping invalid AST: {e}")
+    # 2. Synthesize Topic Variations -- DISABLED, see module docstring: this
+    # path only ever emitted a generic stub unrelated to the topic (493 such
+    # mismatched samples were found and purged from the real dataset). Left
+    # as a loud, explicit skip rather than silently producing more of them.
+    if samples_added < target_count:
+        print(f"⚠ Skipping topic-variation synthesis ({target_count - samples_added} short of "
+              f"target {target_count}): that path is disabled, it never generated real per-topic "
+              f"solutions (see module docstring). Add real samples via scripts/train_saleha_targeted.py.")
 
     # 3. Export to ShareGPT JSONL
     count = training_collector.export_sharegpt(output_path, min_quality=0.7)
