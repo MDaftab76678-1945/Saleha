@@ -386,3 +386,34 @@ not changed"), with the previous result still attached so nothing is hidden.
 | `DarwinianEvolutionController` | C++ hot-swap simulation over a fixed agent array. |
 | `redact_pii` / `NexusTracer` | Real and correct, but aimed at shipping traces to a remote observability backend. Saleha's history is a local JSONL on the user's own machine, which already holds their code — redacting it buys nothing here. |
 | `TrustKernel`, `GlobalWorkspace`/`Hippocampus`/`PrefrontalCortex`, `EmotionalReasoningEngine`, `ArtificialEndocrineSystem` | Cognitive-architecture metaphors with no measurable signal behind them. Same category as the endocrine system rejected in pass three. |
+
+### Also found in pass seven: `dangerous` mode did not gate writes
+
+`run_security_checks` (`chat-NEXUS-AGENTIC v7 Architecture Review.txt`, the
+largest cluster in the review set — 5 near-duplicate blocks) is a config linter
+for agent deployments: permissive system prompts, hardcoded secrets, wildcard
+tool grants, unbounded max_tokens, unverified RAG sources.
+
+It lints a YAML schema Saleha does not have, so it was not imported. But
+running its *checks* by hand against Saleha's real settings found a live hole:
+
+```
+SALEHA_APPROVAL=dangerous
+  shell_exec   gated: True
+  git_commit   gated: True
+  file_delete  gated: True
+  file_write   gated: False   <-- 
+  file_patch   gated: False   <-- 
+```
+
+`agentic_loop.py` calls `approve("file_write")` and `approve("file_patch")`,
+and its own docstring claims *"write_file approval_gate se gated
+(SALEHA_APPROVAL=dangerous/always)"*. Neither name was in `DANGEROUS_ACTIONS`,
+so `requires_approval()` returned False and the agent could overwrite any file
+in the repo with no prompt. Only `always` mode caught it.
+
+Fixed by adding both names. The regression test scans every `approve()` call
+site in `saleha/` (excluding tests, which deliberately call it with harmless
+names to assert they are *not* gated) and asserts each one exists in
+`DANGEROUS_ACTIONS` — so a future call site with a typo'd or new name fails
+the suite instead of silently going ungated.

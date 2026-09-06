@@ -24,6 +24,15 @@ DANGEROUS_ACTIONS: Set[str] = {
     "vault_write",
     "vault_export",
     "file_delete",
+    # file_write and file_patch were MISSING here while agentic_loop.py called
+    # approve("file_write") / approve("file_patch") and its own docstring
+    # claimed "write_file approval_gate se gated (SALEHA_APPROVAL=dangerous)".
+    # Because the names were absent, requires_approval() returned False and
+    # `dangerous` mode gated deletes but let the agent silently overwrite any
+    # file in the repo. Verified before the fix: shell_exec/git_commit/
+    # file_delete -> True, file_write/file_patch -> False.
+    "file_write",
+    "file_patch",
 }
 
 _MODE_ALIASES = {

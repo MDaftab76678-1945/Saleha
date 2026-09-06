@@ -338,3 +338,56 @@ class RepeatDetectionTests(unittest.TestCase):
             f"t|{json.dumps({'b': 2, 'a': 1}, sort_keys=True, default=str)}"
             .encode()).hexdigest()
         self.assertEqual(one, two)
+
+
+class ApprovalGateCoverageTests(unittest.TestCase):
+    """
+    Every action name a caller passes to approve() must exist in
+    DANGEROUS_ACTIONS, or `SALEHA_APPROVAL=dangerous` silently lets it through.
+
+    That was a real hole: agentic_loop.py called approve("file_write") and
+    approve("file_patch") and its docstring claimed
+    "write_file approval_gate se gated (SALEHA_APPROVAL=dangerous/always)",
+    but neither name was in the set. Measured before the fix, in dangerous
+    mode: shell_exec/git_commit/file_delete -> True, file_write/file_patch ->
+    False. The agent could overwrite any file in the repo without a prompt.
+    """
+
+    def test_write_actions_are_gated_in_dangerous_mode(self):
+        from saleha.core.approval_gate import DANGEROUS_ACTIONS
+        for action in ("file_write", "file_patch", "file_delete",
+                       "shell_exec", "git_commit"):
+            self.assertIn(action, DANGEROUS_ACTIONS)
+
+    def test_read_only_actions_are_not_gated(self):
+        """Gating reads would make `dangerous` mode unusable."""
+        from saleha.core.approval_gate import DANGEROUS_ACTIONS
+        for action in ("read_file", "list_dir", "search_repo", "web_fetch"):
+            self.assertNotIn(action, DANGEROUS_ACTIONS)
+
+    def test_every_approve_call_site_uses_a_known_action_name(self):
+        """The bug was a name in the code with no matching entry in the set."""
+        import io
+        import os
+        import re
+        from saleha.core.approval_gate import DANGEROUS_ACTIONS
+
+        used = set()
+        for root, _, files in os.walk("saleha"):
+            # Tests deliberately call approve() with harmless names to assert
+            # they are NOT gated (e.g. "read_docs"); only source matters here.
+            if os.path.basename(root) == "tests":
+                continue
+            for name in files:
+                if not name.endswith(".py"):
+                    continue
+                body = io.open(os.path.join(root, name), encoding="utf-8",
+                               errors="ignore").read()
+                used |= set(re.findall(r'\bapprove\(\s*["\'](\w+)["\']', body))
+
+        self.assertTrue(used, "no approve() call sites found -- test is stale")
+        unknown = sorted(used - set(DANGEROUS_ACTIONS))
+        self.assertEqual(
+            unknown, [],
+            f"approve() called with names absent from DANGEROUS_ACTIONS, so "
+            f"`dangerous` mode does not gate them: {unknown}")
