@@ -22,6 +22,10 @@ class AgentResponse:
     model_used: str = ""
     response_time: float = 0.0
     tokens_used: int = 0
+    # >0 when the prompt exceeded the model's context budget and was trimmed
+    # before the call. Silent truncation by the runtime is invisible; this is
+    # not. A caller that cares about completeness can check it.
+    context_trimmed_chars: int = 0
 
 
 class BaseAgent:
@@ -60,6 +64,30 @@ class BaseAgent:
         if previous_error_reflexion:
             full_prompt += f"\n\n[SALEHA SELF-HEALING INSTRUCTION]:\n{previous_error_reflexion}"
 
+        # Context budget guard. Measured on this box: a 280 KB prompt to
+        # qwen2.5-coder:3b returns success=True with the answer silently
+        # dropped -- Ollama cuts the middle without an error, and nothing
+        # downstream can tell that from a real answer. Four agents (coder,
+        # debugger, qa_lead, reviewer) interpolate {code} with no bound, so
+        # the guard lives here, at the one chokepoint they all pass through.
+        # Trimming is visible in the prompt and recorded on the response.
+        context_trimmed_chars = 0
+        try:
+            from saleha.core.context_budget import fit
+
+            fitted, budget = fit(full_prompt, selected_model,
+                                 reserve_output_tokens=1024)
+            if budget.trimmed:
+                context_trimmed_chars = budget.trimmed_chars
+                print(f"  [{self.role}] Prompt exceeded the context budget; "
+                      f"trimmed {budget.trimmed_chars} chars from the middle "
+                      f"({budget.describe()}).")
+                full_prompt = fitted
+        except Exception:
+            # A guard that breaks the call it is guarding is worse than no
+            # guard: fall through with the original prompt.
+            context_trimmed_chars = 0
+
         temp = getattr(self, "temperature", None)
         options = {"temperature": temp} if temp is not None else None
         provider_result = self.provider.generate(model=selected_model, prompt=full_prompt, options=options)
@@ -78,6 +106,7 @@ class BaseAgent:
                 model_used=selected_model,
                 response_time=response_time,
                 tokens_used=self._record_tokens(provider_result),
+                context_trimmed_chars=context_trimmed_chars,
             )
         else:
             return AgentResponse(
@@ -86,6 +115,7 @@ class BaseAgent:
                 error_message=provider_result.error_message,
                 model_used=selected_model,
                 response_time=response_time,
+                context_trimmed_chars=context_trimmed_chars,
             )
 
     def think_stream(self, prompt: str, on_token=None,

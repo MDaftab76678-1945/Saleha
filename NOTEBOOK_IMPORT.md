@@ -228,3 +228,76 @@ Learned from 10 real failure(s) in task history.
 That 8/10 miss rate is now visible instead of hidden behind a confident
 directive. It is the honest state: `DIRECTIVE_MAP` covers Python exception
 types, and most real failures here are orchestration failures.
+
+## Sixth pass — the actual code (2026-09-07)
+
+Earlier passes read titles, structure and a handful of blocks. This one
+extracted **every fenced code block** from all 24 `.txt` and 13 `.json` files:
+
+```
+9,117 blocks >= 120 chars  ->  4,802 unique
+python 977 · rust 805 · bash 649 · yaml 293 · cpp 130 · toml 98 · tsx 74
+644 python-ish, 464 substantial (>800 chars), 490 distinct classes
+372 of those class names appear nowhere in saleha/
+```
+
+Cross-probed 20 concrete agent techniques against the repo. Result: 13 already
+present (AST diff, unified-diff patching, tree-sitter, BM25, coverage,
+property-based tests, call graphs, git blame, flaky detection, constrained
+decoding, self-consistency, reflexion, speculative-decoding notes), 4 absent
+from both, and **2 real gaps**.
+
+### Gap 1 — context budget. Fixed.
+
+`num_ctx` appears in **zero** notebook blocks and **zero** repo files, and
+nothing bounded a prompt before sending it. Measured against
+qwen2.5-coder:3b (32768-token window), magic word at the START, question at
+the END:
+
+```
+prompt   54 KB  -> recalled correctly
+prompt  280 KB  -> success=True, answer LOST ("Magic is the magic word.")
+prompt  840 KB  -> success=True, answer LOST ('The magic word is "yes".')
+```
+
+Ollama drops the middle silently. No error, no warning, `success=True`, and a
+confident wrong answer nothing downstream can distinguish from a real one.
+
+`repo_context_packer.pack()` budgets its own output (6000 chars), but
+`coder`, `debugger`, `qa_lead` and `reviewer` interpolate `{code}` with no
+bound at all. Landed `saleha/core/context_budget.py`, wired into
+`BaseAgent.think()` — the one chokepoint all four pass through.
+
+The chars-per-token ratio was **measured**, not guessed, using the
+`prompt_eval_count` that /api/generate reports back:
+
+```
+5051 chars / 1420 tokens = 3.56
+6000 chars / 1489 tokens = 4.03
+6000 chars / 1553 tokens = 3.86
+```
+
+3.5 is used — below the measured range, so the estimate runs high and trims
+early. Verified end-to-end: the same 280 KB prompt that lost its answer now
+recalls it.
+
+### Gap 2 — semantic caching. Rejected.
+
+`chat-Nexus-Omni AgentStack Architecture.txt` wires a semantic cache to:
+
+```python
+def get_embedding(text: str) -> np.ndarray:
+    return np.random.rand(384).astype(np.float32)   # "Mock ... replace in prod"
+```
+
+A cache keyed on **random vectors** returns arbitrary cached answers to
+unrelated prompts. Not imported.
+
+### Other code examined and rejected
+
+| Block | Why not |
+| --- | --- |
+| `CausalMemoryTracer` (activation patching + KL divergence to measure which memory caused which action) | Genuinely rare and genuinely real — but needs `model.transformer.h[...]` weights. Ollama's HTTP API exposes no activations. Unusable here, not wrong. |
+| `WASMSandbox` + capability-based tool access (`Capability.FILE_WRITE`, per-session grants) | The capability model is a good idea; the implementation needs `wasmtime`. Checked what it would replace: `web_fetch` already blocks scheme, host, and resolved IP — verified live that `file://`, `localhost`, `169.254.169.254`, `127.0.0.1`, `10.0.0.1` and `[::1]` are **all** rejected. `shell_exec` is approval-gated. No live hole to close. |
+| `RAGWorker`, `ModelRouter`, `TokenBudget` (cost/USD) | Framework code for an `app.*` package that does not exist here; the cost half targets paid APIs, irrelevant to local Ollama. |
+| 200 substantial Rust + 65 C++ blocks | Already covered by the `rust/` import in pass one. |
