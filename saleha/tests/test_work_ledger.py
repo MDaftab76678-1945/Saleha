@@ -203,6 +203,89 @@ class TamperDetectionTests(LedgerTestBase):
         self.assertEqual(v["results"], [])
 
 
+class DeletionAttackTests(LedgerTestBase):
+    """
+    The attack that broke the first version of this design, kept as a test
+    so it cannot silently come back.
+
+    A hash chain cannot defend itself against someone holding the file:
+    every input to the hash is in the file, so a middle entry can be
+    deleted and the rest recomputed. Measured on the original design, this
+    took a ledger from 0.67 proof rate to 1.0 with chain_intact still True.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.led.record_file_contains("m", "g", "app.py", "return a + b")
+        self.led.record_file_contains("m", "g", "app.py", "NOT PRESENT")
+        self.led.record_file_contains("m", "g", "app.py", "return a + b")
+
+    def _delete_and_rechain(self, index: int) -> None:
+        """Remove an entry and rebuild the chain the way an attacker would."""
+        import hashlib as _h
+
+        def canon(o):
+            return json.dumps(o, sort_keys=True, separators=(",", ":"),
+                              ensure_ascii=False)
+
+        with open(self.ledger_path, encoding="utf-8") as f:
+            rows = [json.loads(l) for l in f if l.strip()]
+        del rows[index]
+        prev = "genesis"
+        for i, d in enumerate(rows):
+            d["seq"] = i
+            d["prev_hash"] = prev
+            payload = {"seq": i, "actor": d["actor"], "goal": d["goal"],
+                       "claim": d["claim"], "prev_hash": prev,
+                       "version": d["version"]}
+            d["hash"] = _h.sha256(canon(payload).encode()).hexdigest()
+            prev = d["hash"]
+        with open(self.ledger_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(canon(d) for d in rows) + "\n")
+
+    def test_honest_ledger_reports_the_failure(self):
+        v = self.reopen().verify()
+        self.assertEqual(v["checkable_claims"], 3)
+        self.assertEqual(v["independently_confirmed"], 2)
+
+    def test_deletion_plus_rechain_is_NOT_caught_by_the_chain_alone(self):
+        """
+        Documents the real limit rather than pretending it does not exist.
+        If this test ever starts failing because the chain caught it, the
+        guarantee got stronger and the docstring should be updated.
+        """
+        self._delete_and_rechain(1)
+        v = self.reopen().verify()
+        self.assertTrue(v["chain_intact"],
+                        "chain alone cannot detect deletion -- see verify_anchors")
+        self.assertEqual(v["proof_rate"], 1.0)
+
+    def test_expected_count_catches_the_deletion(self):
+        """The honest defence: a count from outside the file."""
+        self._delete_and_rechain(1)
+        v = self.reopen().verify(expect_entries=3)
+        self.assertFalse(v["chain_intact"])
+        self.assertIn("entries were removed", v["chain_detail"])
+
+    def test_expected_count_passes_on_an_untouched_ledger(self):
+        v = self.reopen().verify(expect_entries=3)
+        self.assertTrue(v["chain_intact"])
+
+    def test_expect_entries_defaults_to_off(self):
+        """Callers who cannot pin a count must not get spurious failures."""
+        self.assertTrue(self.reopen().verify()["chain_intact"])
+
+    def test_sequence_gap_is_caught_without_any_expected_count(self):
+        """A lazy attacker who deletes but does not renumber is caught."""
+        with open(self.ledger_path, encoding="utf-8") as f:
+            rows = [l for l in f.read().splitlines() if l.strip()]
+        del rows[1]
+        with open(self.ledger_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(rows) + "\n")
+        v = self.reopen().verify()
+        self.assertFalse(v["chain_intact"])
+
+
 class ProofRateTests(LedgerTestBase):
     def test_proof_rate_counts_only_confirmed_over_checkable(self):
         self.led.record_file_contains("m", "g", "app.py", "return a + b")   # confirmed

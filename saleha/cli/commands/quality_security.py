@@ -349,8 +349,10 @@ def quadratic_vote_cmd():
 @click.option('--dir', 'root_dir', default='.', help='Repository the claims are about')
 @click.option('--chain-only', is_flag=True,
               help='Only check the record is unaltered; do not re-run claims')
+@click.option('--expect', type=int, default=-1,
+              help='Entry count from outside the file; catches silent deletion')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable output')
-def verify_work_cmd(ledger, root_dir, chain_only, as_json):
+def verify_work_cmd(ledger, root_dir, chain_only, expect, as_json):
     """
     Independently re-verify what an agent claimed it did.
 
@@ -372,7 +374,8 @@ def verify_work_cmd(ledger, root_dir, chain_only, as_json):
             console.print(f'[bold red]{msg}[/]')
         return
 
-    report = WorkLedger(ledger, root_dir=root_dir).verify(recheck=not chain_only)
+    report = WorkLedger(ledger, root_dir=root_dir).verify(
+        recheck=not chain_only, expect_entries=expect)
 
     if as_json:
         click.echo(json.dumps(report, indent=2))
@@ -414,3 +417,12 @@ def verify_work_cmd(ledger, root_dir, chain_only, as_json):
     if report['verdicts'].get('unverifiable'):
         console.print(f"[dim]{report['verdicts']['unverifiable']} agent "
                       f"statement(s) recorded but not counted as proof.[/]")
+
+    if expect < 0:
+        # Stating the limit is part of the guarantee. A holder of the file
+        # can delete an entry and recompute the chain, and nothing left in
+        # the file will look wrong -- so silence here would be misleading.
+        console.print(
+            "[dim]Note: this proves nothing was altered, not that nothing "
+            "was omitted. Pass --expect N with a count from outside the "
+            "file (a commit message, a CI record) to check for deletions.[/]")

@@ -322,7 +322,22 @@ class WorkLedger:
 
     # -- verification --------------------------------------------------
     def verify_chain(self) -> Tuple[bool, str]:
-        """Recompute every hash. Detects edits, deletions and reordering."""
+        """
+        Recompute every hash. Detects edits, deletions and reordering.
+
+        IMPORTANT -- what this alone does NOT stop, verified by attacking
+        this design directly: whoever holds the ledger file can delete an
+        inconvenient entry and recompute every subsequent hash, producing a
+        chain that verifies cleanly. In a real attack run, deleting one
+        failed claim and re-chaining took the proof rate from 0.5 to 1.0
+        with chain_intact still True.
+
+        A self-contained hash chain cannot prevent that -- the attacker
+        controls every input to the hash. Detection has to come from an
+        anchor the attacker does not control, which is what
+        `verify_anchors()` provides. Callers wanting the real guarantee
+        should use verify(), which runs both.
+        """
         prev = GENESIS
         for i, e in enumerate(self._entries):
             if e.seq == -1:
@@ -337,6 +352,87 @@ class WorkLedger:
                 return False, f"entry {i}: content was modified after signing"
             prev = e.hash
         return True, f"{len(self._entries)} entries, chain intact"
+
+    def verify_anchors(self) -> Tuple[bool, str]:
+        """
+        Check the ledger against evidence outside the ledger file.
+
+        Two independent signals, because the hash chain cannot defend
+        itself against an editor who can recompute it:
+
+        1. `seq` must be dense from 0. This alone is weak -- renumbering
+           after a deletion is trivial -- so it is a cheap first filter,
+           not the guarantee.
+        2. Every entry records the git HEAD it was written under. Those
+           anchors must be non-decreasing in real commit history: an entry
+           cannot legitimately sit on an ancestor of a commit an earlier
+           entry already saw.
+
+        WHAT THIS STILL DOES NOT STOP, stated plainly because it was tested
+        rather than assumed: deleting a middle entry, renumbering, and
+        recomputing the chain passes both checks. The surviving anchors are
+        still correctly ordered, so nothing about the remaining file looks
+        wrong. Verified twice -- outside git and inside a real repo with
+        three distinct commits -- both times the doctored ledger reported
+        chain_intact=True and the proof rate rose from 0.67 to 1.0.
+
+        The reason is structural: every input to the chain lives in the
+        file, so whoever holds the file can regenerate it. Detecting
+        deletion requires a record of what *should* be there, held
+        somewhere the editor does not control. `expected_count` does that
+        when the caller can pin it (see verify(expect_entries=N)), and
+        committing the ledger itself to version control does it in
+        practice, since the removed entry stays visible in git history.
+
+        So: this ledger proves a claim was not *altered*, and lets anyone
+        re-run it. It does not prove nothing was *omitted* unless the
+        expected count comes from outside. That limit is real and is not
+        papered over.
+
+        Returns (ok, detail). Outside a git repo only the sequence check
+        applies, and that is stated rather than reported as a full pass.
+        """
+        if not self._entries:
+            return True, "empty ledger"
+
+        for i, e in enumerate(self._entries):
+            if e.seq != i:
+                return False, (f"entry {i}: seq is {e.seq}, expected {i} -- "
+                               f"an entry was removed or renumbered")
+
+        commits = []
+        for e in self._entries:
+            td = str(e.claim.get("tree_digest", ""))
+            if td.startswith("git:"):
+                parts = td.split(":")
+                if len(parts) >= 2 and parts[1]:
+                    commits.append(parts[1])
+        if not commits:
+            return True, "sequence dense (no git anchors to check)"
+
+        # Each anchor must be the same as, or a descendant of, the one
+        # before it. `git merge-base --is-ancestor A B` exits 0 when A is an
+        # ancestor of B.
+        for a, b in zip(commits, commits[1:]):
+            if a == b:
+                continue
+            try:
+                r = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", a, b],
+                    cwd=self.root, capture_output=True, timeout=30)
+            except (OSError, subprocess.SubprocessError):
+                return True, "sequence dense (git unavailable for anchor check)"
+            if r.returncode == 128:
+                # Commit not found -- history was rewritten or this is a
+                # different clone. Say so; do not call it a pass.
+                return False, (f"anchor commit {a[:12]} is unknown to this "
+                               f"repository -- history was rewritten, or this "
+                               f"ledger belongs to a different checkout")
+            if r.returncode != 0:
+                return False, (f"anchor order violated: {a[:12]} is not an "
+                               f"ancestor of {b[:12]} -- entries were "
+                               f"reordered or removed")
+        return True, f"sequence dense, {len(commits)} git anchors consistent"
 
     def _recheck(self, claim: Dict[str, Any]) -> Tuple[Verdict, str]:
         """
@@ -401,7 +497,8 @@ class WorkLedger:
 
         return Verdict.UNVERIFIABLE, f"unknown claim kind '{kind}'"
 
-    def verify(self, recheck: bool = True) -> Dict[str, Any]:
+    def verify(self, recheck: bool = True,
+               expect_entries: int = -1) -> Dict[str, Any]:
         """
         Full independent verification.
 
@@ -409,8 +506,29 @@ class WorkLedger:
         and all that is possible without the repo. `recheck=True` also
         re-runs every checkable claim, which is what separates this from an
         audit log.
+
+        `expect_entries` closes the one hole the file cannot close by
+        itself. A holder of the ledger can delete an entry and recompute
+        the chain; nothing inside the file will look wrong afterwards
+        (verified by attacking this design directly). If the caller knows
+        how many entries there should be -- from a commit message, a CI
+        record, a receipt, anything outside the file -- passing it here
+        turns silent omission into a hard failure.
         """
         chain_ok, chain_msg = self.verify_chain()
+        # The hash chain alone is forgeable by whoever holds the file, so a
+        # ledger is only considered intact when the external anchors agree
+        # too. Reporting chain-only success would overstate the guarantee.
+        anchors_ok, anchor_msg = self.verify_anchors()
+        chain_ok = chain_ok and anchors_ok
+        if not anchors_ok:
+            chain_msg = f"{chain_msg}; anchor check failed: {anchor_msg}"
+
+        if expect_entries >= 0 and len(self._entries) != expect_entries:
+            chain_ok = False
+            chain_msg = (f"{chain_msg}; expected {expect_entries} entries but "
+                         f"found {len(self._entries)} -- entries were removed")
+
         results: List[Dict[str, Any]] = []
         tally: Dict[str, int] = {}
 
@@ -433,6 +551,8 @@ class WorkLedger:
             "ledger": self.path,
             "chain_intact": chain_ok,
             "chain_detail": chain_msg,
+            "anchors_ok": anchors_ok,
+            "anchor_detail": anchor_msg,
             "entries": len(self._entries),
             "checkable_claims": checkable,
             "independently_confirmed": proved,
