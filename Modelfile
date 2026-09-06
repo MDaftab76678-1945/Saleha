@@ -1,4 +1,13 @@
-FROM ./models/saleha-asi-q8_0.gguf
+# NOTE (2026-09-07): this used to read
+#   FROM ./models/saleha-asi-q8_0.gguf
+# but that model was deleted. It was trained largely on datasets later found
+# to be fabricated (see CHANGELOG 2.6.0 correction), and scored 0/5 on a real
+# held-out benchmark -- failing even the trivial fibonacci task -- so `ollama
+# create -f Modelfile` would have failed here with a missing-file error.
+#
+# Point FROM at a base model you actually have (`ollama list`) before using
+# this file, e.g. the current default:
+FROM qwen2.5-coder:3b
 
 TEMPLATE """{{- if .Messages }}
 {{- range $i, $_ := .Messages }}

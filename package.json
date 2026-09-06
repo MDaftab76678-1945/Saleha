@@ -1,6 +1,6 @@
 {
   "name": "saleha-unified-ecosystem",
-  "version": "2.0.0",
+  "version": "2.6.0",
   "private": true,
   "description": "Saleha AI: Unified Monorepo Ecosystem (Desktop + Web + Landing)",
   "workspaces": [
@@ -13,7 +13,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && node -e \"require('fs').rmSync('node_modules',{recursive:true,force:true})\""
   },
   "devDependencies": {
     "turbo": "^2.4.0",
@@ -25,4 +25,3 @@
     "node": ">=20.0.0"
   }
 }
-

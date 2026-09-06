@@ -4,6 +4,27 @@ All notable changes to Saleha AI Framework are documented here.
 
 ## [2.6.0] - 2026-09-02 (Sovereign Intelligence & Marketplace Release)
 
+> **Correction (2026-09-07).** Several entries below overstate what the
+> named command actually does. The commands were later read end-to-end and
+> the findings recorded in [ARCHITECTURE.md](ARCHITECTURE.md); that file is
+> authoritative where the two disagree. In particular:
+>
+> - `causal-eval` is **not** a Pearl causal model — the "intervention" layer
+>   calls the same code path as the "association" layer, and the
+>   counterfactual layer skips abduction entirely.
+> - `explain-code` performs **no** mechanistic interpretability — it is four
+>   `substring in line` keyword buckets with fixed scores; no weights,
+>   activations or attention are ever inspected.
+> - `emergence-check` calls a real detector but is never fed any data, so it
+>   prints "idle and healthy" every time regardless of actual swarm state.
+> - `formal-verify` generates Lean 4-*shaped text* from heuristics; no Lean
+>   or Z3 toolchain is ever invoked, so nothing it emits is a checked proof.
+> - `silicon-build` returns one fixed ALU Verilog template for any request,
+>   with hardcoded LUT/MHz figures and no synthesis tool.
+>
+> These entries are kept rather than deleted so the record of what was
+> claimed, and when it was corrected, stays intact.
+
 ### 🌟 34 Sovereign Flagship Systems
 
 - **Swarm PBFT Consensus Protocol** (`saleha consensus`): Multi-agent Byzantine Fault Tolerance ($2f+1$ Quorum).
