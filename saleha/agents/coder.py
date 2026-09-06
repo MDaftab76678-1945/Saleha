@@ -164,7 +164,14 @@ class CoderAgent(BaseAgent):
                               attempts=1, model_used=response.model_used)
 
         extracted = self._extract_code(response.content)
-        if not extracted or "def test" not in extracted.replace(" ", ""):
+        # The check used to be `"def test" not in extracted.replace(" ", "")`,
+        # which strips the very space it then looks for -- "def test_x" became
+        # "deftest_x" and never matched. Measured: 3/3 well-formed unittest
+        # suites from qwen2.5-coder:3b were rejected as "no runnable tests",
+        # so test generation had a 0% success rate for any model.
+        # Match the real declaration instead, allowing async and any spacing.
+        has_test = bool(re.search(r"\b(?:async\s+)?def\s+test\w*\s*\(", extracted or ""))
+        if not extracted or not has_test:
             return CodeResult(success=False, code="", error="No runnable tests found in model output.",
                               attempts=1, model_used=response.model_used)
 

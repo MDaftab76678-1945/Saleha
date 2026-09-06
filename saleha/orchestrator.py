@@ -49,9 +49,24 @@ class OrchestrationResult:
 # ==============================================================================
 
 class SalehaOrchestrator:
-    def __init__(self, model: str = "qwen2.5-coder:3b", max_healing_attempts: int = 3, profile: Optional[str] = None):
-        """Initializes the multi-agent orchestrator with Planner, Coder, Debugger, Tester, and Reviewer."""
+    def __init__(self, model: str = "qwen2.5-coder:3b", max_healing_attempts: int = 3,
+                 profile: Optional[str] = None, parallel_candidates: int = 0):
+        """
+        Initializes the multi-agent orchestrator with Planner, Coder,
+        Debugger, Tester, and Reviewer.
+
+        `parallel_candidates` (0 = off) generates N candidate solutions
+        concurrently and keeps the one that actually passes the tests,
+        instead of generating one and healing it in sequence. Measured on
+        this box: five concurrent calls take 15.5s where five sequential
+        ones take ~34s, because a local model leaves the GPU idle during
+        prompt evaluation. Off by default -- it costs N times the tokens,
+        which is only worth it when a wrong answer is expensive to find
+        later, and `generate_tests=True` is needed for the selection to be
+        by execution rather than by guess.
+        """
         self.model = model
+        self.parallel_candidates = max(0, parallel_candidates)
         self.planner = PlannerAgent(model=model)
         self.coder = CoderAgent(model=model, max_attempts=max_healing_attempts)
         self.debugger = DebuggerAgent(model=model)
@@ -224,14 +239,90 @@ class SalehaOrchestrator:
             # Planner ka complexity score ab SmartRouter tak jaata hai --
             # complexity-tiered model selection ab actually kaam karti hai.
             task_complexity = getattr(plan_result, "complexity_score", 0.0) or 0.0
+            # Parallel candidate selection needs a test suite to select
+            # WITH, and generate_tests() needs code to write tests against
+            # -- it returns "No runnable tests found" when handed an empty
+            # string (verified). So the order is: one cheap draft, tests
+            # written against that draft, then N candidates raced against
+            # those tests. The draft is a real candidate itself, not thrown
+            # away, so the extra call is not wasted.
+            current_test_code = ""
+            draft_result = None
+            if self.parallel_candidates > 1 and generate_tests:
+                log += "\n[2a] Coder: draft + unittest suite (candidate selection के लिए)...\n"
+                draft_result = self.coder.generate_code(
+                    user_goal + profile_context,
+                    plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
+                    attempt=1, complexity_score=task_complexity,
+                )
+                if draft_result.success and draft_result.code.strip():
+                    pre_tests = self.coder.generate_tests(
+                        draft_result.code, goal=user_goal,
+                        complexity_score=task_complexity)
+                    if pre_tests.success and pre_tests.code.strip():
+                        current_test_code = self.healer.auto_patch_code(pre_tests.code)
+                        log += (f"✅ Test suite ready "
+                                f"({len(current_test_code.splitlines())} lines).\n")
+                    else:
+                        log += "⚠️ Test generation failed -- parallel selection skipped.\n"
+                else:
+                    log += "⚠️ Draft failed -- parallel selection skipped.\n"
+
             log += "\n[2/4] Coder: कोड जनरेट कर रहा है...\n"
-            current_code_result: CodeResult = self.coder.generate_code(
-                user_goal + profile_context,
-                plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
-                attempt=1,
-                complexity_score=task_complexity,
-                on_token=on_token,
-            )
+
+            # Parallel candidate generation, when asked for AND when there
+            # is a real test suite to select with. Without tests the choice
+            # would be structural guesswork, which is worse than one honest
+            # attempt -- so this deliberately does not run in that case.
+            current_code_result = None
+            if self.parallel_candidates > 1 and generate_tests and current_test_code:
+                try:
+                    from saleha.core.parallel_solver import ParallelSolver
+                    solver = ParallelSolver(model=self.model,
+                                            candidates=self.parallel_candidates)
+                    par = solver.solve_with_executor(
+                        goal=user_goal + profile_context,
+                        test_suite=current_test_code,
+                        context="\n".join(plan_result.steps[:3]) + context_note + repo_note,
+                    )
+                    passed = sum(1 for c in par.candidates if c.passed)
+                    log += (f"   ⚡ {len(par.candidates)} candidates in parallel "
+                            f"({par.total_latency_sec}s): {passed} passed tests\n")
+                    if par.verified:
+                        log += f"   ✅ {par.reason}\n"
+                        current_code_result = CodeResult(
+                            success=True, code=par.code,
+                            model_used=self.model, attempts=1,
+                        )
+                    else:
+                        # Every candidate failed. Before falling back, try
+                        # the draft -- it was generated anyway and is a real
+                        # candidate, so discarding it untested would waste a
+                        # call already paid for.
+                        if draft_result is not None and draft_result.code.strip():
+                            chk = self.verifier.execute(
+                                f"{draft_result.code}\n\n{current_test_code}")
+                            if getattr(chk, "success", False) and (
+                                    "TEST_PASSED" not in current_test_code
+                                    or "TEST_PASSED" in (getattr(chk, "output", "") or "")):
+                                log += "   ✅ draft passed the suite; using it\n"
+                                current_code_result = draft_result
+                        if current_code_result is None:
+                            # Nothing verified. Fall through to the normal
+                            # single-shot path plus healing rather than
+                            # returning an unverified candidate as if it worked.
+                            log += f"   ⚠️ {par.reason} -- falling back to single-shot\n"
+                except Exception as exc:
+                    log += f"   ⚠️ parallel generation unavailable ({exc}); single-shot\n"
+
+            if current_code_result is None:
+                current_code_result = self.coder.generate_code(
+                    user_goal + profile_context,
+                    plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
+                    attempt=1,
+                    complexity_score=task_complexity,
+                    on_token=on_token,
+                )
 
             if not current_code_result.success:
                 self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=1, task_type="coding")
@@ -249,8 +340,11 @@ class SalehaOrchestrator:
 
             # Naya (A1): optional REAL test suite generation -- inke bina healing
             # loop sirf static checks dekhta tha, unittest kabhi nahi chalti thi.
-            current_test_code = ""
-            if generate_tests:
+            # NOTE: no reset to "" here. When parallel candidates ran, the
+            # suite was already generated above and used to select the
+            # winner; clearing it would throw away a working suite and
+            # regenerate it for no reason.
+            if generate_tests and not current_test_code:
                 log += "\n[2b] Coder: unittest suite बना रहा है...\n"
                 tests_result = self.coder.generate_tests(
                     current_code, goal=user_goal, complexity_score=task_complexity
