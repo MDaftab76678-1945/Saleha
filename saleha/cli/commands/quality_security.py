@@ -342,3 +342,75 @@ def quadratic_vote_cmd():
     rep = quadratic_voting_engine.tally_proposal('ARCH_V2')
     console.print(Panel(f'[bold magenta]🗳️ Quadratic Voting & VCG Allocation[/bold magenta]\n{rep.summary}', border_style='magenta'))
 
+
+
+@cli.command(name='verify-work')
+@click.argument('ledger', default='.saleha/work.jsonl')
+@click.option('--dir', 'root_dir', default='.', help='Repository the claims are about')
+@click.option('--chain-only', is_flag=True,
+              help='Only check the record is unaltered; do not re-run claims')
+@click.option('--json', 'as_json', is_flag=True, help='Machine-readable output')
+def verify_work_cmd(ledger, root_dir, chain_only, as_json):
+    """
+    Independently re-verify what an agent claimed it did.
+
+    Unlike an audit log, this does not ask you to trust the record. Every
+    checkable claim carries the command or file check that produced it, so
+    this re-runs them against the repo as it is now and reports what it
+    could actually re-establish. Agent statements that cannot be re-run are
+    reported as unverifiable and never counted as proof.
+
+    Example: saleha verify-work .saleha/work.jsonl --dir .
+    """
+    from saleha.core.work_ledger import WorkLedger
+
+    if not os.path.exists(ledger):
+        msg = f'No ledger at {ledger}'
+        if as_json:
+            click.echo(json.dumps({'success': False, 'error': msg}))
+        else:
+            console.print(f'[bold red]{msg}[/]')
+        return
+
+    report = WorkLedger(ledger, root_dir=root_dir).verify(recheck=not chain_only)
+
+    if as_json:
+        click.echo(json.dumps(report, indent=2))
+        return
+
+    ok = report['chain_intact']
+    console.print(Panel(
+        f"[bold {'green' if ok else 'red'}]"
+        f"{'Record intact' if ok else 'RECORD TAMPERED'}[/]\n"
+        f"{report['chain_detail']}",
+        border_style='green' if ok else 'red'))
+
+    if not ok:
+        console.print('[bold red]The record was altered after it was written. '
+                      'Nothing in it can be trusted.[/]')
+        return
+
+    if chain_only:
+        console.print('[dim]--chain-only: claims were not re-run.[/]')
+        return
+
+    table = Table(title='Claim re-verification', show_lines=False)
+    table.add_column('#', style='dim', width=4)
+    table.add_column('Claim', style='cyan')
+    table.add_column('Subject')
+    table.add_column('Verdict')
+    colours = {'confirmed': 'green', 'failed': 'red',
+               'environment_diverged': 'yellow', 'unverifiable': 'dim'}
+    for r in report['results']:
+        table.add_row(str(r['seq']), str(r['kind']), r['subject'][:52],
+                      f"[{colours.get(r['verdict'], 'white')}]{r['verdict']}[/]")
+    console.print(table)
+
+    rate = report['proof_rate']
+    console.print(
+        f"\n[bold]{report['independently_confirmed']}/"
+        f"{report['checkable_claims']} checkable claims independently "
+        f"re-established[/] (proof rate {rate:.0%})")
+    if report['verdicts'].get('unverifiable'):
+        console.print(f"[dim]{report['verdicts']['unverifiable']} agent "
+                      f"statement(s) recorded but not counted as proof.[/]")
