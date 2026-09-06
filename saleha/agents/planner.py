@@ -4,7 +4,10 @@ Saleha Agents: Planner Agent
 और यदि आवश्यक हो तो उसे छोटे, प्रबंधनीय चरणों (DAG) में तोड़ना।
 """
 
+from typing import Optional
+
 from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.core.active_inference import active_inference_gate
 from saleha.core.math_logic import MathLogicEngine
 
 
@@ -14,7 +17,8 @@ from saleha.core.math_logic import MathLogicEngine
 
 class PlanResult:
     def __init__(self, success: bool, steps: list, recommendation: str, raw_response: str = "",
-                 complexity_score: float = 0.0):
+                 complexity_score: float = 0.0, clarifying_question: str = "",
+                 uncertainty_reasons: Optional[list] = None):
         self.success = success
         self.steps = steps
         self.recommendation = recommendation
@@ -23,6 +27,14 @@ class PlanResult:
         # (pehle compute hota tha par discard ho jaata tha -- SmartRouter ke
         # complexity tiers effectively dead the).
         self.complexity_score = complexity_score
+        # Set when the goal was too vague to act on: recommendation becomes
+        # NEEDS_CLARIFICATION and this carries the one question worth asking.
+        self.clarifying_question = clarifying_question
+        self.uncertainty_reasons = uncertainty_reasons or []
+
+    @property
+    def needs_clarification(self) -> bool:
+        return self.recommendation == "NEEDS_CLARIFICATION"
 
 
 # ==============================================================================
@@ -35,10 +47,37 @@ class PlannerAgent(BaseAgent):
         super().__init__(role="Planner", model=model)
         self.math_engine = MathLogicEngine()
 
-    def create_plan(self, user_goal: str) -> PlanResult:
+    def create_plan(self, user_goal: str, context_has_target: bool = False,
+                    skip_clarity_check: bool = False) -> PlanResult:
         """
         यूजर के लक्ष्य के लिए एक योजना बनाता है।
+
+        `context_has_target`: caller ke paas already pata hai kis file par kaam
+        ho raha hai (open file, ya pichhli baat) -- to bare "fix it" valid hai.
+        `skip_clarity_check`: gate ko bypass karo (batch/non-interactive runs).
         """
+        # 0. Kya goal itna spasht hai ki shuru kiya ja sake?
+        #
+        # Yeh complexity se alag axis hai. Measured: create_plan("fix it")
+        # complexity 0.0 ke saath success=True aur EXECUTE return karta tha --
+        # koi file, repo ya bug bataye bina. Chhota hona aur saaf hona alag
+        # cheezein hain; andaze se galat code likhne se behtar ek sawal hai.
+        if not skip_clarity_check:
+            unc = active_inference_gate.assess(
+                user_goal, context_has_target=context_has_target)
+            if unc.should_ask:
+                print(f"  [Planner] Goal too vague to act on "
+                      f"(uncertainty {unc.score}). Asking instead of guessing.")
+                return PlanResult(
+                    success=False,
+                    steps=[],
+                    recommendation="NEEDS_CLARIFICATION",
+                    raw_response=unc.question,
+                    complexity_score=0.0,
+                    clarifying_question=unc.question,
+                    uncertainty_reasons=list(unc.reasons),
+                )
+
         # 1. पहले जटिलता (Complexity) चेक करें
         complexity_result = self.math_engine.estimate_complexity(user_goal)
 

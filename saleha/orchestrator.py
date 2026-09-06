@@ -224,6 +224,21 @@ class SalehaOrchestrator:
             plan_result: PlanResult = self.planner.create_plan(user_goal + profile_context)
 
             if not plan_result.success:
+                # A goal too vague to act on is not a planning failure -- it is
+                # a question. Reporting "Planning Failed" for it would hide the
+                # one thing the user can actually do about it.
+                if getattr(plan_result, "needs_clarification", False):
+                    question = plan_result.clarifying_question or plan_result.raw_response
+                    why = "\n".join(f"   - {r}" for r in plan_result.uncertainty_reasons)
+                    self.history.log(goal=user_goal, model=self.model, success=False,
+                                     attempts=0, code="",
+                                     error=f"Needs clarification: {question}")
+                    return OrchestrationResult(
+                        success=False, final_code="", attempts=0,
+                        log=log + f"❓ I need one detail before I start:\n   {question}\n"
+                                  f"{chr(10) + 'Why:' + chr(10) + why if why else ''}",
+                        profile_used=profile_name
+                    )
                 self.stats.record(model=self.model, success=False, attempts=0, task_type="coding")
                 self.history.log(goal=user_goal, model=self.model, success=False, attempts=0,
                                   code="", error=f"Planning failed: {plan_result.raw_response}")

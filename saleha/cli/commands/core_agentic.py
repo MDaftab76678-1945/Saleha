@@ -106,7 +106,15 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
                 if exec_result.error:
                     console.print(f'\n[red]Error:[/] {exec_result.error}')
     else:
-        console.print(Panel(f'[bold red]❌ FAILED[/] after {result.attempts} attempt(s)', border_style='red'))
+        # A goal too vague to act on is a question, not a failure. Rendering it
+        # as "❌ FAILED after 0 attempt(s)" hid the one thing the user could do
+        # about it -- the question itself only appeared under --verbose.
+        if '❓' in (result.log or ''):
+            ask = result.log[result.log.index('❓'):].strip()
+            console.print(Panel(ask, title='[bold yellow]Need one detail[/]',
+                                border_style='yellow'))
+        else:
+            console.print(Panel(f'[bold red]❌ FAILED[/] after {result.attempts} attempt(s)', border_style='red'))
     if verbose:
         console.print('\n[bold yellow]📜 Execution Log:[/]')
         console.print(result.log)

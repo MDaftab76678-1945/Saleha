@@ -61,3 +61,109 @@ chat exports. Most of it duplicates the already-cleaned `saleha/core/` — that 
 - `rust/meridian-core/` has empty stub files — fill or delete before `cargo build`.
 - `saleha/specs/agent_specs/ai_engineer - Copy.md` → dedupe.
 - `rust/` has no workspace `Cargo.toml` tying the two crates together — add one if you want a single `cargo build`.
+
+## Third pass — ideas, not code (2026-09-07)
+
+The first two passes pulled **code** out of `Notebook/`. This pass mined the
+40 PDFs and 24 chat exports that were skipped as "already distilled" — and
+one of them was not.
+
+`chat-Nexus Branding Strategy.txt:850` contains the user's own explicit
+"real gold vs trash" split. Item 2 of the keep-list:
+
+> **Active Inference (Free Energy Principle):** अगर यूजर का प्रॉम्प्ट अस्पष्ट
+> (vague) है, तो Saleha अंदाजे से गलत कोड नहीं लिखेगी। वह अपनी "अनिश्चितता"
+> को मापेगी और **आपसे एक स्मार्ट सवाल पूछेगी**।
+
+That was never built. Verified before building it:
+
+```
+PlannerAgent.create_plan("fix it")
+  -> success=True, recommendation=EXECUTE, complexity 0.0
+  -> steps: ['"main ise pragati karunga."']
+```
+
+No file, no repo, no bug named — and the planner reported success and moved
+to execution. The planner branched on *complexity* (how big) and never on
+*specificity* (how clear); "fix it" is trivially small and completely
+unactionable, so complexity scoring could never catch it.
+
+**Landed:** `saleha/core/active_inference.py` + the gate wired into
+`PlannerAgent.create_plan()` and surfaced by `SalehaOrchestrator`.
+
+Deliberately **not** implemented as perplexity: a real perplexity score needs
+logprobs, which the Ollama `/api/generate` path does not return. Faking a
+number and calling it entropy would be the same defect this repo keeps
+finding. It measures checkable properties of the goal text instead, and says
+so in its own docstring.
+
+### Also from this pass, deliberately rejected
+
+| Idea | Source | Why not |
+| --- | --- | --- |
+| Artificial Endocrine System (dopamine/cortisol modulating temperature) | `chat-Recursive Problem Solving.txt:880` | Mood theater. Mapping "stress" to `top_p` is a made-up number wearing a biology costume; there is no signal behind it. |
+| Ouroboros 7-layer containment (DNA transcoder, NV-diamond quantum seal, hardware zeroize pin) | `chat-Heterogeneous AGI Containment Architecture.txt:321` | Silicon/wetware, not software. Also on the user's own trash-list. |
+| Hyperdimensional / holographic memory (10,000-D superposition) | same | Real technique, but `saleha/core/` already has a working vector store; this would be a rewrite with no measured win. |
+| Type-state task transitions (`Task<Pending>` → `Task<Verified>`) | same, line 340 | **Already built** — `saleha/core/task_evidence.py` `_ALLOWED_TRANSITIONS` makes CREATED→ACCEPTED structurally impossible. |
+
+The user's own trash-list in that same chat (crypto/tokenomics, zkML, FHE,
+algorithmic trading) was respected — nothing from those areas was pulled.
+
+## Fourth pass — the file nobody had opened (2026-09-07)
+
+`Notebook/madad-ke-liye-sawaal.json` (5.3 MB) is not a design document. It is
+a **complete transcript of a previous agent session on this exact repo**
+(`directory: C:\Users\alama\saleha-0.1`, 752 messages, 701K input tokens,
+285 bash / 235 edit / 56 write calls). It was never listed in the passes above.
+
+Its value is the audit it contains, not code to import. Every finding was
+re-checked against the repo as it stands today:
+
+| Finding from that session | Status now | How verified |
+| --- | --- | --- |
+| Web Studio: `Access-Control-Allow-Origin: *` + zero auth → `/api/exec` RCE | **fixed** | `web_server.py` now token-authenticated (`X-Saleha-Token`, `SALEHA_STUDIO_TOKEN`); wildcard CORS is deliberate and documented as safe *because* of the token |
+| Fake sandbox: regex blocklist, `__import__("os").system()` bypasses it | **fixed** | now AST-based. Re-ran the exact bypass: `import os`, `__import__("os")`, and `importlib.import_module("os")` are all blocked; benign code still runs |
+| Reviewer fail-open (`approved=True` on LLM error) | **fixed** | `reviewer.py` is fail-closed with a comment naming the old behaviour |
+| PyYAML imported but undeclared → fresh install crash | **fixed** | declared in `pyproject.toml` |
+| `memory_store.py`: four methods defined twice | **fixed** | no duplicate defs remain |
+| `voice_assistant.py:52` AttributeError on `res.error_log` | **fixed** | symbol gone |
+| 3× HIGH `SEC101` unsafe `eval()` in `vscode-extension/extension.js` | **fixed** | extension moved to `editors/vscode/`; no `eval(`/`new Function(` anywhere in repo JS |
+| Memory store O(N) reindex on every mutation | **fixed** | `vector_store.py` uses a `_dirty` flag, reindexing once per search |
+| Dead code purge (`studio/`, `web/`, `utils/`) | **fixed** | all three directories gone |
+
+Nothing from that session needs re-doing. Recording it here so the next pass
+does not re-audit ground that is already covered — and so the 5.3 MB file is
+not mistaken for an unmined design doc.
+
+### Measured while checking: the DAG engine is real, its default graph is not parallel
+
+`saleha/core/dag_engine.py` genuinely implements parallel batch execution
+(`get_topological_batches()` + `ThreadPoolExecutor`), and dependency outputs
+really are threaded into downstream prompts. Ran it end-to-end:
+
+```
+nodes: 5
+  batch 0: ['task_prd']
+  batch 1: ['task_arch']
+  batch 2: ['task_core_impl']
+  batch 3: ['task_sec_audit', 'task_qa_tests']
+elapsed 123s  completed=5/5 failed=0
+```
+
+**Only the last batch has more than one node.** Four of five stages run
+alone, so `execute_parallel()` is doing almost nothing parallel on the
+default graph. This is *not* a bug: the declared dependencies are honest —
+architecture really does need the PRD first. The engine is ready for wide
+graphs; `build_default_dag_for_goal()` just does not produce one. Worth
+knowing before anyone cites "parallel DAG execution" as a speed feature.
+
+### Rejected from the large chat exports
+
+`chat-Understanding Each Point.txt` (1 MB, densest source of concrete
+techniques) recommends **speculative decoding** for a 2-3x speedup. Skipped,
+and the same file says why (line 8904): it needs a draft model resident
+alongside the target model, and one GPU here cannot hold 8B + 1B without
+crashing. The file's own conclusion was to defer it until the project moves
+to server hardware. Prefix caching and constrained decoding from the same
+source are already in the repo (`PromptCache`, and `response_format` JSON
+schemas used by `action_menu.py` and `recursive_solver.py`).
