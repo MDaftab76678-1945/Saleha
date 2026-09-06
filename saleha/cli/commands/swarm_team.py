@@ -45,7 +45,7 @@ def team(goal, model, output_dir, debate, max_attempts, as_json):
     """
     orchestrator = _cmds.TeamOrchestrator(model=model, max_healing_attempts=max_attempts)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             result = orchestrator.run_team_workflow(goal=goal, output_dir=output_dir, debate=debate)
     else:
         out_info = f'\n[bold cyan]📁 Output Dir:[/] {output_dir}' if output_dir else ''

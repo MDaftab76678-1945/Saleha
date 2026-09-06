@@ -41,12 +41,12 @@ def sandbox(target_file, deps, timeout, docker, lang, as_json):
         file_code = f.read()
     if docker:
         docker_runner = _cmds.DockerSandboxRunner()
-        with redirect_stdout(io.StringIO()) if as_json else contextlib.nullcontext():
+        with contextlib.redirect_stdout(io.StringIO()) if as_json else contextlib.nullcontext():
             result = docker_runner.run_code(code=file_code, language=lang, timeout=timeout)
     else:
         dep_list = [d.strip() for d in re.split('[\\s,]+', deps) if d.strip()]
         runner = _cmds.SandboxRunner(default_timeout=timeout)
-        with redirect_stdout(io.StringIO()) if as_json else contextlib.nullcontext():
+        with contextlib.redirect_stdout(io.StringIO()) if as_json else contextlib.nullcontext():
             result = runner.run_in_sandbox(script_code_or_file=target_file, dependencies=dep_list, timeout=timeout)
     if as_json:
         payload = {'success': result.success, 'exit_code': result.exit_code, 'execution_time': round(result.execution_time, 3), 'installed_packages': result.installed_packages, 'output': result.output, 'error': result.error, 'blocked': result.blocked}

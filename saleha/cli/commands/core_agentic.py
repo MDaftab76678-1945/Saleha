@@ -62,7 +62,7 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
         goal = ''
     orchestrator = _cmds.SalehaOrchestrator(model=model, max_healing_attempts=max_attempts, profile=profile)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             result = orchestrator.execute_task(goal, profile=profile, auto_commit=commit, context_dir=context_dir, generate_tests=tests, resume_session=resume)
     else:
         profile_info = f'\n[bold cyan]🎭 Profile:[/] {profile}' if profile else ''
@@ -148,7 +148,7 @@ def plan(goal, model, as_json):
     """
     planner = _cmds.PlannerAgent(model=model)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             result = planner.create_plan(goal)
     else:
         console.print(Panel.fit(f'[bold cyan]🎯 Goal:[/] {goal}', title='[bold green]Saleha Planner[/]', border_style='green'))
@@ -183,7 +183,7 @@ def code(task, model, as_json, output):
     """
     coder = _cmds.CoderAgent(model=model)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             result = coder.generate_code(task)
     else:
         console.print(Panel.fit(f'[bold cyan]💻 Task:[/] {task}', title='[bold green]Saleha Coder[/]', border_style='green'))

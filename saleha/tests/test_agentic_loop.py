@@ -209,6 +209,113 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertEqual(res.final_message, "instant")
 
+    # ------------------------------------------------------------------
+    # Evidence-based completion (Level-6 architecture target)
+    # ------------------------------------------------------------------
+
+    def test_evidence_gate_rejects_finish_with_no_real_work(self):
+        """require_evidence=True: finish() must be refused until the tools
+        actually observed the required fact, then accepted once they have."""
+        from saleha.core.task_evidence import EvidenceKind, TaskState
+        agent = ScriptedAgent([
+            _finish("I already fixed it"),          # pure claim, no work
+            _tool_call("read_file", path="app.py"),  # real observation
+            _finish("found charge function"),
+        ])
+        events = []
+        loop = AgentLoop(agent=agent, root_dir=self.root,
+                         require_evidence=True,
+                         required_evidence={EvidenceKind.FILE_READ})
+        res = loop.run("understand billing", on_event=events.append)
+
+        self.assertTrue(res.success, res.error)
+        rejected = [e for e in events if e.get("action") == "finish-rejected"]
+        self.assertEqual(len(rejected), 1)
+        self.assertIn("no evidence of: file_read", rejected[0]["observation"])
+        self.assertEqual(loop.ledger.state, TaskState.ACCEPTED)
+        self.assertTrue(loop.ledger.has(EvidenceKind.FILE_READ))
+
+    def test_evidence_gate_never_accepts_without_the_required_kind(self):
+        """A model that only ever searches cannot satisfy a FILE_READ
+        requirement, so the run honestly exhausts max_steps."""
+        from saleha.core.task_evidence import EvidenceKind, TaskState
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _finish("done"),
+            _tool_call("list_dir", path="."),
+            _finish("done"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=4,
+                         require_evidence=True,
+                         required_evidence={EvidenceKind.FILE_READ})
+        res = loop.run("look around")
+        self.assertFalse(res.success)
+        self.assertIn("max_steps", res.error)
+        self.assertEqual(loop.ledger.state, TaskState.FAILED)
+
+    def test_failed_tool_call_produces_no_evidence(self):
+        """A tool that errored proves nothing and must not count as work."""
+        from saleha.core.task_evidence import EvidenceKind
+        agent = ScriptedAgent([
+            _tool_call("read_file", bad_arg="x"),   # wrong kwarg -> TypeError
+            _finish("done anyway"),
+            _tool_call("read_file", path="app.py"),
+            _finish("really done"),
+        ])
+        events = []
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=6,
+                         require_evidence=True,
+                         required_evidence={EvidenceKind.FILE_READ})
+        res = loop.run("read the file", on_event=events.append)
+        self.assertTrue(res.success, res.error)
+        # The first finish was rejected because the failed call gave no evidence.
+        rejected = [e for e in events if e.get("action") == "finish-rejected"]
+        self.assertEqual(len(rejected), 1)
+        # Exactly one FILE_READ evidence -- from the successful call only.
+        reads = [e for e in loop.ledger.evidence if e.kind == EvidenceKind.FILE_READ]
+        self.assertEqual(len(reads), 1)
+
+    def test_write_evidence_moves_state_to_implementing(self):
+        from saleha.core.task_evidence import EvidenceKind, TaskState
+        agent = ScriptedAgent([
+            _tool_call("write_file", path="new.py", content="x = 1\n"),
+            _finish("wrote it"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                         require_evidence=True,
+                         required_evidence={EvidenceKind.FILE_MODIFIED})
+        res = loop.run("create a file")
+        self.assertTrue(res.success, res.error)
+        self.assertTrue(loop.ledger.has(EvidenceKind.FILE_MODIFIED))
+        states = [h["state"] for h in loop.ledger.history]
+        self.assertIn("IMPLEMENTING", states)
+        self.assertEqual(loop.ledger.state, TaskState.ACCEPTED)
+
+    def test_budget_stops_a_runaway_loop(self):
+        """max_tool_calls must actually halt the run, not just be advisory."""
+        from saleha.core.task_evidence import EvidenceKind, ResourceBudget, TaskState
+        agent = ScriptedAgent([_tool_call("list_dir", path=".")] * 10)
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=10,
+                         require_evidence=True,
+                         required_evidence={EvidenceKind.FILE_READ},
+                         budget=ResourceBudget(max_tool_calls=3))
+        res = loop.run("loop forever")
+        self.assertFalse(res.success)
+        self.assertIn("budget exceeded", res.error)
+        self.assertEqual(loop.ledger.state, TaskState.FAILED)
+        self.assertEqual(len(res.steps), 4)  # 3 allowed, 4th trips the limit
+
+    def test_evidence_off_by_default_keeps_old_behaviour(self):
+        """Existing callers must be unaffected: no ledger, no gate."""
+        agent = ScriptedAgent([
+            _tool_call("read_file", path="app.py"),
+            _finish("done"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("understand billing")
+        self.assertTrue(res.success, res.error)
+        self.assertIsNone(loop.ledger)
+
     def test_structured_xml_tool_call_and_thinking_parsing(self):
         events = []
         agent = ScriptedAgent([

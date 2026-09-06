@@ -108,6 +108,10 @@ class LoRATunerTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("Insufficient", result.error)
 
+    @unittest.skipUnless(
+        os.environ.get("SALEHA_RUN_GPU_TESTS") == "1",
+        "real LoRA SFT training run; set SALEHA_RUN_GPU_TESTS=1 to run it",
+    )
     def test_real_training_with_enough_data(self):
         """Real end-to-end LoRA SFT on the smallest cached model (fast, no fake numbers)."""
         for i in range(6):
@@ -127,6 +131,10 @@ class LoRATunerTests(unittest.TestCase):
         self.assertIsInstance(result.after_score, float)
         self.assertTrue(os.path.exists(os.path.join(result.adapter_path, "adapter_model.safetensors")))
 
+    @unittest.skipUnless(
+        os.environ.get("SALEHA_RUN_GPU_TESTS") == "1",
+        "real LoRA SFT training run; set SALEHA_RUN_GPU_TESTS=1 to run it",
+    )
     def test_tuning_result_fields(self):
         for i in range(6):
             self.tuner.collector.add_sample(f"Write function returning {i}", f"def f(): return {i}", quality_score=0.9)

@@ -52,12 +52,21 @@ class TestDPODatasetEngine(unittest.TestCase):
             lines = [l for l in f if l.strip()]
         self.assertGreaterEqual(len(lines), 20)
 
+    @unittest.skipUnless(
+        os.environ.get("SALEHA_RUN_GPU_TESTS") == "1",
+        "real DPO training takes ~13 min of GPU time (1000 pairs) and hung the "
+        "whole suite at 19%; set SALEHA_RUN_GPU_TESTS=1 to run it deliberately",
+    )
     def test_lora_tuner_dpo(self):
         """Real DPO training attempt via trl.DPOTrainer against the real
         datasets/saleha_dpo_pairs.jsonl (1000 pairs). May succeed or fail
         depending on the local trl/torch install, but must never fabricate a
         result -- this replaces a prior version of this test that asserted
-        a guaranteed 76.5->92.4 hardcoded-score improvement."""
+        a guaranteed 76.5->92.4 hardcoded-score improvement.
+
+        Opt-in: this is a genuine end-to-end training run, not a unit test.
+        Skipping it by default is what makes the suite finishable at all;
+        the test itself is unchanged and still real when enabled."""
         tuner = LoRATuner()
         res = tuner.tune_dpo()
         self.assertEqual(res.output_model, "saleha-dpo-slm")

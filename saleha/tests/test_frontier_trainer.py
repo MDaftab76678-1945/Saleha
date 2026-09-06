@@ -29,6 +29,11 @@ class TestFrontierTrainer(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
+    @unittest.skipUnless(
+        os.environ.get("SALEHA_RUN_GPU_TESTS") == "1",
+        "runs a real SFT training pass (minutes of GPU time) and hung the "
+        "suite at 28%; set SALEHA_RUN_GPU_TESTS=1 to run it deliberately",
+    )
     def test_run_training_real_sft_and_honest_skips(self):
         report: TrainingRunReport = self.trainer.run_training(
             base_model="qwen2.5-coder:0.5b",

@@ -90,12 +90,21 @@ class SalehaReleaseManager:
         else:
             issues.append("packages/ui/package.json not found")
 
-        # 4. Check Core Entrypoints
-        cli_entry = self.root / "saleha" / "cli" / "commands.py"
-        if cli_entry.exists():
+        # 4. Check Core Entrypoints.
+        # The CLI was split from a single commands.py module into a
+        # commands/ package (saleha/cli/commands/__init__.py exports `cli`,
+        # with the command groups in sibling modules). This check still
+        # looked only for the old flat file, so it reported the entrypoint
+        # missing on a perfectly valid tree -- accept either layout, since
+        # setup.py's console_script targets `saleha.cli.commands:cli`, which
+        # both satisfy.
+        cli_dir_entry = self.root / "saleha" / "cli" / "commands" / "__init__.py"
+        cli_file_entry = self.root / "saleha" / "cli" / "commands.py"
+        if cli_dir_entry.exists() or cli_file_entry.exists():
             checks_passed += 1
         else:
-            issues.append("saleha/cli/commands.py entrypoint missing")
+            issues.append("saleha.cli.commands entrypoint missing "
+                          "(neither commands/__init__.py nor commands.py)")
 
         elapsed = round((time.time() - start_time) * 1000, 2)
         success = (checks_passed == total_checks)

@@ -45,7 +45,7 @@ def project(goal, model, as_json, output_dir):
     """
     builder = _cmds.ProjectBuilder(model=model, projects_dir=output_dir) if output_dir else _cmds.ProjectBuilder(model=model)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             result = builder.build(goal)
     else:
         console.print(Panel.fit(f'[bold cyan]🏗️ Project Goal:[/] {goal}\n[bold cyan]🤖 Model:[/] {model}', title='[bold green]Saleha Project Builder[/]', border_style='green'))
@@ -86,7 +86,7 @@ def pr(goal, branch, output_dir, debate, push, open_remote, base, model, as_json
     """Autonomously generate git branch, conventional commit, test evidence, and PULL_REQUEST.md."""
     generator = _cmds.PRGenerator(model=model)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             res = generator.generate_pr(goal=goal, branch_name=branch, output_dir=output_dir, debate=debate, push=push, open_pr=open_remote, base_branch=base)
         payload = {'success': res.success, 'branch_name': res.branch_name, 'commit_title': res.commit_title, 'commit_body': res.commit_body, 'pr_markdown': res.pr_markdown, 'output_dir': res.output_dir, 'test_passed': res.test_passed, 'pr_url': res.pr_url, 'error': res.error}
         click.echo(json.dumps(payload, ensure_ascii=True))

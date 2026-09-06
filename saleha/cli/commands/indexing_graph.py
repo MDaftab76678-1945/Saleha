@@ -38,7 +38,7 @@ def dag(goal, parallel, workers, model, as_json):
     """Execute a complex engineering goal using a parallel Directed Acyclic Graph (DAG) of agents."""
     task_dag = _cmds.TaskDAG.build_default_dag_for_goal(goal=goal, model=model)
     if as_json:
-        with redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()):
             res = task_dag.execute_parallel(max_workers=workers if parallel else 1)
         payload = {'success': res.success, 'goal': res.goal, 'total_tasks': res.total_tasks, 'completed_tasks': res.completed_tasks, 'failed_tasks': res.failed_tasks, 'total_time': res.total_time, 'mermaid_graph': res.mermaid_graph, 'tasks': {node.id: {'title': node.title, 'role_profile': node.role_profile, 'status': node.status, 'duration': node.duration, 'result_preview': node.result[:150] if node.result else '', 'error': node.error} for node in res.nodes.values()}}
         click.echo(json.dumps(payload, ensure_ascii=True))

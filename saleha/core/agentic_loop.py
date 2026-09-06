@@ -100,12 +100,23 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  code_executor=None,
                  allowed_tools: Optional[List[str]] = None,
                  timeout_sec: float = 300.0,
-                 min_actions_before_finish: int = 1):
+                 min_actions_before_finish: int = 1,
+                 require_evidence: bool = False,
+                 required_evidence=None,
+                 budget=None):
         self.agent = agent
         self.root_dir = os.path.abspath(root_dir)
         self.max_steps = max_steps
         self.allow_write = allow_write
         self.timeout_sec = timeout_sec
+        # Evidence-based completion (Level-6 architecture target). When on,
+        # finish() is admissible only if the tools actually observed the
+        # required facts -- a summary alone can never end the task. Off by
+        # default so existing callers keep their current behaviour.
+        self.require_evidence = require_evidence
+        self._required_evidence = required_evidence
+        self.budget = budget
+        self.ledger = None  # set per run() when require_evidence is on
         # Real failure mode observed running Saleha against actual SWE-bench
         # instances: a small model calls finish() on turn 1, before any real
         # tool call, hallucinating completion ("File read successfully" with
@@ -304,6 +315,33 @@ Never invent tool outputs. One block per reply. Be efficient."""
         transcript_parts: List[str] = []
         start_time = time.time()
 
+        # Evidence ledger + budget for this run (Level-6 completion gate).
+        if self.require_evidence:
+            from saleha.core.task_evidence import (
+                EvidenceLedger, EvidenceKind, ResourceBudget, TaskState,
+            )
+            self.ledger = EvidenceLedger(
+                goal=goal,
+                required=self._required_evidence,
+                budget=self.budget or ResourceBudget(max_tool_calls=self.max_steps,
+                                                     max_seconds=self.timeout_sec),
+            )
+            self.ledger.transition(TaskState.ANALYZING, "run started")
+            # Which tool actually proves which fact. Only tools that really
+            # observed something record evidence -- never the model's words.
+            evidence_for_tool = {
+                "read_file": EvidenceKind.FILE_READ,
+                "get_file_outline": EvidenceKind.FILE_READ,
+                "list_dir": EvidenceKind.SEARCH_PERFORMED,
+                "search_repo": EvidenceKind.SEARCH_PERFORMED,
+                "find_symbols": EvidenceKind.SEARCH_PERFORMED,
+                "write_file": EvidenceKind.FILE_MODIFIED,
+                "patch_file": EvidenceKind.FILE_MODIFIED,
+                "run_code": EvidenceKind.CODE_EXECUTED,
+            }
+        else:
+            evidence_for_tool = {}
+
         for step_no in range(1, self.max_steps + 1):
             if time.time() - start_time > self.timeout_sec:
                 result.error = f"Agent execution timed out after {self.timeout_sec}s (step {step_no})"
@@ -348,6 +386,24 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 except json.JSONDecodeError:
                     summary = fin.group(1)[:500]
 
+                # Evidence gate: a completion CLAIM is only admissible if the
+                # tools actually observed the required facts. This is the
+                # difference between "the model said done" and "done".
+                if self.require_evidence and self.ledger is not None:
+                    verdict = self.ledger.judge_completion()
+                    if not verdict.admissible:
+                        observation = (
+                            f"REJECTED: {verdict.reason} "
+                            f"Observed so far: "
+                            f"{', '.join(k.value for k in sorted(self.ledger.kinds_present(), key=lambda x: x.value)) or 'nothing'}."
+                        )
+                        emit({"step": step_no, "action": "finish-rejected",
+                              "observation": observation})
+                        transcript_parts.append(
+                            f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                        )
+                        continue
+
                 if len(result.steps) < self.min_actions_before_finish:
                     # Reject the premature finish instead of trusting an
                     # unverified completion claim -- nudge the model to
@@ -365,6 +421,11 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
                     )
                     continue
+
+                if self.require_evidence and self.ledger is not None:
+                    # Route through VERIFYING -> ACCEPTED so the recorded
+                    # history always shows verification preceded acceptance.
+                    self.ledger.accept()
 
                 result.success = True
                 result.final_message = summary or "done"
@@ -400,7 +461,35 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 f"[step {step_no}] {tool_name}({args_preview})\nOBSERVATION: {observation}"
             )
 
+            # Record evidence only for a tool that actually ran and did not
+            # error -- a failed call proves nothing, so it must not count.
+            if self.require_evidence and self.ledger is not None:
+                from saleha.core.task_evidence import BudgetExceeded, TaskState
+                tool_failed = (
+                    handler is None
+                    or observation.startswith("bad args for ")
+                    or observation.startswith("tool error: ")
+                    or observation.startswith("unknown tool ")
+                )
+                kind = evidence_for_tool.get(tool_name)
+                if kind is not None and not tool_failed:
+                    self.ledger.record(kind, f"{tool_name}({args_preview})",
+                                       "agentic_loop.run")
+                    if kind.value == "file_modified" and self.ledger.state in (
+                            TaskState.ANALYZING, TaskState.PLANNING):
+                        self.ledger.transition(TaskState.IMPLEMENTING, tool_name)
+                try:
+                    self.ledger.budget.spend(tool_calls=1)
+                except BudgetExceeded as be:
+                    self.ledger.fail(str(be))
+                    result.error = f"budget exceeded at step {step_no}: {be}"
+                    emit({"step": step_no, "action": "budget-exceeded",
+                          "observation": result.error})
+                    return result
+
         result.error = f"max_steps ({self.max_steps}) exhausted without finish"
+        if self.require_evidence and self.ledger is not None:
+            self.ledger.fail(result.error)
         return result
 
     @staticmethod
