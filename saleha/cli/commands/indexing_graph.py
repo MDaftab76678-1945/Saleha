@@ -228,3 +228,66 @@ def diff_preview_cmd(file_path, new_file_path):
     console.print(f'\n[bold magenta]💥 AST Impact Analysis:[/] {impact.summary}')
     console.print(f"  Blast Radius: [bold {('red' if impact.blast_radius > 50 else 'green')}]{impact.blast_radius}/100[/] ({impact.risk_level.upper()} RISK)")
 
+
+
+@cli.command(name='impact')
+@click.argument('target')
+@click.option('--dir', 'target_dir', default='.', help='Repository root to scan')
+@click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
+def impact_cmd(target, target_dir, as_json):
+    """
+    Show which files actually depend on a module, via a real cross-file graph.
+
+    Answers "if I change this, what else can break?" using tree-sitter based
+    extraction across the whole repo -- the question saleha's older
+    same-file-only graph could not answer (it returned an empty list for
+    modules that six other files import).
+
+    Example: saleha impact saleha/core/agentic_loop.py
+    """
+    from saleha.core.repo_graph import RepoGraph, graphify_available
+
+    if not graphify_available():
+        msg = ("cross-file graph needs the optional 'graphifyy' package "
+               "(pip install graphifyy). Code extraction is fully local; "
+               "no API key required.")
+        if as_json:
+            click.echo(json.dumps({'success': False, 'error': msg}))
+        else:
+            console.print(f'[bold red]{msg}[/]')
+        return
+
+    graph = RepoGraph(target_dir)
+    if not as_json:
+        console.print(f'[bold cyan]Building cross-file graph for[/] [yellow]{target_dir}[/] ...')
+    with contextlib.redirect_stdout(io.StringIO()):
+        stats = graph.build()
+    importers = graph.importers_of(target)
+
+    if as_json:
+        click.echo(json.dumps({
+            'success': True,
+            'target': target,
+            'importers': importers,
+            'importer_count': len(importers),
+            'files_scanned': stats.files_scanned,
+            'nodes': stats.nodes,
+            'edges': stats.edges,
+            'build_seconds': stats.build_seconds,
+        }, indent=2))
+        return
+
+    console.print(f'[dim]{stats.files_scanned} files -> {stats.nodes} nodes, '
+                  f'{stats.edges} edges in {stats.build_seconds}s[/]')
+    if importers:
+        table = Table(title=f'Files that import {target}', show_lines=False)
+        table.add_column('Dependent file', style='cyan')
+        for f in importers:
+            table.add_row(f)
+        console.print(table)
+        console.print(f'[bold yellow]{len(importers)} file(s) can be affected by changing this.[/]')
+    else:
+        console.print(f'[bold]No static importer found for[/] [yellow]{target}[/]')
+        console.print('[dim]Note: this is static analysis. Lazy imports inside '
+                      'function bodies are not visible here, so this does NOT '
+                      'prove the module is unused.[/]')

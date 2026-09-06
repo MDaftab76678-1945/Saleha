@@ -46,6 +46,11 @@ chain = [
 formal = [
     "z3-solver>=4.12"
 ]
+# Cross-file repository graph (saleha.core.repo_graph / `saleha impact`).
+# Code extraction is fully local -- no API key, nothing leaves the machine.
+repograph = [
+    "graphifyy>=0.9.55"
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0"
@@ -59,7 +64,8 @@ all = [
     "tree-sitter-javascript>=0.21",
     "tree-sitter-typescript>=0.21",
     "web3>=6.0.0",
-    "z3-solver>=4.12"
+    "z3-solver>=4.12",
+    "graphifyy>=0.9.55"
 ]
 
 [project.scripts]
