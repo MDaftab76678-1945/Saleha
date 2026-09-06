@@ -97,34 +97,43 @@ class LoRATunerTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_detect_backend_returns_string(self):
+        # Real backend detection: either the local PEFT/TRL stack is
+        # importable, or it isn't. There is no more fake "simulation" mode.
         backend = self.tuner._detect_backend()
-        self.assertIn(backend, ["unsloth", "llama.cpp", "simulation"])
+        self.assertIn(backend, ["transformers_peft", "unavailable"])
 
     def test_insufficient_data_returns_error(self):
         result = self.tuner.fine_tune()
         self.assertFalse(result.success)
         self.assertIn("Insufficient", result.error)
 
-    def test_simulation_mode_with_enough_data(self):
+    def test_real_training_with_enough_data(self):
+        """Real end-to-end LoRA SFT on the smallest cached model (fast, no fake numbers)."""
         for i in range(6):
             self.tuner.collector.add_sample(
-                f"Task {i}: write function",
-                f"def func_{i}(): return {i}",
+                f"Write a Python function that returns {i}.",
+                f"def func_{i}():\n    return {i}",
                 quality_score=0.9
             )
-        import unittest.mock as mock
-        with mock.patch.object(self.tuner, '_detect_backend', return_value='simulation'):
-            result = self.tuner.fine_tune(TuningConfig())
-        self.assertTrue(result.success)
+        cfg = TuningConfig(
+            base_model="qwen2.5-coder:0.5b", epochs=1, batch_size=1,
+            output_model_name="test_real_tune", deploy_to_ollama=False, run_benchmark=False,
+        )
+        result = self.tuner.fine_tune(cfg)
+        self.assertTrue(result.success, result.error)
         self.assertGreater(result.samples_used, 0)
-        self.assertGreater(result.after_score, result.before_score)
+        self.assertIsInstance(result.before_score, float)
+        self.assertIsInstance(result.after_score, float)
+        self.assertTrue(os.path.exists(os.path.join(result.adapter_path, "adapter_model.safetensors")))
 
     def test_tuning_result_fields(self):
         for i in range(6):
-            self.tuner.collector.add_sample(f"p{i}", f"c{i}", quality_score=0.9)
-        import unittest.mock as mock
-        with mock.patch.object(self.tuner, '_detect_backend', return_value='simulation'):
-            result = self.tuner.fine_tune()
+            self.tuner.collector.add_sample(f"Write function returning {i}", f"def f(): return {i}", quality_score=0.9)
+        cfg = TuningConfig(
+            base_model="qwen2.5-coder:0.5b", epochs=1, batch_size=1,
+            output_model_name="test_fields_tune", deploy_to_ollama=False, run_benchmark=False,
+        )
+        result = self.tuner.fine_tune(cfg)
         self.assertIsInstance(result.improvement_pct, float)
         self.assertIsInstance(result.training_time_sec, float)
         self.assertIsInstance(result.adapter_path, str)
