@@ -135,25 +135,68 @@ Reply with ONLY the number of the single best next action."""
         self.use_constrained_decoding = use_constrained_decoding
         self.max_files_listed = max_files_listed
         self._read_files: set = set()
+        self._files_cache: Optional[List[str]] = None
+        self._goal: str = ""   # set by run(); used by the edit tool's prompt
 
     # ------------------------------------------------------------------
     # Menu construction -- only real, executable actions
     # ------------------------------------------------------------------
     def _repo_files(self) -> List[str]:
-        """Real source files under root, nearest-first, never invented."""
+        """
+        Real source files under root, never invented.
+
+        Scans the whole tree. An earlier version stopped at 200 files, which
+        on a real repo truncated the walk alphabetically -- on SWE-bench
+        astropy-12907 it stopped inside astropy/config/ and never reached
+        astropy/modeling/separable.py, the one file the fix needed. The file
+        existed on disk and the goal named it outright, yet it could never
+        be offered. Capping discovery is the wrong place to bound cost; the
+        menu itself is already capped (MAX_MENU_ITEMS), and ranking decides
+        what makes it in.
+        """
+        if self._files_cache is not None:
+            return self._files_cache
         out: List[str] = []
         skip = {"__pycache__", ".git", "node_modules", ".venv", ".venv_train",
-                "target", "build", "dist", ".pytest_cache"}
+                "target", "build", "dist", ".pytest_cache", ".tox", ".eggs"}
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
             dirnames[:] = [d for d in dirnames if d not in skip]
-            for fn in sorted(filenames):
+            for fn in filenames:
                 if fn.endswith((".py", ".ts", ".js", ".go", ".rs", ".java",
                                 ".rb", ".c", ".cpp", ".h")):
                     rel = os.path.relpath(os.path.join(dirpath, fn), self.root_dir)
                     out.append(rel.replace("\\", "/"))
-            if len(out) > 200:
-                break
-        return sorted(out)
+        self._files_cache = sorted(out)
+        return self._files_cache
+
+    @staticmethod
+    def paths_named_in(goal: str) -> List[str]:
+        """
+        Repo paths the goal text itself points at.
+
+        Measured need: on SWE-bench astropy-12907 the fix lives in
+        astropy/modeling/separable.py, and the problem statement literally
+        contains `from astropy.modeling.separable import separability_matrix`
+        -- yet an alphabetical menu offered only astropy/config/*, so the
+        one file that mattered could never be chosen. Dotted module paths
+        and explicit file paths in the goal are the strongest available
+        signal and must outrank everything else.
+        """
+        found: List[str] = []
+        # Explicit file paths: astropy/modeling/separable.py
+        for m in re.findall(r"[\w./\\-]+\.(?:py|ts|js|go|rs|java|rb|c|cpp|h)\b", goal):
+            found.append(m.replace("\\", "/"))
+        # Dotted module paths from import statements -> file path
+        for m in re.findall(r"(?:from|import)\s+([\w.]+)", goal):
+            if "." in m:
+                found.append(m.replace(".", "/") + ".py")
+        # Dedupe, keep order (earliest mention first).
+        seen, out = set(), []
+        for f in found:
+            if f not in seen:
+                seen.add(f)
+                out.append(f)
+        return out
 
     def build_menu(self, goal: str) -> List[MenuOption]:
         """
@@ -166,6 +209,15 @@ Reply with ONLY the number of the single best next action."""
         """
         options: List[MenuOption] = []
         files = self._repo_files()
+        file_set = set(files)
+
+        # Files the goal names outright come first -- see paths_named_in().
+        named = [p for p in self.paths_named_in(goal) if p in file_set]
+        # Also accept a suffix match, since a goal may name a partial path.
+        if not named:
+            for cand in self.paths_named_in(goal):
+                tail = cand.split("/")[-1]
+                named += [p for p in files if p.endswith("/" + tail) or p == tail]
 
         # Rank unread files first, then ones whose name echoes the goal.
         goal_words = {w.lower() for w in re.findall(r"\w+", goal) if len(w) > 3}
@@ -175,11 +227,30 @@ Reply with ONLY the number of the single best next action."""
             mentioned = any(w in stem or w in path.lower() for w in goal_words)
             return (path in self._read_files, not mentioned, path)
 
-        for path in sorted(files, key=rank)[:self.max_files_listed]:
-            seen = " (already read)" if path in self._read_files else ""
+        # Drop files already read. Measured on SWE-bench astropy-14182: with
+        # already-read files still listed, the model re-picked the same two
+        # files for 6 of its 12 turns, burning the whole budget on repeats.
+        # Re-reading is never the useful next action here, so remove the
+        # option rather than relying on the model to avoid it.
+        ordered = [p for p in (named + [p for p in sorted(files, key=rank)
+                                        if p not in named])
+                   if p not in self._read_files]
+        for path in ordered[:self.max_files_listed]:
+            hint = " <- named in the task" if path in named else ""
             options.append(MenuOption(
-                label=f"read {path}{seen}", tool="read_file",
+                label=f"read {path}{hint}", tool="read_file",
                 args={"path": path}, kind="inspect"))
+
+        # Once a file has actually been read, offer editing it. Without this
+        # the menu can only ever explore: a real SWE-bench run read 12 real
+        # files and still produced an empty patch, because no option existed
+        # that could change anything. `propose_edit` is offered per already-
+        # read file so the target is always something the model has seen.
+        if "propose_edit" in self.tools:
+            for path in sorted(self._read_files)[:3]:
+                options.append(MenuOption(
+                    label=f"edit {path} to fix the problem", tool="propose_edit",
+                    args={"path": path}, kind="act"))
 
         options.append(MenuOption(
             label="list the files in this repository", tool="list_dir",
@@ -252,6 +323,7 @@ Reply with ONLY the number of the single best next action."""
     # ------------------------------------------------------------------
     def run(self, goal: str, on_event: Optional[Callable] = None) -> MenuResult:
         result = MenuResult()
+        self._goal = goal
 
         def emit(ev: Dict[str, Any]) -> None:
             if on_event:
@@ -329,6 +401,69 @@ Reply with ONLY the number of the single best next action."""
         if self.ledger is not None:
             self.ledger.fail(result.error)
         return result
+
+    def make_edit_tool(self, read_file: Callable, patch_file: Callable) -> Callable:
+        """
+        Build a `propose_edit` handler for the menu.
+
+        Editing is the one action a menu cannot pre-enumerate -- the harness
+        cannot know the replacement text in advance. So this keeps the menu's
+        guarantee where it matters (WHICH file is chosen from real, already-
+        read files) while asking the model for the edit itself in a narrow,
+        single-purpose prompt: given this file's real contents and the goal,
+        emit one search/replace pair. The search string is then verified to
+        actually occur in the file before anything is written, so a
+        hallucinated snippet fails loudly instead of corrupting the file.
+        """
+        def propose_edit(path: str = "") -> str:
+            content = str(read_file(path=path))
+            if content.startswith("no such file") or not content.strip():
+                return f"cannot edit {path}: unreadable"
+
+            prompt = (
+                f"File: {path}\n\n{content[:6000]}\n\n"
+                f"Task: {self._goal}\n\n"
+                "Reply with ONLY a JSON object giving one exact edit:\n"
+                '{"search": "<exact text copied from the file above>", '
+                '"replace": "<the corrected text>"}\n'
+                "The search text must appear in the file EXACTLY as written above."
+            )
+            try:
+                r = self.agent.think(prompt, complexity_score=7.0)
+                raw = (r.content or "") if getattr(r, "success", False) else ""
+            except Exception as exc:
+                return f"edit generation failed: {exc}"
+
+            import json as _json
+            data = None
+            for m in re.finditer(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", raw, re.DOTALL):
+                try:
+                    cand = _json.loads(m.group(0))
+                except _json.JSONDecodeError:
+                    continue
+                if isinstance(cand, dict) and "search" in cand and "replace" in cand:
+                    data = cand
+                    break
+            if not data:
+                return "no usable {search, replace} edit was produced"
+
+            search, replace = str(data["search"]), str(data["replace"])
+            if search not in content:
+                # The model invented text that is not in the file. Say so
+                # plainly rather than writing something unverified.
+                return ("edit rejected: the search text does not appear in "
+                        f"{path}. Copy it exactly from the file.")
+            if search == replace:
+                return "edit rejected: search and replace are identical"
+
+            out = str(patch_file(path=path, search=search, replace=replace))
+            if self.ledger is not None and "error" not in out.lower():
+                from saleha.core.task_evidence import EvidenceKind
+                self.ledger.record(EvidenceKind.FILE_MODIFIED, path,
+                                   "action_menu.propose_edit")
+            return out
+
+        return propose_edit
 
     def _summarize(self, goal: str, history: List[str]) -> str:
         """Ask for a free-text summary once the work is genuinely done."""

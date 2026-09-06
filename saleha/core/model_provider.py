@@ -32,7 +32,13 @@ class ModelProvider(ABC):
     """Base interface for all LLM inference providers."""
 
     @abstractmethod
-    def generate(self, model: str, prompt: str, options: Optional[dict] = None) -> ProviderResponse:
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None) -> ProviderResponse:
+        """
+        `response_format` is an optional JSON schema for providers that
+        support constrained decoding (Ollama's `format`). Providers without
+        it may ignore the argument; callers must not assume it took effect.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -114,7 +120,8 @@ class OpenAICompatibleProvider(ModelProvider):
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("GROQ_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or ""
         self.provider_name = provider_name
 
-    def generate(self, model: str, prompt: str, options: Optional[dict] = None) -> ProviderResponse:
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None) -> ProviderResponse:
         if not self.api_key and not ("localhost" in self.base_url or "127.0.0.1" in self.base_url):
             return ProviderResponse(
                 success=False,
@@ -176,11 +183,24 @@ class FallbackChainProvider(ModelProvider):
             OpenAICompatibleProvider(base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")),
         ]
 
-    def generate(self, model: str, prompt: str, options: Optional[dict] = None) -> ProviderResponse:
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None) -> ProviderResponse:
+        """
+        `response_format` (a JSON schema) is forwarded to providers that
+        support constrained decoding and silently ignored by those that do
+        not, so a caller relying on it degrades rather than breaking. It was
+        previously dropped here, which meant the action-menu loop's
+        constrained decoding never actually took effect.
+        """
         errors = []
         for p in self.providers:
             if p.is_available():
-                res = p.generate(model=model, prompt=prompt, options=options)
+                try:
+                    res = p.generate(model=model, prompt=prompt, options=options,
+                                     response_format=response_format)
+                except TypeError:
+                    # Provider predates response_format -- still usable.
+                    res = p.generate(model=model, prompt=prompt, options=options)
                 if res.success:
                     return res
                 errors.append(f"{getattr(p, 'provider_name', 'unknown')}: {res.error_message}")
@@ -203,7 +223,8 @@ class MockProvider(ModelProvider):
     def __init__(self, default_response: str = "def solve():\n    return 42"):
         self.default_response = default_response
 
-    def generate(self, model: str, prompt: str, options: Optional[dict] = None) -> ProviderResponse:
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None) -> ProviderResponse:
         return ProviderResponse(
             success=True,
             content=self.default_response,
@@ -218,4 +239,4 @@ class MockProvider(ModelProvider):
 
 # Default active provider singleton
 default_provider: ModelProvider = FallbackChainProvider()
-model_provider = default_provider
+model_provider = default_provider
