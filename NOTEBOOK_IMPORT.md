@@ -167,3 +167,64 @@ crashing. The file's own conclusion was to defer it until the project moves
 to server hardware. Prefix caching and constrained decoding from the same
 source are already in the repo (`PromptCache`, and `response_format` JSON
 schemas used by `action_menu.py` and `recursive_solver.py`).
+
+## Fifth pass — the 13 JSON exports (2026-09-07)
+
+Six of the 13 `chat-export-*.json` files have titles with no matching `.txt`,
+so they were never distilled. Checked all six:
+
+| Title | Verdict |
+| --- | --- |
+| Self-Evolving Prompt Optimization (×3) | A prompt **template**, not an implementation. Its "Module 4 – Result Evaluator" asks a model to judge its own output — the exact trust failure this repo keeps finding. The execution-based selection in `parallel_solver.py` is the stronger version of the same idea. |
+| SiliconCopilot Benchmark Failure | HACK@DAC RTL/hardware security benchmarking. Out of scope for a coding agent. |
+| Local AI Monitoring Solution | Market positioning (vs Datadog / W&B / Prometheus), no implementation. |
+| branch·Agent Task Workflow | Branch of an already-distilled chat. |
+
+`AgentEvolutionEngine` (`chat-Agent Task Workflow.txt:16473`) — genetic
+algorithm evolving agent prompts and sampling parameters — looked like the
+richest find of the pass. The GA machinery is real (tournament/roulette
+selection, elitism, crossover, mutation, hall of fame), but the fitness
+function is not:
+
+```python
+# Random performance factor (simulates actual execution)
+score += random.uniform(0.1, 0.5)
+```
+
+with the comment *"In production, this would call the actual agent"*. The
+evolution optimises against a random number generator. Not imported; the
+scoring half is the whole point and it does not exist.
+
+### Fixed while checking: `saleha optimize-prompts` learned from a fake error
+
+Same defect as `godel-utility` (see `4518da8`), in a different command:
+
+```python
+rec = prompt_optimizer.optimize_prompt(
+    role, 'You are a senior AI software engineer.',
+    ['IndexError in test suite'])          # <- never happened
+```
+
+A hardcoded failure and a hardcoded base prompt, while **145 real failures**
+sat unused in `TaskHistory`. The optimizer engine itself is honest — different
+errors really do produce different, relevant directives — so only the caller
+needed fixing.
+
+Second bug found doing it: an error with no rule in `DIRECTIVE_MAP` (only 6
+types are covered) fell through to a generic directive, so a `RecursionError`
+silently produced *"ensure complete test assertion coverage"* and looked like
+it had been learned from. Unmatched errors are now counted and reported.
+
+Measured after the fix, on this repo's real history:
+
+```
+Learned from 10 real failure(s) in task history.
+8 failure(s) had no matching rule and were NOT learned from:
+  - Planning failed: All providers in fallback chain failed: 404 ...
+  - Max healing attempts reached
+  ...
+```
+
+That 8/10 miss rate is now visible instead of hidden behind a confident
+directive. It is the honest state: `DIRECTIVE_MAP` covers Python exception
+types, and most real failures here are orchestration failures.

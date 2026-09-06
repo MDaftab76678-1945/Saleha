@@ -90,10 +90,25 @@ def optimize_prompts_cmd(role: str):
     
     Example: saleha optimize-prompts --role CoderAgent
     """
-    from saleha.core.prompt_optimizer import prompt_optimizer
+    from saleha.core.prompt_optimizer import prompt_optimizer, recent_real_errors
     console.print(Panel(f'[bold magenta]🧬 Saleha Auto-Curriculum Prompt Optimizer: {role}[/bold magenta]', border_style='magenta'))
-    rec = prompt_optimizer.optimize_prompt(role, 'You are a senior AI software engineer.', ['IndexError in test suite'])
+    # This used to pass a hardcoded failure list -- literally
+    # ['IndexError in test suite'] -- so it "self-optimized" against an error
+    # that had never happened, while real failures sat unused in TaskHistory.
+    errors = recent_real_errors()
+    if not errors:
+        console.print('[yellow]No recorded failures to learn from yet.[/] '
+                      'Run some tasks first; this optimizer only learns from '
+                      'real errors, and inventing one would teach it nothing.')
+        return
+    rec = prompt_optimizer.optimize_prompt(role, 'You are a senior AI software engineer.', errors)
+    console.print(f'[dim]Learned from {rec.errors_seen} real failure(s) in task history.[/dim]')
     console.print(f'[bold green]Optimized Prompt Iteration #{rec.iteration}:[/bold green]\n{rec.optimized_prompt}')
+    if rec.unmatched_errors:
+        console.print(f'[yellow]{len(rec.unmatched_errors)} failure(s) had no matching rule '
+                      f'and were NOT learned from:[/]')
+        for err in rec.unmatched_errors[:5]:
+            console.print(f'  [dim]- {err[:100]}[/dim]')
 
 @cli.command(name='design-model')
 @click.argument('name', default='SalehaTransformer')

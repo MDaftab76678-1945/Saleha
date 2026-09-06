@@ -24,6 +24,15 @@ class PromptOptimizationRecord:
     added_directives: List[str]
     iteration: int
     timestamp: float = field(default_factory=time.time)
+    # Errors with no matching rule in DIRECTIVE_MAP. These were NOT learned
+    # from; they are carried so a caller can see the gap rather than assume
+    # every supplied failure produced a directive.
+    unmatched_errors: List[str] = field(default_factory=list)
+    errors_seen: int = 0
+
+    @property
+    def learned_from_all(self) -> bool:
+        return self.errors_seen > 0 and not self.unmatched_errors
 
 
 class PromptOptimizer:
@@ -60,6 +69,15 @@ class PromptOptimizer:
                 if err_type.lower() in err.lower() and directive not in new_directives:
                     new_directives.append(directive)
 
+        # Errors this optimizer has no rule for. Silently emitting the generic
+        # fallback made an unrecognised failure look like it had been learned
+        # from -- a RecursionError produced "ensure complete test coverage",
+        # which has nothing to do with it. Report the gap instead.
+        unmatched = [
+            e for e in recent_errors
+            if not any(t.lower() in e.lower() for t in self.DIRECTIVE_MAP)
+        ]
+
         if not new_directives:
             new_directives.append("Ensure complete test assertion coverage and comprehensive docstrings.")
 
@@ -72,6 +90,8 @@ class PromptOptimizer:
             optimized_prompt=optimized,
             added_directives=new_directives,
             iteration=len(self.history) + 1,
+            unmatched_errors=unmatched,
+            errors_seen=len(recent_errors),
         )
         self.history.append(record)
         self.save()
@@ -96,6 +116,49 @@ class PromptOptimizer:
             self.history = [PromptOptimizationRecord(**d) for d in data]
         except (OSError, IOError, json.JSONDecodeError):
             pass  # noqa
+
+
+def recent_real_errors(limit: int = 25) -> List[str]:
+    """
+    Pull real failure messages out of TaskHistory.
+
+    Why this exists
+    ---------------
+    `saleha optimize-prompts` used to call the optimizer with a hardcoded
+    failure list -- literally `['IndexError in test suite']` -- and a hardcoded
+    base prompt, so it "self-optimized" against an error that had not
+    happened. Meanwhile 145 real failures sat unused in the task history.
+
+    Returns most-recent-first, de-duplicated. An empty list means there is
+    nothing to learn from yet, which callers must report rather than paper
+    over with an invented example.
+    """
+    try:
+        from saleha.core.task_history import TaskHistory
+    except ImportError:
+        return []
+
+    try:
+        records = TaskHistory().all()
+    except Exception:
+        return []
+
+    seen: set = set()
+    out: List[str] = []
+    for rec in reversed(records):
+        if getattr(rec, "success", True):
+            continue
+        err = (getattr(rec, "error", "") or "").strip()
+        if not err:
+            continue
+        key = err[:120]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(err)
+        if len(out) >= limit:
+            break
+    return out
 
 
 prompt_optimizer = PromptOptimizer()
