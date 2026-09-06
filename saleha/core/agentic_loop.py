@@ -41,6 +41,27 @@ _MAX_SEARCH_HITS = 30
 
 _FINISH_RE = re.compile(r"```(?:json)?\s*(\{.*?\"finish\".*?\})\s*```", re.DOTALL)
 
+# Concrete next action to name when a completion claim is rejected for
+# missing a given kind of evidence. Measured on qwen2.5-coder:3b: a
+# rejection that only states what is missing makes the model repeat
+# finish() until max_steps, while naming the exact call to emit gets it to
+# actually run the tool.
+_NEXT_ACTION_HINT = {
+    "file_read": ('read a real file, e.g. '
+                  '```tool_call\n{"tool": "read_file", "args": {"path": "<file>"}}\n``` '
+                  '(use list_dir first if you do not know the filename)'),
+    "search_performed": ('search or list the repo, e.g. '
+                         '```tool_call\n{"tool": "list_dir", "args": {"path": "."}}\n```'),
+    "file_modified": ('make the real edit, e.g. '
+                      '```tool_call\n{"tool": "patch_file", "args": '
+                      '{"path": "<file>", "search": "<old>", "replace": "<new>"}}\n```'),
+    "code_executed": ('actually run the code, e.g. '
+                      '```tool_call\n{"tool": "run_code", "args": {"code": "<snippet>"}}\n```'),
+    "tests_passed": "run the project's real test command and let it exit 0",
+    "syntax_valid": "re-read the file you changed to confirm it still parses",
+    "file_exists": "verify the expected output file is really on disk",
+}
+
 
 @dataclass
 class LoopStep:
@@ -101,6 +122,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  allowed_tools: Optional[List[str]] = None,
                  timeout_sec: float = 300.0,
                  min_actions_before_finish: int = 1,
+                 max_parse_retries: int = 3,
                  require_evidence: bool = False,
                  required_evidence=None,
                  budget=None):
@@ -124,6 +146,11 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # tool-call steps have happened turns that into a rejected attempt
         # the model can recover from, instead of a false "success".
         self.min_actions_before_finish = min_actions_before_finish
+        # How many CONSECUTIVE unparseable replies to tolerate before giving
+        # up. Previously a single one ended the run instantly, which killed
+        # real runs at step 1 whenever the model narrated its plan before
+        # emitting the block. 0 restores that old fail-fast behaviour.
+        self.max_parse_retries = max_parse_retries
         # Profile-driven tool restriction (v1.5): agar diya gaya to sirf ye
         # tools available honge (intersection with built-ins).
         self.allowed_tools = set(allowed_tools) if allowed_tools else None
@@ -314,6 +341,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         system = self.SYSTEM_PROMPT.replace("{tool_names}", ", ".join(tools))
         transcript_parts: List[str] = []
         start_time = time.time()
+        parse_failures = 0   # consecutive replies with no parseable block
 
         # Evidence ledger + budget for this run (Level-6 completion gate).
         if self.require_evidence:
@@ -392,10 +420,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 if self.require_evidence and self.ledger is not None:
                     verdict = self.ledger.judge_completion()
                     if not verdict.admissible:
+                        # Measured: a bare "no evidence of X" rejection makes
+                        # a small model repeat finish() forever, because it
+                        # says what is missing but never what to DO. Naming
+                        # the concrete next tool call breaks that loop.
+                        suggestion = _NEXT_ACTION_HINT.get(
+                            verdict.missing[0].value if verdict.missing else "",
+                            'emit a tool_call block, e.g. '
+                            '{"tool": "list_dir", "args": {"path": "."}}',
+                        )
                         observation = (
                             f"REJECTED: {verdict.reason} "
                             f"Observed so far: "
-                            f"{', '.join(k.value for k in sorted(self.ledger.kinds_present(), key=lambda x: x.value)) or 'nothing'}."
+                            f"{', '.join(k.value for k in sorted(self.ledger.kinds_present(), key=lambda x: x.value)) or 'nothing'}. "
+                            f"DO THIS NEXT instead of calling finish again: {suggestion}"
                         )
                         emit({"step": step_no, "action": "finish-rejected",
                               "observation": observation})
@@ -436,10 +474,46 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # 3. Tool call parse (```tool_call {...}``` format or JSON fallback)
             call = self._parse_call(clean_content)
             if call is None:
-                result.error = f"step {step_no}: model returned no tool_call/finish block"
-                emit({"step": step_no, "action": "parse-error",
+                # Real failure mode measured on this box: qwen2.5-coder:3b
+                # emits a correct tool_call when prompted directly, but its
+                # first turn in the loop is often pure prose ("I will start
+                # by listing all files...") with the actual call intended
+                # for the next turn. The loop used to `return` here, so ONE
+                # such turn killed the whole run at step 1 -- which is the
+                # real cause of the earlier 0/3 SWE-bench result that was
+                # previously misdiagnosed as a small-model limitation.
+                #
+                # Instead: tell the model exactly what was wrong and let it
+                # try again, giving up only after max_parse_retries
+                # consecutive unparseable replies.
+                parse_failures += 1
+                if parse_failures > self.max_parse_retries:
+                    result.error = (
+                        f"step {step_no}: {parse_failures} consecutive replies with no "
+                        f"tool_call/finish block (limit {self.max_parse_retries})"
+                    )
+                    emit({"step": step_no, "action": "parse-error",
+                          "observation": clean_content[:200]})
+                    if self.require_evidence and self.ledger is not None:
+                        self.ledger.fail(result.error)
+                    return result
+
+                observation = (
+                    "Your reply contained no tool_call or finish block, so nothing ran. "
+                    "Reply with EXACTLY ONE block and no prose around it, e.g.:\n"
+                    '```tool_call\n{"tool": "list_dir", "args": {"path": "."}}\n```\n'
+                    "Do not describe what you will do -- emit the block itself."
+                )
+                emit({"step": step_no, "action": "parse-retry",
                       "observation": clean_content[:200]})
-                return result
+                transcript_parts.append(
+                    f"[step {step_no}] (no valid block)\nOBSERVATION: {observation}"
+                )
+                continue
+
+            # A parseable reply clears the streak -- only *consecutive*
+            # failures should end the run.
+            parse_failures = 0
 
             tool_name, args = call
             handler = tools.get(tool_name)
@@ -515,6 +589,27 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 data = json.loads(text)
             except (json.JSONDecodeError, TypeError):
                 data = None
+
+        if not data:
+            # Real observed shape: the model explains itself first and emits
+            # a bare (unfenced) JSON object inside the prose, e.g.
+            #   I'll check the file first.
+            #   {"tool": "read_file", "args": {"path": "app.py"}}
+            # The whole reply is not valid JSON, so json.loads(text) above
+            # fails, and there is no fence for the regex to match. Scan for
+            # embedded objects and take the first one that looks like a call
+            # rather than discarding a perfectly good intent.
+            for m2 in re.finditer(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text or "", re.DOTALL):
+                try:
+                    cand = json.loads(m2.group(0))
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(cand, dict) and (
+                    "tool" in cand or "name" in cand or "action" in cand
+                    or "tool_call" in cand or "finish" in cand
+                ):
+                    data = cand
+                    break
 
         if isinstance(data, dict):
             # Some models (observed: qwen2.5-coder) nest the call one level

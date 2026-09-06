@@ -210,6 +210,81 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(res.final_message, "instant")
 
     # ------------------------------------------------------------------
+    # Parse resilience: one bad reply must not kill the whole run
+    # ------------------------------------------------------------------
+
+    def test_prose_only_turn_is_retried_not_fatal(self):
+        """Real measured failure: qwen2.5-coder:3b's first turn is often pure
+        prose ("I will start by listing all files...") with the tool call
+        intended for the next turn. That single turn used to end the run at
+        step 1 -- the real cause of the earlier 0/3 SWE-bench result."""
+        agent = ScriptedAgent([
+            "To find the bug, I will start by listing all the files.",
+            _tool_call("read_file", path="app.py"),
+            _finish("found it"),
+        ])
+        events = []
+        res = AgentLoop(agent=agent, root_dir=self.root).run(
+            "find the bug", on_event=events.append)
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(res.final_message, "found it")
+        retries = [e for e in events if e.get("action") == "parse-retry"]
+        self.assertEqual(len(retries), 1)
+        # The prose turn produced no step; only the real tool call did.
+        self.assertEqual(res.steps[0].action, "read_file")
+
+    def test_gives_up_after_consecutive_unparseable_replies(self):
+        """Resilience must not become an infinite tolerance for garbage."""
+        agent = ScriptedAgent(["just talking, no block"] * 8)
+        res = AgentLoop(agent=agent, root_dir=self.root,
+                        max_parse_retries=3, max_steps=10).run("do something")
+        self.assertFalse(res.success)
+        self.assertIn("consecutive replies", res.error)
+
+    def test_parse_failure_streak_resets_on_a_good_reply(self):
+        """Only CONSECUTIVE failures should end the run."""
+        agent = ScriptedAgent([
+            "prose 1",
+            _tool_call("list_dir", path="."),   # resets the streak
+            "prose 2",
+            "prose 3",
+            _tool_call("read_file", path="app.py"),
+            _finish("done"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root,
+                        max_parse_retries=2, max_steps=10).run("investigate")
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(len(res.steps), 3)  # list_dir + read_file + finish
+
+    def test_max_parse_retries_zero_restores_fail_fast(self):
+        agent = ScriptedAgent(["no block here", _tool_call("list_dir", path=".")])
+        res = AgentLoop(agent=agent, root_dir=self.root,
+                        max_parse_retries=0).run("go")
+        self.assertFalse(res.success)
+        self.assertIn("no tool_call/finish block", res.error)
+
+    def test_parses_bare_json_call_embedded_in_prose(self):
+        """The model explains itself, then emits an unfenced JSON object."""
+        agent = ScriptedAgent([
+            'I will read the file first.\n{"tool": "read_file", "args": {"path": "app.py"}}',
+            _finish("read it"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root).run("read app.py")
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(res.steps[0].action, "read_file")
+        self.assertIn("def charge", res.steps[0].observation)
+
+    def test_parse_retry_does_not_leave_evidence_ledger_inconsistent(self):
+        from saleha.core.task_evidence import EvidenceKind, TaskState
+        agent = ScriptedAgent(["all prose"] * 5)
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_parse_retries=2,
+                         require_evidence=True,
+                         required_evidence={EvidenceKind.FILE_READ})
+        res = loop.run("go")
+        self.assertFalse(res.success)
+        self.assertEqual(loop.ledger.state, TaskState.FAILED)
+
+    # ------------------------------------------------------------------
     # Evidence-based completion (Level-6 architecture target)
     # ------------------------------------------------------------------
 
