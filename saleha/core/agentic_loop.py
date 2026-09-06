@@ -401,6 +401,12 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 data = None
 
         if isinstance(data, dict):
+            # Some models (observed: qwen2.5-coder) nest the call one level
+            # deeper as {"tool_call": {"tool": ..., "args": ...}} instead of
+            # the flat shape -- unwrap it rather than treating it as a parse
+            # failure, since the model's intent is otherwise correct.
+            if "tool_call" in data and isinstance(data["tool_call"], dict):
+                data = data["tool_call"]
             name = data.get("tool") or data.get("name") or data.get("action")
             args = data.get("args") or data.get("arguments") or data.get("action_input") or {}
             if name and isinstance(args, dict):
