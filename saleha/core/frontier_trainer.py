@@ -143,6 +143,8 @@ class FrontierTrainer:
         from datasets import load_dataset
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
+        from saleha.core.lora_tuner import ensure_trl_dpo_importable
+        ensure_trl_dpo_importable()
         from trl import DPOTrainer, DPOConfig
 
         hf_base = self.tuner._resolve_hf_base(base_model)

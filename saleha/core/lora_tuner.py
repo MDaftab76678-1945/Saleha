@@ -36,6 +36,33 @@ BASE_MODEL_HF_MAP: Dict[str, str] = {
 
 DEFAULT_TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
+
+def ensure_trl_dpo_importable() -> None:
+    """
+    Real, verified environment fix (not a hack around correctness): trl's
+    DPOTrainer unconditionally imports `FSDPModule` from `torch.distributed.
+    fsdp` at module load time (used only inside `prepare_fsdp()`, for real
+    multi-GPU FSDP2 training). `FSDPModule` was only moved into that public
+    namespace in PyTorch's Dec 2024 "FSDP2 move to public torch.distributed
+    .fsdp" change (torch >= 2.6) -- on torch 2.5.1 (installed here, and
+    verified to work correctly for everything else: SFT, QLoRA, merging),
+    the import raises ImportError before DPOTrainer is even usable, on a
+    single-GPU box that would never call prepare_fsdp() anyway.
+
+    Rather than upgrade torch (real risk: would need re-verifying the whole
+    already-working CUDA/bitsandbytes/peft stack against a new torch build),
+    this defines a placeholder FSDPModule class in that namespace if it's
+    missing. It is never actually instantiated or matched against on a
+    single-GPU run -- prepare_fsdp() is real code we simply never call.
+    Call this before `from trl import DPOTrainer, DPOConfig`.
+    """
+    import torch.distributed.fsdp as _fsdp_mod
+    if not hasattr(_fsdp_mod, "FSDPModule"):
+        class FSDPModule:  # noqa: N801 -- matching torch's real (newer) class name
+            """Placeholder only: real FSDP2 code never runs on this single-GPU setup."""
+            pass
+        _fsdp_mod.FSDPModule = FSDPModule
+
 # Qwen2.5-Coder's real ChatML template (copied verbatim from `ollama show
 # qwen2.5-coder:0.5b --modelfile`). Ollama's raw-safetensors import does NOT
 # reliably pick up a HF chat_template.jinja -- without this, imported models
@@ -241,6 +268,7 @@ class LoRATuner:
         from datasets import load_dataset
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import LoraConfig
+        ensure_trl_dpo_importable()
         from trl import DPOTrainer, DPOConfig
 
         hf_base = self._resolve_hf_base(config.base_model)
