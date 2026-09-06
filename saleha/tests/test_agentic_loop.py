@@ -170,6 +170,45 @@ class AgentLoopTests(unittest.TestCase):
         self.assertGreaterEqual(len(think_events), 2)
         self.assertIn("Analyzing billing", think_events[0]["thought"])
 
+    def test_premature_finish_rejected_then_recovers(self):
+        """Real bug found running Saleha against actual SWE-bench instances:
+        a small model called finish() on turn 1 with zero prior tool calls,
+        hallucinating completion. finish() must be rejected until at least
+        one real tool call happened, and the loop must give the model a
+        chance to recover afterward rather than failing outright."""
+        agent = ScriptedAgent([
+            _finish("File read successfully"),  # premature -- nothing read yet
+            _tool_call("read_file", path="app.py"),
+            _finish("found charge function"),
+        ])
+        events = []
+        res = AgentLoop(agent=agent, root_dir=self.root).run(
+            "understand billing", on_event=events.append)
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(res.final_message, "found charge function")
+        # The premature finish must not count as a real step.
+        self.assertEqual(len(res.steps), 2)  # read_file + the accepted finish
+        self.assertEqual(res.steps[0].action, "read_file")
+        rejected = [e for e in events if e.get("action") == "finish-rejected"]
+        self.assertEqual(len(rejected), 1)
+        self.assertIn("REJECTED", rejected[0]["observation"])
+
+    def test_repeated_premature_finish_exhausts_max_steps(self):
+        """If the model never takes a real action, it must not be able to
+        force a false success by just repeating finish()."""
+        agent = ScriptedAgent([_finish("done")] * 5)
+        res = AgentLoop(agent=agent, root_dir=self.root, max_steps=3).run("do nothing")
+        self.assertFalse(res.success)
+        self.assertIn("max_steps", res.error)
+
+    def test_min_actions_before_finish_zero_keeps_old_behavior(self):
+        """min_actions_before_finish=0 restores immediate-finish (opt-out)."""
+        agent = ScriptedAgent([_finish("instant")])
+        res = AgentLoop(agent=agent, root_dir=self.root,
+                         min_actions_before_finish=0).run("trivial goal")
+        self.assertTrue(res.success)
+        self.assertEqual(res.final_message, "instant")
+
     def test_structured_xml_tool_call_and_thinking_parsing(self):
         events = []
         agent = ScriptedAgent([

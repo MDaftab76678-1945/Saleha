@@ -99,12 +99,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  max_steps: int = 12, allow_write: bool = False,
                  code_executor=None,
                  allowed_tools: Optional[List[str]] = None,
-                 timeout_sec: float = 300.0):
+                 timeout_sec: float = 300.0,
+                 min_actions_before_finish: int = 1):
         self.agent = agent
         self.root_dir = os.path.abspath(root_dir)
         self.max_steps = max_steps
         self.allow_write = allow_write
         self.timeout_sec = timeout_sec
+        # Real failure mode observed running Saleha against actual SWE-bench
+        # instances: a small model calls finish() on turn 1, before any real
+        # tool call, hallucinating completion ("File read successfully" with
+        # nothing ever read). Refusing finish until at least this many real
+        # tool-call steps have happened turns that into a rejected attempt
+        # the model can recover from, instead of a false "success".
+        self.min_actions_before_finish = min_actions_before_finish
         # Profile-driven tool restriction (v1.5): agar diya gaya to sirf ye
         # tools available honge (intersection with built-ins).
         self.allowed_tools = set(allowed_tools) if allowed_tools else None
@@ -339,6 +347,25 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     summary = str(json.loads(fin.group(1)).get("finish", ""))
                 except json.JSONDecodeError:
                     summary = fin.group(1)[:500]
+
+                if len(result.steps) < self.min_actions_before_finish:
+                    # Reject the premature finish instead of trusting an
+                    # unverified completion claim -- nudge the model to
+                    # actually do real work, rather than either failing the
+                    # whole run or silently reporting a false success.
+                    observation = (
+                        f"REJECTED: you called finish() after {len(result.steps)} real "
+                        f"tool call(s), need at least {self.min_actions_before_finish}. "
+                        f"A finish summary is not evidence -- use list_dir/read_file/"
+                        f"search_repo to actually investigate (and write_file/patch_file "
+                        f"if a real change is needed) before finishing."
+                    )
+                    emit({"step": step_no, "action": "finish-rejected", "observation": observation})
+                    transcript_parts.append(
+                        f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                    )
+                    continue
+
                 result.success = True
                 result.final_message = summary or "done"
                 result.steps.append(LoopStep(step_no, "finish", "", result.final_message))
