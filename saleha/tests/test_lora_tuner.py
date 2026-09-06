@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from saleha.core.training_collector import TrainingCollector, TrainingSample
 from saleha.core.lora_tuner import LoRATuner, TuningConfig
 
@@ -137,6 +138,73 @@ class LoRATunerTests(unittest.TestCase):
         self.assertIsInstance(result.improvement_pct, float)
         self.assertIsInstance(result.training_time_sec, float)
         self.assertIsInstance(result.adapter_path, str)
+
+
+class LlamaCppGgufFixTests(unittest.TestCase):
+    """
+    Real bug this fixes: `ollama create` importing directly from a raw HF
+    safetensors directory was verified to silently produce degenerate
+    output on this platform at every quantization level, even on
+    returncode 0. Verified end-to-end (real merged model -> real
+    convert_hf_to_gguf.py -> real Ollama import -> real generation, no
+    degenerate output) that routing through a real llama.cpp checkout's
+    converter first fixes this. These tests cover the discovery/fallback
+    logic without needing GPU/network -- the full real conversion was
+    verified manually, not re-run here on every test invocation.
+    """
+
+    def setUp(self):
+        self._old_env = os.environ.get("SALEHA_LLAMA_CPP_DIR")
+
+    def tearDown(self):
+        if self._old_env is None:
+            os.environ.pop("SALEHA_LLAMA_CPP_DIR", None)
+        else:
+            os.environ["SALEHA_LLAMA_CPP_DIR"] = self._old_env
+
+    def test_no_checkout_configured_returns_none(self):
+        """Neither the env var nor the ~/.saleha/llama.cpp default resolves
+        -> None. Patches expanduser too, since this dev machine has a real
+        checkout installed at the default path (that's the point of the
+        fix) -- this test must still pass regardless of that."""
+        from saleha.core.lora_tuner import _find_llama_cpp_converter
+        tmp = tempfile.mkdtemp()
+        try:
+            os.environ["SALEHA_LLAMA_CPP_DIR"] = os.path.join(tmp, "does_not_exist")
+            with unittest.mock.patch("os.path.expanduser", return_value=os.path.join(tmp, "fake_home")):
+                self.assertIsNone(_find_llama_cpp_converter())
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_env_var_checkout_is_discovered(self):
+        from saleha.core.lora_tuner import _find_llama_cpp_converter
+        tmp = tempfile.mkdtemp()
+        try:
+            script_path = os.path.join(tmp, "convert_hf_to_gguf.py")
+            with open(script_path, "w") as f:
+                f.write("# fake converter for test discovery only\n")
+            os.environ["SALEHA_LLAMA_CPP_DIR"] = tmp
+            self.assertEqual(_find_llama_cpp_converter(), script_path)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_conversion_failure_returns_none_not_exception(self):
+        """A configured-but-broken converter must fail soft (None), so
+        register_with_ollama() falls back to the direct-safetensors path
+        instead of crashing the whole deployment."""
+        from saleha.core.lora_tuner import _convert_to_gguf_via_llama_cpp
+        tmp = tempfile.mkdtemp()
+        try:
+            broken_script = os.path.join(tmp, "convert_hf_to_gguf.py")
+            with open(broken_script, "w") as f:
+                f.write("import sys; sys.exit(1)\n")
+            os.environ["SALEHA_LLAMA_CPP_DIR"] = tmp
+            out = os.path.join(tmp, "out.gguf")
+            result = _convert_to_gguf_via_llama_cpp(tmp, out)
+            self.assertIsNone(result)
+            self.assertFalse(os.path.exists(out))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

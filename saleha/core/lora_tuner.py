@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
@@ -62,6 +63,61 @@ def ensure_trl_dpo_importable() -> None:
             """Placeholder only: real FSDP2 code never runs on this single-GPU setup."""
             pass
         _fsdp_mod.FSDPModule = FSDPModule
+
+def _find_llama_cpp_converter() -> Optional[str]:
+    """
+    Locate a local llama.cpp checkout's real convert_hf_to_gguf.py, if one
+    is set up. Checked in order: SALEHA_LLAMA_CPP_DIR env var, then
+    ~/.saleha/llama.cpp. Returns None if not found -- callers must fall
+    back to Ollama's own built-in conversion (verified buggy on this
+    platform, see _is_degenerate) rather than fail outright, since not
+    every environment will have this set up.
+    """
+    candidates = []
+    env_dir = os.environ.get("SALEHA_LLAMA_CPP_DIR")
+    if env_dir:
+        candidates.append(env_dir)
+    candidates.append(os.path.join(os.path.expanduser("~"), ".saleha", "llama.cpp"))
+    for d in candidates:
+        script = os.path.join(d, "convert_hf_to_gguf.py")
+        if os.path.isfile(script):
+            return script
+    return None
+
+
+def _convert_to_gguf_via_llama_cpp(merged_dir: str, out_path: str) -> Optional[str]:
+    """
+    Real fix for the Ollama GGUF corruption bug documented in
+    _is_degenerate()/_verify_ollama_deployment(): verified end-to-end
+    (real merged model -> real conversion -> real Ollama import -> real
+    generation, checked for degenerate output) that `ollama create`
+    importing directly from a raw HF safetensors directory can silently
+    produce garbage on this platform even on returncode 0, while
+    converting via llama.cpp's own convert_hf_to_gguf.py first and
+    importing THAT .gguf into Ollama (`FROM <path>.gguf`) produces
+    correct, coherent output instead.
+
+    Returns the produced .gguf path on success, or None if no local
+    llama.cpp checkout is configured or the conversion itself failed --
+    either way the caller falls back to the direct-safetensors path (worse
+    but not silently broken, since _verify_ollama_deployment still gates
+    what gets reported as deployed).
+    """
+    converter = _find_llama_cpp_converter()
+    if not converter:
+        return None
+    try:
+        result = subprocess.run(
+            [sys.executable, converter, merged_dir, "--outfile", out_path, "--outtype", "f16"],
+            cwd=os.path.dirname(converter), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=600,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0 or not os.path.exists(out_path):
+        return None
+    return out_path
+
 
 # Qwen2.5-Coder's real ChatML template (copied verbatim from `ollama show
 # qwen2.5-coder:0.5b --modelfile`). Ollama's raw-safetensors import does NOT
@@ -588,9 +644,18 @@ class LoRATuner:
                               hf_base_model: Optional[str] = None) -> bool:
         """
         Merge the trained LoRA adapter into the base model and register the
-        merged model with local Ollama. Ollama performs the real GGUF
-        conversion + quantization internally via `ollama create` -- this
-        method never hand-writes GGUF bytes.
+        merged model with local Ollama.
+
+        Real fix (2026-09-06, see _convert_to_gguf_via_llama_cpp): when a
+        local llama.cpp checkout is available, its real
+        convert_hf_to_gguf.py converts the merged model first and Ollama
+        imports that .gguf directly -- verified end-to-end to produce
+        correct, coherent output. Ollama's own built-in safetensors->GGUF
+        conversion is used only as a fallback when llama.cpp isn't set up,
+        since it was verified to silently produce degenerate output on
+        this platform at every quantization level. Either way, nothing is
+        ever reported as successfully deployed without a real post-deploy
+        generation check (_verify_ollama_deployment).
         """
         try:
             import torch
@@ -610,9 +675,13 @@ class LoRATuner:
             tok = AutoTokenizer.from_pretrained(base_id)
             tok.save_pretrained(merged_dir)
 
+            gguf_path = os.path.join(self.work_dir, f"{model_name}.gguf")
+            real_gguf = _convert_to_gguf_via_llama_cpp(merged_dir, gguf_path)
+            from_target = real_gguf or merged_dir
+
             modelfile_path = os.path.join(self.work_dir, f"{model_name}.Modelfile")
             with open(modelfile_path, "w", encoding="utf-8") as f:
-                f.write(f"FROM {merged_dir}\nTEMPLATE {QWEN_CHATML_TEMPLATE}\nSYSTEM You are Saleha AI, a local expert coding assistant.\n")
+                f.write(f"FROM {from_target}\nTEMPLATE {QWEN_CHATML_TEMPLATE}\nSYSTEM You are Saleha AI, a local expert coding assistant.\n")
 
             result = subprocess.run(
                 ["ollama", "create", model_name, "-f", modelfile_path],
