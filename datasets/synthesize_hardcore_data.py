@@ -1,4 +1,16 @@
 """
+BROKEN, DO NOT RUN (found + purged 2026-09-06): every one of the 5 domain
+loops emits one fixed per-domain output skeleton with only a counter (`i`)
+substituted in -- verified 0% real variation per domain (all 100 "samples"
+per domain collapse to 1 unique template after normalizing the counter).
+The Reasoning domain is worse: the &lt;think&gt; block claims lock-free
+CAS/ABA-safe design while the code it delivers is a plain
+threading.Lock()-guarded list -- wrong regardless of duplication. The
+output file this produced (datasets/saleha_omni_hardcore_train.json) was
+purged to empty; see datasets/_pre_cleanup_backup_20260906/ for the
+original if needed for reference. Do not re-run this against the real
+output path -- it would silently regenerate the same bug.
+
 High-Density Hardcore Multi-Arena Dataset Synthesizer (500 Samples across 5 Domains)
 Reinforces exact schema formatting for:
 1. 🎙️ TTS SSML (<speak><voice><prosody>...</prosody></voice></speak>)

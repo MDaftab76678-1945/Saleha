@@ -116,3 +116,8 @@ models/
 # Claude Code agent worktrees and session scratch
 .claude/
 COORDINATION.md
+
+# Local safety-net copies before a destructive dataset cleanup -- git
+# history already has the pre-cleanup content, no need to also carry it
+# in the working tree / commit it again.
+datasets/_pre_cleanup_backup_*/

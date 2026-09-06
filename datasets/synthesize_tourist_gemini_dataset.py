@@ -2,6 +2,21 @@
 Gennady Korotkevich ('Tourist') + Gemini Frontier Intelligence Dataset Synthesizer
 1,000 High-Density Grandmaster Competitive Programming Pairs
 With Rigorous Invariant Proofs, Asymptotic Guarantees, and Production Code.
+
+PARTIALLY BROKEN (found + cleaned 2026-09-06): `main()`'s loop clones each
+of the 8 TOURIST_PROBLEMS 125x with only a "[Tourist Grandmaster Var #N]"
+tag appended to the prompt -- `response` never reads the loop counter, so
+992/1000 (99.2%) rows were exact-duplicate completions. 7 of the 8
+underlying problems are real, correct, complete competitive-programming
+solutions (2-SAT/Tarjan, Persistent Segment Tree, HLD skeleton, Dinic's,
+Implicit Treap, Suffix Automaton, weighted-job-scheduling DP) -- the volume
+was fabricated, not the content. The 8th (Heavy-Light Decomposition) claims
+"path update and path maximum queries" but its solution never implements
+`update`/`query` at all -- a genuine content bug, not just duplication.
+The real output file (datasets/tourist_gemini_grandmaster.json) has been
+deduplicated to the 7 correct unique problems (HLD dropped); see
+datasets/_pre_cleanup_backup_20260906/ for the original 1000-row file. Do
+not re-run this script's 125x cloning against the real output path.
 """
 
 import json

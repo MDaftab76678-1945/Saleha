@@ -1,4 +1,15 @@
 """
+BROKEN, DO NOT RUN (found + purged 2026-09-06): all 5 domain loops collapse
+to exactly 1 unique template each after normalizing the counter (250 rows
+-> 5 unique) -- plus 3 of the 5 domains bake in fabricated factual claims
+presented as true ("sub-70ms first-byte latency", "100% passing across 14
+regression test cases" -- no measurement or test run ever happens), and
+the Reasoning domain mislabels a plain threading.Lock() as a "Hardware CAS
+primitive wrapper" while implementing neither push nor pop. The output
+file this produced (datasets/saleha_artificial_analysis_omni_train.json)
+was purged to empty; see datasets/_pre_cleanup_backup_20260906/ for the
+original. Do not re-run this against the real output path.
+
 Dataset Synthesizer for Artificial Analysis 5-Domain Leaderboards:
 1. TTS Arena & Voice Synthesis Control (SSML, Prosody, Latency Optimization).
 2. Video Generation & Editing Pipeline (ffmpeg, Camera Motion, 1080p60 Render Scripts).

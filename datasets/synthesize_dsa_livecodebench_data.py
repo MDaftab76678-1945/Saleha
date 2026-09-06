@@ -5,6 +5,21 @@ Based on the Code Review & Quality Standards (PDF Pages 1-3):
 - Full coverage of Fenwick Trees (Binary Indexed Tree) & Skip Lists
 - Randomized parameterization and zero artificial duplication
 - Strict O(1) & O(log N) complexity enforcement with <think> reasoning
+
+PARTIALLY BROKEN (found + cleaned 2026-09-06): despite the "zero artificial
+duplication" claim above, `generate_dsa_dataset()`'s main loop cycles
+`i % len(templates)` over only 7 hardcoded templates to fake 500 "samples"
+-- verified 493/500 (98.6%) rows were byte-for-byte duplicate completions,
+differing only by a randomized instruction prefix and an id counter. The 7
+underlying templates ARE real, correct, topic-matched DSA implementations
+(LRU/LFU/Fenwick/Skip List/Segment Tree/DSU/Monotonic Deque) -- unlike the
+Engine-stub bug elsewhere in this repo, the *content* here was never wrong,
+only the claimed volume/diversity was fabricated. The real output file
+(datasets/saleha_dsa_livecodebench_train.json) has been deduplicated down
+to those 7 real samples; see datasets/_pre_cleanup_backup_20260906/ for
+the original 500-row file. Do not re-run this script's i%7 cycling against
+the real output path -- write more real, distinct templates instead if
+more coverage is wanted.
 """
 
 import json

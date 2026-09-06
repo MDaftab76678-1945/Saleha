@@ -1,4 +1,17 @@
 """
+BROKEN, DO NOT RUN (found + purged 2026-09-06): 750/1000 rows have
+identical `input` text (only a cosmetic counter in `instruction`) and
+500/1000 are byte-for-byte identical completions; the remaining 250 vary
+the arithmetic in prose but reuse one generic, never-invoked
+tonelli_shanks_solve() stub as the "solution" regardless of the actual
+numbers -- and the stated "prime modulus" premise is only true for ~32% of
+those 250 (verified: only 79/250 generated moduli are actually prime).
+This was confirmed as a real contributor to a measured capability
+regression on a fine-tuned model. The output file this produced
+(datasets/saleha_asi_math_reasoning_train.json) was purged to empty; see
+datasets/_pre_cleanup_backup_20260906/ for the original. Do not re-run
+this against the real output path.
+
 Saleha: Advanced Mathematics, Core Knowledge & ASI Reasoning Dataset Synthesizer
 
 Generates 1,000 high-density, rigorous samples covering:

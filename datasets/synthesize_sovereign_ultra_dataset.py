@@ -1,4 +1,22 @@
 """
+PARTIALLY BROKEN (found + cleaned 2026-09-06): `generate_tool_samples`,
+`generate_hindi_persona_samples`, and `generate_debugging_samples` each
+hold a tiny fixed list (10, 10, 3 respectively) of real, correct pairs,
+then fake volume by appending a "[Batch #N]"/"[Dialogue #N]"/"[Instance
+#N]" counter to the prompt while reusing the exact same completion --
+verified the real output file's 1600 rows from this script backed by only
+23 truly unique (prompt, completion) pairs (duplication factor 47-135x per
+template). The 23 underlying templates are themselves real and topically
+correct -- only the claimed diversity was fabricated. This script also
+merges in datasets/tourist_gemini_grandmaster.json verbatim (that file has
+its own, separate duplication bug -- see
+synthesize_tourist_gemini_dataset.py). The real output file
+(datasets/saleha_sovereign_train.json) has been deduplicated (2600 -> 31
+rows: 23 own + 8 tourist, now 7 after tourist's own cleanup); see
+datasets/_pre_cleanup_backup_20260906/ for the original. Do not re-run
+this script's counter-based cloning against the real output path -- write
+more real, distinct templates instead if more coverage is wanted.
+
 Synthesizer for Saleha Sovereign Ultra Agentic Dataset
 Combines:
 1. Sovereign Structured XML Tool Calling (<tool_call> schemas for OS, File, Browser, API)
