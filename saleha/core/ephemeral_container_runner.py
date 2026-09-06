@@ -63,16 +63,31 @@ class EphemeralContainerRunner:
                     "python", "-c", code_or_script
                 ]
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
-                elapsed = round((time.time() - start_time) * 1000, 2)
-                return ContainerExecutionResult(
-                    success=(proc.returncode == 0),
-                    output=proc.stdout,
-                    error=proc.stderr,
-                    exit_code=proc.returncode,
-                    duration_ms=elapsed,
-                    isolation_engine="Docker Container (CGroups)",
-                    cgroups_applied=True,
+                # Check if failure was caused by Docker infrastructure (daemon down, image missing, permission)
+                stderr_lower = (proc.stderr or "").lower()
+                docker_infra_failure = proc.returncode != 0 and any(
+                    err_msg in stderr_lower for err_msg in [
+                        "cannot connect to the docker daemon",
+                        "error response from daemon",
+                        "unable to find image",
+                        "pull access denied",
+                        "repository does not exist",
+                        "docker daemon is not running",
+                        "failed to create shim task",
+                        "no space left on device"
+                    ]
                 )
+                if not docker_infra_failure:
+                    elapsed = round((time.time() - start_time) * 1000, 2)
+                    return ContainerExecutionResult(
+                        success=(proc.returncode == 0),
+                        output=proc.stdout,
+                        error=proc.stderr,
+                        exit_code=proc.returncode,
+                        duration_ms=elapsed,
+                        isolation_engine="Docker Container (CGroups)",
+                        cgroups_applied=True,
+                    )
             except subprocess.TimeoutExpired:
                 elapsed = round((time.time() - start_time) * 1000, 2)
                 return ContainerExecutionResult(
@@ -84,7 +99,7 @@ class EphemeralContainerRunner:
                     isolation_engine="Docker Container (CGroups)",
                     cgroups_applied=True,
                 )
-            except Exception as err:
+            except Exception:
                 pass  # Fallback to local sandbox runner
 
         # Local Sandboxed Fallback

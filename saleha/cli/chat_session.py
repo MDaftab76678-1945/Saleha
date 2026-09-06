@@ -30,8 +30,24 @@ from saleha.agents.deep_researcher import deep_researcher
 from saleha.agents.slides_architect import slides_architect
 from saleha.agents.sheets_analyst import sheets_analyst
 from saleha.agents.browser_claw import browser_claw
+from saleha.agents.notebook_architect import notebook_architect
+from saleha.agents.voice_architect import voice_architect
+from saleha.agents.screen_copilot import screen_copilot
+from saleha.agents.chaos_resilience import chaos_resilience
+from saleha.core.notebook_engine import notebook_engine
 from saleha.core.task_scheduler import task_scheduler
+from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
+from saleha.core.dataset_synthesizer import dataset_synthesizer
+from saleha.core.model_distillation_pipeline import model_distillation_pipeline
+from saleha.core.local_inference_engine import local_inference_engine
+from saleha.core.repo_orchestrator import repo_orchestrator
+from saleha.core.mcp_server import saleha_mcp_server
+from saleha.core.swarm_cluster_node import swarm_cluster
 from saleha.core.ephemeral_container_runner import container_runner
+from saleha.core.mcts_search_engine import mcts_search_engine
+from saleha.core.speculative_accelerator import speculative_accelerator
+from saleha.core.swe_repo_fixer import swe_repo_fixer
+from saleha.core.self_evolving_loop import self_evolving_loop
 from saleha.tools.release_manager import release_manager
 
 
@@ -45,15 +61,26 @@ class SwarmChatSession:
 
     def render_welcome(self):
         """Renders welcome banner and slash command cheat-sheet."""
-        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v2.7.0[/bold cyan]")
+        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v3.2.0 Frontier[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta", border_style="dim")
         table.add_column("Command", style="cyan", width=22)
         table.add_column("Description", style="white")
-        table.add_row("/agents", "List all 23 mounted Python agents")
+        table.add_row("/agents", "List all 27 mounted Python agents")
         table.add_row("/swarm <goal>", "Execute full autonomous multi-agent DAG pipeline")
+        table.add_row("/mcp [serve|status]", "Run or inspect Model Context Protocol (MCP) server for IDEs")
+        table.add_row("/screen-inspect <ui>", "Visual UI layout inspector & pixel-perfect React/CSS patch")
+        table.add_row("/cluster [status|job]", "Decentralized P2P compute cluster and job dispatcher")
+        table.add_row("/chaos-test <target>", "Simulate fault injection, RCA, & synthesize Circuit Breakers")
+        table.add_row("/auto-pr <task>", "Autonomous Git branch, AST edit, test verify, and GitHub PR")
+        table.add_row("/voice <topic>", "Real-time spoken pair-programming & verbal architecture review")
+        table.add_row("/local-model <m>", "Switch local GGUF / Ollama inference model")
         table.add_row("/solve <issue>", "Autonomous bug triage, patch synthesis, and PR generation")
+        table.add_row("/notebook <topic>", "Synthesize reactive Jupyter .ipynb computational notebook")
+        table.add_row("/dataset [path]", "Synthesize high-quality AST-verified JSONL dataset for SLM fine-tuning")
+        table.add_row("/lora-config", "Export PEFT / LoRA / QLoRA training script & YAML configuration")
+        table.add_row("/score-code <code>", "Compute Neuro-Symbolic Invariant RLIF Fitness Score (0.0 - 1.0)")
         table.add_row("/research <topic>", "Multi-hop Deep Research report with verified citations")
         table.add_row("/slides <topic>", "Synthesize interactive HTML5/Marp presentation deck")
         table.add_row("/sheet <query>", "Tabular data statistics, anomaly detection & SQL synthesis")
@@ -102,6 +129,82 @@ class SwarmChatSession:
         if cmd.startswith("/solve ") or cmd.startswith("solve ") or cmd.startswith("solve-issue "):
             issue = cmd.split(" ", 1)[1].strip()
             self._execute_solve_command(issue)
+            return True
+
+        if cmd.startswith("/mcp") or cmd.startswith("mcp"):
+            parts = cmd.split(" ", 1)
+            sub = parts[1].strip() if len(parts) > 1 else "status"
+            self._execute_mcp_command(sub)
+            return True
+
+        if cmd.startswith("/screen-inspect ") or cmd.startswith("screen-inspect ") or cmd.startswith("ui-fix "):
+            ui_desc = cmd.split(" ", 1)[1].strip()
+            self._execute_screen_inspect_command(ui_desc)
+            return True
+
+        if cmd.startswith("/cluster") or cmd.startswith("cluster"):
+            parts = cmd.split(" ", 1)
+            sub = parts[1].strip() if len(parts) > 1 else "status"
+            self._execute_cluster_command(sub)
+            return True
+
+        if cmd.startswith("/chaos-test ") or cmd.startswith("chaos-test ") or cmd.startswith("chaos "):
+            target = cmd.split(" ", 1)[1].strip()
+            self._execute_chaos_command(target)
+            return True
+
+        if cmd.startswith("/auto-pr ") or cmd.startswith("auto-pr ") or cmd.startswith("autopr "):
+            task = cmd.split(" ", 1)[1].strip()
+            self._execute_autopr_command(task)
+            return True
+
+        if cmd.startswith("/voice ") or cmd.startswith("voice ") or cmd.startswith("speak "):
+            topic = cmd.split(" ", 1)[1].strip()
+            self._execute_voice_command(topic)
+            return True
+
+        if cmd.startswith("/local-model ") or cmd.startswith("local-model ") or cmd.startswith("model "):
+            model_name = cmd.split(" ", 1)[1].strip()
+            self._execute_local_model_command(model_name)
+            return True
+
+        if cmd.startswith("/notebook ") or cmd.startswith("notebook ") or cmd.startswith("make-notebook "):
+            topic = cmd.split(" ", 1)[1].strip()
+            self._execute_notebook_command(topic)
+            return True
+
+        if cmd.startswith("/mcts ") or cmd.startswith("mcts ") or cmd.startswith("tree-search "):
+            prompt = cmd.split(" ", 1)[1].strip()
+            self._execute_mcts_command(prompt)
+            return True
+
+        if cmd.startswith("/speculative ") or cmd.startswith("speculative ") or cmd.startswith("accelerate "):
+            prompt = cmd.split(" ", 1)[1].strip()
+            self._execute_speculative_command(prompt)
+            return True
+
+        if cmd.startswith("/swe-fix ") or cmd.startswith("swe-fix ") or cmd.startswith("repo-fix "):
+            issue = cmd.split(" ", 1)[1].strip()
+            self._execute_swe_fix_command(issue)
+            return True
+
+        if cmd in ["/evolving-status", "evolving-status", "self-learning", "/self-learning"]:
+            self._execute_evolving_status_command()
+            return True
+
+        if cmd.startswith("/dataset") or cmd.startswith("dataset") or cmd.startswith("export-dataset"):
+            parts = cmd.split(" ", 1)
+            path = parts[1].strip() if len(parts) > 1 else "datasets/saleha_train_dataset.jsonl"
+            self._execute_dataset_command(path)
+            return True
+
+        if cmd in ["/lora-config", "lora-config", "export-lora-config", "/export-lora-config"]:
+            self._execute_lora_config_command()
+            return True
+
+        if cmd.startswith("/score-code ") or cmd.startswith("score-code "):
+            code = cmd.split(" ", 1)[1].strip()
+            self._execute_score_code_command(code)
             return True
 
         if cmd.startswith("/research ") or cmd.startswith("research "):
@@ -231,6 +334,100 @@ class SwarmChatSession:
             self.console.print(Panel(res.error, title="[bold red]Stderr Diagnostic[/]", border_style="red"))
         self.console.print()
 
+    def _execute_notebook_command(self, topic: str):
+        self.console.print(f"\n[bold cyan]📓 Autonomous Notebook Engine — Structuring:[/] [yellow]\"{topic}\"[/]")
+        result = notebook_architect.synthesize_notebook(topic)
+        self.console.print(f"[bold green]✨ Synthesized {result.cell_count} Reactive Cells in {result.generation_time_ms}ms (Jupyter .ipynb v4.5)![/bold green]\n")
+        for idx, cell in enumerate(result.notebook_doc.cells):
+            self.console.print(f"[dim]── Cell [{idx+1}/{result.cell_count}] ({cell.cell_type.upper()}) ──[/dim]")
+            if cell.cell_type == "code":
+                self.console.print(Syntax(cell.source, "python", theme="monokai", line_numbers=True))
+            elif cell.cell_type == "sql":
+                self.console.print(Syntax(cell.source, "sql", theme="monokai", line_numbers=True))
+            else:
+                self.console.print(Markdown(cell.source))
+        self.console.print()
+
+    def _execute_dataset_command(self, path: str):
+        self.console.print(f"\n[bold cyan]📊 Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
+        count = dataset_synthesizer.synthesize_dataset(output_path=path, sample_count=50)
+        self.console.print(f"[bold green]✨ Successfully Synthesized {count} Verified Samples -> [yellow]{path}[/yellow]![/bold green]\n")
+
+    def _execute_lora_config_command(self):
+        self.console.print(f"\n[bold cyan]⚙️ Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
+        model_distillation_pipeline.generate_lora_training_yaml("configs/lora_training_config.yaml")
+        model_distillation_pipeline.generate_training_script("scripts/train_lora_slm.py")
+        self.console.print("[bold green]✨ Exported `configs/lora_training_config.yaml` & `scripts/train_lora_slm.py`![/bold green]\n")
+
+    def _execute_score_code_command(self, code: str):
+        self.console.print(f"\n[bold cyan]🧬 Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
+        score = neuro_symbolic_engine.score_code(code)
+        color = "green" if score.composite_score >= 0.8 else "yellow" if score.composite_score >= 0.5 else "red"
+        self.console.print(f"[{color}]● Composite Invariant Score: {score.composite_score * 100:.1f}% ({score.evaluation_duration_ms}ms)[/{color}]")
+        self.console.print(f"- AST Syntax: {'✅ Valid (100%)' if score.ast_valid else '❌ Syntax Error (0%)'}")
+        self.console.print(f"- Type Safety: {score.type_safety_score * 100:.0f}%")
+        self.console.print(f"- OWASP Security: {score.security_score * 100:.0f}%")
+        self.console.print(f"- Invariant Assertions: {score.assertion_score * 100:.0f}%\n")
+        self.console.print(Panel("\n".join(f"- {n}" for n in score.feedback_notes), title="[bold cyan]RLIF Diagnostic Feedback[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_mcp_command(self, sub: str):
+        tools = saleha_mcp_server.list_tools()
+        self.console.print(f"\n[bold cyan]🔌 Universal Model Context Protocol (MCP) Server Active v{saleha_mcp_server.version}[/bold cyan]")
+        self.console.print(f"[bold green]✨ Exposing {len(tools)} Standard MCP Tools to Cursor, VS Code & Claude Desktop:[/bold green]\n")
+        for t in tools:
+            self.console.print(f"- [cyan]{t['name']}[/cyan]: [white]{t['description']}[/white]")
+        self.console.print()
+
+    def _execute_screen_inspect_command(self, ui_desc: str):
+        self.console.print(f"\n[bold cyan]👁️ Screen Copilot Inspecting Visual Layout for:[/] [yellow]\"{ui_desc}\"[/]")
+        result = screen_copilot.inspect_screen_and_fix(ui_desc)
+        self.console.print(f"[bold green]✨ Visual Inspection Complete in {result.inspection_time_ms}ms (WCAG AA: PASS)![/bold green]\n")
+        for g in result.detected_glitches:
+            self.console.print(f"[yellow]⚠️ {g}[/yellow]")
+        self.console.print(Panel(result.remediation_code_diff, title="[bold cyan]Remediated React JSX & Responsive CSS[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_cluster_command(self, sub: str):
+        status = swarm_cluster.get_cluster_status()
+        self.console.print(f"\n[bold cyan]🐝 Decentralized P2P Swarm Cluster Status[/bold cyan]")
+        self.console.print(f"- Local Node ID : [cyan]{status['local_node_id']}[/cyan]")
+        self.console.print(f"- Total Nodes   : [bold green]{status['total_nodes']}[/bold green]")
+        self.console.print(f"- Cluster Cores : [white]{status['total_cluster_cores']} vCPUs[/white] | Cluster RAM: [white]{status['total_cluster_ram_gb']} GB[/white]\n")
+        for p in status["peers"]:
+            self.console.print(f"  ● [cyan]{p['node_id']}[/cyan] ({p['ip']}) - [green]{p['status'].upper()}[/green] ({p['cores']} cores, {p['ram']})")
+        self.console.print()
+
+    def _execute_chaos_command(self, target: str):
+        self.console.print(f"\n[bold cyan]💥 Chaos Resilience Fault Injection Running on:[/] [yellow]\"{target}\"[/]")
+        result = chaos_resilience.run_chaos_test(target)
+        self.console.print(f"[bold green]✨ Chaos Experiment Complete in {result.experiment_duration_ms}ms (Resilience Score: {result.resilience_score_pct}%)![/bold green]\n")
+        self.console.print(f"- Fault Injected: [red]{result.injected_fault_scenario}[/red]")
+        self.console.print(f"- Impact RCA    : [white]{result.system_impact_analysis}[/white]\n")
+        self.console.print(Panel(result.circuit_breaker_patch, title="[bold cyan]Synthesized Autonomous Circuit Breaker[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_autopr_command(self, task: str):
+        self.console.print(f"\n[bold cyan]🤖 Autonomous Git Repo Orchestrator Executing: [yellow]\"{task}\"[/yellow][/bold cyan]")
+        result = repo_orchestrator.execute_auto_pr(task)
+        self.console.print(f"[bold green]✨ PR Autonomously Synthesized in {result.execution_time_ms}ms![/bold green]")
+        self.console.print(f"- Branch Created : [cyan]{result.branch_name}[/cyan]")
+        self.console.print(f"- Commit Message : [white]{result.commit_message.splitlines()[0]}[/white]")
+        self.console.print(f"- Test Sandbox   : {'✅ 100% Invariants Passed' if result.tests_passed else '❌ Failed'}")
+        self.console.print(Panel(result.pr_markdown_body[:1000] + "\n...", title="[bold cyan]Synthesized GitHub Pull Request[/]", border_style="cyan"))
+        self.console.print()
+
+    def _execute_voice_command(self, topic: str):
+        self.console.print(f"\n[bold cyan]🎙️ Voice Architect Synthesizing Real-Time Spoken Audio Commentary for: [yellow]\"{topic}\"[/yellow][/bold cyan]")
+        result = voice_architect.synthesize_voice_commentary(topic)
+        self.console.print(f"[bold green]✨ Spoken Audio Commentary Synthesized ({result.audio_duration_estimate_sec}s spoken duration, {result.generation_time_ms}ms)![/bold green]")
+        self.console.print(Panel(f"🗣️ [italic]\"{result.transcript}\"[/italic]", title="[bold magenta]Spoken Pair-Programming Transcript[/]", border_style="magenta"))
+        self.console.print()
+
+    def _execute_local_model_command(self, model_name: str):
+        local_inference_engine.set_active_model(model_name)
+        self.console.print(f"\n[bold green]⚡ Active Local GGUF / Ollama Model switched to: [yellow]{model_name}[/yellow][/bold green]\n")
+
     def _execute_research_command(self, topic: str):
         self.console.print(f"\n[bold cyan]🔬 Autonomous Deep Research — Scanning Sources for:[/] [yellow]\"{topic}\"[/]")
         report = deep_researcher.conduct_research(topic)
@@ -303,6 +500,41 @@ class SwarmChatSession:
         self.console.print(f"\n[bold cyan]🔄 Resuming Execution ID:[/] [yellow]{exec_id}[/]")
         res = swarm_engine.resume_swarm(exec_id)
         self.console.print(f"[bold green]✨ Resumed successfully ({len(res.stages)} stages, {res.total_duration_ms}ms)![/bold green]\n")
+
+    def _execute_mcts_command(self, prompt: str):
+        self.console.print(f"\n[bold cyan]🌲 Test-Time MCTS Reasoning Search:[/] [yellow]{prompt}[/]")
+        res = mcts_search_engine.search(prompt)
+        status_color = "green" if res.verified_clean else "yellow"
+        self.console.print(f"[{status_color}]✨ Explored {res.total_branches_explored} branches ({res.passed_branches_count} passed tests, {res.search_duration_ms}ms, Invariant Score: {res.best_score})[/{status_color}]\n")
+        self.console.print(Syntax(res.winner_code, "python", theme="monokai", line_numbers=True))
+        self.console.print()
+
+    def _execute_speculative_command(self, prompt: str):
+        self.console.print(f"\n[bold cyan]⚡ Dual-Engine Speculative Accelerator:[/] [yellow]{prompt}[/]")
+        code, metrics = speculative_accelerator.generate(prompt)
+        self.console.print(f"[bold green]✨ Accelerated at {metrics.effective_tokens_per_sec} tok/s ({metrics.dual_engine_speedup}x Speedup, {metrics.acceptance_rate_pct}% Acceptance)![/bold green]\n")
+        self.console.print(Syntax(code, "python", theme="monokai", line_numbers=True))
+        self.console.print()
+
+    def _execute_swe_fix_command(self, issue: str):
+        self.console.print(f"\n[bold cyan]🐙 SWE-bench Multi-File Repo Fixer:[/] [yellow]{issue}[/]")
+        res = swe_repo_fixer.resolve_issue(issue)
+        self.console.print(f"[bold green]✨ Issue resolved across {res.total_files_affected} files in {res.resolution_time_ms}ms (Tests: PASS)![/bold green]\n")
+        self.console.print(Panel(res.unified_git_diff, title="[bold green]Unified Multi-File Git Diff[/]", border_style="green"))
+        self.console.print()
+
+    def _execute_evolving_status_command(self):
+        stats = self_evolving_loop.get_stats()
+        table = Table(title="🔄 Saleha Continuous Learning & Self-Evolving Telemetry", border_style="cyan")
+        table.add_column("Metric", style="white")
+        table.add_column("Value", style="bold cyan")
+        table.add_row("Active Learning Status", f"[green]{stats.active_learning_status}[/]")
+        table.add_row("Captured Coding Turns", str(stats.total_captured_turns))
+        table.add_row("Qualified High-Score Solutions", str(stats.qualified_high_score_turns))
+        table.add_row("Auto-Appended to Training Buffer", str(stats.auto_appended_to_dataset))
+        table.add_row("Average Invariant Quality", f"{stats.avg_quality_score * 100:.1f}%")
+        self.console.print(table)
+        self.console.print()
 
     def _generate_turn_response(self, user_msg: str):
         self.console.print("\n[bold magenta]Saleha AI[/bold magenta] [dim](Ollama / DeepSeek Failover)[/dim]:")

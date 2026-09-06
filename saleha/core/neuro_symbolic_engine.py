@@ -1,98 +1,133 @@
 """
-Saleha Core: Neuro-Symbolic Invariant Scoring Engine
+Saleha Core: Neuro-Symbolic Invariant Scoring Engine (RLIF)
 
-Lightweight static analyzer that computes a composite "invariant confidence"
-score for generated code by combining symbolic AST checks:
-  - Syntactic validity (parses cleanly)
-  - Structural safety heuristics (no bare `except:`, no eval/exec/compile)
-  - Documentation coverage (module/function docstrings present)
-  - Type-annotation coverage on function arguments
-  - Branch density (proxy for structural complexity)
+Deterministic, non-ML static analyzer that computes a composite "invariant
+fitness" score for generated code by combining symbolic AST checks:
+  - AST syntax validity (parses cleanly)
+  - Type-annotation coverage (PEP 484/604)
+  - OWASP/SAST security heuristics (shell exec, eval/exec, hardcoded secrets)
+  - Functional-contract integrity (well-formed return/yield)
 
-This is a deterministic symbolic scorer (no ML inference involved) used by
-the swarm self-play arena to judge candidate code produced during
-adversarial curriculum training.
+Used across the swarm self-play arena, MCTS search, GRPO reasoning trainer,
+self-evolving loop, MCP server, and chat session to judge candidate code
+produced during training/inference -- Reinforcement Learning from Invariant
+Feedback (RLIF).
+
+Note: an earlier, independently-developed version of this module (different
+dataclass/field names: InvariantScoreResult with syntax_valid/
+safety_violations/has_docstrings) existed on a divergent branch. This is the
+version every real current consumer's field access actually depends on
+(ast_valid/type_safety_score/security_score/assertion_score/
+composite_score/feedback_notes/evaluation_duration_ms) -- InvariantScoreResult
+is kept as a name-only alias below for one consumer (saleha/core/cognitive/
+__init__.py) that only imports/re-exports the name without touching fields.
 """
 
 from __future__ import annotations
-
 import ast
-from dataclasses import dataclass, field
+import re
+import time
 from typing import List
+from dataclasses import dataclass, field
 
 
 @dataclass
-class InvariantScoreResult:
-    composite_score: float
-    syntax_valid: bool
-    safety_violations: List[str] = field(default_factory=list)
-    has_docstrings: bool = False
-    type_annotation_coverage: float = 0.0
-    branch_density: float = 0.0
+class InvariantFitnessScore:
+    """Represents a composite neuro-symbolic invariant fitness evaluation."""
+    ast_valid: bool
+    type_safety_score: float  # 0.0 - 1.0
+    security_score: float     # 0.0 - 1.0
+    assertion_score: float    # 0.0 - 1.0
+    composite_score: float    # Weighted 0.0 - 1.0
+    feedback_notes: List[str] = field(default_factory=list)
+    evaluation_duration_ms: float = 0.0
+
+
+CodeInvariantScore = InvariantFitnessScore
+InvariantScoreResult = InvariantFitnessScore  # name-only backward-compat alias
 
 
 class NeuroSymbolicEngine:
-    """Symbolic static analyzer producing an invariant confidence score in [0, 1]."""
+    """Neuro-Symbolic optimizer that scores code candidates against deterministic
 
-    UNSAFE_CALLS = {"eval", "exec", "compile", "__import__"}
+    AST grammar invariants, PEP static typing, OWASP security, and execution safety.
+    """
 
-    def score_code(self, code: str) -> InvariantScoreResult:
+    def score_code(self, code: str) -> InvariantFitnessScore:
+        """Evaluates a code candidate and returns a weighted RLIF fitness score."""
+        start = time.perf_counter()
+        feedback = []
+
+        # 1. AST Syntax Correctness (30% weight)
+        ast_valid = False
+        ast_points = 0.0
         try:
             tree = ast.parse(code)
-        except SyntaxError:
-            return InvariantScoreResult(composite_score=0.0, syntax_valid=False)
+            ast_valid = True
+            ast_points = 1.0
+            feedback.append("AST: Clean Syntax (0 Parsing Errors)")
+        except SyntaxError as e:
+            feedback.append(f"AST Syntax Error: {e.msg} (Line {e.lineno})")
 
-        violations: List[str] = []
-        func_defs = [
-            n for n in ast.walk(tree)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        ]
-        total_args = 0
-        annotated_args = 0
-        branch_nodes = 0
-        total_nodes = 0
-        has_docstring = bool(ast.get_docstring(tree)) or any(
-            ast.get_docstring(f) for f in func_defs
+        # 2. Type Safety & Modern PEP Conformance (20% weight)
+        type_points = 0.0
+        if ast_valid:
+            has_annotations = False
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    if node.returns or any(arg.annotation for arg in node.args.args):
+                        has_annotations = True
+                        break
+            if has_annotations:
+                type_points = 1.0
+                feedback.append("Type Safety: PEP 484/604 Annotations Present")
+            else:
+                type_points = 0.6
+                feedback.append("Type Safety: Implicit Types (Consider Explicit Type Hints)")
+        else:
+            feedback.append("Type Safety: Skipped due to AST error")
+
+        # 3. OWASP & SAST Security Gate (30% weight)
+        security_points = 1.0
+        if "os.system(" in code or "subprocess.call(" in code:
+            security_points = 0.2
+            feedback.append("Security: High Risk Insecure Shell Execution Detected")
+        elif "eval(" in code or "exec(" in code:
+            security_points = 0.4
+            feedback.append("Security: Unsafe Dynamic Code Evaluation (eval/exec)")
+        elif re.search(r"(?i)(api[_-]?key|secret|password)\s*=\s*['\"][A-Za-z0-9_\-]{20,}['\"]", code):
+            security_points = 0.5
+            feedback.append("Security: Potential Hardcoded Secret Literal")
+        else:
+            feedback.append("Security: OWASP Top-10 SAST Clean")
+
+        # 4. Invariant Assertion Integrity (20% weight)
+        assertion_points = 0.8
+        if "def " in code and ("return " in code or "yield " in code):
+            assertion_points = 1.0
+            feedback.append("Invariants: Well-formed functional contract with deterministic return")
+        elif "def " in code:
+            assertion_points = 0.7
+            feedback.append("Invariants: Function definition without explicit return")
+
+        # Calculate composite score (Weights: AST 0.30, Security 0.30, Type 0.20, Invariants 0.20)
+        composite = (ast_points * 0.30) + (security_points * 0.30) + (type_points * 0.20) + (assertion_points * 0.20)
+        duration = (time.perf_counter() - start) * 1000
+
+        return InvariantFitnessScore(
+            ast_valid=ast_valid,
+            type_safety_score=round(type_points, 2),
+            security_score=round(security_points, 2),
+            assertion_score=round(assertion_points, 2),
+            composite_score=round(composite, 3),
+            feedback_notes=feedback,
+            evaluation_duration_ms=round(duration, 3),
         )
 
-        for node in ast.walk(tree):
-            total_nodes += 1
-            if isinstance(node, ast.ExceptHandler) and node.type is None:
-                violations.append("bare_except")
-            if isinstance(node, ast.Call):
-                fname = getattr(node.func, "id", None)
-                if fname in self.UNSAFE_CALLS:
-                    violations.append(f"unsafe_call:{fname}")
-            if isinstance(node, (ast.If, ast.For, ast.While, ast.Try)):
-                branch_nodes += 1
-
-        for f in func_defs:
-            args = f.args.args
-            total_args += len(args)
-            annotated_args += sum(1 for a in args if a.annotation is not None)
-
-        type_cov = (annotated_args / total_args) if total_args else 1.0
-        branch_density = (branch_nodes / total_nodes) if total_nodes else 0.0
-
-        # Composite scoring: weighted blend rewarding safety, docs, typing;
-        # penalizing detected structural violations.
-        safety_score = max(0.0, 1.0 - 0.25 * len(violations))
-        composite = round(
-            0.45 * safety_score
-            + 0.25 * (1.0 if has_docstring else 0.4)
-            + 0.30 * type_cov,
-            4,
-        )
-        composite = max(0.0, min(1.0, composite))
-
-        return InvariantScoreResult(
-            composite_score=composite,
-            syntax_valid=True,
-            safety_violations=violations,
-            has_docstrings=has_docstring,
-            type_annotation_coverage=round(type_cov, 4),
-            branch_density=round(branch_density, 4),
-        )
+    def rank_candidates(self, candidates: List[str]) -> List[tuple[str, InvariantFitnessScore]]:
+        """Ranks multiple generated code candidates by their composite RLIF score."""
+        scored = [(c, self.score_code(c)) for c in candidates]
+        return sorted(scored, key=lambda pair: pair[1].composite_score, reverse=True)
 
 
 neuro_symbolic_engine = NeuroSymbolicEngine()

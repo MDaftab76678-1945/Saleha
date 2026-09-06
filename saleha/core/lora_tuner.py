@@ -176,6 +176,118 @@ class LoRATuner:
             self.collector.export_sharegpt(out_path, min_quality=min_quality)
         return out_path
 
+    def tune(self, config: Optional[TuningConfig] = None) -> TuningResult:
+        """Alias for fine_tune (kept for callers/tests using the shorter name)."""
+        return self.fine_tune(config)
+
+    def tune_dpo(self, dpo_dataset_path: str = "datasets/saleha_dpo_pairs.jsonl",
+                 config: Optional[TuningConfig] = None) -> TuningResult:
+        """
+        Real DPO fine-tuning via trl.DPOTrainer on chosen/rejected preference
+        pairs. Replaces a prior fabricated version of this method (fixed
+        76.5->92.4 hardcoded scores, `time.sleep(0.15)` standing in for
+        training) -- if DPO can't actually run here (missing/incompatible
+        trl/torch, no real data), this reports success=False with the real
+        error instead of a fake result.
+        """
+        cfg = config or TuningConfig(output_model_name="saleha-dpo-slm")
+        start_t = time.time()
+
+        dpo_count = 0
+        if os.path.exists(dpo_dataset_path):
+            with open(dpo_dataset_path, "r", encoding="utf-8") as f:
+                dpo_count = sum(1 for line in f if line.strip())
+
+        if dpo_count == 0:
+            from saleha.core.dpo_dataset_engine import dpo_dataset_engine
+            dpo_count, _ = dpo_dataset_engine.build_dataset(target_count=100)
+            dpo_dataset_path = dpo_dataset_engine.export_dpo_jsonl()
+
+        if dpo_count == 0:
+            return TuningResult(
+                success=False, base_model=cfg.base_model, output_model=cfg.output_model_name,
+                samples_used=0, training_time_sec=round(time.time() - start_t, 2),
+                error="No DPO preference pairs available (dataset empty and synthesis produced none)."
+            )
+
+        backend = self._detect_backend()
+        if backend == "unavailable":
+            return TuningResult(
+                success=False, base_model=cfg.base_model, output_model=cfg.output_model_name,
+                samples_used=dpo_count, training_time_sec=round(time.time() - start_t, 2),
+                error="No local fine-tuning backend available. Install: "
+                      "pip install torch peft trl transformers accelerate"
+            )
+
+        adapter_path = os.path.join(self.work_dir, f"{cfg.output_model_name}_dpo_adapter")
+        try:
+            data = self._train_dpo(cfg, dpo_dataset_path, adapter_path)
+            elapsed = round(time.time() - start_t, 2)
+            return TuningResult(
+                success=True, base_model=cfg.base_model, output_model=cfg.output_model_name,
+                samples_used=dpo_count, training_time_sec=elapsed,
+                before_score=data["before_score"], after_score=data["after_score"],
+                improvement_pct=data["improvement_pct"], adapter_path=adapter_path,
+            )
+        except Exception as e:
+            return TuningResult(
+                success=False, base_model=cfg.base_model, output_model=cfg.output_model_name,
+                samples_used=dpo_count, training_time_sec=round(time.time() - start_t, 2), error=str(e)
+            )
+
+    def _train_dpo(self, config: TuningConfig, dataset_path: str, adapter_path: str) -> Dict[str, Any]:
+        """Real DPO training via trl.DPOTrainer, fresh LoRA on the base model."""
+        import torch
+        from datasets import load_dataset
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from peft import LoraConfig
+        from trl import DPOTrainer, DPOConfig
+
+        hf_base = self._resolve_hf_base(config.base_model)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        dtype = torch.bfloat16 if device == "cuda" else torch.float32
+
+        tokenizer = AutoTokenizer.from_pretrained(hf_base)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        model = AutoModelForCausalLM.from_pretrained(hf_base, dtype=dtype, device_map=device)
+        lora_config = LoraConfig(
+            r=config.lora_rank, lora_alpha=int(config.lora_alpha),
+            target_modules=DEFAULT_TARGET_MODULES, lora_dropout=0.05,
+            bias="none", task_type="CAUSAL_LM",
+        )
+
+        dataset = load_dataset("json", data_files=dataset_path, split="train")
+        if len(dataset) >= 10:
+            split = dataset.train_test_split(test_size=0.1, seed=42)
+            train_ds, eval_ds = split["train"], split["test"]
+        else:
+            train_ds, eval_ds = dataset, dataset
+
+        dpo_config = DPOConfig(
+            output_dir=os.path.join(self.work_dir, f"{config.output_model_name}_dpo_run"),
+            num_train_epochs=1, per_device_train_batch_size=1, learning_rate=5e-6,
+            logging_steps=10, save_strategy="no", report_to=[], bf16=(device == "cuda"),
+        )
+        trainer = DPOTrainer(
+            model=model, args=dpo_config, train_dataset=train_ds, eval_dataset=eval_ds,
+            processing_class=tokenizer, peft_config=lora_config,
+        )
+        before_metrics = trainer.evaluate()
+        trainer.train()
+        after_metrics = trainer.evaluate()
+
+        os.makedirs(adapter_path, exist_ok=True)
+        trainer.model.save_pretrained(adapter_path)
+        tokenizer.save_pretrained(adapter_path)
+
+        before_loss = before_metrics.get("eval_loss", 0.0)
+        after_loss = after_metrics.get("eval_loss", 0.0)
+        improvement_pct = round((before_loss - after_loss) / before_loss * 100, 2) if before_loss else 0.0
+        return {"before_score": round(before_loss, 4), "after_score": round(after_loss, 4),
+                "improvement_pct": improvement_pct}
+
     def fine_tune(self, config: Optional[TuningConfig] = None) -> TuningResult:
         """Execute the full local LoRA fine-tuning pipeline. No fabricated results."""
         cfg = config or TuningConfig()

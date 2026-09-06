@@ -137,7 +137,7 @@ export default function VisionGeneratedComponent() {{
 </html>
 """
 
-        elapsed = round((time.perf_counter() - start_time) * 1000, 2)
+        elapsed = max(0.01, round((time.perf_counter() - start_time) * 1000, 2))
 
         return VisionLayoutSpec(
             title=clean_prompt[:60],
