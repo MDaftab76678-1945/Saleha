@@ -61,6 +61,14 @@ CHOICE_SCHEMA: Dict[str, Any] = {
     "required": ["choice"],
 }
 
+# Same idea for an edit: the reply must be a {search, replace} pair, so
+# "the model wrote prose instead of JSON" stops being a failure mode.
+EDIT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {"search": {"type": "string"}, "replace": {"type": "string"}},
+    "required": ["search", "replace"],
+}
+
 
 @dataclass
 class MenuOption:
@@ -100,6 +108,50 @@ class MenuResult:
 def _truncate(text: str, limit: int = MAX_OBSERVATION_CHARS) -> str:
     text = (text or "").strip()
     return text if len(text) <= limit else text[:limit] + "\n...[truncated]"
+
+
+def _strip_line_gutter(text: str) -> str:
+    """
+    Remove a '  245| ' line-number gutter if the model copied it along with
+    the code. The excerpt shown to the model is line-numbered so it can see
+    where it is looking; a faithful copy therefore often includes the
+    gutter, and rejecting that would punish exactly the careful behaviour
+    the prompt asks for.
+    """
+    lines = (text or "").split("\n")
+    if not lines or not any(re.match(r"^\s*\d+\|", ln) for ln in lines):
+        return text
+    out = []
+    for ln in lines:
+        m = re.match(r"^\s*\d+\|\s?(.*)$", ln)
+        out.append(m.group(1) if m else ln)
+    return "\n".join(out)
+
+
+def _match_ignoring_indent(content: str, search: str) -> Optional[str]:
+    """
+    Find `search` in `content` allowing only leading-whitespace differences,
+    and return the exact substring from the file so the caller can patch
+    with text that genuinely occurs.
+
+    Indentation is the most common near-miss when a model retypes Python,
+    and failing on it alone would discard otherwise-correct edits. Returns
+    None if there is no unique match -- ambiguity must not be guessed at.
+    """
+    needle = [ln.strip() for ln in (search or "").strip().split("\n") if ln.strip()]
+    if not needle:
+        return None
+    lines = content.split("\n")
+    stripped = [ln.strip() for ln in lines]
+
+    hits = []
+    for i in range(len(lines) - len(needle) + 1):
+        if stripped[i:i + len(needle)] == needle:
+            hits.append(i)
+    if len(hits) != 1:
+        return None   # not found, or ambiguous -- do not guess
+    start = hits[0]
+    return "\n".join(lines[start:start + len(needle)])
 
 
 class ActionMenuLoop:
@@ -402,7 +454,57 @@ Reply with ONLY the number of the single best next action."""
             self.ledger.fail(result.error)
         return result
 
-    def make_edit_tool(self, read_file: Callable, patch_file: Callable) -> Callable:
+    @staticmethod
+    def _relevant_excerpt(content: str, goal: str, budget: int = 9000) -> str:
+        """
+        Return the part of a file most likely to contain the fix.
+
+        Small files are returned whole. For larger ones, score each line by
+        how many goal terms it mentions and keep a window around the best
+        matches, so the excerpt centres on the relevant code instead of the
+        file's imports. Line numbers are kept in the output so the model can
+        see it is looking at a real excerpt rather than a complete file.
+        """
+        if len(content) <= budget:
+            return content
+
+        lines = content.splitlines()
+        terms = {w.lower() for w in re.findall(r"\w+", goal) if len(w) > 3}
+        # Identifiers from the goal matter far more than prose words.
+        idents = {w.lower() for w in re.findall(r"\b\w+_\w+\b|\b[a-z]+[A-Z]\w*", goal)}
+
+        scores = []
+        for i, line in enumerate(lines):
+            low = line.lower()
+            score = sum(2 for t in idents if t in low) + sum(1 for t in terms if t in low)
+            scores.append((score, i))
+
+        best = [i for s, i in sorted(scores, reverse=True) if s > 0][:6]
+        if not best:
+            # No signal: keep the end rather than the top, since imports and
+            # module docstrings are the least useful part to show.
+            tail = content[-budget:]
+            return f"[showing the last part of the file]\n{tail}"
+
+        keep: set = set()
+        for i in best:
+            keep.update(range(max(0, i - 25), min(len(lines), i + 26)))
+
+        out, used, last = [], 0, -1
+        for i in sorted(keep):
+            if i != last + 1 and out:
+                out.append("    ...")
+            piece = f"{i + 1:5d}| {lines[i]}"
+            used += len(piece) + 1
+            if used > budget:
+                out.append("    ...[truncated]")
+                break
+            out.append(piece)
+            last = i
+        return ("[excerpt of the file, line-numbered; regions matching the "
+                "task are shown]\n" + "\n".join(out))
+
+    def make_edit_tool(self, patch_file: Callable) -> Callable:
         """
         Build a `propose_edit` handler for the menu.
 
@@ -416,23 +518,71 @@ Reply with ONLY the number of the single best next action."""
         hallucinated snippet fails loudly instead of corrupting the file.
         """
         def propose_edit(path: str = "") -> str:
-            content = str(read_file(path=path))
-            if content.startswith("no such file") or not content.strip():
-                return f"cannot edit {path}: unreadable"
+            # Read the file directly, NOT through the read_file tool.
+            #
+            # Measured on SWE-bench astropy-12907: the tool truncates its
+            # observation at 3000 chars (sensible for a transcript, fatal
+            # here). The fix lives at line 245 of a 317-line file, so the
+            # model was asked to copy text it had never been shown, and
+            # every single edit was rejected as "search text does not appear
+            # in the file". An edit must see the real file, in full.
+            full = os.path.join(self.root_dir, path.replace("\\", "/"))
+            if not os.path.abspath(full).startswith(self.root_dir):
+                return f"cannot edit {path}: outside the repository"
+            try:
+                with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                    content = fh.read()
+            except OSError as exc:
+                return f"cannot edit {path}: {exc}"
+            if not content.strip():
+                return f"cannot edit {path}: empty file"
+
+            # Show the region of the file most likely to contain the fix,
+            # not just its opening.
+            #
+            # Measured on SWE-bench astropy-12907: the fix is at line 245 of
+            # a 317-line file, but only the first 6000 chars (through line
+            # 190) were shown -- so the model was asked to copy text it had
+            # literally never been given, and every edit was rejected as
+            # "search text does not appear in the file". Truncating from the
+            # top is the worst possible choice, since the top of a Python
+            # file is imports and docstrings.
+            excerpt = self._relevant_excerpt(content, self._goal)
 
             prompt = (
-                f"File: {path}\n\n{content[:6000]}\n\n"
+                f"File: {path}\n\n{excerpt}\n\n"
                 f"Task: {self._goal}\n\n"
                 "Reply with ONLY a JSON object giving one exact edit:\n"
                 '{"search": "<exact text copied from the file above>", '
                 '"replace": "<the corrected text>"}\n'
-                "The search text must appear in the file EXACTLY as written above."
+                "The search text must appear in the file EXACTLY as written "
+                "above, including indentation. Copy it character for character; "
+                "do not retype it from memory. Choose a short, unique snippet "
+                "(one to three lines) rather than a whole function."
             )
-            try:
-                r = self.agent.think(prompt, complexity_score=7.0)
-                raw = (r.content or "") if getattr(r, "success", False) else ""
-            except Exception as exc:
-                return f"edit generation failed: {exc}"
+            # Constrain the reply to the {search, replace} shape so the
+            # "no usable edit was produced" failure cannot happen at all --
+            # the same trick the menu uses for the integer choice.
+            raw = ""
+            if self.use_constrained_decoding:
+                try:
+                    from saleha.core.model_provider import model_provider
+                    resp = model_provider.generate(
+                        model=getattr(self.agent, "model", "auto"),
+                        prompt=prompt,
+                        options={"temperature": 0.0, "num_predict": 900},
+                        response_format=EDIT_SCHEMA,
+                    )
+                    if resp.success:
+                        raw = resp.content or ""
+                except (ImportError, TypeError, AttributeError):
+                    raw = ""
+            if not raw:
+                try:
+                    r = self.agent.think(prompt, complexity_score=7.0)
+                    raw = (r.content or "") if getattr(r, "success", False) else ""
+                except Exception as exc:
+                    return f"edit generation failed: {exc}"
 
             import json as _json
             data = None
@@ -448,11 +598,24 @@ Reply with ONLY the number of the single best next action."""
                 return "no usable {search, replace} edit was produced"
 
             search, replace = str(data["search"]), str(data["replace"])
+
+            # The excerpt is line-numbered ("  245| code"), so a model that
+            # copies faithfully may include the gutter. Strip it rather than
+            # rejecting an otherwise correct edit.
+            search = _strip_line_gutter(search)
+            replace = _strip_line_gutter(replace)
+
             if search not in content:
-                # The model invented text that is not in the file. Say so
-                # plainly rather than writing something unverified.
-                return ("edit rejected: the search text does not appear in "
-                        f"{path}. Copy it exactly from the file.")
+                # Try once more ignoring leading indentation differences,
+                # which are the most common near-miss on Python source.
+                relaxed = _match_ignoring_indent(content, search)
+                if relaxed is None:
+                    # The model invented text that is not in the file. Say so
+                    # plainly rather than writing something unverified.
+                    return ("edit rejected: the search text does not appear in "
+                            f"{path}. Copy it exactly from the file, including "
+                            "indentation.")
+                search = relaxed
             if search == replace:
                 return "edit rejected: search and replace are identical"
 
