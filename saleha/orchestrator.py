@@ -155,7 +155,20 @@ class SalehaOrchestrator:
                     # aage normal pipeline chalega
 
             # Naya: Long-term memory lookup (verified solution caching)
-            cached_mem = memory_store.recall(user_goal)
+            # Scope the cache to this model when one is pinned. Without it,
+            # benchmarking a second model on prompts a first model already
+            # solved replays the first model's answer ("LLM skipped") and
+            # reports it as the second model's result -- verified to produce
+            # identical, meaningless before/after numbers in a real tuning run.
+            #
+            # "auto" is deliberately NOT passed as a filter: entries are stored
+            # under the resolved model name (CodeResult.model_used), so
+            # filtering on the literal string "auto" would match nothing and
+            # silently disable the cache for every default-configured run.
+            cached_mem = memory_store.recall(
+                user_goal,
+                model=self.model if self.model and self.model != "auto" else None,
+            )
             if cached_mem:
                 log += f"\n🧠 Memory Recall: Found previously verified solution (Reused {cached_mem.hit_count} times) -- LLM skipped.\n"
                 self.history.log(goal=user_goal, model=f"memory:{cached_mem.model}",

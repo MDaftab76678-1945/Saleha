@@ -70,7 +70,7 @@ class MemoryStore:
                 data = json.load(f)
             for item in data.get("entries", []):
                 entry = MemoryEntry(
-                    id=item.get("id", str(uuid.uuid4().hex[:8])),
+                    id=item.get("id", uuid.uuid4().hex[:8]),
                     goal=item.get("goal", ""),
                     code=item.get("code", ""),
                     tags=item.get("tags", []),
@@ -191,14 +191,33 @@ class MemoryStore:
         self._save()
         return entry
 
-    def recall(self, query: str, min_similarity: float = 0.80) -> Optional[MemoryEntry]:
-        """Looks for a high-confidence matching verified solution."""
+    def recall(self, query: str, min_similarity: float = 0.80,
+               model: Optional[str] = None) -> Optional[MemoryEntry]:
+        """
+        Looks for a high-confidence matching verified solution.
+
+        `model`, when given, restricts the search to entries produced by that
+        model. This matters for any before/after or A/B comparison: the cache
+        is keyed on goal text alone, so benchmarking model B on the same
+        prompts model A already solved would replay A's cached answer and
+        report B's score as A's. That was verified to happen -- it produced
+        identical, meaningless before/after numbers in a real tuning run.
+        Callers doing plain task execution can leave it None and keep sharing
+        solutions across models, which is the useful behaviour there.
+        """
         query_norm = query.strip().lower()
         if not query_norm or not self._entries:
             return None
 
+        candidates = [
+            e for e in self._entries.values()
+            if model is None or e.model == model
+        ]
+        if not candidates:
+            return None
+
         # 1. Exact match
-        for entry in self._entries.values():
+        for entry in candidates:
             if entry.goal.strip().lower() == query_norm:
                 entry.hit_count += 1
                 self._save()
@@ -212,7 +231,7 @@ class MemoryStore:
         best_score = 0.0
         best_entry: Optional[MemoryEntry] = None
 
-        for entry in self._entries.values():
+        for entry in candidates:
             entry_tokens = set(self._tokenize(entry.goal.lower()))
             if not entry_tokens:
                 continue

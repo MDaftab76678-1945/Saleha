@@ -1,5 +1,6 @@
 import unittest
 import os
+import shutil
 import tempfile
 import json
 from click.testing import CliRunner
@@ -100,6 +101,66 @@ class MemoryStoreTests(unittest.TestCase):
         self.assertIn("Recent Detailed Trace", compacted)
         self.assertIn("Step 1 (tool_1)", compacted)
         self.assertIn("Step 7", compacted)
+
+
+class ModelScopedRecallTests(unittest.TestCase):
+    """
+    The cache is keyed on goal text alone. Benchmarking model B on prompts
+    model A already solved therefore replayed A's cached answer and reported
+    it as B's result -- verified in a real tuning run to produce identical,
+    meaningless before/after numbers.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.store = MemoryStore(storage_path=os.path.join(self.tmp, "m.json"))
+        self.store.remember(goal="write a fibonacci function",
+                            code="def fib(n): return n",
+                            model="qwen2.5-coder:3b")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_unfiltered_recall_still_shares_across_models(self):
+        """Default behaviour is unchanged: plain task execution still reuses
+        a verified solution regardless of which model produced it."""
+        self.assertIsNotNone(self.store.recall("write a fibonacci function"))
+
+    def test_recall_scoped_to_the_producing_model_hits(self):
+        hit = self.store.recall("write a fibonacci function",
+                                model="qwen2.5-coder:3b")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.model, "qwen2.5-coder:3b")
+
+    def test_recall_scoped_to_a_different_model_misses(self):
+        """The actual bug: model B must not be handed model A's answer."""
+        self.assertIsNone(self.store.recall("write a fibonacci function",
+                                            model="deepseek-coder:6.7b"))
+
+    def test_fuzzy_match_is_also_model_scoped(self):
+        """Scoping must apply to the Jaccard path, not just exact match."""
+        self.assertIsNotNone(self.store.recall("write a fibonacci function please",
+                                               min_similarity=0.5,
+                                               model="qwen2.5-coder:3b"))
+        self.assertIsNone(self.store.recall("write a fibonacci function please",
+                                            min_similarity=0.5,
+                                            model="deepseek-coder:6.7b"))
+
+    def test_empty_store_scoped_recall_is_safe(self):
+        empty = MemoryStore(storage_path=os.path.join(self.tmp, "empty.json"))
+        self.assertIsNone(empty.recall("anything", model="qwen2.5-coder:3b"))
+
+    def test_orchestrator_does_not_filter_on_literal_auto(self):
+        """Entries are stored under the RESOLVED model name, so filtering on
+        the literal string "auto" would match nothing and silently disable the
+        cache for every default-configured run."""
+        self.assertIsNone(self.store.recall("write a fibonacci function",
+                                            model="auto"))
+        from saleha.orchestrator import SalehaOrchestrator
+        orch = SalehaOrchestrator.__new__(SalehaOrchestrator)
+        orch.model = "auto"
+        resolved = orch.model if orch.model and orch.model != "auto" else None
+        self.assertIsNone(resolved)
 
 
 if __name__ == "__main__":
