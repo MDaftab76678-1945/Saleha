@@ -110,6 +110,7 @@ class TuningConfig:
     eval_holdout_frac: float = 0.1
     deploy_to_ollama: bool = True
     run_benchmark: bool = True   # real Pass@1 delta; only attempted if deploy succeeds
+    load_in_4bit: Optional[bool] = None  # None = auto (on for 7B+ models, off otherwise)
 
 
 @dataclass
@@ -234,16 +235,33 @@ class LoRATuner:
 
     def _train_transformers_peft(self, config: TuningConfig, dataset_path: str,
                                   adapter_path: str) -> Dict[str, Any]:
-        """Real LoRA SFT via HuggingFace PEFT + TRL on local GPU/CPU."""
+        """Real LoRA SFT via HuggingFace PEFT + TRL on local GPU/CPU.
+        Uses real QLoRA (4-bit NF4 quantized base + bitsandbytes) for 7B+
+        models so they fit in 6GB VRAM -- auto-detected from the model name
+        unless config.load_in_4bit forces it explicitly."""
         import torch
         from datasets import load_dataset
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        from peft import LoraConfig
+        from peft import LoraConfig, prepare_model_for_kbit_training
         from trl import SFTTrainer, SFTConfig
 
         hf_base = self._resolve_hf_base(config.base_model)
         device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.bfloat16 if device == "cuda" else torch.float32
+
+        use_4bit = config.load_in_4bit
+        if use_4bit is None:
+            import re
+            size_match = re.search(r"(\d+(?:\.\d+)?)b", config.base_model.lower())
+            use_4bit = bool(size_match and float(size_match.group(1)) >= 7) and device == "cuda"
+
+        quant_config = None
+        if use_4bit:
+            from transformers import BitsAndBytesConfig
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=dtype, bnb_4bit_use_double_quant=True,
+            )
 
         tokenizer = AutoTokenizer.from_pretrained(hf_base)
         if tokenizer.pad_token is None:
@@ -269,7 +287,11 @@ class LoRATuner:
             # (train-fit) signal, not a true generalization measurement.
             train_ds, eval_ds = raw, raw
 
-        model = AutoModelForCausalLM.from_pretrained(hf_base, dtype=dtype, device_map=device)
+        model = AutoModelForCausalLM.from_pretrained(
+            hf_base, dtype=dtype, device_map=device, quantization_config=quant_config,
+        )
+        if use_4bit:
+            model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
         before_loss = self._eval_loss(model, tokenizer, eval_ds, to_text)
 
