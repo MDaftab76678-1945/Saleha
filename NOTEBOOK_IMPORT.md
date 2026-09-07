@@ -698,3 +698,81 @@ with the `explain-code` entry.
 the `emergence-check` wiring remain templates. `emergence-check` is the cheap
 one — the detector itself is real, nothing ever calls `record_message()`.
 
+
+## Eleventh pass — `emergence-check` audited an empty list (2026-09-07)
+
+Third of the four commands `ARCHITECTURE.md` flagged as templates on
+2026-09-06. Unlike the previous two, the logic here was never fake:
+`emergence_detector.py` computes a correct Gini coefficient and does really
+walk the message graph looking for ping-pong cycles. **The bug was that
+nothing ever gave it anything to look at.**
+
+Nothing in the repo called `record_message()`. So the module-level singleton
+was permanently empty, and every run of `saleha emergence-check`, on every
+machine, printed:
+
+```
+Swarm communication is idle and healthy.
+```
+
+That was a verdict about an empty list, not about the swarm. A real deadlock
+in a real run would have printed exactly the same thing.
+
+Two separate gaps, both fixed:
+
+**1. Nobody recorded.** `TeamOrchestrator.run_team_workflow` already runs the
+exact graph this detector describes — a five-stage handoff chain plus a
+Verifier/Debugger self-healing loop. Those handoffs are now recorded as they
+happen: 5 pipeline edges plus **both directions** of the healing loop, which
+is the one genuine back-and-forth in the pipeline and therefore the only place
+a ping-pong deadlock can actually form.
+
+**2. Nothing persisted.** This one is easy to miss and would have made the fix
+useless on its own: `emergence-check` runs in a *different process* from the
+workflow it is asking about. An in-memory singleton is empty at the moment the
+question is asked no matter how faithfully it was filled earlier. Events now
+append to `~/.saleha/swarm_messages.jsonl` (the `audit_log.py` convention) and
+the CLI loads that before evaluating.
+
+Verified end-to-end across process boundaries — one process records a stuck
+healing loop, a second process detects it:
+
+```
+Swarm Dynamics (4 messages across 2 agents, 1 run(s)):
+  Gini=0.0, Deadlocks=2 -> ANOMALY DETECTED
+  * Ping-Pong Deadlock between 'Verifier' and 'Debugger'
+  Suggested remediation: break_deadlock_and_yield_to_orchestrator
+```
+
+### An empty history no longer claims health
+
+`has_data` distinguishes "nothing recorded" from "recorded and fine" — these
+are different statements and the old code collapsed them into the reassuring
+one. With no data the report now says there is nothing to judge and points at
+`saleha team`, instead of asserting health it cannot know.
+
+Only a 200-character excerpt of each message is persisted: the analysis is
+about the *shape* of the graph, so writing full agent output would put
+generated code and prompts on disk for no analytical gain. Recording failures
+are swallowed — observability must never break the pipeline it observes — and
+a truncated final line (a process killed mid-write) is skipped rather than
+sinking the whole history.
+
+### A test of mine that was wrong
+
+`test_gini_flags_a_monopolising_agent` initially built a 2-agent swarm at a
+1:40 ratio and asserted Gini > 0.70. It measured 0.476 and failed. The
+implementation was right and the test was impossible: Gini is bounded by
+`(n-1)/n`, so two agents cap at 0.5 and can never trip a 0.70 threshold no
+matter how lopsided they are. Rewritten with 5 agents, and the bound is now
+documented in its own test so the limit is not later mistaken for a bug.
+
+22 tests replace the 2 that existed. The old pair called `record_message()`
+themselves, which is exactly why they passed while the command was broken in
+production — they tested the detector in isolation and never asked whether
+anything fed it. Four new tests assert the orchestrator's call sites exist, so
+deleting the wiring fails the suite instead of silently restoring
+always-healthy.
+
+**Still open from the 2026-09-06 audit:** `silicon-build` and `causal-eval`.
+

@@ -325,16 +325,43 @@ def godel_utility_cmd():
                         + '\n'.join(lines), border_style=col))
 
 @cli.command(name='emergence-check')
-def emergence_check_cmd():
+@click.option('--clear', is_flag=True, help='Delete the recorded swarm message history.')
+def emergence_check_cmd(clear):
     """
     Audit multi-agent swarm dynamics for circular deadlocks and Gini inequality.
-    
+
+    Reads the handoffs recorded by `saleha team` runs. With no recorded
+    activity it reports that there is nothing to judge, rather than calling an
+    empty graph healthy.
+
     Example: saleha emergence-check
     """
     from saleha.core.emergence_detector import emergence_detector
+
+    if clear:
+        emergence_detector.clear(wipe_persisted=True)
+        console.print('[green]Swarm message history cleared.[/]')
+        return
+
+    # The workflow being asked about ran in a different process, so the
+    # in-memory singleton is empty here; the persisted log is the real source.
+    emergence_detector.load_history()
     rep = emergence_detector.evaluate_swarm_health()
+
+    if not rep.has_data:
+        console.print(Panel(
+            f'[bold yellow]🕵️ Swarm Emergence & Collusion Monitor[/bold yellow]\n{rep.summary}',
+            border_style='yellow'))
+        return
+
     col = 'green' if rep.is_healthy else 'yellow'
-    console.print(Panel(f'[bold {col}]🕵️ Swarm Emergence & Collusion Monitor[/bold {col}]\n{rep.summary}', border_style=col))
+    console.print(Panel(
+        f'[bold {col}]🕵️ Swarm Emergence & Collusion Monitor[/bold {col}]\n{rep.summary}',
+        border_style=col))
+    for anomaly in rep.anomalies:
+        console.print(f'  [yellow]•[/] {anomaly}')
+    if rep.remediation_action != 'none':
+        console.print(f'  [dim]Suggested remediation: {rep.remediation_action}[/]')
 
 @cli.command(name='merkle-audit')
 def merkle_audit_cmd():

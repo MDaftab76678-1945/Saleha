@@ -14,6 +14,7 @@ sequentially with feedback loops to produce end-to-end software deliverables:
 import os
 import sys
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Callable
 
@@ -23,6 +24,7 @@ from saleha.agents.debugger import DebuggerAgent
 from saleha.core.code_executor import CodeExecutor, ExecutionResult
 from saleha.core.task_history import TaskHistory
 from saleha.core.stats_tracker import StatsTracker
+from saleha.core.emergence_detector import emergence_detector
 
 
 @dataclass
@@ -117,6 +119,31 @@ class TeamOrchestrator:
         stages_done = []
         _event_counter = {"n": 0}
 
+        # Identifies this workflow run in the swarm message log, so
+        # `saleha emergence-check` can tell one run's dynamics from another's.
+        run_id = uuid.uuid4().hex[:12]
+        _handoff_step = {"n": 0}
+
+        def handoff(sender: str, recipient: str, content: str) -> None:
+            """
+            Record one agent-to-agent handoff for `saleha emergence-check`.
+
+            This is the wiring that was missing: `emergence_detector` has always
+            had real Gini and deadlock detection, but nothing ever called
+            `record_message()`, so the command reported an empty list as
+            "idle and healthy" on every run.
+
+            Observability must never break the pipeline it observes, so any
+            failure here is swallowed.
+            """
+            _handoff_step["n"] += 1
+            try:
+                emergence_detector.record_message(
+                    sender, recipient, content or "", _handoff_step["n"], run_id
+                )
+            except Exception:
+                pass
+
         def emit(stage: str, content: str):
             nonlocal log
             if on_event is None:
@@ -152,6 +179,7 @@ Structure:
         pm_resp = pm_agent.think(pm_prompt)
         prd_text = pm_resp.content if pm_resp.success else f"Feature Goal: {goal}"
         stages_done.append("Product Management")
+        handoff("Product Manager", "Software Designer", prd_text)
         log += "✅ PRD created successfully.\n"
         emit("Product Manager (PRD)", prd_text)
 
@@ -191,6 +219,7 @@ Include:
         else:
             stages_done.append("Architecture & LLD")
             log += "✅ Architecture design & contracts specified.\n"
+        handoff("Software Designer", "Senior Software Engineer", design_text)
         emit("Software Designer (LLD Architecture)", design_text)
 
         # ======================================================================
@@ -223,6 +252,7 @@ Requirements:
                 code=raw_code, log=log, stages_completed=stages_done
             )
         stages_done.append("Implementation")
+        handoff("Senior Software Engineer", "Security Engineer", extracted_code)
         log += "✅ Code implementation generated.\n"
         emit("Senior SDE (Implementation)", extracted_code)
 
@@ -246,6 +276,7 @@ Format output as:
         sec_resp = sec_agent.think(sec_prompt)
         security_text = sec_resp.content if sec_resp.success else "Security audit completed (Standard clearance)."
         stages_done.append("Security Audit")
+        handoff("Security Engineer", "Test Automation Architect", security_text)
         # SECURITY GATE (naya): pehle LLM ka APPROVED/VULNERABLE verdict sirf
         # report me likha jaata tha -- execution gate nahi karta tha (cosmetic).
         # Ab VULNERABLE verdict par AST SAST scanner ground-truth deta hai:
@@ -337,6 +368,7 @@ Requirements:
         extracted_tests = self._extract_code(raw_tests)
         stages_done.append("Test Automation")
         log += "✅ Test suite generated.\n"
+        handoff("Test Automation Architect", "Verifier", extracted_tests)
         emit("QA Test Architect (Automated Tests)", extracted_tests)
 
         # ======================================================================
@@ -356,6 +388,12 @@ Requirements:
             log += "   Triggering Debugger Agent for Self-Healing...\n"
             attempts += 1
 
+            # Verifier -> Debugger -> Verifier is the one genuine back-and-forth
+            # in this pipeline, so it is what the ping-pong detector exists to
+            # see. Recording both directions is what makes a stuck healing loop
+            # visible to `saleha emergence-check`.
+            handoff("Verifier", "Debugger", exec_result.error or "execution failed")
+
             debug_result = self.debugger.debug_code(
                 task=goal,
                 code=extracted_code,
@@ -364,9 +402,11 @@ Requirements:
 
             if debug_result.success and debug_result.fixed_code:
                 extracted_code = debug_result.fixed_code
+                handoff("Debugger", "Verifier", "patched code resubmitted")
                 combined_script = self._build_combined_test_runner(extracted_code, extracted_tests)
                 exec_result = self.executor.execute(combined_script)
             else:
+                handoff("Debugger", "Verifier", "no fix produced")
                 break
 
         final_success = exec_result.success and not exec_result.blocked
