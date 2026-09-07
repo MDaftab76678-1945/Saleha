@@ -116,24 +116,11 @@ The user has had to repeat this. Do not make them repeat it again.
 
 Verify these are still true before acting — they may have been fixed since.
 
-**In `saleha/orchestrator.py`, found but NOT yet fixed:**
-
-1. `auto_commit` calls `auto_commit_task` with `files=None`, which runs
-   `git add .` — it commits every unrelated uncommitted change in the repo.
-   The generated code is never written to a file, so it commits things the
-   user wrote, not what the agent produced.
-2. `test_passed=True` is hardcoded at that call site, so the commit message
-   says "Verified: Passed AST & Execution Tests" even when `generate_tests`
-   was False and no test suite ever existed.
-3. `memory_store.remember()` is called on a path where only `verifier.execute`
-   ran — the cache is documented as holding "verified solutions", but a
-   merely-non-crashing answer gets stored and replayed forever.
-4. `_checkpoint("failed")` is missing on two failure paths (Coder-failed break,
-   and the Verifier-blocked return), so `--resume` will resume a dead task.
-5. The blocked-execution path never reaches `metrics_tracker`, so blocked runs
-   are invisible in metrics and success rate reads higher than reality.
-6. On `--resume`, `match_profile_for_task` can re-match a different profile
-   than the one the checkpoint saved.
+**`saleha/orchestrator.py` — all known defects fixed** (passes 13-15): the
+unverified-success path, `git add .` on auto-commit, the hardcoded
+`test_passed=True`, the cache's verified-vs-did-not-crash conflation, the
+missing checkpoint on the blocked exit, and profile drift on resume. The file
+also reports zero editor diagnostics and is English-only.
 
 **Still template (documented in `ARCHITECTURE.md`, not yet fixed):**
 

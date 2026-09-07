@@ -237,5 +237,87 @@ class SalehaOrchestratorVerificationTests(unittest.TestCase):
         self.assertIn("memory", res.unverified_reason.lower())
 
 
+class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
+    """
+    Four defects found reading execute_task in full on 2026-09-07, all of them
+    bookkeeping that made the run look better or safer than it was.
+    """
+
+    GOOD = "def solve():\n    return 1 + 1\n\nsolve()\n"
+    BLOCKED = "import os\nos.system('rm -rf /')\n"
+
+    def _orch(self, code, approved=True):
+        from saleha.agents.coder import CodeResult
+        from saleha.agents.planner import PlanResult
+        from saleha.agents.reviewer import ReviewResult
+        from saleha.agents.tester import TestResult
+        from saleha.orchestrator import SalehaOrchestrator
+
+        o = SalehaOrchestrator(model="fake-model", max_healing_attempts=1)
+        o.planner.create_plan = MagicMock(return_value=PlanResult(
+            success=True, steps=["s"], recommendation="go",
+            raw_response="p", complexity_score=1.0))
+        o.coder.generate_code = MagicMock(return_value=CodeResult(
+            success=True, code=code, attempts=1, model_used="fake-model"))
+        o.tester.test_code = MagicMock(return_value=TestResult(
+            passed=True, error_message="", error_type="None"))
+        o.reviewer.review_code = MagicMock(return_value=ReviewResult(
+            approved=approved, feedback="f", model_used="fake-model"))
+        return o
+
+    def test_cache_records_how_the_solution_was_checked(self):
+        """
+        Without a test suite the only check that ran is "it did not crash",
+        which is much weaker than a passing test run. The cache stored both
+        identically and the recall path advertised every entry as a
+        "previously verified solution".
+        """
+        seen = {}
+        orch = self._orch(self.GOOD)
+        with patch("saleha.core.memory_store.memory_store.remember",
+                   side_effect=lambda **kw: seen.update(kw) or MagicMock()),              patch("saleha.core.memory_store.memory_store.recall", return_value=None),              patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+            orch.execute_task("goal", use_context=False, generate_tests=False)
+        self.assertEqual(seen.get("source_type"), "ran_without_error")
+
+    def test_recall_does_not_claim_verification_that_never_happened(self):
+        entry = MagicMock(code=self.GOOD, model="fake-model", hit_count=2,
+                          source_type="ran_without_error")
+        from saleha.orchestrator import SalehaOrchestrator
+        orch = SalehaOrchestrator(model="fake-model")
+        with patch("saleha.core.memory_store.memory_store.recall", return_value=entry),              patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+            res = orch.execute_task("goal", use_context=False)
+        self.assertTrue(res.success)
+        self.assertFalse(res.verified)
+        self.assertIn("no test suite", res.unverified_reason)
+        self.assertNotIn("previously verified", res.unverified_reason)
+
+    def test_blocked_execution_checkpoints_as_failed(self):
+        """
+        This exit had no checkpoint, so the session stayed "in_progress" and
+        `--resume` would pick a blocked task back up. It also skipped
+        metrics_tracker, so blocked runs were invisible and the recorded
+        success rate read higher than reality.
+        """
+        orch = self._orch(self.BLOCKED)
+        states = []
+        with patch("saleha.core.session_store.session_store.save",
+                   side_effect=lambda st: states.append(st.status)),              patch("saleha.core.memory_store.memory_store.recall", return_value=None),              patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+            res = orch.execute_task("goal", use_context=False)
+        self.assertFalse(res.success)
+        self.assertEqual(states[-1], "failed")
+
+    def test_resume_does_not_rematch_a_different_profile(self):
+        """
+        On resume the checkpoint's profile is authoritative. Re-deriving it
+        could select a different profile than the run being resumed, which
+        defeats the point of a checkpoint.
+        """
+        import inspect
+        from saleha.orchestrator import SalehaOrchestrator
+        src = inspect.getsource(SalehaOrchestrator.execute_task)
+        self.assertIn("elif resumed:", src)
+        self.assertIn("active_profile = None", src)
+
+
 if __name__ == "__main__":
     unittest.main()

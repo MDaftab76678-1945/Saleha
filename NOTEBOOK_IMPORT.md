@@ -974,3 +974,54 @@ sites. Commit tests run against a temp repository, never the developer's own
 checkout -- these write real commits, and running them against the working repo
 is precisely the accident this pass exists to prevent.
 
+
+## Fifteenth pass — the four remaining orchestrator defects (2026-09-07)
+
+The thirteenth pass fixed the worst defect in `execute_task` (success reported
+for code never executed) and listed four more found while reading the file in
+full. Those are now fixed.
+
+### 1. The cache could not tell "verified" from "did not crash"
+
+`memory_store.remember()` was called on the success path with no record of how
+the code had been checked. With `generate_tests=False` the only check that ran
+is `verifier.execute()` -- which proves the code does not crash, not that it is
+correct. Both cases were stored identically, and the recall path advertised
+every hit as a *"previously verified solution"*.
+
+So an answer that merely ran without error got cached as verified and replayed
+forever, with the reassuring wording attached.
+
+`source_type` (a field the store already had) now distinguishes them:
+`verified_execution` when a real suite ran, `ran_without_error` otherwise. The
+recall log and `unverified_reason` say which:
+
+```
+Replayed from memory (previously ran without error (no test suite));
+not re-executed in this run.
+```
+
+### 2 & 3. The blocked-execution exit had no checkpoint
+
+One exit path -- verifier blocks a dangerous pattern -- returned without
+calling `_checkpoint`. Two consequences, both measured:
+
+- the session stayed `in_progress`, so `saleha run --resume` would pick a
+  **blocked** task back up;
+- `metrics_tracker` is called from inside `_checkpoint` on terminal statuses,
+  so blocked runs never reached metrics at all. They were invisible, and the
+  recorded success rate read higher than reality.
+
+Every other terminal path already checkpointed. This one was simply missed.
+
+### 4. Resume could silently switch profiles
+
+On `--resume` the checkpoint restores `profile = st.profile`. If the saved
+profile was empty, the line below re-ran `match_profile_for_task(user_goal)`,
+which could select a **different** profile than the run being resumed. That
+defeats the point of a checkpoint. A resumed run with no saved profile now
+stays profile-less.
+
+All four verified by probe before and after; 4 regression tests added to
+`test_orchestrator_honesty.py`. Suite: 1581 passed.
+

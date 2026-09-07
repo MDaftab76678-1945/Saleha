@@ -168,8 +168,19 @@ class SalehaOrchestrator:
             # (the resume branch has already written its own header)
             log = f"Goal: {user_goal}\n" + "-" * 60
 
-        # Resolve active agent profile if explicitly specified or matched
-        active_profile = profile_registry.get(profile) if profile else (self.default_profile or profile_registry.match_profile_for_task(user_goal))
+        # Resolve the active agent profile.
+        #
+        # On resume, the checkpoint's profile is authoritative and must not be
+        # re-derived: if the saved profile was empty, `match_profile_for_task`
+        # would run again here and could select a DIFFERENT profile from the
+        # run being resumed -- which defeats the point of a checkpoint. So a
+        # resumed run with no saved profile stays profile-less.
+        if profile:
+            active_profile = profile_registry.get(profile)
+        elif resumed:
+            active_profile = None
+        else:
+            active_profile = self.default_profile or profile_registry.match_profile_for_task(user_goal)
         profile_name = active_profile.id if active_profile else ""
         if active_profile:
             log += f"\nActive agent profile: {active_profile.name} [{active_profile.id}]\n"
@@ -223,19 +234,27 @@ class SalehaOrchestrator:
                 model=self.model if self.model and self.model != "auto" else None,
             )
             if cached_mem:
-                log += f"\nMemory recall: reusing a previously verified solution (hit {cached_mem.hit_count} times) -- LLM skipped.\n"
+                # How the cached entry was checked when it was first solved.
+                # "ran_without_error" means only that it did not crash -- no
+                # test suite existed for it -- so it must not be replayed under
+                # the word "verified".
+                cached_source = getattr(cached_mem, "source_type", "") or ""
+                how_checked = ("previously verified against a test suite"
+                               if cached_source == "verified_execution"
+                               else "previously ran without error (no test suite)")
+                log += (f"\nMemory recall: reusing a solution {how_checked} "
+                        f"(hit {cached_mem.hit_count} times) -- LLM skipped.\n")
                 self.history.log(goal=user_goal, model=f"memory:{cached_mem.model}",
                                   success=True, attempts=0, code=cached_mem.code)
                 self.last_goal = user_goal
                 self.last_code = cached_mem.code
-                # The cache only stores solutions that passed verification when
-                # first solved, but nothing was executed in THIS run, so the
-                # distinction is recorded rather than glossed over.
+                # Nothing was executed in THIS run either way, so `verified`
+                # stays False and the reason carries both facts.
                 return OrchestrationResult(
                     success=True, final_code=cached_mem.code, attempts=0, log=log,
                     profile_used="memory_store", verified=False,
                     unverified_reason=(
-                        "Replayed a previously verified solution from memory; "
+                        f"Replayed from memory ({how_checked}); "
                         "not re-executed in this run."
                     ),
                 )
@@ -503,6 +522,13 @@ class SalehaOrchestrator:
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=False, attempts=attempts, code=current_code,
                                           error=f"Blocked: {exec_result.block_reason}")
+                        # This exit had no checkpoint, so the session stayed
+                        # "in_progress" and `saleha run --resume` would pick a
+                        # blocked task back up. It also meant blocked runs never
+                        # reached metrics_tracker (which _checkpoint calls on a
+                        # terminal status), so they were invisible in metrics and
+                        # the recorded success rate read higher than reality.
+                        _checkpoint("failed")
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
                     if exec_result.success:
@@ -511,10 +537,20 @@ class SalehaOrchestrator:
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=True, attempts=attempts, code=current_code)
                         try:
+                            # Record HOW this was verified, not just that it
+                            # was. Without a generated test suite the only
+                            # check that ran is "the code did not crash", which
+                            # is much weaker than a passing test run -- and the
+                            # recall path advertises these entries as
+                            # "previously verified solution". Storing the
+                            # distinction keeps that claim honest.
                             memory_store.remember(
                                 goal=user_goal,
                                 code=current_code,
-                                model=current_code_result.model_used or self.model
+                                model=current_code_result.model_used or self.model,
+                                source_type=("verified_execution"
+                                             if current_test_code
+                                             else "ran_without_error"),
                             )
                         except (IOError, OSError, TypeError) as e:
                             log += f"   Warning: Memory store save failed: {e}\n"
