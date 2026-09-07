@@ -36,13 +36,21 @@ def build_release(dry_run: bool = False):
 
     print(f"Building Python wheels and sdist in {DIST_DIR}...")
     try:
-        # Build sdist and wheel using setup.py or build
+        # `python setup.py sdist bdist_wheel` is the deprecated path and was
+        # reading a setup.py that duplicated pyproject.toml and disagreed with
+        # it (python_requires >=3.10 against requires-python >=3.12). Build
+        # from pyproject.toml, which is what .github/workflows/release.yml
+        # already does.
         subprocess.run(
-            [sys.executable, "setup.py", "sdist", "bdist_wheel"],
+            [sys.executable, "-m", "build", "--sdist", "--wheel",
+             f"--outdir={DIST_DIR}"],
             cwd=ROOT_DIR,
             check=True
         )
-    except Exception as e:
+    except FileNotFoundError:
+        print("[FAIL] the `build` package is not installed: pip install build")
+        return False
+    except subprocess.CalledProcessError as e:
         print(f"[FAIL] Build failed: {e}")
         return False
 

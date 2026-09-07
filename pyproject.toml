@@ -80,6 +80,14 @@ Documentation = "https://github.com/MDaftab76678-1945/Saleha/tree/main/docs"
 Repository = "https://github.com/MDaftab76678-1945/Saleha.git"
 Issues = "https://github.com/MDaftab76678-1945/Saleha/issues"
 
+# The repo root holds many non-Python directories (apps/, rust/, deploy/,
+# contracts/, ...), so setuptools' automatic discovery refuses to guess and
+# the build fails. The deleted setup.py used find_packages(); this says the
+# same thing declaratively.
+[tool.setuptools.packages.find]
+include = ["saleha*"]
+exclude = ["saleha.tests*"]
+
 [tool.pytest.ini_options]
 testpaths = ["saleha/tests"]
 python_files = ["test_*.py", "*_test.py"]
@@ -100,7 +108,7 @@ norecursedirs = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 exclude = [
     ".git",
     ".venv",
@@ -119,7 +127,7 @@ ignore = ["E501", "B008", "SIM108"]
 [tool.pyright]
 include = ["saleha"]
 exclude = ["**/node_modules", "**/__pycache__", "apps", "dist", "build", ".venv*"]
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"
 
 

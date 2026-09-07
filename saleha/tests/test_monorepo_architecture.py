@@ -3,8 +3,8 @@ Unit & Architecture tests for Saleha Ecosystem & Architecture.
 Verifies core product architecture, design standards, and CI pipelines.
 """
 
-import os
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -166,6 +166,84 @@ class WorkspaceVersionTests(unittest.TestCase):
             if runs_tsc and not (pkg_dir / "tsconfig.json").is_file():
                 problems.append(f"{rel} runs tsc but has no tsconfig.json")
         self.assertEqual(problems, [], "; ".join(problems))
+
+
+class PythonVersionTests(unittest.TestCase):
+    """
+    The declared Python version must agree with itself.
+
+    Four places disagreed: pyproject.toml said `requires-python = ">=3.12"`,
+    its own [tool.ruff] said `target-version = "py310"` and [tool.pyright]
+    said `pythonVersion = "3.10"`, and a duplicate setup.py said
+    `python_requires='>=3.10'`. Meanwhile the working venv ran 3.11.16 -- a
+    version the project's own metadata does not allow and CI never tests.
+    """
+
+    def setUp(self):
+        self.root_dir = Path(__file__).resolve().parents[2]
+        pyproject = self.root_dir / "pyproject.toml"
+        if not pyproject.is_file():
+            self.skipTest("no pyproject.toml")
+        try:
+            import tomllib
+        except ImportError:
+            self.skipTest("tomllib requires Python 3.11+")
+        self.cfg = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _minor(spec: str) -> int:
+        """'>=3.12' -> 12, 'py312' -> 12, '3.12' -> 12."""
+        digits = re.findall(r"3[.]?(\d+)", spec)
+        if not digits:
+            raise AssertionError(f"cannot read a 3.x version out of {spec!r}")
+        return int(digits[0])
+
+    def test_ruff_and_pyright_match_requires_python(self):
+        required = self._minor(self.cfg["project"]["requires-python"])
+        ruff = self.cfg.get("tool", {}).get("ruff", {}).get("target-version")
+        pyright = self.cfg.get("tool", {}).get("pyright", {}).get("pythonVersion")
+
+        if ruff:
+            self.assertEqual(
+                self._minor(ruff), required,
+                f"ruff target-version {ruff} does not match "
+                f"requires-python {self.cfg['project']['requires-python']}")
+        if pyright:
+            self.assertEqual(
+                self._minor(pyright), required,
+                f"pyright pythonVersion {pyright} does not match "
+                f"requires-python {self.cfg['project']['requires-python']}")
+
+    def test_no_duplicate_setup_py(self):
+        """
+        setup.py duplicated every field of pyproject.toml and drifted from it.
+        Two files declaring the same package is how they end up disagreeing.
+        """
+        self.assertFalse(
+            (self.root_dir / "setup.py").exists(),
+            "setup.py is back; pyproject.toml already declares this package, "
+            "and the duplicate is what drifted to python_requires>=3.10")
+
+    def test_ci_matrix_covers_only_supported_versions(self):
+        ci = self.root_dir / ".github" / "workflows" / "ci.yml"
+        if not ci.is_file():
+            self.skipTest("no ci.yml")
+        text = ci.read_text(encoding="utf-8")
+        match = re.search(r"python-version:\s*\[([^\]]+)\]", text)
+        if not match:
+            self.skipTest("no python-version matrix in ci.yml")
+
+        required = self._minor(self.cfg["project"]["requires-python"])
+        tested = [int(v) for v in re.findall(r"3\.(\d+)", match.group(1))]
+        too_old = [f"3.{v}" for v in tested if v < required]
+        self.assertEqual(
+            too_old, [],
+            f"CI tests {too_old}, which requires-python "
+            f"{self.cfg['project']['requires-python']} does not allow")
+        self.assertIn(
+            required, tested,
+            f"CI never tests 3.{required}, the minimum the project claims "
+            f"to support")
 
 
 if __name__ == "__main__":
