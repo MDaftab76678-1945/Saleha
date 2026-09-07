@@ -11,9 +11,9 @@ inputs:
     required: false
     default: ${{ github.token }}
   python-version:
-    description: 'Python version to run Saleha engine'
+    description: 'Python version to run Saleha engine (pyproject requires >=3.12)'
     required: false
-    default: '3.11'
+    default: '3.12'
   scan-path:
     description: 'Directory or specific file to review'
     required: false
