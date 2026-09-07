@@ -126,20 +126,35 @@ also reports zero editor diagnostics and is English-only.
 `cloud-plan`, `silicon-build`, `multirepo`, `causal-eval`, `quantum-sim`,
 `cognitive`, `constitutional-check`, `explain-code`, `emergence-check`.
 
-**Next candidates, not yet examined.** Eight modules in `saleha/core/` import
-`ast` and never call it — the exact signature that flagged `mech_interp.py`,
-`cognitive_engine.py` and `constitutional_guard.py`, each of which turned out
-to carry a real defect. In descending order of what they claim:
+**The fabricated benchmark scoreboard is fixed** (pass 20):
+`omni_arena_engine.py` labels its literals `target_scores` with
+`is_measured=False`; the two `evaluate_artificial_analysis_*` scripts no longer
+print invented scores for other people's models or unconditional "Mastery
+Achieved" verdicts; `verify_all_live_proofs.py` was rewritten (it had also been
+crashing unnoticed on fields `formal_smt_verifier` no longer has) and now runs
+5/5 real checks.
 
-- `threat_modeler.py` (145 lines) — "STRIDE Security Matrices". Reads files,
-  calls no model. A security claim, so the highest risk if it is a template.
-- `multi_file_auto_repair.py` (200) — "Two-Phase Commit, zero partial state
-  corruption". An atomicity guarantee is exactly the kind of claim this repo
-  has repeatedly found unbacked.
+**`multi_file_auto_repair.py` is fixed** (pass 21): the commit phase is
+genuinely atomic (restores every file already written when a write fails),
+patching is AST-based so string literals survive, guarded constants are
+declined instead of rewritten into dead code, and a miss is no longer reported
+as a clean scan.
+
+**Next candidates, not yet examined.** Of the eight modules that import `ast`
+and never call it, this signature has now flagged a real defect five times for
+five (`mech_interp.py`, `cognitive_engine.py`, `constitutional_guard.py`,
+`threat_modeler.py`, `multi_file_auto_repair.py`). Remaining, in descending
+order of what they claim:
+
 - `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+ files".
 - `docs_generator.py` (187), `swarm_self_play_arena.py`,
   `extreme_contrastive_trainer.py`, `code_executor.py` (the unused import there
   is likely harmless — it is a real, working sandbox).
+
+**Unrelated, still open:** the repo carries both `package-lock.json` and
+`pnpm-lock.yaml`, which is what the IDE's "multiple lockfiles" warning is
+about. Nobody has decided which package manager this project uses; that is the
+user's call, not a defect to fix silently.
 
 **Branch state:** work happens on `test-issue-101`. It is many commits ahead of
 `origin/test-issue-101` and has not been pushed. `main` is behind.

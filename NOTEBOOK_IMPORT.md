@@ -1341,3 +1341,171 @@ one that writes a file with a mitigation and asserts it is found and cited, and
 one that asserts two different trees give different results.
 
 Suite: 1625 passed.
+
+## Twentieth pass -- the fabricated benchmark scoreboard (2026-09-07)
+
+Three scripts and one engine presented hand-typed literals as measured
+results, and one of them had been crashing unnoticed for an unknown length of
+time.
+
+### `omni_arena_engine.py` -- targets rendered as a scoreboard
+
+`intelligence_matrix` held six literals (SWE-bench 64.8, Non-Hallucination
+96.4, LiveCodeBench 71.2, ...) and `overall_verdict` held the string
+`"GLOBAL_FRONTIER_LEADER (#1 ACROSS ARENAS)"`. Nothing in the module loads a
+model, runs a task or queries a leaderboard.
+
+Renamed to `target_scores` and `status_note`, and every report now carries
+`is_measured=False`. This is the same family as the training datasets purged in
+round 8 for carrying "100% benchmark score" rows -- the rows that produced
+`saleha-asi`, which scored **0/5** on real held-out tasks.
+
+### `evaluate_artificial_analysis_omni_arena.py` -- invented scores for other people's models
+
+It printed three leaderboard tables placing Saleha above GPT-5.6, Grok 4.6,
+Gemini 3.7, Claude Fable 5.1 and Claude Opus 5, with every competitor's score
+typed in by hand, each row labelled "Rank #1". The competitor tables are gone
+outright -- publishing invented scores for other people's models is not
+something to keep in any form. The targets remain, in a table with a
+"Measured?" column reading `no` on every row.
+
+### `evaluate_artificial_analysis_suite.py` -- a real harness with fabricated trim
+
+This one genuinely loads the model and runs the tasks. Three things around it
+were invented: `"100% PASS"` printed for a single passing check, a hardcoded
+`"~2.1 GB VRAM"` footprint, and the verdict `"Top-Tier On-Device Benchmark
+Mastery Achieved!"` printed unconditionally -- at 0% just as happily as at
+100%. VRAM is now read from `torch.cuda.max_memory_allocated()`, or says "not
+measured"; the verdict counts what passed.
+
+### `verify_all_live_proofs.py` -- had been dead for an unknown length of time
+
+The "All-in-One Empirical Live Proof Verification Suite" ended with
+
+    ALL 5 PHYSICAL & EMPIRICAL PROOFS VERIFIED WITH 100% SUCCESS!
+
+printed before any result was examined, over rows that could read "MISSING". Its
+git line was the literal string `"100% Synced with origin/main"`; measured at
+the time, HEAD was 22 commits ahead of `origin/main` on a different branch.
+
+And it **crashed**. An earlier pass had rewritten `formal_smt_verifier` to stop
+fabricating proofs, changing its result fields; this script still read
+`proof.preconditions` and `proof.is_satisfiable` and died with an
+AttributeError at check 2. Nobody noticed, because nothing imports it and
+nothing runs it in CI.
+
+Rewritten so every line is read off a real result. Measured after:
+
+```
+1. datasets   4 files parsed (1000, 1000, 1000, 30 records)
+2. SMT        1 division found, 1 proven safe by Z3, 3.96 ms
+3. fuzz       50 trials, 50 passed, 100.0% resilience
+4. indexer    251 files scanned, 1772 symbols, 35 dependency edges
+5. git        test-issue-101, 23 ahead 0 behind, 6 uncommitted
+5/5 checks passed.  exit 0
+```
+
+8 guard tests added, including one that parses the script's AST and asserts the
+constant banners cannot come back -- a plain text search would match the
+docstring that quotes them as history.
+
+## Twenty-first pass -- `multi_file_auto_repair.py` guaranteed atomicity it did not have (2026-09-07)
+
+Second of the eight modules that import `ast` and never call it. The signature
+held for a fifth time.
+
+The docstring promised "an atomic multi-file transaction with **zero partial
+state corruption**", resolving "cross-file interface breakages, signature
+changes, and imports". Seven defects, all probed.
+
+### 1. The commit was not atomic
+
+Phase 2 was a plain loop of `write_text()` calls. Failing the second write of a
+two-file batch:
+
+```
+a.py on disk : 'divisor = 1  # [Auto-Fixed by Saleha]...'   <- modified
+b.py on disk : 'divisor = 0...'                             <- untouched
+Partial state on disk: True
+```
+
+The exact state the docstring guaranteed against. The exception escaped the
+call, so the caller got no result object at all.
+
+Phase 2 now holds every target's original bytes and restores each file already
+written when a write raises. Same probe after:
+
+```
+result: False  "Write failed (simulated disk full on the second file);
+                restored 1 file(s) to their original contents."
+Partial state on disk: False
+```
+
+`rollback_failed` reports the case where the restore itself fails -- the one
+situation where partial state really can survive, which the old code called
+impossible.
+
+### 2. `rolled_back=True` never rolled anything back
+
+It was returned from the abort branch, which runs *before* any write.
+`original_content` was staged and never read again. Nothing had happened, so
+nothing was undone.
+
+### 3. It broke correct code and called it success
+
+Given a guarded constant:
+
+```
+before:  divisor = 0 ; if divisor == 0: result = 0   ->  result = 0
+after :  divisor = 1                                  ->  result = 100.0
+success: True
+```
+
+The guard became dead code and the program's answer changed. `SafeConstantPatcher`
+now walks the AST for comparisons against zero and declines any name it finds
+there, with the reason recorded in `declined`.
+
+### 4. The regex corrupted string literals
+
+```
+before: URL = "http://a/b/ 0k"
+after : URL = "http://a/b/ 1k"
+```
+
+`re.sub(r"/\s*0(?![0-9])", "/ 1", patched)` ran over the whole file. Patching is
+AST-based now: edits are applied by line and column, so only the constant token
+moves. C/C++ has no parser here, so the division case is declined and says why
+rather than being regex-replaced.
+
+### 5. A miss was reported as a clean scan
+
+Files with violations the patcher could not fix returned
+`success=True, "No cross-module violations found; all modules intact."` --
+"nothing to fix" and "found defects I cannot fix" collapsed into the
+reassuring one. Declined findings now return `success=False` and the message
+says outright it is not a clean bill of health.
+
+### 6. The dependency graph patched files it could not identify
+
+Keyed on basename, so `pkg1/utils.py` and `pkg2/utils.py` are one node; the
+blast radius was then resolved with `rglob`, which pulled in **both**. Duplicated
+basenames are recorded in `stats.ambiguous_names` and declined. Import
+extraction moved from `line.startswith("import ")` -- which missed every
+indented import -- to an AST walk.
+
+### 7. The trap, again, twice
+
+```python
+assert res.success is True          # for a batch whose only repair was the regex
+assert res.rolled_back is False     # atomicity never tested
+assert "divisor = 1" in content1    # the string-replace behaviour as requirement
+```
+
+Neither test file ever failed a write, which is exactly why the atomicity claim
+survived as long as the module existed. 14 tests became 24, including one that
+injects a write failure and asserts both files come back byte-identical.
+
+Worth stating plainly about scope: this does **not** resolve signature changes,
+interface breakages or imports across modules, and the docstring now says so.
+It patches the two defect classes `gamma_critic_sandbox` detects. There is also
+no production caller -- only these two test files import it.

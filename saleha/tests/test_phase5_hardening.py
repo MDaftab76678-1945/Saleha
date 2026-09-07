@@ -2,6 +2,7 @@
 Unit and integration tests for Phase 5: Incremental AST Caching, Windows Job Sandbox, and Multi-File Auto-Repair.
 """
 
+import ast
 import os
 import shutil
 import tempfile
@@ -99,9 +100,28 @@ class TestMultiFileAutoRepairEngine:
         assert res.success is True
         assert res.total_files_affected == 2
 
-        # Verify both files are healed
+        # Both constants are unguarded, so both are safe to raise. The patched
+        # files must still parse -- the old string-replace patcher had no way
+        # to guarantee that, and none of its tests checked.
         content1 = file1.read_text(encoding="utf-8")
         content2 = file2.read_text(encoding="utf-8")
         assert "divisor = 1" in content1
         assert "divisor = 1" in content2
+        ast.parse(content1)
+        ast.parse(content2)
+
+    def test_repair_result_reports_what_it_declined(self):
+        """
+        A guarded constant must be left alone and named in `declined`, not
+        silently skipped and reported as a clean scan.
+        """
+        f = Path(self.temp_dir) / "guarded.py"
+        source = "d = 0\nif d == 0:\n    r = 0\nelse:\n    r = 1 / d\n"
+        f.write_text(source, encoding="utf-8")
+
+        res = self.engine.repair_cross_module_violation(f)
+
+        assert f.read_text(encoding="utf-8") == source
+        assert res.success is False
+        assert any("guard" in d for d in res.declined)
 
