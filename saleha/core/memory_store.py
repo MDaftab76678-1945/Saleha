@@ -70,7 +70,7 @@ class MemoryStore:
                 data = json.load(f)
             for item in data.get("entries", []):
                 entry = MemoryEntry(
-                    id=item.get("id", uuid.uuid4().hex[:8]),
+                    id=item.get("id", str(uuid.uuid4().hex[:8])),
                     goal=item.get("goal", ""),
                     code=item.get("code", ""),
                     tags=item.get("tags", []),

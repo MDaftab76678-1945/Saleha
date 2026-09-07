@@ -217,7 +217,7 @@ it had been learned from. Unmatched errors are now counted and reported.
 
 Measured after the fix, on this repo's real history:
 
-```
+```text
 Learned from 10 real failure(s) in task history.
 8 failure(s) had no matching rule and were NOT learned from:
   - Planning failed: All providers in fallback chain failed: 404 ...
@@ -417,3 +417,119 @@ site in `saleha/` (excluding tests, which deliberately call it with harmless
 names to assert they are *not* gated) and asserts each one exists in
 `DANGEROUS_ACTIONS` — so a future call site with a typo'd or new name fails
 the suite instead of silently going ungated.
+
+## Eighth pass — solving the four "rejected" items (2026-09-07)
+
+Passes three through seven rejected four notebook ideas. On review, three of
+those rejections were about the *implementation* the notebook shipped, not the
+*idea* — and the fourth was a verdict of mine that was too strong. All four are
+now built, each with the fake half replaced by something measured.
+
+### 1. BM25 — `saleha/core/bm25.py`
+
+Rejected because `_text_to_sparse_vector`, labelled "simplified BM25", computes
+raw word counts: no IDF, no saturation, no length normalisation.
+
+`vector_store.py` already had real TF-IDF. What was missing is BM25's other
+half. Measured on a three-document corpus — a short file that answers the
+query, a long file that merely repeats the term:
+
+```
+raw word count :  long_noise 400  vs  short_answer 4     (noise wins 100x)
+BM25           :  short_answer 2.99  vs  long_noise 1.16  (answer wins)
+```
+
+Saturation verified (score gain per occurrence falls +0.068 → +0.013 → +0.010
+→ +0.004) and length normalisation verified. Over this repo's own 239 core
+files, every probe query returns the right module first: "context window
+budget" → `context_budget.py`, "prompt injection guard" →
+`untrusted_content.py`, "parallel candidate execution" → `ttc_solver.py` /
+`parallel_solver.py`.
+
+`k1=1.5`, `b=0.75` are the standard TREC defaults and are documented as
+defaults, not as tuning — tuning needs a labelled relevance set this repo does
+not have.
+
+### 2. Semantic cache — `saleha/core/semantic_cache.py`
+
+Rejected because `get_embedding` returned `np.random.rand(384)`.
+
+Pulled `nomic-embed-text` and built it on real embeddings. Measured with the
+real embedder:
+
+```
+exact prompt   1.000  hit
+paraphrase     0.966  hit
+different task    —   miss
+unrelated         —   miss
+```
+
+**A correction to my own earlier claim.** I said random vectors "return
+arbitrary cached answers". Measured, they are broken in *both* directions:
+384-dim random vectors sit at ~0.73-0.77 pairwise cosine regardless of text,
+so at a permissive threshold (0.70) an unrelated query is served the wrong
+answer, and at a strict one (0.95) even an **identical** prompt misses. Both
+are now asserted in the tests.
+
+Added a literal guard on top of the threshold: "retry 3 times" and "retry 30
+times" embed almost identically and must never share an answer. Numbers,
+quoted strings and file paths must match exactly for a hit.
+
+### 3. Prompt evolution — `saleha/core/prompt_evolution.py`
+
+Rejected because fitness was `score += random.uniform(0.1, 0.5)` with the
+comment "In production, this would call the actual agent".
+
+The genetic machinery was never the problem. Fitness is now the fraction of
+tasks whose generated code **actually passes its tests** in the sandbox —
+selection by execution, never by asking a model whether a prompt is good, the
+same rule as `parallel_solver.py`.
+
+The property that distinguishes this from the random version is asserted
+directly: three runs over the same inputs give the same winner. The random
+version cannot do that. On a controlled corpus it finds the decisive directive
+(seed 0.0 → best 1.0).
+
+`EvolutionResult.trustworthy` is False below 5 tasks, so a lucky win on a tiny
+task set reports itself as untrustworthy rather than as a result.
+
+### 4. Causal tracing — `saleha/core/causal_trace.py`
+
+I rejected `CausalMemoryTracer` as unusable because it needs
+`model.transformer.h[...]` activations, which Ollama does not expose. **That
+part was right, but the conclusion was too strong.** Activation patching is one
+intervention; input-level leave-one-out ablation is another, and it answers the
+same causal question with the access this architecture has:
+
+```
+1. run with all context pieces   -> baseline
+2. remove piece i, run again     -> counterfactual
+3. influence = how much the answer changed
+```
+
+Verified against qwen2.5-coder:3b, goal "write a function that adds two
+numbers", three pieces:
+
+```
+noise floor 0.0000 (6 calls)
+ * 0.7255  memory:api_rule        <- a naming rule the answer must follow
+   0.0000  memory:irrelevant      <- the office coffee machine
+   0.0000  repo:unrelated_code    <- an unrelated class
+```
+
+The irrelevant pieces measure exactly 0.0 — correctly identified as dead
+weight that costs tokens and buys nothing.
+
+`measure_noise_floor()` runs the *same* prompt repeatedly first, so a caller
+can tell a real effect from the model wobbling. Every call is pinned to
+temperature 0 with a fixed seed. Coarser than activation patching — it cannot
+say *where* in the network a memory mattered — and documented as such, along
+with the leave-one-out blind spot for pieces that only matter together
+(`ablate_pairs()` exists for that).
+
+### Deferred, at the user's direction
+
+**Speculative decoding.** Needs a draft model resident alongside the target
+model; one GPU here cannot hold 8B + 1B. The notebook's own conclusion
+(`chat-Understanding Each Point.txt:8904`) was to defer it until the project
+moves to server hardware. Unchanged.
