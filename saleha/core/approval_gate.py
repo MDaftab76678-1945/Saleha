@@ -33,6 +33,11 @@ DANGEROUS_ACTIONS: Set[str] = {
     # file_delete -> True, file_write/file_patch -> False.
     "file_write",
     "file_patch",
+    # `git reset --hard` discards every uncommitted change in the working tree
+    # with no way back -- strictly more destructive than file_delete, which at
+    # least targets a named path. It was ungated: `saleha undo --hard` ran it
+    # straight through.
+    "git_reset_hard",
 }
 
 _MODE_ALIASES = {

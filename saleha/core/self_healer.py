@@ -250,9 +250,18 @@ Rules:
                 # Successfully healed!
                 commit_hash = ""
                 if auto_commit and git_engine.is_git_repo():
+                    # Commit only the files this heal actually patched -- the
+                    # previous call passed no file list, so it ran `git add .`
+                    # and committed unrelated working-tree changes too. The
+                    # command genuinely re-ran and exited 0 here, so
+                    # test_passed=True is a measurement, not a default.
+                    healed_files = sorted({p["file"] for p in applied_patches
+                                           if p.get("file")})
                     commit_res = git_engine.commit_deliverable(
                         task_name=f"Auto-heal {diagnostics.error_type}: {diagnostics.message[:50]}",
-                        task_type="fix"
+                        task_type="fix",
+                        files=healed_files,
+                        test_passed=True,
                     )
                     if commit_res.success:
                         commit_hash = commit_res.commit_hash

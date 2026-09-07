@@ -118,6 +118,14 @@ def undo(hard, as_json):
     Example hard reset: saleha undo --hard
     """
     from saleha.core.git_native import git_engine
+    if hard:
+        # --hard destroys uncommitted work, not just the last commit. Say what
+        # is at stake before the approval gate asks.
+        status = git_engine.get_status_summary()
+        dirty = status.get('dirty_count', 0)
+        if dirty:
+            console.print(f'[bold red]⚠ --hard will permanently destroy {dirty} '
+                          f'uncommitted change(s) in the working tree.[/]')
     result = git_engine.rollback_last_commit(soft=not hard)
     if as_json:
         click.echo(json.dumps(result, ensure_ascii=True))

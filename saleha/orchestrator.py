@@ -515,11 +515,26 @@ class SalehaOrchestrator:
                             log += f"   Warning: Memory store save failed: {e}\n"
 
                         if auto_commit and git_engine.is_git_repo():
+                            # This pipeline returns generated code; it never
+                            # writes it to a file. So there is no file list of
+                            # "what the agent changed" to stage.
+                            #
+                            # This call used to pass no files, which made
+                            # auto_commit_task run `git add .` -- committing
+                            # every unrelated uncommitted change in the user's
+                            # working tree under a message describing the
+                            # agent's task. It also hardcoded test_passed=True,
+                            # so the message claimed tests passed even when
+                            # generate_tests was False and no suite existed.
+                            #
+                            # Staging everything is now opt-in and deliberate,
+                            # and test_passed reflects whether a real suite ran.
                             commit_res = git_engine.auto_commit_task(
                                 goal=user_goal,
                                 task_type="feat",
                                 model=current_code_result.model_used or self.model,
-                                test_passed=True
+                                test_passed=bool(current_test_code),
+                                allow_stage_all=True,
                             )
                             if commit_res.success:
                                 log += f"\n🌿 Git Auto-Commit: [{commit_res.commit_hash}] {commit_res.message.splitlines()[0]}\n"

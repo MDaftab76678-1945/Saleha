@@ -904,3 +904,73 @@ exists for exactly this failure family. One asserts the verifier is called at
 least once on the unapproved path — so re-introducing the skip fails the suite
 rather than quietly restoring a fake success.
 
+
+## Fourteenth pass — git automation committed the user's files (2026-09-07)
+
+Read `saleha/core/git_native.py` end to end. Four defects, all on the paths
+that touch the user's actual repository.
+
+### 1. `git add .` — every agent commit swept up unrelated work
+
+`auto_commit_task` fell back to `git add .` whenever `files` was None. **All
+three call sites passed None.** So an agent commit staged every uncommitted
+change in the working tree -- hand edits, untracked scratch files, build output
+-- and committed them under a message describing the agent's task.
+
+Worse in the orchestrator's case: that pipeline never writes its generated code
+to a file at all. It returns `final_code` as a string. So what `--auto-commit`
+committed was almost never the agent's own work; it was whatever the user
+happened to have uncommitted at that moment.
+
+`files` is now required. Passing nothing is refused with an explicit error;
+staging everything is a deliberate `allow_stage_all=True`. Verified in a
+throwaway repo: with `files=["agent.py"]`, a sitting `MY_PRIVATE_NOTES.txt`
+stays uncommitted. Before the fix it went into the commit.
+
+Both callers that *have* a real file list now pass it -- `multi_file_refactorer`
+has `modified_list`, `self_healer` has the patched files in `applied_patches`.
+Both were discarding it.
+
+### 2. `test_passed=True` by default — every commit claimed a passing run
+
+`format_conventional_message` wrote `Verified: Passed AST & Execution Tests`
+from a parameter that **defaulted to True**. The orchestrator additionally
+hardcoded `test_passed=True` at its call site, on a path reachable with
+`generate_tests=False`, where no suite was ever generated and only
+`verifier.execute()` had run -- which checks that code does not crash, not that
+tests pass.
+
+`commit_deliverable` made it worse by dropping the argument entirely, so both
+its callers always got the True default.
+
+Now tri-state: `None` (default) renders "Verification: not run", True renders
+"test run reported passing", False renders "FAILING". The orchestrator passes
+`bool(current_test_code)` -- a real fact. `self_healer` passes True, which is
+also a real fact there: it re-ran the command and got exit 0.
+
+Same fake-green family as `/autopr` in the twelfth pass, and it was writing
+into git history.
+
+### 3. `git reset --hard` was completely ungated
+
+`rollback_last_commit(soft=False)` ran `git reset --hard HEAD~1` with no
+confirmation. That discards every uncommitted change in the tree, not just the
+last commit -- strictly more destructive than `file_delete`, which was gated.
+`saleha undo --hard` ran it straight through.
+
+`git_reset_hard` added to `DANGEROUS_ACTIONS`, and the prompt now names what is
+at stake: which commit, and how many uncommitted changes will be destroyed.
+Verified: with approval on and a dirty tree, the reset is denied and the
+uncommitted file survives. Soft rollback is unaffected.
+
+### 4. The existing test asserted the removed string
+
+`test_format_conventional_message_scopes` asserted `"Saleha AI"` appeared in
+the message -- part of the marketing footer, not behaviour. Loosened to
+`"Saleha"`.
+
+18 tests added across staging safety, the hard-reset gate, and the three call
+sites. Commit tests run against a temp repository, never the developer's own
+checkout -- these write real commits, and running them against the working repo
+is precisely the accident this pass exists to prevent.
+

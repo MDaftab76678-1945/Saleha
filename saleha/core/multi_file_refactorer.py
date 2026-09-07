@@ -175,9 +175,13 @@ class MultiFileRefactorer:
         # Optional Git commit
         commit_hash = ""
         if auto_commit and git_engine.is_git_repo():
+            # Commit exactly the files this refactor rewrote. Without `files`
+            # this used to `git add .` and sweep in every unrelated change in
+            # the user's working tree.
             commit_res = git_engine.commit_deliverable(
                 task_name=f"Refactor symbol: '{old_name}' -> '{new_name}' across {len(modified_list)} files",
-                task_type="refactor"
+                task_type="refactor",
+                files=modified_list,
             )
             if commit_res.success:
                 commit_hash = commit_res.commit_hash
