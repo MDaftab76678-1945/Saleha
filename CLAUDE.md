@@ -140,21 +140,64 @@ patching is AST-based so string literals survive, guarded constants are
 declined instead of rewritten into dead code, and a miss is no longer reported
 as a clean scan.
 
+**The TypeScript workspace is fixed** (pass 22): `turbo run typecheck` went
+from "0 successful, 6 total, FAILED" to 8/8. Four packages ran `tsc --noEmit`
+with no tsconfig anywhere; `packages/core`'s bare `tsc` build exited 0 while
+compiling nothing. Versions aligned (3 dependency conflicts → 0), and
+`test_monorepo_architecture.py` now fails if they drift again.
+
+**`saleha resolve-issue` is fixed** (pass 23): it raised `NameError:
+UnifiedDiffResult` on every real invocation, and behind that crash reported
+"All 12 unit tests passed in 0.42s" under a "Verification Proof" heading that
+`--auto-pr` would publish to a real PR.
+
+**Python versions are aligned** (pass 24): ruff/pyright said 3.10 while
+`requires-python` said 3.12 and the venv ran 3.11. `setup.py` deleted (it
+duplicated `pyproject.toml` and had drifted).
+
 **Next candidates, not yet examined.** Of the eight modules that import `ast`
 and never call it, this signature has now flagged a real defect five times for
 five (`mech_interp.py`, `cognitive_engine.py`, `constitutional_guard.py`,
-`threat_modeler.py`, `multi_file_auto_repair.py`). Remaining, in descending
-order of what they claim:
+`threat_modeler.py`, `multi_file_auto_repair.py`). Remaining:
 
-- `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+ files".
-- `docs_generator.py` (187), `swarm_self_play_arena.py`,
-  `extreme_contrastive_trainer.py`, `code_executor.py` (the unused import there
-  is likely harmless — it is a real, working sandbox).
+- `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+
+  files". **Probed and confirmed a pure template**: two unrelated issues give
+  identical `root_cause_analysis`, `tests_passing=True` and
+  `verified_no_regressions=True` with nothing run, and target files chosen by
+  `if "auth" in desc`. Not yet fixed. No production caller.
+- `extreme_contrastive_trainer.py` (114) — "InfoNCE, 3σ margin, eliminates
+  subtle hallucinations". **Probed and confirmed a pure template**: 5 triplets
+  and 500 both return `final_loss 0.12, sigma 3.42`; every "hard negative" is
+  the same binary-search off-by-one. Not yet fixed. No production caller.
+- `docs_generator.py` (187), `swarm_self_play_arena.py`, `code_executor.py`
+  (the unused import there is likely harmless — it is a real, working sandbox).
+
+**`quality_guard.py` is real but has three design issues** (read in full, not
+yet fixed): its `SOV-001` "brand leak" rule marks `"claude-opus-5"` as a
+CRITICAL violation and fails the file — naming a model you actually call is
+not a defect; the score clamps at 0.0 so 25 and 400 untyped functions look
+identical; and `check_workspace`'s `all_passed` is computed over the first 50
+files `os.walk` reached without the key saying it is a sample.
+
+**`saleha/sandbox/` does not import on this machine** (found in pass 23's
+scan, not yet fixed). `NOTEBOOK_IMPORT.md` line 13 calls it "**Real sandbox**":
+
+```text
+BREAK  saleha.sandbox.sandbox_jail      : No module named 'resource'
+BREAK  saleha.sandbox.v5_production_core: No module named 'local_llm_driver'
+OK     saleha.sandbox.ast_security_verifier
+```
+
+`sandbox_jail.py:5` has an unguarded `import resource`, which is POSIX-only —
+this is a Windows machine. `v5_production_core.py` uses flat imports
+(`from local_llm_driver import ...`) for files inside a package.
 
 **Unrelated, still open:** the repo carries both `package-lock.json` and
 `pnpm-lock.yaml`, which is what the IDE's "multiple lockfiles" warning is
 about. Nobody has decided which package manager this project uses; that is the
-user's call, not a defect to fix silently.
+user's call, not a defect to fix silently. `templates/` holds three scaffolds
+(`nodejs_express`, `go_service`, `python_fastapi`) that **no code reads** —
+worth deciding whether they should exist before maintaining them.
 
 **Branch state:** work happens on `test-issue-101`. It is many commits ahead of
 `origin/test-issue-101` and has not been pushed. `main` is behind.
@@ -173,9 +216,19 @@ user's call, not a defect to fix silently.
 - `OLLAMA_HOST` on this machine is set scheme-less (`0.0.0.0:11434`). urllib
   cannot open that, and `0.0.0.0` is a bind address, not a client address.
   Normalise both when talking to Ollama directly.
-- Test suite: `python -m pytest saleha/tests/ -q` — ~1559 tests, takes ~5 min.
+- **Python: use `.venv` (3.14.7), not `.venv_train`.** `.venv_train` is the old
+  3.11.16 environment — a version `requires-python = ">=3.12"` forbids and CI
+  never tests. It is kept only because it holds `torch` (4.27 GB of its 5.3 GB)
+  for the LoRA/training path that ten modules import. Everyday work belongs in
+  `.venv`.
+- `pip install -e ".[dev]"` alone does **not** give a passing test run: two SMT
+  tests need `z3-solver`, which lives in the `[formal]` extra. A working test
+  environment also wants `tree-sitter*` and `numpy`.
+- Test suite: `python -m pytest saleha/tests/ -q` — ~1661 tests, takes ~5 min.
   Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and emoji in output will
   otherwise crash the run.
+- TypeScript: `npx turbo run typecheck` must stay at 8/8. It was 0/6 and
+  failing until pass 22.
 - `radon` is a dev dependency; `test_mech_interp.py` cross-checks our own
   cyclomatic complexity against it (472 functions, 0 mismatches).
 

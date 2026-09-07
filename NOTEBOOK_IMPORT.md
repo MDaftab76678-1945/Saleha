@@ -1509,3 +1509,211 @@ Worth stating plainly about scope: this does **not** resolve signature changes,
 interface breakages or imports across modules, and the docstring now says so.
 It patches the two defect classes `gamma_critic_sandbox` detects. There is also
 no production caller -- only these two test files import it.
+
+
+## Twenty-second pass -- the TypeScript half had never checked a type (2026-09-07)
+
+Every audit so far looked at Python. The user pointed at
+`packages/ui/package.json` and asked why the version numbers disagreed. The
+JS/TS side turned out to be in worse shape than the Python side.
+
+```
+turbo run typecheck  ->  0 successful, 6 total   FAILED
+```
+
+Four packages (`api`, `auth`, `db`, `ui`) declared `"typecheck": "tsc
+--noEmit"` with no `tsconfig.json` in the package and none at the root. `tsc`
+with no project to read prints its help text and exits 1. Nothing had been
+typechecked for as long as those scripts existed.
+
+`packages/core` was the same defect with the opposite symptom. Its build
+script is a bare `tsc`, which with no tsconfig exits **0** and emits nothing:
+
+```
+$ npx tsc          # exactly what the build script runs
+(prints help text)
+EXIT CODE: 0
+$ ls dist          # no dist/ produced
+```
+
+So `pnpm build` reported success while compiling no files, and both
+`apps/web` and `apps/desktop` depend on that package. Same fake-green family
+as everything else in this ledger, in a language nobody had audited.
+
+Added `tsconfig.base.json` plus one per package, and a typecheck script for
+`core` and `landing`:
+
+```
+before:  0 successful, 6 total   FAILED
+after :  8 successful, 8 total
+```
+
+### packages/core was three releases behind on four counts
+
+```
+version       every sibling 2.0.0   ->  core 0.1.0
+typescript    every sibling ^5.7.0  ->  core ^5.0.0
+@types/node   apps/web     ^22.0.0  ->  core ^20.0.0
+zod           siblings     ^3.24.1  ->  core ^3.23.8
+```
+
+Four things behind in one package means that package stopped being updated
+with the rest and nobody noticed. Its `main`/`types` also pointed at
+`src/engine.ts` and `src/types.ts` while `src/index.ts` is the real barrel,
+and its test script ran `jest`, which is declared nowhere in the repo -- the
+workspace uses vitest, so that command could never have run.
+
+Dependency version conflicts across all 11 `package.json` files: **3 -> 0**.
+
+### The desktop build pointed at a file that no longer exists
+
+```
+apps/desktop build:
+  ERROR: Script file 'saleha\cli\commands.py' does not exist
+```
+
+`saleha/cli/commands` used to be a single module and is now a package;
+`scripts/build_standalone.py` still named `commands.py`. Silent for a second
+reason: `build_binary()` printed "Compilation finished with exit code 1" and
+returned normally, so `build_desktop_sidecar.py` and `turbo run build` above
+it both carried on as if a binary had been produced. It raises now.
+
+### Tests, verified by reintroducing each defect
+
+Five in `test_monorepo_architecture.py`: one version across workspace
+packages, all private, no dependency at two versions (covering `templates/`
+and `editors/vscode`, which sit outside the workspace globs and are never
+aligned by the package manager), a script that runs jest/vitest must depend
+on it, and a package that runs `tsc` must have a tsconfig.
+
+Setting core back to 0.1.0 with typescript ^5.0.0 fails two of the five with
+the drift named in the message; restoring passes all ten.
+
+Deliberately not asserted: that the workspace version matches the root
+`package.json`. Root and `editors/vscode` are at 2.6.0 and describe the
+product; the `@saleha/*` packages are `private: true` internal bookkeeping and
+are never published. Those are different numbers on purpose.
+
+## Twenty-third pass -- `resolve-issue` crashed, and faked a passing test run (2026-09-07)
+
+Found by a repo-wide scan for undefined names. Out of 663 Python files there
+was exactly **one** genuine name error, and it was on a user-facing command:
+
+```
+saleha resolve-issue 42
+  -> NameError: name 'UnifiedDiffResult' is not defined
+```
+
+`diff_engine.py` exports `DiffResult`; `UnifiedDiffResult` exists nowhere in
+the repository. Every invocation without `mock_solver=` hit that line. All
+four existing tests passed `mock_solver`, which is the one argument that
+skips it -- so a completely broken production path sat green for as long as
+the module existed. **The suite was not merely failing to catch the bug; each
+of its only four tests took the one branch that avoided it.**
+
+Behind the crash, the rest was invented:
+
+```
+test_out = "All 12 unit tests passed in 0.42s"   # no test ever ran
+additions=10, deletions=2, risk_score=2          # invented numbers
+file_path=f"fix_issue_{n}.py"                    # a file never created
+success=True                                     # unconditional
+```
+
+and `format_pr_body` printed that string under a **"Verification Proof"**
+heading. With `--auto-pr` that goes onto a real pull request, telling human
+reviewers a suite had passed. Same family as `/autopr` in the twelfth pass.
+
+Now: no diff is fabricated; `tests_passed` is `Optional[bool]` and stays None
+unless a `test_command` ran; an unfetched issue is marked `fetched=False`
+with the reason instead of a placeholder presented as data; branch failure is
+returned rather than swallowed; the PR body lists what was not established.
+`success` means "the branch is ready", never "the issue is fixed".
+
+4 tests became 20. The first is the one that was missing: the default path.
+
+### Scans that came back clean, recorded so they are not redone
+
+The user's report was that version mismatches were widespread. Three scans
+were written to find them, and the first two were wrong:
+
+| Scan | Raw hits | After verification |
+| --- | --- | --- |
+| undefined names, all 663 files | 7 | **1 real** (`UnifiedDiffResult`) |
+| dataclass field/kwarg mismatch | 199 | **0** |
+| import every module (385) | 5 | **2 real**, 3 optional deps |
+| every CLI command `--help` (210) | 0 | 0 |
+
+The 199 collapsed to 0 in three steps: 22 class names are defined in more
+than one file, so same-name matching was meaningless; four different `report`
+variables in four CLI commands resolved to whichever class was assigned last;
+and the 20 that survived per-function scoping were all annotated as something
+else at the call site. **Every one was checked against the runtime class
+before being discarded.** A scanner's output is not a finding.
+
+### Also fixed: repo_orchestrator reported a deleted file
+
+Deleting `setup.py` made `test_reported_files_are_real` fail --
+`git status --porcelain` lists `D setup.py`, and `_changed_paths` returned it
+alongside files that exist, while the list is consumed as "files you can
+open". Deletions are skipped now. That test was added in the twelfth pass for
+exactly this class of claim, and it worked.
+
+## Twenty-fourth pass -- four declared Python versions, none of them the one in use (2026-09-07)
+
+```
+pyproject.toml  requires-python  = ">=3.12"
+pyproject.toml  [tool.ruff]      target-version = "py310"
+pyproject.toml  [tool.pyright]   pythonVersion  = "3.10"
+setup.py        python_requires  = ">=3.10"
+.github/ci.yml  matrix           = 3.12, 3.13, 3.14
+the working venv                 = 3.11.16
+```
+
+The version being developed on was one the project's own metadata forbids and
+CI never tests, while linting and type checking were configured two releases
+older than the declared minimum.
+
+ruff and pyright now say 3.12. Checked first that nothing needs newer: no
+match statements, no PEP 695 type params, no `except*`, no `tomllib` or
+`itertools.batched` in our own code.
+
+### setup.py deleted
+
+It duplicated every field of `pyproject.toml` -- name, version, dependencies,
+entry point, python_requires -- and had drifted on two. Two files declaring
+one package is how they end up disagreeing; the same shape as the
+`packages/core` drift in the pass above.
+
+Removing it exposed that `pyproject.toml` never declared package discovery --
+`setup.py`'s `find_packages()` had been carrying it -- so `pip install -e .`
+failed with "Multiple top-level packages discovered". Added
+`[tool.setuptools.packages.find]`.
+
+`scripts/build_release.py` still shelled out to `python setup.py sdist
+bdist_wheel`; it uses `python -m build` now, matching the release workflow.
+
+### Verified on a fresh environment
+
+Built `.venv` on 3.14.7 and installed `-e ".[dev]"`. Two SMT tests failed on
+that clean install because `z3-solver` lives in the `[formal]` extra, not
+`[dev]` -- the old venv had it installed by hand, which is why nobody knew.
+Worth recording: **`[dev]` alone does not give a working test run.**
+
+```
+1661 passed, 14 skipped     (Python 3.14.7)
+```
+
+Four tests added: ruff and pyright must match `requires-python`, `setup.py`
+must not return, CI must not test a forbidden version, CI must test the
+declared minimum. Each verified by reintroducing the defect.
+
+### Environment cleanup
+
+Five Python installations were on the machine. `C:\Python314` was a duplicate
+3.14 with no venv pointing at it and no registry entry; removed (172 MB)
+along with its two Machine-level PATH entries. The rest are in use:
+`pythoncore-3.14-64` is the new venv's parent, one uv 3.11 runs the
+`browser-use` tool, the other is `.venv_train`'s parent. `.venv_train` is
+5.3 GB, of which `torch` is 4.27 GB; ten modules import torch for the
+LoRA/training path, so it stays.
