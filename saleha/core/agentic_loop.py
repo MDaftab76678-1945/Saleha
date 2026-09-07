@@ -417,16 +417,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
             from saleha.core.structured_reasoner import StructuredReasoner
             parsed_reasoning = StructuredReasoner.parse_turn(raw_content)
 
-            think_match = re.search(r"<think>(.*?)</think>", raw_content, re.DOTALL)
-            thought_str = ""
-            if think_match:
-                thought_str = think_match.group(1).strip()
-            elif parsed_reasoning.thinking:
-                thought_str = parsed_reasoning.thinking
-
-            clean_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL)
-            clean_content = re.sub(r"<(?:THINKING|thinking)>.*?</(?:THINKING|thinking)>", "", clean_content, flags=re.DOTALL)
-            clean_content = re.sub(r"<(?:SCRATCHPAD|scratchpad)>.*?</(?:SCRATCHPAD|scratchpad)>", "", clean_content, flags=re.DOTALL).strip()
+            # This used to be three re.sub calls that matched *paired* tags
+            # only. A reasoning model that stops mid-thought never emits the
+            # closer, so the whole raw trace survived into clean_content and
+            # was parsed as if it were the answer. strip_reasoning handles
+            # both shapes, and is the single place that logic now lives.
+            thought_str = (StructuredReasoner.extract_reasoning(raw_content)
+                           or parsed_reasoning.thinking)
+            clean_content = StructuredReasoner.strip_reasoning(raw_content)
 
             if thought_str:
                 emit({"step": step_no, "action": "think", "thought": thought_str[:500]})

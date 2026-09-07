@@ -1,17 +1,17 @@
 """
 Saleha Core: Hardware Profiler (v1.6 -- deep, psutil-powered)
 
-Purana telemetry.py shallow tha aur dead-code ban gaya tha. Ye version:
+Replaces the old telemetry.py, which was shallow and had become dead code.
 
   - CPU: overall %, per-core %, frequency, load-average (unix)
   - Memory: used/available/percent + swap
   - Disk I/O: read/write bytes counters + throughput delta
   - Network I/O: sent/recv counters + rates
-  - Top processes by CPU/MEM (Saleha ke apne process highlighted)
+  - Top processes by CPU/MEM (Saleha's own process is highlighted)
   - Rolling history ring-buffer + windowed report aggregation
 
-GPU note (honest): psutil GPU nahi deta. Agar nvidia-smi PATH par hai to
-optional probe usko bhi include karta hai; warna gpu=None.
+GPU note: psutil reports no GPU data. If nvidia-smi is on PATH an optional
+probe adds it; otherwise gpu=None. It is never guessed at.
 
 CLI: `saleha profile [--watch N] [--json]`
 """
@@ -50,7 +50,7 @@ class HardwareSnapshot:
 
 
 def _maybe_gpu() -> Optional[Dict]:
-    """nvidia-smi optional probe -- na mile to None (koi hard dep nahi)."""
+    """Optional nvidia-smi probe. Returns None if absent -- no hard dependency."""
     import shutil
     import subprocess
     if not shutil.which("nvidia-smi"):

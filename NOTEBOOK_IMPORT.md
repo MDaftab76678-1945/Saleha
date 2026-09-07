@@ -1784,3 +1784,80 @@ exact point about `ARCHITECTURE.md`, and this is the same error in this file.
 
 One of the seven new tests asserts the row keeps saying it: if someone
 rewrites it back to an unqualified "Real sandbox", the suite fails.
+
+
+## Twenty-ninth pass -- the first measured number in this repository (2026-09-07)
+
+Twenty-eight passes removed fabricated benchmark figures: "97.2% SWE-bench,
+Rank #1, CERTIFIED", "All 12 unit tests passed in 0.42s",
+"GLOBAL_FRONTIER_LEADER (#1 ACROSS ARENAS)". Every one was a literal. The
+obvious question -- what *is* the real number? -- had never been answered,
+because nothing here had ever run a task and checked the result.
+
+`scripts/measure_real_pass_rate.py` answers it. Twelve small self-contained
+programming problems, each with a real prompt, a real test, and execution in
+a subprocess.
+
+### The check that makes the number mean anything
+
+Every task also carries a deliberately wrong implementation, and the script
+refuses to run unless all twelve tests fail against it:
+
+```text
+Verifying 12 tests can actually fail...
+  all 12 tests fail on wrong code, as they must.
+```
+
+This is precisely what `saleha/harness/swe_bench_harness.py` does not do. Its
+three tasks carry `test_patch="def test_x(): assert True"` -- a test that
+passes for any output, including no output at all. Its pass rate could never
+have been anything but 100%, whatever the model produced.
+
+### Measured
+
+```text
+model                    pass    time
+deepseek-coder:6.7b     11/12    368s
+qwen2.5-coder:3b        10/12    115s
+```
+
+Both failed the same task, `lru_cache`, and that is not chance: it is the one
+problem of the twelve that requires holding state across calls (a dict plus a
+linked list, with eviction order preserved) rather than writing a single
+pure function. deepseek's failure is a real bug -- it shadowed the builtin
+`next` with a variable, then called `node.next`.
+
+The 3B model is roughly three times faster for one fewer task solved. For a
+tool meant to run locally all day, that trade favours the smaller model.
+
+### Two harness bugs, both found by disbelieving the first number
+
+The first run reported **9/12**, and two of those failures were the harness's
+fault, not the model's:
+
+1. **The model's own test code was being executed.** `reverse_words` was
+   scored FAIL on a run where the function was correct -- the model had
+   appended its own `check_solution()` containing a wrong expectation
+   (`("  ", " ")`; the answer is `""`), and called it. Its bad assert raised,
+   the file exited non-zero, and the task went down as a failure.
+   `extract_code` now parses the reply and keeps only definitions, dropping
+   top-level calls.
+
+2. **Reasoning models emit `<think>` blocks**, which are a syntax error if
+   left in. Handled for all four shapes: closed, unclosed-with-fence,
+   unclosed-without, and absent.
+
+Corrected, qwen2.5-coder goes 9/12 -> 10/12.
+
+Worth stating plainly: those were **fabricated failures** -- a number that
+did not describe what it claimed to describe. Exactly the defect this ledger
+has been chasing for twenty-eight passes, arrived at from the opposite
+direction. A number being unflattering is not evidence that it is honest.
+
+### What this number is not
+
+Twelve LeetCode-shaped problems on one machine. It is not SWE-bench, not a
+leaderboard position, and not a claim about multi-file repository work, which
+is the thing this project actually aims at and has never measured. The script
+prints that caveat itself, every run, so a future reader cannot lift the
+figure out of context.

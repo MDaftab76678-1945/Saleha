@@ -54,6 +54,54 @@ class StructuredReasoner:
     TOOL_CALL_PATTERN = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.DOTALL | re.IGNORECASE)
     CITATION_PATTERN = re.compile(r'<co\s+file="([^"]+)"(?:\s+line="?(\d+)"?)?>(.*?)</co>', re.DOTALL | re.IGNORECASE)
 
+    # A reasoning block whose closing tag never arrived. Reasoning models
+    # (qwen3, deepseek-r1) open <think> and can stop mid-thought when they hit
+    # a token budget or a timeout, so the closer is simply absent. The paired
+    # patterns above match nothing in that case and the entire raw trace --
+    # often thousands of tokens -- flows on as if it were the answer.
+    #
+    # Measured on this repo's own benchmark: a truncated reply left the tag in
+    # the extracted code and the task failed with a SyntaxError, which was
+    # recorded as a model failure. It was not; the harness had kept text that
+    # was never meant to be code.
+    UNCLOSED_REASONING_PATTERN = re.compile(
+        r"<(?:THINKING|thinking|think|SCRATCHPAD|scratchpad)>(?![\s\S]*?"
+        r"</(?:THINKING|thinking|think|SCRATCHPAD|scratchpad)>)[\s\S]*$",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def strip_reasoning(cls, text: str) -> str:
+        """
+        Remove reasoning blocks, closed or not.
+
+        Callers that only ran the closed-tag patterns kept truncated traces:
+        `<think>partial reasoning` with no closer survived intact. This is the
+        single place that handles both, so a fix here reaches every caller.
+        """
+        if not text:
+            return ""
+        cleaned = cls.THINKING_PATTERN.sub("", text)
+        cleaned = cls.SCRATCHPAD_PATTERN.sub("", cleaned)
+        cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL | re.IGNORECASE)
+        cleaned = cls.UNCLOSED_REASONING_PATTERN.sub("", cleaned)
+        return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+    @classmethod
+    def extract_reasoning(cls, text: str) -> str:
+        """The reasoning text itself, from a closed block or a truncated one."""
+        if not text:
+            return ""
+        match = (cls.THINKING_PATTERN.search(text)
+                 or cls.SCRATCHPAD_PATTERN.search(text)
+                 or re.search(r"<think>(.*?)</think>", text, re.DOTALL | re.IGNORECASE))
+        if match:
+            return match.group(1).strip()
+        truncated = cls.UNCLOSED_REASONING_PATTERN.search(text)
+        if truncated:
+            return re.sub(r"^<[^>]+>", "", truncated.group(0)).strip()
+        return ""
+
     @classmethod
     def format_system_prompt_with_tools(cls, base_prompt: str, tools: List[Dict[str, Any]]) -> str:
         """Injects <tools> XML definitions and structured reasoning token constraints."""
@@ -83,11 +131,10 @@ class StructuredReasoner:
         result = ParsedCognitiveTurn()
         clean = text or ""
 
-        # 1. Extract Thinking
-        t_match = cls.THINKING_PATTERN.search(clean) or cls.SCRATCHPAD_PATTERN.search(clean)
-        if t_match:
-            result.thinking = t_match.group(1).strip()
-            clean = (cls.THINKING_PATTERN.sub("", clean) if cls.THINKING_PATTERN.search(clean) else cls.SCRATCHPAD_PATTERN.sub("", clean)).strip()
+        # 1. Extract Thinking (closed blocks and truncated ones alike)
+        result.thinking = cls.extract_reasoning(clean)
+        if result.thinking:
+            clean = cls.strip_reasoning(clean)
 
         # 2. Extract Plan
         p_match = cls.PLAN_PATTERN.search(clean)

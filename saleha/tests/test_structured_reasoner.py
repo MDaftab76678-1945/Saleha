@@ -86,5 +86,88 @@ Done analyzing.
         self.assertIn('"lines": 20', resp)
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TruncatedReasoningTests(unittest.TestCase):
+    """
+    Reasoning models open <think> and can stop mid-thought when they hit a
+    token budget or a timeout, so the closing tag never arrives.
+
+    Every stripper in this repo matched paired tags only, which meant a
+    truncated trace -- often thousands of tokens -- flowed on untouched as if
+    it were the answer. Measured on this repo's own benchmark: the tag stayed
+    in the extracted code and the task failed with a SyntaxError, recorded as
+    a model failure. It was not one.
+    """
+
+    def test_closed_block_is_stripped(self):
+        out = StructuredReasoner.strip_reasoning(
+            "<think>reasoning here</think>\ndef solve():\n    return 1\n")
+        self.assertNotIn("think", out.lower())
+        self.assertIn("def solve", out)
+
+    def test_truncated_block_is_stripped(self):
+        """The regression this class exists for."""
+        out = StructuredReasoner.strip_reasoning("<think>reasoning never finished")
+        self.assertNotIn("think", out.lower())
+
+    def test_truncated_block_does_not_leak_into_code(self):
+        reply = "<think>I should write a function\ndef solve():\n    return 1\n"
+        self.assertNotIn("<think>", StructuredReasoner.strip_reasoning(reply))
+
+    def test_every_tag_spelling_is_handled_open_or_closed(self):
+        for tag in ("think", "THINKING", "thinking", "SCRATCHPAD", "scratchpad"):
+            with self.subTest(tag=tag, closed=True):
+                text = "<{0}>x</{0}>\ncode".format(tag)
+                self.assertNotIn(
+                    tag.lower(),
+                    StructuredReasoner.strip_reasoning(text).lower())
+            with self.subTest(tag=tag, closed=False):
+                text = "<{0}>x never closed".format(tag)
+                self.assertNotIn(
+                    tag.lower(),
+                    StructuredReasoner.strip_reasoning(text).lower())
+
+    def test_text_without_tags_is_untouched(self):
+        code = "def solve():\n    return 1"
+        self.assertEqual(StructuredReasoner.strip_reasoning(code), code)
+
+    def test_empty_input(self):
+        self.assertEqual(StructuredReasoner.strip_reasoning(""), "")
+        self.assertEqual(StructuredReasoner.extract_reasoning(""), "")
+
+    def test_reasoning_is_recoverable_from_both_shapes(self):
+        self.assertEqual(
+            StructuredReasoner.extract_reasoning("<think>my reasoning</think>code"),
+            "my reasoning")
+        self.assertEqual(
+            StructuredReasoner.extract_reasoning("<think>my truncated reasoning"),
+            "my truncated reasoning")
+
+    def test_agentic_loop_uses_the_shared_stripper(self):
+        """
+        agentic_loop.py carried its own three re.sub calls, all paired-only.
+        Duplicated stripping is how one copy gets fixed and the other does
+        not, so the loop must route through this module.
+        """
+        import ast
+        from pathlib import Path
+
+        import saleha.core.agentic_loop as loop_module
+
+        source = Path(loop_module.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef)):
+                doc = ast.get_docstring(node, clean=False)
+                if doc:
+                    docstrings.add(doc)
+        literals = "\n".join(
+            n.value for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and n.value not in docstrings)
+        self.assertNotIn(
+            "</think>", literals,
+            "agentic_loop has its own paired-tag regex again; use "
+            "StructuredReasoner.strip_reasoning instead")
+
