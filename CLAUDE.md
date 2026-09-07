@@ -231,6 +231,149 @@ found, fixed, or decided, update it — that is not overhead, it is the point.
 
 ---
 
+## Engineering principles to work by
+
+The user asked that this project be built with the mindset of the people who
+built the foundations. Names alone change nothing — this project spent fourteen
+passes deleting code that claimed authority it had not earned, and a list of
+famous names would be exactly that again. So each entry below is one concrete,
+testable rule, paired with the real defect in *this* repository that it would
+have caught.
+
+### Measure, do not assert — Hinton
+
+Backpropagation was accepted because it was demonstrated, not argued. Every
+claim in this codebase needs a number next to it. `NOTEBOOK_IMPORT.md` follows
+this already: BM25 shipped with `short_answer 2.99 vs long_noise 1.16`, not
+"BM25 works now".
+
+*Caught:* `agent_council` scored every proposal 93.3/100 with no measurement
+behind the number. `explain-code` reported a 0.95 "saliency" that was a
+per-bucket constant.
+
+### Talk to the machine, not about it — Torvalds
+
+"Talk is cheap. Show me the code." Do not describe a fix — apply it and show
+the before/after. A defect is not real until it is reproduced, and not fixed
+until the reproduction flips.
+
+*Caught:* the orchestrator's fake success was only provable by writing a probe
+that returned `success=True, verifier calls: 0` for `1/0`, then showing the
+same probe return `success=False, verifier calls: 1`.
+
+### Readable beats clever — van Rossum
+
+Code is read far more than written; there should be one obvious way to do it.
+This is the direct source of the English-only rule above: `orchestrator.py` had
+three languages in one function, which is unreadable to everyone but its author.
+
+*Caught:* 87 mixed-language strings, including Hindi prompts being sent to a
+code model.
+
+### Simple enough to be obviously correct — Ritchie
+
+Unix tools did one thing. Complexity hides bugs; small honest pieces do not.
+Prefer deleting a fake abstraction over decorating it.
+
+*Caught:* four "orchestrators" that made zero model calls. The right fix for
+`repo_orchestrator` was not more scaffolding — it was to delete the fabrication
+and read real `git status`.
+
+### Solve the exact problem, fast, then verify — Korotkevich
+
+Competitive programming discipline: correctness first, then speed, and always
+against real test data. Do not optimise what has not been measured.
+
+*Applied:* `parallel_candidates` ships with a real measurement (5 concurrent
+calls 15.5s vs ~34s sequential) and is off by default, because it costs N times
+the tokens.
+
+### Reason from first principles — Musk
+
+Ask what the thing must actually do, not what the existing code does. The best
+part is no part. When a component is a template, question whether it should
+exist before rebuilding it.
+
+*Caught:* `cloud-plan`, `silicon-build`, `causal-eval` and `multirepo` all
+generate constants. The first-principles question is not "how do we improve
+these" but "should these commands exist at all".
+
+### Build for the person who arrives later — Berners-Lee
+
+The web worked because it was open and decentralised. Every artifact here must
+be usable by someone with no context: honest READMEs, real error messages,
+`CLAUDE.md` itself. A tool that only its author can operate has failed.
+
+*Caught:* the project had no `CLAUDE.md` at all until 2026-09-07, so every
+session began by asking the user to re-explain their own project.
+
+### Ship, then iterate on real feedback — Zuckerberg
+
+Working software beats a perfect plan, but only when the feedback loop is real.
+Ship the honest version now; do not hold it for the grand rewrite.
+
+*Guard:* "move fast" is not licence to fabricate. A fake pass destroys the
+feedback loop entirely — you cannot iterate on a result you invented.
+
+### Make it work at scale for real users — Pichai
+
+Ask what happens on someone else's machine. Defaults matter more than options,
+because most people never change them.
+
+*Caught:* `auto_commit` ran `git add .`, which on a real user's machine commits
+their unrelated uncommitted work. It was the default path, and every caller
+took it.
+
+### Rebuild the culture, not just the code — Nadella
+
+Growth mindset: "I was wrong" is information, not defeat. Fix the process that
+produced the bug, not only the bug.
+
+*Applied:* when a test of mine asserted an impossible Gini > 0.70 for two
+agents, the fix was to correct the test and document the `(n-1)/n` bound — the
+implementation was right. When four `orchestrator.py` requests were answered by
+grepping, the fix was the audit rule at the top of this file, not just one file.
+
+### Ship the pragmatic thing under real constraints — Eich
+
+JavaScript was written in ten days under impossible constraints and still had
+to work. Real constraints here: one GPU, local models, no cloud budget. Design
+inside them instead of pretending they are absent.
+
+*Applied:* speculative decoding was deferred because one GPU cannot hold 8B +
+1B. Activation-patching interpretability was dropped because Ollama does not
+expose activations — replaced with leave-one-out ablation, which the
+architecture *can* do.
+
+### Safety is an engineering property, not a disclaimer — D. Amodei
+
+A system that cannot report its own failures cannot be trusted or improved.
+Interpretability and honest self-report are engineering work, not paperwork.
+
+*This is the core thesis of the entire audit.* A fabricated pass is worse than
+a wrong answer, because a wrong answer gets caught and a fake green is designed
+not to be.
+
+### Guardrails belong in the code, not the docs — Danielle Amodei
+
+Policy that is not enforced by the system is not policy. If a dangerous action
+must be gated, gate it in code and test the gate.
+
+*Caught:* `SALEHA_APPROVAL=dangerous` did not gate `file_write` — the docstring
+claimed it did. `git reset --hard` was ungated while `file_delete` was gated.
+Both are in `DANGEROUS_ACTIONS` now, with tests that fail if a call site is
+added without one.
+
+### The synthesis
+
+These agree on one thing: **an honest system that reports what it actually did
+is the precondition for everything else.** The user's goal is a system that
+improves itself. A system that fabricates its results cannot — it has no signal
+to learn from. The audit work in this repository is not cleanup before the real
+project; it *is* the foundation the self-improving system needs.
+
+---
+
 ## The user's vision for Saleha
 
 Not instructions — this is what they are building toward. Keep it in view.
