@@ -183,16 +183,52 @@ def causal_eval_cmd(target: str):
 @click.argument('path', required=True)
 def explain_code_cmd(path: str):
     """
-    Mechanistic Interpretability & Circuit Attribution for generated code.
-    
+    Explain the structure of a Python file: error handling, type contracts,
+    control flow, resource management, and per-function complexity.
+
+    This is an AST-based structural analysis of the source. It does not
+    inspect any model's internals -- no activations, no saliency.
+
     Example: saleha explain-code saleha/core/security_scanner.py
     """
-    from saleha.core.mech_interp import mech_interp_engine
+    from saleha.core.mech_interp import code_structure_engine
     if not os.path.exists(path):
         console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
         return
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         code = f.read()
-    rep = mech_interp_engine.explain_code(code, filename=os.path.basename(path))
-    console.print(Panel(f'[bold cyan]🔬 Mechanistic Interpretability & Circuits: {path}[/bold cyan]\n{rep.summary}', border_style='cyan'))
+    rep = code_structure_engine.explain_code(code, filename=os.path.basename(path))
+
+    if not rep.parsed:
+        console.print(Panel(
+            f'[bold yellow]⚠ Could not parse {path}[/bold yellow]\n{rep.summary}',
+            border_style='yellow'))
+        return
+
+    console.print(Panel(f'[bold cyan]🔬 Code structure: {path}[/bold cyan]\n{rep.summary}',
+                        border_style='cyan'))
+
+    if rep.functions:
+        table = Table(title='Functions by branching complexity', show_lines=False)
+        table.add_column('Function', style='cyan')
+        table.add_column('Line', justify='right')
+        table.add_column('Cx', justify='right')
+        table.add_column('Args', justify='right')
+        table.add_column('Doc', justify='center')
+        table.add_column('Typed', justify='center')
+        for fn in sorted(rep.functions, key=lambda f: f.complexity, reverse=True)[:15]:
+            # Cyclomatic complexity over 10 is the usual "worth a look" line.
+            style = 'red' if fn.complexity > 10 else ''
+            table.add_row(
+                f'{"async " if fn.is_async else ""}{fn.qualname}',
+                str(fn.line_number), str(fn.complexity), str(fn.arg_count),
+                '✓' if fn.has_docstring else '·',
+                '✓' if fn.is_annotated else '·',
+                style=style)
+        console.print(table)
+
+    bare = [a for a in rep.attributions if 'Bare `except:`' in a.rationale]
+    if bare:
+        console.print(f'[yellow]⚠ {len(bare)} bare except clause(s): '
+                      f'lines {", ".join(str(a.line_number) for a in bare[:10])}[/]')
 

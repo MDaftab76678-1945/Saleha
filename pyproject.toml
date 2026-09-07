@@ -53,7 +53,10 @@ repograph = [
 ]
 dev = [
     "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0"
+    "pytest-asyncio>=0.21.0",
+    # Reference implementation for cyclomatic complexity. test_mech_interp.py
+    # cross-checks our own counter against it; without radon that test skips.
+    "radon>=6.0.0"
 ]
 all = [
     "playwright>=1.35.0",

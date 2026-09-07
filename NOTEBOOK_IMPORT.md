@@ -608,3 +608,93 @@ constant: the problem reaches every persona's prompt, each persona can win,
 critics see the others' real code and never their own, failures score 0, and
 the old template is asserted absent.
 
+
+## Tenth pass — `explain-code` matched substrings and called it interpretability (2026-09-07)
+
+`ARCHITECTURE.md` had already flagged four commands as templates on
+2026-09-06, but flagging them changed nothing — they were documented as broken
+and kept shipping. This pass fixes one of them properly.
+
+`mech_interp.py` promised "Mechanistic Interpretability & Circuit Attribution":
+circuit discovery, token-level attribution, saliency. It classified each line
+with four `substring in line` tests and a fixed score per bucket. Measured:
+
+```
+explain_code('x = "raise the roof"')
+  -> error_guard, saliency 0.95,
+     "Defensive error guard circuit protecting against invalid inputs"
+
+distinct saliency values over a real 305-line file:
+  [0.75, 0.85, 0.90, 0.95]      <- exactly one per bucket
+```
+
+So `saliency_score` was a synonym for the label: it moved only when the label
+moved and carried no information of its own. A string literal containing the
+word "raise" was a defensive guard at 0.95 confidence. The module imported
+`ast` and `re` and called neither.
+
+**The name was the lie, not the idea.** Mechanistic interpretability needs a
+model's internal activations, which Ollama does not expose — the same wall
+`causal_trace.py` hit in the eighth pass. Faking it under the name was the
+wrong fix and so was deleting a command people might want. So the claim is
+dropped and the achievable thing is done well: parse the file and report its
+real structure. `MechInterpEngine` is now an alias of `CodeStructureEngine`,
+kept so existing callers keep working.
+
+Classification now comes from the AST node type, so `x = "raise the roof"` is
+an assignment and `raise ValueError(...)` is a guard. The report gained what
+the AST makes available and substring matching could not: per-function
+cyclomatic complexity, enclosing `def`/`class` scope per line, annotation and
+docstring coverage, and specific bare-`except:` detection.
+
+### Cross-checking found three real bugs that reading the code did not
+
+Cyclomatic complexity is the one number here that can be silently wrong, so it
+is checked against `radon`, the standard tool, over all of `saleha/core/`.
+The first draft disagreed on **86 of 472 functions**. Each disagreement was a
+genuine error in my implementation:
+
+1. **Nested scopes were walked into.** `ast.walk` descends into nested `def`s,
+   so a closure's branches were charged to its parent — a 1-branch factory in
+   `action_menu.py` reported as complexity **24**.
+2. **`with` was counted as a decision point.** It takes no branch, so it adds
+   no path. This inflated every function containing one.
+3. **Comprehension `if` filters were missed.** `[x for x in xs if p(x)]` is two
+   decision points, the iteration and the condition; only the iteration counted.
+
+After fixing all three: **472 functions, 0 mismatches.** A fourth divergence
+was a judgement call rather than a bug — a `lambda` carrying a conditional.
+Lambdas get no `FunctionProfile`, so skipping them would drop those branches
+from every total; they are charged to the enclosing function, matching radon.
+
+A fifth bug surfaced from the tests rather than the cross-check: `_scope_at`
+was a *class* attribute in the first draft, so scopes accumulated across every
+file analysed in the process and one file's scopes were reported against
+another's lines. It is per-instance now, with a regression test.
+
+`radon` is added to the `dev` extra — without it that cross-check test skips
+silently, which is the same failure mode this pass exists to remove.
+
+### Honest degradation
+
+A file that does not parse gets `parsed=False`, a stated `parse_error`, and
+every line at confidence 0.5 labelled unclassified — deliberately *less*
+information than the AST path, not a substring guess dressed up as an equal
+answer. Guessing there is exactly the behaviour being removed.
+
+30 tests replace the 1 that existed. The old one asserted the bucket counts and
+an exact attribution count for a 4-line snippet, so it would have passed
+forever while the module called string literals defensive guards.
+
+### Also corrected
+
+`ARCHITECTURE.md` still described `recursive` as returning "3 hardcoded
+`ReasoningPath` objects with fixed scores" — true when written on 2026-09-06,
+fixed in the sixth pass, but the doc was never updated. A stale "this is
+broken" note costs the same trust as a stale "this works" one. Updated, along
+with the `explain-code` entry.
+
+**Still open from that 2026-09-06 audit:** `silicon-build`, `causal-eval` and
+the `emergence-check` wiring remain templates. `emergence-check` is the cheap
+one — the detector itself is real, nothing ever calls `record_message()`.
+
