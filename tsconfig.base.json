@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": [
+    "Shared TypeScript settings for every workspace package.",
+    "",
+    "Before this file existed, four packages (api, auth, db, ui) declared",
+    "'typecheck': 'tsc --noEmit' with no tsconfig.json anywhere -- not in the",
+    "package, not at the root. tsc with no project to read prints its help",
+    "text and exits 1, so `turbo run typecheck` reported 0 successful of 6",
+    "and had never once checked a type. packages/core was worse: its build",
+    "script is a bare 'tsc', which in the same situation exits 0 and emits",
+    "nothing, so the build reported success while compiling no files at all.",
+    "",
+    "Paths are declared here so every package resolves the workspace packages",
+    "to source, matching what apps/web and apps/desktop already did."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@saleha/core": ["packages/core/src/index.ts"],
+      "@saleha/core/*": ["packages/core/src/*"],
+      "@saleha/ui": ["packages/ui/src/index.ts"],
+      "@saleha/ui/*": ["packages/ui/src/*"],
+      "@saleha/db": ["packages/db/src/index.ts"],
+      "@saleha/db/*": ["packages/db/src/*"],
+      "@saleha/auth": ["packages/auth/src/index.ts"],
+      "@saleha/auth/*": ["packages/auth/src/*"],
+      "@saleha/api": ["packages/api/src/index.ts"],
+      "@saleha/api/*": ["packages/api/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next", ".astro"]
+}

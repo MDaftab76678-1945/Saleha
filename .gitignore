@@ -100,6 +100,11 @@ yarn-error.log*
 # Next.js build output
 apps/web/.next/
 
+# Turborepo task cache (written by `turbo run ...` at the root and in every
+# workspace package)
+.turbo/
+**/.turbo/
+
 # Rust / Tauri build output
 target/
 apps/desktop/src-tauri/gen/
