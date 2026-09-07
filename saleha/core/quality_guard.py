@@ -1,19 +1,43 @@
 """
-Saleha Core: Strict Quality Guard & AST Code Integrity Engine
+Saleha Core: AST-based code quality checks.
 
-Enforces 2026 production-grade software engineering standards across synthesized code:
-1. AST Syntactic Correctness & Syntax Tree Validation
-2. Strict Type Hint Coverage (PEP 484 / PEP 604)
-3. Cognitive Complexity & Nesting Depth Limits
-4. Sovereign Brand Hygiene (Blocks third-party trademark leaks)
-5. Anti-Pattern & Insecure Primitives Detection (eval, exec, naked except)
+The analysis here is real -- it parses the code and responds to what it finds.
+Three things around it were not, and are fixed:
+
+**1. The "sovereign brand hygiene" rule is removed.** `SOV-001` matched the
+bare words "claude", "hermes" or "kimi" anywhere in a file and raised a
+CRITICAL that dropped 20 points and set `passed=False`. Measured on ordinary
+code:
+
+    r = requests.post("http://localhost:11434/api/generate",
+                      json={"model": "claude-opus-5", "prompt": prompt})
+
+    -> score 80.0, passed False,
+       CRITICAL SOV-001 "Brand leak detected: 'claude'"
+
+That matters because `ttc_solver.py` uses this score to pick between candidate
+solutions: a correct candidate could lose to a worse one for naming the model
+it sends a request to. **You cannot call a model without naming it.**
+
+The rule was also foreign to this project. "hermes" and "kimi" appear nowhere
+else in the repository -- the word list was carried in from somewhere else and
+never questioned. A quality guard is for correctness and safety; what a string
+says is neither, and there was no real defect for this rule to catch.
+
+**2. The score clamped at 0.0.** Twenty-five untyped functions and four
+hundred both scored 0.0, so below a certain point the number carried no
+information. `raw_score` keeps the uncapped value.
+
+**3. `check_workspace` reported a sample as a total.** It stopped at
+`max_files` (default 50) wherever `os.walk` happened to reach and returned
+`all_passed` over that slice with no indication it was partial. The result now
+says how many files exist and whether the scan was truncated.
 """
 
 from __future__ import annotations
 
 import ast
 import os
-import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Set
 
@@ -31,7 +55,11 @@ class QualityIssue:
 @dataclass
 class QualityReport:
     passed: bool
-    quality_score: float   # 0.0 to 100.0
+    quality_score: float   # 0.0 to 100.0, clamped
+    # The same score before clamping. Two files at quality_score 0.0 are not
+    # equally bad -- one may be -12 and the other -900 -- and callers that
+    # rank candidates (ttc_solver) need to tell them apart.
+    raw_score: float = 100.0
     issues: List[QualityIssue] = field(default_factory=list)
     total_functions: int = 0
     typed_functions: int = 0
@@ -55,11 +83,14 @@ class QualityReport:
 class QualityGuard:
     """Enforces strict code quality, type annotations, and structural standards."""
 
-    FORBIDDEN_BRAND_PATTERNS = [
-        re.compile(r'\bhermes\b', re.IGNORECASE),
-        re.compile(r'\bclaude\b', re.IGNORECASE),
-        re.compile(r'\bkimi\b', re.IGNORECASE),
-    ]
+    # The SOV-001 "sovereign brand hygiene" rule was removed entirely. See the
+    # module docstring: it matched the bare words "hermes", "claude" and
+    # "kimi" anywhere in a file and raised a CRITICAL that failed the file.
+    #
+    # "hermes" and "kimi" appear nowhere else in this repository -- the list
+    # was carried in from some other project. And a model id is not a defect:
+    # you cannot call a model without naming it. Quality checks are for
+    # correctness and safety; what a string says is not either.
 
     def __init__(self, strict_mode: bool = True):
         self.strict_mode = strict_mode
@@ -84,24 +115,7 @@ class QualityGuard:
         issues: List[QualityIssue] = []
         score = 100.0
 
-        # 1. Check for third-party brand leaks
-        for pattern in self.FORBIDDEN_BRAND_PATTERNS:
-            for line_idx, line in enumerate(code.splitlines(), start=1):
-                # Ignore standard benchmark comparison comments or baseline strings
-                if "benchmark" in line.lower() or "baseline" in line.lower() or "dataset" in line.lower():
-                    continue
-                match = pattern.search(line)
-                if match:
-                    issues.append(QualityIssue(
-                        severity="CRITICAL",
-                        rule_id="SOV-001",
-                        message=f"Brand leak detected: '{match.group(0)}' violates sovereign naming standards.",
-                        line_number=line_idx,
-                        column=match.start(),
-                    ))
-                    score -= 20.0
-
-        # 2. Syntax and AST Parse Check
+        # 1. Syntax and AST Parse Check
         try:
             tree = ast.parse(code, filename=file_path or "<snippet>")
         except SyntaxError as e:
@@ -119,7 +133,7 @@ class QualityGuard:
                 file_path=file_path,
             )
 
-        # 3. Security and Anti-Pattern Detection
+        # 2. Security and Anti-Pattern Detection
         total_functions = 0
         typed_functions = 0
         max_depth = 0
@@ -193,6 +207,7 @@ class QualityGuard:
         return QualityReport(
             passed=passed,
             quality_score=final_score,
+            raw_score=round(score, 1),
             issues=issues,
             total_functions=total_functions,
             typed_functions=typed_functions,
@@ -223,33 +238,49 @@ class QualityGuard:
             )
 
     def check_workspace(self, root_dir: str = ".", max_files: int = 50) -> Dict[str, Any]:
-        """Runs quality guard scan across the workspace and returns an aggregated scorecard."""
-        reports: List[QualityReport] = []
+        """
+        Scan the workspace and return a scorecard.
+
+        This stops at `max_files`, so on any real tree it reports a **sample**,
+        not the workspace. The old return said `total_files_analyzed` and
+        `all_passed` with nothing marking it partial -- so "all_passed: True"
+        over the first 50 files `os.walk` happened to reach read as a clean
+        bill of health for the whole repo. The result now carries
+        `files_found`, `truncated` and `scan_is_complete`, and the pass key is
+        named for what it covers.
+        """
+        candidates: List[str] = []
         for root, _, files in os.walk(root_dir):
             if any(p in root for p in [".git", "node_modules", ".venv", "apps", "dist", "build"]):
                 continue
             for f in files:
                 if f.endswith(".py") and not f.startswith("test_"):
-                    full_path = os.path.join(root, f)
-                    reports.append(self.check_file(full_path))
-                    if len(reports) >= max_files:
-                        break
-            if len(reports) >= max_files:
-                break
+                    candidates.append(os.path.join(root, f))
+
+        # Sort so the sample is at least deterministic; os.walk order is not.
+        candidates.sort()
+        scanned = candidates[:max_files]
+        reports = [self.check_file(path) for path in scanned]
 
         total_files = len(reports)
+        truncated = len(candidates) > total_files
         avg_score = round(sum(r.quality_score for r in reports) / total_files, 1) if total_files > 0 else 100.0
         total_critical = sum(r.critical_count for r in reports)
         total_major = sum(r.major_count for r in reports)
         avg_type_coverage = round(sum(r.type_coverage_pct for r in reports) / total_files, 1) if total_files > 0 else 100.0
 
         return {
-            "total_files_analyzed": total_files,
+            "files_found": len(candidates),
+            "files_analyzed": total_files,
+            "truncated": truncated,
+            "scan_is_complete": not truncated,
             "average_quality_score": avg_score,
             "total_critical_issues": total_critical,
             "total_major_issues": total_major,
             "average_type_coverage_pct": avg_type_coverage,
-            "all_passed": all(r.passed for r in reports),
+            "all_analyzed_passed": all(r.passed for r in reports),
+            "note": (f"sample only: {total_files} of {len(candidates)} files"
+                     if truncated else f"complete: all {total_files} files"),
         }
 
 

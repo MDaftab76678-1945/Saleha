@@ -150,6 +150,28 @@ class WorkspaceVersionTests(unittest.TestCase):
                                     f"'{first}', which it does not depend on")
         self.assertEqual(problems, [], "; ".join(problems))
 
+    def test_only_one_lockfile(self):
+        """
+        `package-lock.json` and `pnpm-lock.yaml` were both committed. Two
+        lockfiles can resolve the same range to different versions, so which
+        one you installed from decides what you get -- and nothing says which
+        is authoritative. package.json declares pnpm, so that is the one.
+        """
+        present = [name for name in
+                   ("package-lock.json", "pnpm-lock.yaml", "yarn.lock")
+                   if (self.root_dir / name).is_file()]
+        self.assertEqual(
+            present, ["pnpm-lock.yaml"],
+            f"expected only pnpm-lock.yaml, found {present}. package.json "
+            f"declares pnpm as the package manager.")
+
+    def test_declared_package_manager_matches_the_lockfile(self):
+        root = json.loads((self.root_dir / "package.json").read_text(encoding="utf-8"))
+        declared = root.get("packageManager", "")
+        self.assertTrue(declared.startswith("pnpm@"),
+                        f"packageManager is {declared!r}; the committed "
+                        f"lockfile is pnpm-lock.yaml")
+
     def test_typecheck_scripts_have_a_tsconfig_to_read(self):
         """
         Four packages declared `tsc --noEmit` with no tsconfig.json anywhere.

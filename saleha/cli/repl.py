@@ -469,13 +469,23 @@ class SalehaREPL:
                 t = Table(title=f"🛡️ Workspace Quality Audit: {target}", show_header=True)
                 t.add_column("Metric", style="cyan")
                 t.add_column("Value", style="bold green")
-                t.add_row("Files Analyzed", str(summary["total_files_analyzed"]))
+                # check_workspace stops at max_files, so on any real tree this
+                # is a sample. Saying so matters: the old table printed
+                # "Overall Standard: PASSED" over 40 files out of hundreds.
+                t.add_row("Files Analyzed",
+                          f"{summary['files_analyzed']} of {summary['files_found']}")
                 t.add_row("Average Quality Score", f"{summary['average_quality_score']:.1f} / 100.0")
                 t.add_row("Average Type Coverage", f"{summary['average_type_coverage_pct']:.1f}%")
                 t.add_row("Critical Issues", f"[red]{summary['total_critical_issues']}[/]")
                 t.add_row("Major Issues", f"[yellow]{summary['total_major_issues']}[/]")
-                t.add_row("Overall Standard", "[green]PASSED[/]" if summary["all_passed"] else "[yellow]ATTENTION NEEDED[/]")
+                scope = "files scanned" if summary["scan_is_complete"] else "SAMPLE only"
+                t.add_row(f"Standard ({scope})",
+                          "[green]PASSED[/]" if summary["all_analyzed_passed"]
+                          else "[yellow]ATTENTION NEEDED[/]")
                 console.print(t)
+                if summary["truncated"]:
+                    console.print(f"[dim]{summary['note']} -- raise max_files "
+                                  f"to cover the rest.[/]")
             return True
 
         if cmd == "/ttc":

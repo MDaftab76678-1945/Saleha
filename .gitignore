@@ -105,6 +105,15 @@ apps/web/.next/
 .turbo/
 **/.turbo/
 
+# This project uses pnpm -- package.json declares "packageManager":
+# "pnpm@9.15.0", and .npmrc carries a pnpm-only setting. A package-lock.json
+# was committed alongside pnpm-lock.yaml, which is what the IDE's "multiple
+# lockfiles" warning was about: two lockfiles can resolve the same range to
+# different versions, so which one you installed from decides what you get.
+# Ignored so a stray `npm install` cannot commit one again.
+package-lock.json
+yarn.lock
+
 # Rust / Tauri build output
 target/
 apps/desktop/src-tauri/gen/

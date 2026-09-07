@@ -134,41 +134,49 @@ def test_ttc_dynamic_generator_fn():
     assert "TTC Solver explored 3 trajectories" in result.summary
 
 
-def test_ttc_brand_hygiene_penalty():
+def test_ttc_does_not_rank_candidates_on_product_names():
+    """
+    This test used to assert the opposite: a candidate whose comment said
+    "hermes" had to score *lower* than one whose docstring said "Saleha", and
+    it passed because quality_guard's SOV-001 rule raised a CRITICAL on the
+    bare word and cost 20 points.
+
+    That rule is removed. It could not tell a model id from an impersonation,
+    so ordinary code calling a local model scored 80.0 and passed=False -- and
+    this solver ranks candidates by that score, which is exactly where the
+    damage would land. Two candidates that differ only in a product name must
+    now score the same.
+    """
     solver = TTCTrajectorySolver()
 
-    # Candidate with leaked foreign trademark
-    c_leaked = CandidateTrajectory(
-        trajectory_id="LEAK",
-        strategy_name="foreign",
+    c_named = CandidateTrajectory(
+        trajectory_id="NAMED",
+        strategy_name="calls_a_model",
         code="""
 def generate_code() -> str:
-    # hermes system prompt
+    # sends the prompt to claude-opus-5
     return "ok"
 """,
-        explanation="Hermes model generation",
+        explanation="names the model it calls",
     )
 
-    # Sovereign clean candidate
-    c_clean = CandidateTrajectory(
-        trajectory_id="CLEAN",
-        strategy_name="sovereign",
+    c_unnamed = CandidateTrajectory(
+        trajectory_id="UNNAMED",
+        strategy_name="no_model_named",
         code="""
 def generate_code() -> str:
-    \"\"\"Saleha sovereign generator.\"\"\"
+    \"\"\"Saleha native generator.\"\"\"
     return "ok"
 """,
-        explanation="Saleha native autonomous generation",
+        explanation="names nothing",
     )
 
-    result = solver.solve(
+    solver.solve(
         problem="Generate code safely",
-        provided_candidates=[c_leaked, c_clean],
+        provided_candidates=[c_named, c_unnamed],
     )
 
-    assert result.best_trajectory is not None
-    assert result.best_trajectory.trajectory_id == "CLEAN"
-    assert c_leaked.overall_score < c_clean.overall_score
+    assert c_named.overall_score == c_unnamed.overall_score
 
 
 # ---------------------------------------------------------------------------
