@@ -148,9 +148,11 @@ def run_benchmark():
         is_pass = t["validator"](output_str)
         if is_pass:
             total_passed += 1
-            res_str = "✅ 100% PASS"
+            # Was "100% PASS" for a single passing check, which reads as a
+            # score rather than one binary outcome.
+            res_str = "[green]pass[/]"
         else:
-            res_str = "❌ FAIL"
+            res_str = "[red]fail[/]"
 
         table.add_row(t["id"], t["metric"], res_str, f"{tok_per_sec} tok/s")
 
@@ -160,11 +162,27 @@ def run_benchmark():
     avg_speed = round(total_tokens / max(total_time, 0.001), 1)
     pass_pct = round((total_passed / len(tests)) * 100, 1)
 
+    # Was hardcoded as "~2.1 GB VRAM (Fits comfortably in 6.0 GB)". Read the
+    # real allocation instead, and say so when it cannot be read.
+    try:
+        vram_gb = f"{torch.cuda.max_memory_allocated() / 1024**3:.2f} GB peak"
+    except Exception:
+        vram_gb = "not measured"
+
+    # Was the unconditional string "Top-Tier On-Device Benchmark Mastery
+    # Achieved!", which printed at 0% just as happily as at 100%.
+    if pass_pct == 100.0:
+        verdict = f"[green]all {len(tests)} checks passed[/]"
+    elif pass_pct >= 50.0:
+        verdict = f"[yellow]{total_passed}/{len(tests)} passed[/]"
+    else:
+        verdict = f"[red]{total_passed}/{len(tests)} passed[/]"
+
     summary_panel = Panel(
         f"[bold white]Artificial Analysis Intelligence Score:[/] [bold green]{pass_pct}% PASS RATE ({total_passed}/{len(tests)})[/]\n"
-        f"[bold white]Overall Generation Throughput:[/] [bold yellow]{avg_speed} tokens/second[/] on NVIDIA RTX 3050 GPU\n"
-        f"[bold white]VRAM Footprint:[/] [bold cyan]~2.1 GB VRAM[/] (Fits comfortably in 6.0 GB VRAM)\n"
-        f"[bold white]Evaluation Verdict:[/] [bold green]👑 Top-Tier On-Device Benchmark Mastery Achieved![/]",
+        f"[bold white]Throughput:[/] [yellow]{avg_speed} tokens/second[/]\n"
+        f"[bold white]VRAM allocated:[/] [cyan]{vram_gb}[/]\n"
+        f"[bold white]Verdict:[/] {verdict}",
         title="📊 Benchmark Summary & Hardware Metrics",
         border_style="green",
     )

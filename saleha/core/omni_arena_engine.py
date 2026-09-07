@@ -1,11 +1,33 @@
 """
-Saleha Core: Multimodal Omniverse & Artificial Analysis Benchmark Alignment Engine
+Saleha Core: aspirational benchmark targets. NOT measurements.
 
-Bridges the 4 Frontier Artificial Analysis Leaderboard Arenas:
-1. Text to Speech (TTS) Arena: Sonic 3.6 (1282 Elo) & Realtime TTS-2 (1250 Elo) standard.
-2. Video & Image-to-Video Arena: Wan 3.0 (1190 Elo) & Minimax H3 (1202 Elo) generative UI video.
-3. Artificial Analysis Agentic Index: Autonomous tool use, DAG planning, and recovery (>64.0 vs Claude 61.0).
-4. Comprehensive Intelligence Evaluations: SWE-bench Verified, Terminal-Bench v2, Non-Hallucination Rate.
+WARNING -- nothing in this module benchmarks anything. Every number below is a
+literal someone typed in. No model is loaded, no task is run, no leaderboard is
+queried.
+
+It used to present those literals as results:
+
+    intelligence_matrix = {
+        "SWE-bench Verified": 64.8,
+        "AA-Non-Hallucination Rate": 96.4,
+        "LiveCodeBench (LCB)": 71.2,
+        ...
+    }
+    overall_verdict = "GLOBAL_FRONTIER_LEADER (#1 ACROSS ARENAS)"
+
+and `scripts/evaluate_artificial_analysis_omni_arena.py` printed them beside a
+hand-typed table of GPT-5.6, Grok 4.6 and Gemini 3.7 scores, each row labelled
+"Rank #1", under the heading "FINAL ARTIFICIAL ANALYSIS VERDICT".
+
+This is the same fabricated-benchmark family as the training datasets purged in
+round 8 for carrying "100% benchmark score" claims. A number nothing measured
+is not a result, and calling a target a rank is how a project ends up believing
+its own marketing -- which is exactly what produced `saleha-asi`, the in-house
+model that scored **0/5** on real held-out tasks.
+
+Every figure is now labelled `TARGET_*` and every result object carries
+`is_measured=False`. If real benchmarking is added later, it belongs in a module
+that actually runs the tasks; these targets belong in ROADMAP.md.
 """
 
 from __future__ import annotations
@@ -56,8 +78,14 @@ class OmniArenaEvaluationReport:
     voice_arena: VoiceArenaResult
     video_arena: VideoArenaResult
     agentic_index: AgenticIndexScore
-    intelligence_matrix: Dict[str, float]
-    overall_verdict: str
+    # Aspirational targets, not results. Renamed from `intelligence_matrix`,
+    # which read as a scoreboard.
+    target_scores: Dict[str, float]
+    # Renamed from `overall_verdict`, which held the string
+    # "GLOBAL_FRONTIER_LEADER (#1 ACROSS ARENAS)".
+    status_note: str
+    # Always False here. No benchmark is executed anywhere in this module.
+    is_measured: bool = False
 
 
 class VoiceArenaModule:
@@ -136,7 +164,9 @@ class OmniArenaEngine:
         video_res = self.video_module.render_ui_walkthrough(prompt, duration_sec=5.0)
         agentic_score = self.agentic_evaluator.evaluate()
 
-        intelligence_matrix = {
+        # Targets to build toward. Nothing here ran a benchmark, so these are
+        # not scores and must never be rendered as one.
+        target_scores = {
             "SWE-bench Verified": 64.8,
             "Terminal-Bench v2": 59.1,
             "AA-Non-Hallucination Rate": 96.4,
@@ -150,8 +180,10 @@ class OmniArenaEngine:
             voice_arena=voice_res,
             video_arena=video_res,
             agentic_index=agentic_score,
-            intelligence_matrix=intelligence_matrix,
-            overall_verdict="GLOBAL_FRONTIER_LEADER (#1 ACROSS ARENAS)",
+            target_scores=target_scores,
+            status_note=("TARGETS ONLY -- no benchmark was executed. These are "
+                         "goals, not measured results."),
+            is_measured=False,
         )
 
 

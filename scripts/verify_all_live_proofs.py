@@ -1,20 +1,40 @@
 """
-Saleha: All-in-One Empirical Live Proof Verification Suite
+Saleha: live self-checks, reporting only what was actually measured.
 
-Executes direct, undeniable physical proofs on the machine:
-1. Physical Dataset Verification (File paths, line counts, JSON validity).
-2. Live AST Grammar & SMT Mathematical Proof Verification.
-3. Live Ephemeral Sandbox Code Execution (Zero-crash proof).
-4. Live Codebase Hypergraph Symbol Indexing.
-5. Live Git Commit History & GitHub Remote Sync.
+Runs five checks against this machine and prints what each one found. Nothing
+here is asserted in advance; every line is read off a real result.
+
+## What this script used to do
+
+It was the "All-in-One Empirical Live Proof Verification Suite", promising
+"direct, undeniable physical proofs", and it ended with:
+
+    "ALL 5 PHYSICAL & EMPIRICAL PROOFS VERIFIED WITH 100% SUCCESS!"
+
+printed unconditionally, before any result was examined. Three separate
+problems:
+
+1. **The final banner was a constant.** It printed 100% success even when
+   Proof 1 had just rendered rows reading "MISSING".
+2. **The git line was a hardcoded string**: "100% Synced with origin/main
+   (MDaftab76678-1945/Saleha)". Nothing compared anything. Measured while
+   fixing this: HEAD was 22 commits ahead of `origin/main`, on a different
+   branch, and the banner still said 100% synced.
+3. **It crashed.** `formal_smt_verifier` was rewritten in an earlier pass to
+   stop fabricating proofs -- it now reports `z3_available`, `divisions_found`
+   and `divisions_proven_safe`. This script still read `proof.preconditions`
+   and `proof.is_satisfiable`, which no longer exist, so it died with an
+   AttributeError at check 2. It had not run since that pass and nobody
+   noticed, because nothing runs it in CI.
+
+Every check now reports its real outcome, the exit code is non-zero when any
+check fails, and the summary counts what passed rather than announcing it.
 """
 
-import ast
 import json
 import os
 import subprocess
 import sys
-import time
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -28,119 +48,191 @@ from rich.panel import Panel
 from saleha.core.formal_smt_verifier import formal_smt_verifier
 from saleha.core.spics_fuzz_engine import spics_fuzz_engine
 from saleha.core.hypergraph_indexer import hypergraph_indexer
-from saleha.core.mcts_search_engine import mcts_search_engine
-from saleha.core.speculative_accelerator import speculative_accelerator
+
+DATASET_FILES = [
+    "datasets/saleha_dpo_pairs.jsonl",
+    "datasets/saleha_sft_10k.jsonl",
+    "datasets/saleha_sft_10k_alpaca.json",
+    "datasets/saleha_slm_train.jsonl",
+]
 
 
-def main():
-    console = Console()
-    console.print("\n" + "=" * 80, style="bold yellow")
-    console.print("🔬 [bold white on yellow] SALEHA PHYSICAL & EMPIRICAL PROOF VERIFIER [/]", justify="center")
-    console.print("=" * 80, style="bold yellow")
-    console.print("[dim]Executing 5 Direct Real-World Proofs on Local Machine[/dim]\n")
+def check_datasets(console: Console) -> bool:
+    """Every declared dataset file exists and parses. Missing files fail."""
+    table = Table(title="1. Training datasets on disk", border_style="cyan")
+    table.add_column("File", style="white")
+    table.add_column("Size", justify="right")
+    table.add_column("Records", justify="right")
+    table.add_column("Status")
 
-    # PROOF 1: Physical Dataset Files on Disk
-    t_data = Table(title="📁 PROOF 1: Physical Training Datasets on Disk", border_style="cyan")
-    t_data.add_column("Dataset File Path", style="white")
-    t_data.add_column("File Size (KB)", style="yellow", justify="center")
-    t_data.add_column("Total Samples", style="bold green", justify="center")
-    t_data.add_column("Format Status", style="green", justify="center")
+    all_present = True
+    for path in DATASET_FILES:
+        if not os.path.exists(path):
+            all_present = False
+            table.add_row(path, "-", "-", "[red]MISSING[/]")
+            continue
+        size_kb = round(os.path.getsize(path) / 1024, 2)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                if path.endswith(".jsonl"):
+                    count = sum(1 for line in fh if line.strip())
+                else:
+                    count = len(json.load(fh))
+            table.add_row(path, f"{size_kb} KB", str(count), "[green]parsed[/]")
+        except (OSError, ValueError) as exc:
+            all_present = False
+            table.add_row(path, f"{size_kb} KB", "-", f"[red]unreadable: {exc}[/]")
 
-    dataset_files = [
-        "datasets/saleha_dpo_pairs.jsonl",
-        "datasets/saleha_sft_10k.jsonl",
-        "datasets/saleha_sft_10k_alpaca.json",
-        "datasets/saleha_slm_train.jsonl",
-    ]
+    console.print(table)
+    return all_present
 
-    for df in dataset_files:
-        if os.path.exists(df):
-            size_kb = round(os.path.getsize(df) / 1024, 2)
-            if df.endswith(".jsonl"):
-                with open(df, "r", encoding="utf-8") as f:
-                    cnt = sum(1 for l in f if l.strip())
-            else:
-                with open(df, "r", encoding="utf-8") as f:
-                    cnt = len(json.load(f))
-            t_data.add_row(df, f"{size_kb} KB", str(cnt), "✅ VALID JSON/JSONL")
-        else:
-            t_data.add_row(df, "0 KB", "0", "❌ MISSING")
 
-    console.print(t_data)
-    console.print()
+def check_smt(console: Console) -> bool:
+    """
+    Run the Z3 division-by-zero prover on a sample function.
 
-    # PROOF 2: Live Formal SMT Mathematical Proof
-    proof = formal_smt_verifier.verify_function_contract(
-        """def fibonacci(n: int) -> int:
-    if n <= 1:
-        return n
-    a, b = 0, 1
-    for _ in range(2, n + 1):
-        a, b = b, a + b
-    return b
-""",
-        function_name="fibonacci",
+    Reports `z3_available` honestly: without the solver installed there is no
+    proof, and saying so is the result. The old code read fields that no longer
+    exist and crashed here.
+    """
+    sample = (
+        "def safe_ratio(a: int, b: int) -> float:\n"
+        "    if b == 0:\n"
+        "        return 0.0\n"
+        "    return a / b\n"
     )
-    console.print(Panel(
-        f"[bold cyan]Formal SMT Satisfiability Certificate for 'fibonacci':[/]\n\n" +
-        f"  • Preconditions Proven : {len(proof.preconditions)} ({proof.preconditions[0]})\n" +
-        f"  • Postconditions Proven: {len(proof.postconditions)} ({proof.postconditions[0]})\n" +
-        f"  • Satisfiable Proof    : [bold green]{proof.is_satisfiable}[/]\n" +
-        f"  • Verification Time    : {proof.proof_duration_ms} ms",
-        title="[bold cyan]📐 PROOF 2: Live Mathematical SMT Correctness Proof[/]",
-        border_style="cyan",
-    ))
-    console.print()
+    proof = formal_smt_verifier.verify_function_contract(sample,
+                                                        function_name="safe_ratio")
+    if not proof.z3_available:
+        console.print(Panel(
+            "[yellow]z3-solver is not installed, so no proof was attempted.[/]\n"
+            f"{proof.mathematical_certificate}",
+            title="2. Formal SMT division-safety proof", border_style="yellow"))
+        return False
 
-    # PROOF 3: Live Chaos Fuzzing Stress Test (50 Real Trials)
-    fuzz_res = spics_fuzz_engine.fuzz_test_code(
-        """def safe_divide(a, b):
-    if b == 0 or b is None or a is None:
-        return 0
-    return a / b
-""",
+    console.print(Panel(
+        f"  divisions found        : {proof.divisions_found}\n"
+        f"  proven safe by Z3      : {proof.divisions_proven_safe}\n"
+        f"  not analysable         : {proof.divisions_not_analyzed}\n"
+        f"  duration               : {proof.proof_duration_ms} ms\n\n"
+        f"{proof.mathematical_certificate}",
+        title="2. Formal SMT division-safety proof", border_style="cyan"))
+    return proof.divisions_proven_safe == proof.divisions_found
+
+
+def check_fuzz(console: Console) -> bool:
+    """Fuzz a guarded function; anything below 100% resilience is a failure."""
+    result = spics_fuzz_engine.fuzz_test_code(
+        "def safe_divide(a, b):\n"
+        "    if b == 0 or b is None or a is None:\n"
+        "        return 0\n"
+        "    return a / b\n",
         function_name="safe_divide",
         num_trials=50,
     )
+    passed = result.passed_trials == result.total_fuzz_trials
     console.print(Panel(
-        f"[bold green]Tested Function:[/] 'safe_divide' against 50 chaotic payloads (None, NaN, Inf, extreme ints)\n" +
-        f"  • Total Fuzz Trials: {fuzz_res.total_fuzz_trials}\n" +
-        f"  • Passed Trials    : [bold green]{fuzz_res.passed_trials}[/]\n" +
-        f"  • Invariant Score  : [bold green]{fuzz_res.invariant_resilience_pct}% Resilience[/]\n" +
-        f"  • Execution Time   : {fuzz_res.execution_time_ms} ms",
-        title="[bold green]🧪 PROOF 3: Live Property-Based Chaos Fuzzing Proof[/]",
-        border_style="green",
-    ))
-    console.print()
+        f"  trials      : {result.total_fuzz_trials}\n"
+        f"  passed      : {result.passed_trials}\n"
+        f"  resilience  : {result.invariant_resilience_pct}%\n"
+        f"  duration    : {result.execution_time_ms} ms",
+        title="3. Property-based fuzzing of a guarded function",
+        border_style="green" if passed else "red"))
+    return passed
 
-    # PROOF 4: Live Hypergraph Codebase Indexing
+
+def check_indexer(console: Console) -> bool:
+    """Index saleha/core and require that it found something."""
     stats = hypergraph_indexer.scan_directory("saleha/core")
+    ok = stats.total_files_scanned > 0 and stats.total_symbols_indexed > 0
     console.print(Panel(
-        f"Scanned [yellow]{stats.total_files_scanned} core files[/] in [bold green]{stats.indexing_duration_ms} ms[/]:\n" +
-        f"  • Total Indexed Symbols : [bold green]{stats.total_symbols_indexed}[/] (Classes, Functions, Enums)\n" +
-        f"  • Dependency Graph Edges: [bold green]{stats.total_dependency_edges}[/] Call/Inheritance Links",
-        title="[bold magenta]🌐 PROOF 4: Live AST Hypergraph Indexer Proof[/]",
-        border_style="magenta",
-    ))
-    console.print()
+        f"  files scanned    : {stats.total_files_scanned}\n"
+        f"  symbols indexed  : {stats.total_symbols_indexed}\n"
+        f"  dependency edges : {stats.total_dependency_edges}\n"
+        f"  duration         : {stats.indexing_duration_ms} ms",
+        title="4. AST symbol indexing over saleha/core",
+        border_style="magenta" if ok else "red"))
+    return ok
 
-    # PROOF 5: Live Git Remote Commit History
-    git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    git_msg = subprocess.check_output(["git", "log", "-1", "--pretty=%B"], text=True).strip()
-    git_status = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
 
+def _git(*args: str) -> str:
+    try:
+        return subprocess.check_output(["git", *args], text=True,
+                                       stderr=subprocess.DEVNULL).strip()
+    except (subprocess.SubprocessError, OSError):
+        return ""
+
+
+def check_git(console: Console) -> bool:
+    """
+    Report the real branch, HEAD, upstream and dirty state.
+
+    The old version printed "100% Synced with origin/main
+    (MDaftab76678-1945/Saleha)" as a literal string. Measured at the time of
+    this rewrite: HEAD was 22 commits ahead of origin/main, on a different
+    branch, and the banner still claimed 100% synced.
+    """
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD") or "(unknown)"
+    head = _git("rev-parse", "--short", "HEAD") or "(unknown)"
+    message = (_git("log", "-1", "--pretty=%s") or "(none)")[:70]
+    dirty = _git("status", "--porcelain")
+    upstream = _git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+
+    if upstream:
+        counts = _git("rev-list", "--left-right", "--count", f"{upstream}...HEAD")
+        behind, ahead = (counts.split() + ["?", "?"])[:2]
+        sync = f"{ahead} ahead, {behind} behind {upstream}"
+        in_sync = ahead == "0" and behind == "0"
+    else:
+        sync = "no upstream configured for this branch"
+        in_sync = False
+
+    dirty_count = len([ln for ln in dirty.splitlines() if ln.strip()])
     console.print(Panel(
-        f"  • Current Commit Hash : [bold yellow]{git_hash}[/]\n" +
-        f"  • Last Commit Message : [white]{git_msg}[/]\n" +
-        f"  • GitHub Sync Status  : [bold green]100% Synced with origin/main (MDaftab76678-1945/Saleha)[/]\n" +
-        f"  • Working Tree Status : [bold green]{'CLEAN (0 uncommitted changes)' if not git_status else 'MODIFIED'}[/]",
-        title="[bold red]🐙 PROOF 5: Live GitHub Repository & Commit Proof[/]",
-        border_style="red",
-    ))
-    console.print()
+        f"  branch       : {branch}\n"
+        f"  HEAD         : {head}  {message}\n"
+        f"  upstream     : {sync}\n"
+        f"  working tree : "
+        f"{'clean' if not dirty_count else f'{dirty_count} uncommitted change(s)'}",
+        title="5. Git state", border_style="green" if in_sync else "yellow"))
+    # Reported, never asserted: being ahead of your upstream is normal during
+    # development and is not a failure of this script.
+    return True
 
-    console.print("[bold white on green] 🏆 ALL 5 PHYSICAL & EMPIRICAL PROOFS VERIFIED WITH 100% SUCCESS! [/]\n")
+
+def main() -> int:
+    console = Console()
+    console.print("\nSaleha live self-checks\n" + "-" * 40)
+
+    checks = [
+        ("datasets", check_datasets),
+        ("smt", check_smt),
+        ("fuzz", check_fuzz),
+        ("indexer", check_indexer),
+        ("git", check_git),
+    ]
+
+    results = {}
+    for name, fn in checks:
+        try:
+            results[name] = bool(fn(console))
+        except Exception as exc:  # a broken check is a failed check
+            console.print(Panel(f"[red]{type(exc).__name__}: {exc}[/]",
+                                title=f"{name} (raised)", border_style="red"))
+            results[name] = False
+        console.print()
+
+    passed = sum(1 for v in results.values() if v)
+    total = len(results)
+    failed = [k for k, v in results.items() if not v]
+
+    if failed:
+        console.print(f"[bold red]{passed}/{total} checks passed.[/] "
+                      f"Failed: {', '.join(failed)}")
+    else:
+        console.print(f"[bold green]{passed}/{total} checks passed.[/]")
+    return 0 if not failed else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
