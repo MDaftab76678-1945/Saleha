@@ -96,17 +96,29 @@ goals each, to see whether the output actually depends on the request.
   supplies a real run, and lists unrun checks as unrun. Branch creation is
   opt-in.
 - **`CloudInfraOrchestrator`** (`cloud_infra_orchestrator.py`, `cloud-plan`) —
-  **template.** Measured: "Design a multi-region Postgres cluster" and "Write a
-  haiku about frogs" produce byte-identical Kubernetes manifests, Helm values,
-  IAM policy and CI/CD workflow. The Terraform differs on exactly 3 lines, all
-  of them the echoed goal string (a comment, the S3 state key, a tag). Cost is
-  always $142.50/mo and the CIS security score always 96. `--output-dir` writes
-  these to disk as `main.tf` / `iam-policy.json`.
+  **template; relabelled honestly 2026-09-07.** Measured: "Design a
+  multi-region Postgres cluster" and "Write a haiku about frogs" produce
+  byte-identical Kubernetes manifests, Helm values, IAM policy and CI/CD
+  workflow; the Terraform differs on exactly 3 lines, all the echoed goal
+  string. Reading it in full also found that the provider option only
+  substitutes a name — ask for `gcp` and you get AWS with `hashicorp/gcp` in
+  required_providers, not a real provider address, so it cannot
+  `terraform init` — and that the "least-privilege" IAM policy grants its
+  actions on `"Resource": "*"`. `security_score` is `None` now (no analysis
+  ran), the cost is labelled a constant, `is_template` and `caveats` travel
+  on the result, a non-AWS request prepends a warning into the Terraform
+  itself, and `--output-dir` writes a `README-SALEHA.md` listing every caveat
+  beside the files.
 - **`SiliconCircuitOrchestrator`** (`silicon_circuit_orchestrator.py`,
-  `silicon-build`) — **template.** "4-bit ripple carry adder" and "UART
-  receiver with parity check" differ by one comment line; the same fixed ALU is
-  emitted for both, at a constant 184 LUTs and 450 MHz, with
-  `is_synthesizable=True` unconditional. No synthesis toolchain is invoked.
+  `silicon-build`) — **template; relabelled honestly 2026-09-07.** "4-bit
+  ripple carry adder" and "UART receiver with parity check" differ by one
+  comment line; the same fixed ALU is emitted for both. The invented figures
+  are gone: `estimated_lut_count=184` and `estimated_max_freq_mhz=450.0` were
+  literals with no synthesis behind them, and the 450 contradicted the
+  400 MHz the SDC file emitted by that same function asks for. LUT count and
+  `is_synthesizable` are `None`, the frequency is reported as
+  `sdc_target_freq_mhz`, and the "self-checking UVM testbench" claim is
+  dropped — it is plain Verilog with one hardcoded vector.
 - **`MultiRepoOrchestrator`** (`multirepo_orchestrator.py`, `multirepo`) —
   **template; relabelled honestly 2026-09-07.** No repository is ever read.
   The PR body used to end with three ticked checkboxes — "AST compatibility
@@ -123,8 +135,8 @@ goals each, to see whether the output actually depends on the request.
 
 Following the same pattern as the two sections above, 8 more CLI commands with research-sounding names were read end-to-end (CLI wiring through to the real `saleha/core/` implementation) to check what they actually do:
 
-- **`silicon-build`** (`silicon_circuit_orchestrator.py`) — **template.** Every request, regardless of the circuit described, returns the exact same fixed ALU Verilog module (only the module name is substituted), the same testbench, and hardcoded "results" (`estimated_lut_count=184`, `450.0 MHz` in one field, a disconnected `400 MHz` in another). No synthesis/simulation toolchain (Yosys/Verilator/iverilog) is ever invoked; `is_synthesizable=True` is unconditional. The generated text happens to be syntactically valid Verilog-2001 despite this — it's real HDL syntax, just not synthesized *from* the actual request.
-- **`causal-eval`** (`causal_world_model.py`) — **template.** Uses Pearl-hierarchy vocabulary (`L1`/`L2`/`L3`, `do(...)`) but `simulate_l2_intervention` (the "intervention" layer) calls the identical code path as the "association" layer — no graph surgery, no confounder adjustment. The counterfactual layer skips abduction entirely (just diffs two interventional queries). The CLI only ever exercises one hardcoded intervention against a fictional hand-authored causal graph, not anything derived from the codebase being evaluated.
+- **`silicon-build`** — see `SiliconCircuitOrchestrator` above; relabelled honestly 2026-09-07.
+- **`causal-eval`** (`causal_world_model.py`) — **partially real as of 2026-09-07.** It used Pearl-hierarchy vocabulary while `simulate_l2_intervention` called the identical code path as the association layer — measured, both returned 120.0. `graph_surgery()` now implements the do-operator: intervening on a variable severs its incoming edges. Verified — `do(latency_ms)` cuts both `use_async_io -> latency_ms` and `has_memory_cache -> latency_ms`, moving the answer from 120.0 to 150.0, which the old code could not do for any input. Where surgery severs nothing the report says so via `differs_from_association`. Still true: the graph is hand-written and not derived from the codebase being evaluated, the weights are judgement calls, and L3 does no abduction — now recorded as `abduction_performed=False`.
 - **`explain-code`** (`mech_interp.py`) — **was a template; rebuilt 2026-09-07 and renamed in substance.** It previously classified lines with four `substring in line` buckets at a fixed score each, so `x = "raise the roof"` was a "defensive error guard circuit" at 0.95 confidence, and across a 305-line file the only distinct scores were the four bucket constants. It imported `ast` and `re` and called neither. It now parses the file: classification comes from the AST node type, and the report adds per-function cyclomatic complexity, annotation/docstring coverage, enclosing scope, and bare-`except` detection. Complexity is cross-checked against `radon` over all of `saleha/core/` — 472 functions, 0 mismatches. The "mechanistic interpretability" claim is dropped rather than faked: that needs model activations Ollama does not expose. `MechInterpEngine` remains an alias of `CodeStructureEngine` for existing callers.
 - **`emergence-check`** (CLI wiring only; `emergence_detector.py` itself is real, see above) — **was a template in this wiring; fixed 2026-09-07.** The CLI called the real detector's `evaluate_swarm_health()` with zero data ever fed to it (nothing in the repo called the singleton's `record_message()`), so it deterministically printed "Swarm communication is idle and healthy" every time, regardless of agent activity. Two things were missing and both are now in place: `TeamOrchestrator.run_team_workflow` records its real handoffs (PM → Designer → Coder → Security → QA, plus both directions of the Verifier↔Debugger healing loop), and events persist to `~/.saleha/swarm_messages.jsonl` because the CLI runs in a different process from the workflow it asks about. An empty history now reports that there is nothing to judge (`has_data=False`) instead of calling an empty graph healthy. Verified end-to-end across processes: a stuck healing loop recorded in one process is detected and reported as an anomaly by `emergence-check` in another.
 - **`quantum-sim`** (`quantum_compiler.py`) — **real; renamed and a live bug fixed 2026-09-07.** The single-qubit maths was always correct. Two problems were not: it was marketed as an "M-theory Tensor Simulator" with "11-dimensional" state and entanglement (there is one qubit, no tensor product, and `dimensions=11` was referenced by nothing), and **unsupported gates were silently skipped** — `["H"]` and `["H","Z","S","T","CNOT","Y"]` returned identical distributions while the summary still listed all six. Z, S, T and Y are implemented now (verified against the identities `HZH = X` and `T·T = S`), the state is complex, and two-qubit gates are rejected by name with a reason rather than ignored. This module had no tests at all, which is how the no-op survived; it has 19 now.

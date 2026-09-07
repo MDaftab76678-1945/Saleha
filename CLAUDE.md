@@ -122,16 +122,24 @@ unverified-success path, `git add .` on auto-commit, the hardcoded
 missing checkpoint on the blocked exit, and profile drift on resume. The file
 also reports zero editor diagnostics and is English-only.
 
-**Still template (documented in `ARCHITECTURE.md`, not yet fixed):**
+**All commands from the 2026-09-06 audit are now honest** (passes 16-18):
+`cloud-plan`, `silicon-build`, `multirepo`, `causal-eval`, `quantum-sim`,
+`cognitive`, `constitutional-check`, `explain-code`, `emergence-check`.
 
-- `cloud-plan` (`cloud_infra_orchestrator.py`) — 4 of 5 artifacts byte-identical
-  across unrelated goals; cost always $142.50, CIS score always 96.
-  `--output-dir` writes these to disk as real-looking `main.tf` / `iam-policy.json`.
-- `silicon-build` (`silicon_circuit_orchestrator.py`) — same fixed ALU for every
-  request; 184 LUTs / 450 MHz constant; `is_synthesizable=True` unconditional.
-- `causal-eval` (`causal_world_model.py`) — the "intervention" layer calls the
-  same code path as the "association" layer.
-- `multirepo` (`multirepo_orchestrator.py`) — every field identical across goals.
+**Next candidates, not yet examined.** Eight modules in `saleha/core/` import
+`ast` and never call it — the exact signature that flagged `mech_interp.py`,
+`cognitive_engine.py` and `constitutional_guard.py`, each of which turned out
+to carry a real defect. In descending order of what they claim:
+
+- `threat_modeler.py` (145 lines) — "STRIDE Security Matrices". Reads files,
+  calls no model. A security claim, so the highest risk if it is a template.
+- `multi_file_auto_repair.py` (200) — "Two-Phase Commit, zero partial state
+  corruption". An atomicity guarantee is exactly the kind of claim this repo
+  has repeatedly found unbacked.
+- `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+ files".
+- `docs_generator.py` (187), `swarm_self_play_arena.py`,
+  `extreme_contrastive_trainer.py`, `code_executor.py` (the unused import there
+  is likely harmless — it is a real, working sandbox).
 
 **Branch state:** work happens on `test-issue-101`. It is many commits ahead of
 `origin/test-issue-101` and has not been pushed. `main` is behind.
