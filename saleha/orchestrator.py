@@ -1,16 +1,18 @@
 """
-Saleha Core: Orchestrator (The Self-Healing Loop) -- Fixed Version
+Saleha Core: Orchestrator (the self-healing loop).
 
-Naya kya hai vs pehle:
-1. StatsTracker jud gaya hai -- har task complete hone par (success ho ya
-   fail) model ka result ~/.saleha/stats.json me save hota hai. Ab restart
-   ke baad bhi Saleha ko yaad rahega kaunsa model kaisa perform kar raha hai.
-2. coder.generate_code() ko ab sahi attempt number pass kiya jaata hai, taaki
-   result.attempts hamesha "1" na dikhaye jab retries ho rahi ho.
-3. Skill registry jud gayi -- Plan/Code shuru karne se pehle check hota hai
-   ki koi built-in skill (jaise calculator) is task ko seedha handle kar
-   sakta hai bina LLM call kiye. Naya skill add karna ho to orchestrator
-   nahi chhedna padta, bas core/skills/ me naya file banao.
+Runs one task end to end: Planner -> Coder -> Tester -> Reviewer -> Verifier,
+with a healing loop that feeds real errors back to the Debugger or Coder.
+
+Notes on the pieces that are easy to misread:
+
+1. StatsTracker persists every outcome (success or failure) to
+   ~/.saleha/stats.json, so model performance survives a restart.
+2. coder.generate_code() receives the real attempt number, so result.attempts
+   reflects retries instead of always reading "1".
+3. The skill registry is consulted before planning: a built-in skill (e.g. the
+   calculator) can answer directly with no LLM call. Adding a skill means
+   adding a file under core/skills/, not editing this orchestrator.
 """
 
 import time
@@ -26,14 +28,14 @@ from saleha.core.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
 from saleha.core.code_executor import CodeExecutor
 from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
-from saleha.core.agent_profile_loader import profile_registry, AgentProfile, ProfileAgent
+from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory_store import memory_store
 from saleha.core.git_native import git_engine
 
 load_builtin_skills()
 
 # ==============================================================================
-# 1. डेटा स्ट्रक्चर्स
+# 1. Data structures
 # ==============================================================================
 
 class OrchestrationResult:
@@ -67,7 +69,7 @@ class OrchestrationResult:
         self.unverified_reason = unverified_reason
 
 # ==============================================================================
-# 2. कोर लॉजिक (Core Logic)
+# 2. Core logic
 # ==============================================================================
 
 class SalehaOrchestrator:
@@ -93,46 +95,49 @@ class SalehaOrchestrator:
         self.coder = CoderAgent(model=model, max_attempts=max_healing_attempts)
         self.debugger = DebuggerAgent(model=model)
         self.tester = TesterAgent()
-        self.reviewer = ReviewerAgent(model=model)  # naya: LLM-based code review
+        self.reviewer = ReviewerAgent(model=model)   # LLM-based code review
         self.healer = SelfHealingEngine()
         self.max_healing_attempts = max_healing_attempts
         self.default_profile = profile_registry.get(profile) if profile else None
-        self.stats = StatsTracker()  # naya: persistence layer
-        self.history = TaskHistory()  # naya: har task ka poora record
-        self.verifier = CodeExecutor(timeout=15)  # naya: code ko actually chala ke verify karna
-        self.last_goal: str = ""  # naya: pichla task yaad rakhne ke liye (session ke andar)
+        self.stats = StatsTracker()                  # persistence layer
+        self.history = TaskHistory()                 # full record of every task
+        self.verifier = CodeExecutor(timeout=15)     # runs the code to verify it
+        self.last_goal: str = ""                     # previous task, session-scoped
         self.last_code: str = ""
 
     def execute_task(self, user_goal: str, use_context: bool = True, profile: Optional[str] = None, auto_commit: bool = False, context_dir: Optional[str] = None, generate_tests: bool = False, resume_session: bool = False, on_token=None) -> OrchestrationResult:
         """
-        `use_context=True` (default) ka matlab: agar isi orchestrator session
-        me pehle koi task successful hua tha, uska code context ke roop me
-        Planner/Coder ko diya jaata hai -- taaki "usi function me ye add karo"
-        jaisi follow-up requests kaam karein. Ek naya `SalehaOrchestrator()`
-        banane par ye memory reset ho jaati hai (session-level hai, disk pe
-        save nahi hoti).
+        `use_context=True` (default): if an earlier task in this same
+        orchestrator session succeeded, its code is passed to the Planner and
+        Coder as context, so follow-ups like "add this to that function" work.
+        The memory is session-level and resets with a new `SalehaOrchestrator()`
+        -- it is not written to disk.
 
-        `context_dir` diya jaye to RepoContextPacker us directory ko scan
-        karke task-relevant repo context (tree + symbols + key excerpt)
-        budget ke andar Coder prompt me prepend karta hai -- Aider-style
-        repository awareness.
+        `context_dir`: RepoContextPacker scans that directory and prepends
+        task-relevant repository context (tree + symbols + key excerpt), within
+        budget, to the Coder prompt -- Aider-style repository awareness.
 
-        `generate_tests=True`: Coder se unittest suite bhi generate hoti hai,
-        aur healing loop STATIC checks ki jagah REAL test execution use karta
-        hai (core/test_runner.py) -- failure tracebacks seedha healer ko.
+        `generate_tests=True`: the Coder also generates a unittest suite, and
+        the healing loop runs REAL test execution (core/test_runner.py) instead
+        of static checks, feeding failure tracebacks straight to the healer.
 
-        `resume_session=True`: pichla in-progress checkpoint load karke
-        verification/healing loop se continue karta hai (A4) -- planning aur
-        coding skip. `saleha run --resume` isko use karta hai.
+        `resume_session=True`: loads the last in-progress checkpoint and
+        continues from the verification/healing loop, skipping planning and
+        coding. Used by `saleha run --resume`.
         """
         from saleha.core.session_store import session_store, SessionState
         from saleha.core.metrics import metrics_tracker
         _run_start = time.time()
 
         # ------------------------------------------------------------------
-        # A4: RESUME BRANCH -- sabse pehle, taaki skill/memory/planner/coder
-        # sab skip ho jayein aur seedha verification loop par pahunche.
+        # RESUME BRANCH -- checked first, so skill/memory/planner/coder are all
+        # skipped and control lands directly on the verification loop.
         # ------------------------------------------------------------------
+        # Initialised up front. This was previously assigned only inside the
+        # `if resume_session:` branch and the `if not resumed:` branch, so
+        # every later `log +=` was a possibly-unbound reference -- ten of them,
+        # flagged by the type checker on every edit of this file.
+        log = ""
         resumed = False
         current_test_code = ""
         task_complexity = 0.0
@@ -143,7 +148,7 @@ class SalehaOrchestrator:
             if not st or st.status != "in_progress" or not st.current_code.strip():
                 return OrchestrationResult(
                     success=False, final_code="", attempts=0,
-                    log="⏯️ Koi resumable in-progress session nahi mila (~/.saleha/session.json).",
+                    log="No resumable in-progress session found (~/.saleha/session.json).",
                 )
             user_goal = st.goal or user_goal
             profile = st.profile or None
@@ -151,23 +156,23 @@ class SalehaOrchestrator:
             current_test_code = st.current_test_code or ""
             task_complexity = st.complexity_score or 0.0
             _resume_code = st.current_code
-            _resume_attempts = max(1, int(st.attempts or 1))
-            resumed = True  # <-- yehi flag guard blocks ko skip karata hai
+            _resume_attempts = max(1, st.attempts or 1)
+            resumed = True  # this flag makes the guarded blocks below skip
             log = (
-                f"⏯️ RESUME: '{user_goal}' (attempt {st.attempts}/{st.max_attempts}, "
+                f"RESUME: '{user_goal}' (attempt {st.attempts}/{st.max_attempts}, "
                 f"checkpoint {time.strftime('%H:%M:%S', time.localtime(st.updated_at))})\n"
-                + "-" * 60 + "\n✅ Saved code restore ho gaya -- planning/coding skip.\n"
+                + "-" * 60 + "\nSaved code restored -- planning/coding skipped.\n"
             )
 
         if not resumed:
-            # (resume branch apna header set kar chuka hota hai)
-            log = f"🎯 लक्ष्य: {user_goal}\n" + "-" * 60
+            # (the resume branch has already written its own header)
+            log = f"Goal: {user_goal}\n" + "-" * 60
 
         # Resolve active agent profile if explicitly specified or matched
         active_profile = profile_registry.get(profile) if profile else (self.default_profile or profile_registry.match_profile_for_task(user_goal))
         profile_name = active_profile.id if active_profile else ""
         if active_profile:
-            log += f"\n🎭 Active Agent Profile: {active_profile.name} [{active_profile.id}]\n"
+            log += f"\nActive agent profile: {active_profile.name} [{active_profile.id}]\n"
 
         if not resumed:
             # Plugin hooks: on_task_start
@@ -177,13 +182,13 @@ class SalehaOrchestrator:
             except Exception:
                 pass
 
-            # Naya: pehle poocho ki koi built-in skill isko seedha handle kar sakta hai
+            # Ask first whether a built-in skill can answer this directly.
             matched_skill = skill_registry.find_skill(user_goal)
             if matched_skill:
-                log += f"\n⚡ Skill matched: '{matched_skill.name}' -- LLM pipeline skip, seedha solve kiya ja raha hai.\n"
+                log += f"\nSkill matched: '{matched_skill.name}' -- skipping the LLM pipeline, solving directly.\n"
                 skill_result = matched_skill.execute(user_goal)
                 if skill_result.success:
-                    log += f"✅ {skill_result.output}\n"
+                    log += f"{skill_result.output}\n"
                     self.history.log(goal=user_goal, model=f"skill:{matched_skill.name}",
                                       success=True, attempts=0, code=skill_result.output)
                     # A skill computes its answer directly (e.g. arithmetic);
@@ -199,10 +204,10 @@ class SalehaOrchestrator:
                         ),
                     )
                 else:
-                    log += f"⚠️ Skill fail hui ({skill_result.error}), normal pipeline pe fallback ho raha hai.\n"
-                    # aage normal pipeline chalega
+                    log += f"Skill failed ({skill_result.error}); falling back to the normal pipeline.\n"
+                    # the normal pipeline continues below
 
-            # Naya: Long-term memory lookup (verified solution caching)
+            # Long-term memory lookup (verified solution caching).
             # Scope the cache to this model when one is pinned. Without it,
             # benchmarking a second model on prompts a first model already
             # solved replays the first model's answer ("LLM skipped") and
@@ -218,7 +223,7 @@ class SalehaOrchestrator:
                 model=self.model if self.model and self.model != "auto" else None,
             )
             if cached_mem:
-                log += f"\n🧠 Memory Recall: Found previously verified solution (Reused {cached_mem.hit_count} times) -- LLM skipped.\n"
+                log += f"\nMemory recall: reusing a previously verified solution (hit {cached_mem.hit_count} times) -- LLM skipped.\n"
                 self.history.log(goal=user_goal, model=f"memory:{cached_mem.model}",
                                   success=True, attempts=0, code=cached_mem.code)
                 self.last_goal = user_goal
@@ -238,17 +243,17 @@ class SalehaOrchestrator:
             context_note = ""
             if use_context and self.last_code:
                 context_note = (
-                    f"\n\n[पिछला Task Context]\nपिछला लक्ष्य: {self.last_goal}\n"
-                    f"पिछला कोड:\n{self.last_code}\n"
-                    f"(अगर वर्तमान लक्ष्य इस पिछले कोड से संबंधित है, तो उसी पर आगे बढ़ें।)"
+                    f"\n\n[Previous task context]\nPrevious goal: {self.last_goal}\n"
+                    f"Previous code:\n{self.last_code}\n"
+                    f"(If the current goal relates to this code, build on it.)"
                 )
 
             profile_context = ""
             if active_profile:
                 profile_context = f"\n\n{active_profile.format_persona_prompt()}\n"
 
-            # Naya: Repo Context Packing (Aider-style) -- task-relevant repo map
-            # budget ke andar Coder ko diya jaata hai, real-project awareness ke liye.
+            # Repo context packing (Aider-style): a task-relevant repo map is
+            # given to the Coder within budget, for real-project awareness.
             repo_note = ""
             if context_dir:
                 try:
@@ -256,14 +261,14 @@ class SalehaOrchestrator:
                     packed = RepoContextPacker(root_dir=context_dir).pack(user_goal)
                     if packed:
                         repo_note = f"\n\n[Repository Context]\n{packed}\n"
-                        log += "📦 Repo context packed (task-relevant symbols + excerpt).\n"
+                        log += "Repo context packed (task-relevant symbols + excerpt).\n"
                     else:
-                        log += "📦 Repo context: koi relevant code file nahi mili.\n"
+                        log += "Repo context: no relevant code file found.\n"
                 except Exception as pack_err:
-                    log += f"⚠️ Repo context packing failed (non-fatal): {pack_err}\n"
+                    log += f"Repo context packing failed (non-fatal): {pack_err}\n"
 
-            # Step 1: Planner से योजना लें
-            log += "\n[1/4] Planner: योजना बना रहा है...\n"
+            # Step 1: ask the Planner for a plan.
+            log += "\n[1/4] Planner: building a plan...\n"
             plan_result: PlanResult = self.planner.create_plan(user_goal + profile_context)
 
             if not plan_result.success:
@@ -278,7 +283,7 @@ class SalehaOrchestrator:
                                      error=f"Needs clarification: {question}")
                     return OrchestrationResult(
                         success=False, final_code="", attempts=0,
-                        log=log + f"❓ I need one detail before I start:\n   {question}\n"
+                        log=log + f"I need one detail before I start:\n   {question}\n"
                                   f"{chr(10) + 'Why:' + chr(10) + why if why else ''}",
                         profile_used=profile_name
                     )
@@ -287,15 +292,15 @@ class SalehaOrchestrator:
                                   code="", error=f"Planning failed: {plan_result.raw_response}")
                 return OrchestrationResult(
                     success=False, final_code="", attempts=0,
-                    log=log + f"❌ Planning Failed: {plan_result.raw_response}",
+                    log=log + f"Planning failed: {plan_result.raw_response}",
                     profile_used=profile_name
                 )
 
-            log += f"✅ योजना बनी (Recommendation: {plan_result.recommendation})\n"
+            log += f"Plan ready (recommendation: {plan_result.recommendation})\n"
 
-            # Step 2: Coder से कोड लें (पहला प्रयास)
-            # Planner ka complexity score ab SmartRouter tak jaata hai --
-            # complexity-tiered model selection ab actually kaam karti hai.
+            # Step 2: ask the Coder for code (first attempt).
+            # The Planner's complexity score now reaches SmartRouter, so
+            # complexity-tiered model selection actually takes effect.
             task_complexity = getattr(plan_result, "complexity_score", 0.0) or 0.0
             # Parallel candidate selection needs a test suite to select
             # WITH, and generate_tests() needs code to write tests against
@@ -307,7 +312,7 @@ class SalehaOrchestrator:
             current_test_code = ""
             draft_result = None
             if self.parallel_candidates > 1 and generate_tests:
-                log += "\n[2a] Coder: draft + unittest suite (candidate selection के लिए)...\n"
+                log += "\n[2a] Coder: draft + unittest suite (for candidate selection)...\n"
                 draft_result = self.coder.generate_code(
                     user_goal + profile_context,
                     plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
@@ -319,14 +324,14 @@ class SalehaOrchestrator:
                         complexity_score=task_complexity)
                     if pre_tests.success and pre_tests.code.strip():
                         current_test_code = self.healer.auto_patch_code(pre_tests.code)
-                        log += (f"✅ Test suite ready "
+                        log += (f"Test suite ready "
                                 f"({len(current_test_code.splitlines())} lines).\n")
                     else:
-                        log += "⚠️ Test generation failed -- parallel selection skipped.\n"
+                        log += "Test generation failed -- parallel selection skipped.\n"
                 else:
-                    log += "⚠️ Draft failed -- parallel selection skipped.\n"
+                    log += "Draft failed -- parallel selection skipped.\n"
 
-            log += "\n[2/4] Coder: कोड जनरेट कर रहा है...\n"
+            log += "\n[2/4] Coder: generating code...\n"
 
             # Parallel candidate generation, when asked for AND when there
             # is a real test suite to select with. Without tests the choice
@@ -344,10 +349,10 @@ class SalehaOrchestrator:
                         context="\n".join(plan_result.steps[:3]) + context_note + repo_note,
                     )
                     passed = sum(1 for c in par.candidates if c.passed)
-                    log += (f"   ⚡ {len(par.candidates)} candidates in parallel "
+                    log += (f"   {len(par.candidates)} candidates in parallel "
                             f"({par.total_latency_sec}s): {passed} passed tests\n")
                     if par.verified:
-                        log += f"   ✅ {par.reason}\n"
+                        log += f"   {par.reason}\n"
                         current_code_result = CodeResult(
                             success=True, code=par.code,
                             model_used=self.model, attempts=1,
@@ -363,15 +368,15 @@ class SalehaOrchestrator:
                             if getattr(chk, "success", False) and (
                                     "TEST_PASSED" not in current_test_code
                                     or "TEST_PASSED" in (getattr(chk, "output", "") or "")):
-                                log += "   ✅ draft passed the suite; using it\n"
+                                log += "   draft passed the suite; using it\n"
                                 current_code_result = draft_result
                         if current_code_result is None:
                             # Nothing verified. Fall through to the normal
                             # single-shot path plus healing rather than
                             # returning an unverified candidate as if it worked.
-                            log += f"   ⚠️ {par.reason} -- falling back to single-shot\n"
+                            log += f"   {par.reason} -- falling back to single-shot\n"
                 except Exception as exc:
-                    log += f"   ⚠️ parallel generation unavailable ({exc}); single-shot\n"
+                    log += f"   parallel generation unavailable ({exc}); single-shot\n"
 
             if current_code_result is None:
                 current_code_result = self.coder.generate_code(
@@ -388,43 +393,43 @@ class SalehaOrchestrator:
                                   success=False, attempts=1, code="", error=current_code_result.error)
                 return OrchestrationResult(
                     success=False, final_code="", attempts=1,
-                    log=log + f"❌ Coding Failed: {current_code_result.error}",
+                    log=log + f"Coding failed: {current_code_result.error}",
                     profile_used=profile_name
                 )
 
             current_code = self.healer.auto_patch_code(current_code_result.code)
             attempts = 1
-            log += f"✅ कोड जनरेट हुआ (प्रयास {attempts})\n"
+            log += f"Code generated (attempt {attempts})\n"
 
-            # Naya (A1): optional REAL test suite generation -- inke bina healing
-            # loop sirf static checks dekhta tha, unittest kabhi nahi chalti thi.
+            # Optional REAL test suite generation. Without it the healing loop
+            # only ran static checks and never executed a unittest.
             # NOTE: no reset to "" here. When parallel candidates ran, the
             # suite was already generated above and used to select the
             # winner; clearing it would throw away a working suite and
             # regenerate it for no reason.
             if generate_tests and not current_test_code:
-                log += "\n[2b] Coder: unittest suite बना रहा है...\n"
+                log += "\n[2b] Coder: generating unittest suite...\n"
                 tests_result = self.coder.generate_tests(
                     current_code, goal=user_goal, complexity_score=task_complexity
                 )
                 if tests_result.success and tests_result.code.strip():
                     current_test_code = self.healer.auto_patch_code(tests_result.code)
-                    log += f"✅ Test suite ready ({len(current_test_code.splitlines())} lines).\n"
+                    log += f"Test suite ready ({len(current_test_code.splitlines())} lines).\n"
                 else:
-                    log += f"⚠️ Test generation failed: {tests_result.error} -- static checks पर fallback.\n"
+                    log += f"Test generation failed: {tests_result.error} -- falling back to static checks.\n"
         else:
-            # A4 resume: saved artifacts restore
+            # Resume: restore saved artifacts.
             current_code = _resume_code
             attempts = min(_resume_attempts, self.max_healing_attempts)
-            # Loop ke andar stats/log current_code_result.model_used use karte
-            # hain -- resume par synthetic result bana do.
+            # The loop reads current_code_result.model_used for stats and
+            # logging, so build a synthetic result when resuming.
             current_code_result = CodeResult(
                 success=True, code=current_code, attempts=attempts,
                 model_used="resumed-session",
             )
 
         def _checkpoint(status: str = "in_progress"):
-            """A4: crash-recovery checkpoint (~/.saleha/session.json)."""
+            """Crash-recovery checkpoint (~/.saleha/session.json)."""
             session_store.save(SessionState(
                 goal=user_goal,
                 model=self.model,
@@ -438,7 +443,7 @@ class SalehaOrchestrator:
                 complexity_score=task_complexity,
                 status=status,
             ))
-            # B3: terminal outcomes structured metrics me bhi jaate hain
+            # Terminal outcomes also go to the structured metrics tracker.
             if status in ("completed", "failed"):
                 metrics_tracker.record(
                     "run_completed",
@@ -454,8 +459,8 @@ class SalehaOrchestrator:
         if current_code.strip():
             _checkpoint("in_progress")
 
-        # Plugin hooks (v1.1): on_code_generated -- external plugins ab real
-        # pipeline events de sakte hain (pehle loader tha par kabhi fire nahi hota)
+        # Plugin hook: on_code_generated. External plugins receive real
+        # pipeline events (the loader existed before but never fired).
         try:
             from saleha.core.plugin_loader import plugin_loader
             plugin_loader.trigger_event("on_code_generated", code=current_code, goal=user_goal)
@@ -464,10 +469,10 @@ class SalehaOrchestrator:
 
         # Step 3 & 4: Self-Healing Loop (Tester -> Healer -> Coder)
         while attempts <= self.max_healing_attempts:
-            log += f"\n[3/4] Tester: कोड की जाँच कर रहा है (प्रयास {attempts})...\n"
+            log += f"\n[3/4] Tester: checking the code (attempt {attempts})...\n"
 
             if current_test_code:
-                # REAL test execution (A1): unittest suite sandbox me chalti hai
+                # REAL test execution: the unittest suite runs in the sandbox.
                 suite_res = self.tester.run_suite(current_code, test_code=current_test_code)
                 test_result = TestResult(
                     passed=suite_res.passed,
@@ -481,19 +486,19 @@ class SalehaOrchestrator:
                 test_result: TestResult = self.tester.test_code(current_code)
 
             if test_result.passed:
-                log += "\n[4/5] Tester: ✅ कोड सुरक्षित और सिंटैक्टिकली सही है।\n"
-                log += f"\n[5/5] Reviewer: कोड की समीक्षा कर रहा है (प्रयास {attempts})...\n"
+                log += "\n[4/5] Tester: code is safe and syntactically valid.\n"
+                log += f"\n[5/5] Reviewer: reviewing the code (attempt {attempts})...\n"
                 review_result: ReviewResult = self.reviewer.review_code(user_goal, current_code)
 
                 if review_result.approved:
-                    log += "✅ Reviewer ने भी मंजूरी दे दी।\n"
-                    log += f"\n[6/6] Verifier: कोड को actually चला कर जाँच रहा है...\n"
+                    log += "Reviewer approved.\n"
+                    log += f"\n[6/6] Verifier: running the code to check it...\n"
                     exec_result = self.verifier.execute(current_code)
 
                     if exec_result.blocked:
-                        # Dangerous pattern -- ise retry se theek nahi kiya ja sakta,
-                        # seedha fail karo, aage mat badho
-                        log += f"🚫 Verifier ne block kar diya: {exec_result.block_reason}\n"
+                        # A dangerous pattern cannot be fixed by retrying:
+                        # fail immediately rather than looping.
+                        log += f"Verifier blocked execution: {exec_result.block_reason}\n"
                         self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=False, attempts=attempts, code=current_code,
@@ -501,7 +506,7 @@ class SalehaOrchestrator:
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
                     if exec_result.success:
-                        log += "✅ Code actually chal gaya, koi runtime error nahi.\n"
+                        log += "Code ran successfully with no runtime error.\n"
                         self.stats.record(model=current_code_result.model_used or self.model, success=True, attempts=attempts, task_type="coding")
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=True, attempts=attempts, code=current_code)
@@ -537,9 +542,9 @@ class SalehaOrchestrator:
                                 allow_stage_all=True,
                             )
                             if commit_res.success:
-                                log += f"\n🌿 Git Auto-Commit: [{commit_res.commit_hash}] {commit_res.message.splitlines()[0]}\n"
+                                log += f"\nGit auto-commit: [{commit_res.commit_hash}] {commit_res.message.splitlines()[0]}\n"
                             else:
-                                log += f"\n⚠️ Git Auto-Commit skipped: {commit_res.error}\n"
+                                log += f"\nGit auto-commit skipped: {commit_res.error}\n"
 
                         self.last_goal = user_goal
                         self.last_code = current_code
@@ -554,11 +559,12 @@ class SalehaOrchestrator:
                             log=log, profile_used=profile_name, verified=True,
                         )
 
-                    # Execution fail hui -- syntax/review sahi tha lekin runtime pe crash hua
-                    log += f"❌ Verifier: Execution fail hui: {exec_result.error}\n"
+                    # Execution failed: syntax and review were fine, but it
+                    # crashed at runtime.
+                    log += f"Verifier: execution failed: {exec_result.error}\n"
 
                     if attempts < self.max_healing_attempts:
-                        log += "   Debugger ko actual runtime error ke saath bheja ja raha hai...\n"
+                        log += "   Sending the real runtime error to the Debugger...\n"
                         next_attempt = attempts + 1
                         debug_result = self.debugger.debug_code(
                             task=user_goal,
@@ -573,22 +579,22 @@ class SalehaOrchestrator:
                                 model_used=debug_result.model_used,
                             )
                         else:
-                            log += f"   Debugger failed: {debug_result.error}; Coder fallback use hoga.\n"
+                            log += f"   Debugger failed: {debug_result.error}; falling back to the Coder.\n"
                             current_code_result = self.coder.generate_code(
                                 task=user_goal,
-                                plan=f"पिछला कोड:\n{current_code}\n\nये कोड चलाने पर ये असली एरर आया:\n{exec_result.error}\n\nइसे ठीक करो।",
+                                plan=f"Previous code:\n{current_code}\n\nRunning it produced this real error:\n{exec_result.error}\n\nFix it.",
                                 attempt=next_attempt,
                                 complexity_score=task_complexity,
                             )
                         if current_code_result.success:
                             current_code = self.healer.auto_patch_code(current_code_result.code)
                             attempts = next_attempt
-                            continue  # tester + reviewer + verifier se dobara guzro
+                            continue  # re-run tester + reviewer + verifier
                         else:
-                            log += f"❌ Coder ने सुधारने में विफल रहे: {current_code_result.error}\n"
+                            log += f"Coder failed to fix it: {current_code_result.error}\n"
                             break
                     else:
-                        log += "🚫 Max attempts khatam -- execution error ke saath hi accept kar rahe hain (best-effort).\n"
+                        log += "Max attempts reached -- accepting with the execution error (best-effort).\n"
                         self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=False, attempts=attempts, code=current_code,
@@ -596,39 +602,40 @@ class SalehaOrchestrator:
                         _checkpoint("failed")
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
-                log += f"⚠️ Reviewer Feedback: {review_result.feedback}\n"
+                log += f"Reviewer feedback: {review_result.feedback}\n"
 
                 if attempts < self.max_healing_attempts:
-                    log += "   Coder को review feedback के साथ दोबारा भेजा जा रहा है...\n"
+                    log += "   Sending the review feedback back to the Coder...\n"
                     next_attempt = attempts + 1
                     current_code_result = self.coder.generate_code(
                         task=user_goal,
-                        plan=f"पिछला कोड:\n{current_code}\n\nReviewer की सलाह:\n{review_result.feedback}",
+                        plan=f"Previous code:\n{current_code}\n\nReviewer feedback:\n{review_result.feedback}",
                         attempt=next_attempt,
                         complexity_score=task_complexity,
                     )
                     if current_code_result.success:
                         current_code = self.healer.auto_patch_code(current_code_result.code)
                         attempts = next_attempt
-                        continue  # tester + reviewer se dobara guzro
+                        continue  # re-run tester + reviewer
                     else:
-                        log += f"❌ Coder ने सुधारने में विफल रहे: {current_code_result.error}\n"
+                        log += f"Coder failed to fix it: {current_code_result.error}\n"
                         break
                 else:
-                    # Max attempts khatam -- reviewer ne approve nahi kiya.
+                    # Max attempts reached and the reviewer never approved.
                     #
-                    # Pehle yahan seedha success=True return hota tha. Verifier
-                    # `if review_result.approved` ke andar hai, to is raaste par
-                    # code KABHI chala hi nahi tha -- measured: `1 / 0` crash
-                    # success ban kar wapas aaya, verifier zero baar call hua.
+                    # This used to return success=True directly. The verifier
+                    # call sits inside `if review_result.approved`, so on this
+                    # path the code was NEVER executed -- measured: a `1 / 0`
+                    # crash came back as a success with the verifier called
+                    # zero times.
                     #
-                    # Ab accept karne se pehle actually chalta hai. Best-effort
-                    # accept karna theek hai; bina chalaye "success" bolna nahi.
-                    log += "🚫 Max attempts khatam -- reviewer approval ke bina accept karne se pehle verify kar rahe hain...\n"
+                    # It is now executed before being accepted. Best-effort
+                    # acceptance is fine; calling it "success" unrun is not.
+                    log += "Max attempts reached -- verifying before accepting without reviewer approval...\n"
                     final_exec = self.verifier.execute(current_code)
 
                     if final_exec.blocked:
-                        log += f"🚫 Verifier ne block kar diya: {final_exec.block_reason}\n"
+                        log += f"Verifier blocked execution: {final_exec.block_reason}\n"
                         self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=False, attempts=attempts, code=current_code,
@@ -637,7 +644,7 @@ class SalehaOrchestrator:
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
                     if not final_exec.success:
-                        log += f"❌ Reviewer ne approve nahi kiya AUR code run par fail hua: {final_exec.error}\n"
+                        log += f"Reviewer did not approve AND the code failed to run: {final_exec.error}\n"
                         self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                           success=False, attempts=attempts, code=current_code,
@@ -645,7 +652,7 @@ class SalehaOrchestrator:
                         _checkpoint("failed")
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
-                    log += "✅ Code chal to gaya, lekin reviewer ki objection unresolved hai (best-effort accept).\n"
+                    log += "Code ran, but the reviewer objection is unresolved (best-effort accept).\n"
                     self.stats.record(model=current_code_result.model_used or self.model, success=True, attempts=attempts, task_type="coding")
                     self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                       success=True, attempts=attempts, code=current_code,
@@ -662,20 +669,20 @@ class SalehaOrchestrator:
                         ),
                     )
 
-            log += f"❌ Tester Failed: {test_result.error_type}\n"
-            log += f"   कारण: {test_result.error_message}\n"
+            log += f"Tester failed: {test_result.error_type}\n"
+            log += f"   Reason: {test_result.error_message}\n"
 
             if attempts < self.max_healing_attempts:
-                log += f"\n[4/4] Healer: एरर का विश्लेषण कर रहा है और Coder को सुधार का निर्देश दे रहा है...\n"
+                log += f"\n[4/4] Healer: analysing the error and instructing the Coder...\n"
                 healing_result: HealingResult = self.healer.analyze_and_heal(test_result.error_message, user_goal)
 
-                log += f"   पहचाना गया एरर: {healing_result.error_type}\n"
-                log += "   Coder को नया प्रॉम्प्ट भेजा जा रहा है...\n"
+                log += f"   Identified error: {healing_result.error_type}\n"
+                log += "   Sending a new prompt to the Coder...\n"
 
                 next_attempt = attempts + 1
                 current_code_result = self.coder.generate_code(
                     task=user_goal,
-                    plan=f"पिछला कोड:\n{current_code}\n\nसुधार के निर्देश:\n{healing_result.reflexion_prompt}",
+                    plan=f"Previous code:\n{current_code}\n\nFix instructions:\n{healing_result.reflexion_prompt}",
                     attempt=next_attempt,
                     complexity_score=task_complexity,
                 )
@@ -684,10 +691,10 @@ class SalehaOrchestrator:
                     current_code = self.healer.auto_patch_code(current_code_result.code)
                     attempts = next_attempt
                 else:
-                    log += f"❌ Coder ने सुधारने में विफल रहे: {current_code_result.error}\n"
+                    log += f"Coder failed to fix it: {current_code_result.error}\n"
                     break
             else:
-                log += f"\n🚫 अधिकतम स्व-उपचार प्रयास ({self.max_healing_attempts}) समाप्त। टास्क विफल।\n"
+                log += f"\nMaximum self-healing attempts ({self.max_healing_attempts}) exhausted. Task failed.\n"
                 break
 
         self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
@@ -709,7 +716,7 @@ class SalehaOrchestrator:
         )
 
 # ==============================================================================
-# 3. टेस्टिंग (Testing)
+# 3. Testing
 # ==============================================================================
 
 if __name__ == "__main__":

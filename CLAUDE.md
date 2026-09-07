@@ -80,6 +80,26 @@ The user has had to repeat this. Do not make them repeat it again.
 
 ---
 
+## Code quality rules — non-negotiable
+
+1. **Code, comments, docstrings and log strings are English.** Only English.
+   `orchestrator.py` had three languages mixed into one file — Devanagari
+   Hindi, romanised Hinglish, and English, sometimes in the same function.
+   That is not reviewable by anyone but the person who wrote it. The user
+   writes to you in Hindi; the code does not.
+2. **Leave zero editor diagnostics behind.** Do not dismiss a warning as
+   "pre-existing" and move on. `orchestrator.py` carried ten
+   `log may be uninitialized` errors and an `unnecessary int()` warning that
+   were seen and skipped over on repeated edits, until the user had to point
+   at them. If a diagnostic is genuinely wrong, say why; otherwise fix it.
+3. **No decorative emoji in code or log output.** They break on cp1252
+   consoles (this machine's default), which is why every test run here needs
+   `PYTHONIOENCODING=utf-8`. Plain text says the same thing and always renders.
+4. **A variable assigned only inside branches must be initialised first.**
+   That was the exact cause of the ten errors above.
+
+---
+
 ## Where the project state is written down
 
 | File | What it holds |
