@@ -230,20 +230,28 @@ def consensus_cmd():
 @click.argument('goal')
 @click.option('--repos', '-r', required=True, help="Comma-separated repository names (e.g. 'api-gateway,web-client,auth-service')")
 def multirepo_cmd(goal: str, repos: str):
-    """Coordinate cross-repository atomic refactorings, breaking contract sync, and correlated PRs."""
+    """
+    Generate a migration checklist across several repositories: a suggested
+    branch, PR title and ordering per repo.
+
+    No repository is read. File names are guessed from the repo name and the
+    ordering is a heuristic on those names, not a dependency graph.
+    """
     from saleha.core.multirepo_orchestrator import multirepo_orchestrator
     repo_list = [r.strip() for r in repos.split(',') if r.strip()]
-    console.print(f'[bold magenta]🔗 Coordinating Multi-Repo Migration across {len(repo_list)} repositories...[/]')
+    console.print(f'[bold magenta]Multi-repo checklist for {len(repo_list)} repositories[/]')
     plan = multirepo_orchestrator.plan_multirepo_sync(goal=goal, repos=repo_list)
     table = Table(title=f'Multi-Repo Transformation Matrix: {goal}', border_style='magenta')
     table.add_column('Repository', style='bold cyan')
     table.add_column('Branch', style='yellow')
-    table.add_column('Files Changed', style='green')
+    table.add_column('Likely Files (guessed)', style='green')
     table.add_column('PR Title', style='white')
     for repo, trans in plan.transforms.items():
-        table.add_row(trans.repo_name, trans.branch_name, ', '.join(trans.files_changed), trans.pr_title)
+        table.add_row(trans.repo_name, trans.branch_name, ', '.join(trans.likely_files), trans.pr_title)
     console.print(table)
-    console.print(f"[bold green]✅ Atomic execution sequence mapped:[/] {' -> '.join(plan.migration_order)}")
+    console.print(f"[cyan]Suggested order:[/] {' -> '.join(plan.migration_order)}")
+    for c in plan.caveats:
+        console.print(f'  [dim]- {c}[/]')
 
 @cli.command(name='tot-solve')
 @click.argument('goal')

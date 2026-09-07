@@ -1078,3 +1078,106 @@ identical output across unrelated goals, and the provider mismatch reported.
 Suite: 1584 passed. Remaining templates: `silicon-build`, `causal-eval`,
 `multirepo` -- none of which writes to disk.
 
+
+## Seventeenth pass -- the last three template commands (2026-09-07)
+
+`multirepo`, `silicon-build` and `causal-eval`, each read end to end. None
+writes to disk, so none was as dangerous as `cloud-plan`; all three still
+claimed work they had not done.
+
+### `multirepo` -- the /autopr defect, once per repository
+
+The PR body it generates ended with three ticked checkboxes:
+
+```
+- [x] Zero breaking change contract mismatch
+- [x] AST compatibility verified
+- [x] End-to-end integration tests passing
+```
+
+None of those checks exists anywhere in the module. Nothing clones, opens,
+parses or diffs a file. Measured, asking it to "Rename button colour to blue":
+
+```
+files_changed : ['payments-api/models.py', 'payments-api/router.py']
+do they exist : [False, False]
+example diff  : "+    id: UUID"  /  "+    created_at: datetime"
+```
+
+The diff is fixed -- it adds a UUID and a timestamp whatever the goal. File
+names are guessed from a substring test on the repo name.
+
+Checkboxes are unticked and labelled as the migrator's work. `is_atomic=True`
+is gone: nothing here can make changes across independent repositories atomic.
+`files_changed` became `likely_files`, `diff_content` became `example_diff`,
+and `breaking_changes_identified` became `likely_contract_repos` -- each of the
+old names asserted a certainty the module does not have.
+
+### `silicon-build` -- two fabricated numbers that contradicted each other
+
+The same fixed 32-bit ALU comes back for every spec; a UART request returns
+add/sub/and/or/xor with no receiver, no baud logic, no start bit. Reading it in
+full found something the earlier measurement had missed:
+
+`estimated_max_freq_mhz = 450.0`, while the SDC file emitted by that same
+function constrains the clock to 2.50ns -- **400 MHz**. Two invented numbers,
+disagreeing with each other, inside one return value.
+
+`estimated_lut_count` (was the literal 184) and `is_synthesizable` (was
+unconditionally True) are `None` now: no Yosys, Verilator or iverilog ever ran,
+so there is nothing to report. The frequency is `sdc_target_freq_mhz` -- what
+the constraints ask for, which is a fact about the file it writes. The
+"self-checking UVM testbench" claim is dropped; it is plain Verilog with one
+hardcoded vector (15 + 25 = 40).
+
+### `causal-eval` -- this one could actually be fixed
+
+It advertised Pearl's three-layer hierarchy while the layers computed the same
+thing. `simulate_l2_intervention` called `query_l1_association` directly:
+
+```
+L1 association  : 120.0
+L2 intervention : 120.0    <- identical
+```
+
+The entire point of the hierarchy is that these differ. `do(X=x)` means the
+graph is mutated: incoming edges to X are severed, because X is now set by the
+intervention rather than produced by its causes.
+
+**`graph_surgery()` now does exactly that**, and it works:
+
+```
+do(latency_ms) severs: ['use_async_io -> latency_ms',
+                        'has_memory_cache -> latency_ms']
+outcome 150.0  vs  association 120.0   -> differs
+```
+
+That is a difference the previous code could not produce for any input.
+
+Where surgery severs nothing -- the action variables are graph roots -- the
+report says so through `differs_from_association` and in its reasoning text.
+"No difference here" is a real answer; never having looked is not.
+
+Still stated plainly in the docstring: the graph is hand-written and not
+derived from the codebase being evaluated, the edge weights are judgement
+calls, and L3 performs no abduction (`abduction_performed=False`) because there
+is no noise model to abduct from.
+
+### The trap, four more times
+
+Every one of these had a test pinning the fabrication in place:
+
+```
+assertGreaterEqual(plan.security_score, 90)          # the hardcoded 96
+assertTrue(plan.is_atomic)                           # a claim it cannot make
+assertGreater(design.estimated_lut_count, 0)         # the literal 184
+assertGreater(design.estimated_max_freq_mhz, 100.0)  # the literal 450
+assertTrue(design.is_synthesizable)                  # unconditional True
+```
+
+The causal tests were subtler: they exercised L1 and L2 separately and never
+compared them, so the two layers being identical went unnoticed for as long as
+the module existed.
+
+Suite: 1591 passed. **All four template commands from the 2026-09-06 audit are
+now honest.**

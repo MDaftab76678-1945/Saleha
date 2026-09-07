@@ -1,8 +1,38 @@
 """
-Saleha Core: Silicon & Hardware Circuit RTL Orchestrator
+Saleha Core: Verilog scaffold generator.
 
-Translates high-level hardware specifications into synthesizable Verilog / SystemVerilog RTL,
-generates self-checking UVM testbenches, and calculates timing and gate-count constraints.
+Emits a fixed 32-bit ALU module, a matching testbench and an SDC file, named
+after the request -- a starting point for an RTL project rather than an empty
+file.
+
+## It does not design anything from the specification
+
+The same ALU comes back for every request. Measured, with two unrelated specs:
+
+    "4-bit ripple carry adder"  vs  "UART receiver with parity check"
+
+    verilog_rtl : differs on ONE line -- the `// Description:` comment
+    testbench   : byte-identical
+
+The UART request returns an ALU with add/sub/and/or/xor/shift opcodes. There is
+no receiver, no baud logic, no start bit. Nothing here parses the spec, calls a
+model, or reasons about hardware.
+
+Three further claims that were in this module and are now removed:
+
+- **`estimated_lut_count = 184` and `estimated_max_freq_mhz = 450.0` were
+  literals.** No synthesis tool was ever invoked, so there was nothing to
+  estimate from. They also contradicted the SDC file this same function emits,
+  which constrains the clock to 2.50ns -- 400 MHz, not 450.
+- **`is_synthesizable = True` was unconditional.** No Yosys, Verilator or
+  iverilog run backs it. The text is valid Verilog-2001 by construction, but
+  that is a property of the template, not a synthesis result.
+- **"self-checking UVM testbenches"** -- the testbench is plain Verilog with
+  one hardcoded vector (15 + 25 = 40). It is not UVM and does not import it.
+
+What is real: the emitted Verilog is syntactically valid, the testbench
+instantiates the module correctly, and the SDC is well-formed. As a scaffold
+that is useful. As a design for your specification it is nothing.
 """
 
 from __future__ import annotations
@@ -19,9 +49,27 @@ class SiliconCircuitDesign:
     verilog_rtl: str
     testbench_sv: str
     timing_constraints_sdc: str
-    estimated_lut_count: int
-    estimated_max_freq_mhz: float
-    is_synthesizable: bool = True
+    # The SDC constrains the clock to 2.50ns. This is what the template asks
+    # for, not a measured achievable frequency -- the previous field
+    # (`estimated_max_freq_mhz = 450.0`) was a literal that contradicted the
+    # SDC this same function writes.
+    sdc_target_freq_mhz: float = 400.0
+    # None: no synthesis tool ran, so there is no gate or LUT count. The
+    # previous `estimated_lut_count = 184` was a literal.
+    estimated_lut_count: Optional[int] = None
+    # None: unknown. Was unconditionally True with no toolchain behind it.
+    is_synthesizable: Optional[bool] = None
+    is_template: bool = True
+    caveats: List[str] = field(default_factory=lambda: [
+        "The same fixed 32-bit ALU is emitted for every specification; only "
+        "the module name and a description comment change.",
+        "No synthesis or simulation tool was run (no Yosys, Verilator or "
+        "iverilog), so there is no LUT count, timing result or "
+        "synthesizability verdict.",
+        "The testbench is plain Verilog with one hardcoded vector, not UVM.",
+        "sdc_target_freq_mhz is what the SDC file asks for, not an achieved "
+        "frequency.",
+    ])
 
 
 class SiliconCircuitOrchestrator:
@@ -178,9 +226,9 @@ set_max_fanout 16 [current_design]
             verilog_rtl=rtl,
             testbench_sv=testbench,
             timing_constraints_sdc=sdc,
-            estimated_lut_count=184,
-            estimated_max_freq_mhz=450.0,
-            is_synthesizable=True
+            sdc_target_freq_mhz=400.0,
+            estimated_lut_count=None,
+            is_synthesizable=None,
         )
 
 

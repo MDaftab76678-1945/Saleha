@@ -171,13 +171,21 @@ def search_code_cmd(query: str, path: str):
 @click.option('--target', default='latency_ms', help='Target outcome metric (e.g. latency_ms, defect_rate, throughput_rps)')
 def causal_eval_cmd(target: str):
     """
-    Pearl's Structural Causal Model & Counterfactual Reasoning Engine.
-    
+    Query a small structural causal model of software-engineering variables.
+
+    The graph is hand-written (six variables, hand-assigned edge weights) and
+    is NOT derived from your codebase. This evaluates that fixed graph.
+
     Example: saleha causal-eval --target latency_ms
     """
     from saleha.core.causal_world_model import causal_world_model
     rep = causal_world_model.simulate_l2_intervention({'use_async_io': True, 'has_memory_cache': True}, target)
-    console.print(Panel(f'[bold cyan]🔮 Pearl Causal Model ({rep.inquiry_level})[/bold cyan]\n{rep.reasoning}', border_style='cyan'))
+    console.print(Panel(f'[bold cyan]Causal model ({rep.inquiry_level})[/bold cyan]\n{rep.reasoning}',
+                        border_style='cyan'))
+    console.print(f'  [dim]association-only answer: {rep.association_outcome} | '
+                  f'differs after graph surgery: {rep.differs_from_association}[/]')
+    console.print('  [dim]- The graph is hand-written, not learned from this '
+                  'codebase; edge weights are judgement calls.[/]')
 
 @cli.command(name='explain-code')
 @click.argument('path', required=True)

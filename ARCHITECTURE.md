@@ -108,9 +108,16 @@ goals each, to see whether the output actually depends on the request.
   emitted for both, at a constant 184 LUTs and 450 MHz, with
   `is_synthesizable=True` unconditional. No synthesis toolchain is invoked.
 - **`MultiRepoOrchestrator`** (`multirepo_orchestrator.py`, `multirepo`) —
-  **template.** Every field of the returned plan is byte-identical across
-  unrelated goals, including `breaking_changes_identified` and
-  `migration_order`.
+  **template; relabelled honestly 2026-09-07.** No repository is ever read.
+  The PR body used to end with three ticked checkboxes — "AST compatibility
+  verified", "End-to-end integration tests passing" — for checks that exist
+  nowhere in the module: the same fabricated-green defect as `/autopr`, but
+  once per repository. They are unticked now and labelled as work for the
+  person doing the migration. `is_atomic=True` is removed (nothing here can
+  make cross-repo changes atomic), `files_changed` is renamed `likely_files`
+  and `diff_content` to `example_diff` since both are guesses from the repo
+  name, and `breaking_changes_identified` is now `likely_contract_repos` — a
+  heuristic on the name, not an inspection.
 
 ### More grandiosely-named commands, audited 2026-09-06
 

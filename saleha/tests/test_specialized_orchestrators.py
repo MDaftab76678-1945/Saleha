@@ -87,10 +87,36 @@ class SpecializedOrchestratorsTests(unittest.TestCase):
             repos=repos
         )
         self.assertEqual(len(plan.affected_repos), 3)
-        self.assertTrue(plan.is_atomic)
         self.assertIn("payments-api", plan.transforms)
         self.assertIn("web-frontend", plan.transforms)
         self.assertTrue(len(plan.migration_order) == 3)
+        # `assertTrue(plan.is_atomic)` used to be here, pinning a claim this
+        # module cannot make -- nothing can make changes across independent
+        # repositories atomic. The field is gone.
+        self.assertFalse(hasattr(plan, "is_atomic"))
+        self.assertTrue(plan.is_template)
+
+    def test_multirepo_pr_body_does_not_tick_unrun_checks(self):
+        """
+        The body used to end with three ticked boxes -- "AST compatibility
+        verified", "End-to-end integration tests passing" -- for checks that
+        exist nowhere in the module. Same defect as /autopr, once per repo.
+        """
+        plan = self.multirepo.plan_multirepo_sync(goal="g", repos=["api", "web"])
+        for transform in plan.transforms.values():
+            self.assertNotIn("[x]", transform.pr_body)
+            self.assertIn("[ ]", transform.pr_body)
+            self.assertIn("No repository was", transform.pr_body)
+
+    def test_multirepo_does_not_claim_to_have_read_the_repos(self):
+        """The file list is guessed from the repo name; the diff is fixed."""
+        a = self.multirepo.plan_multirepo_sync(goal="Rename a button colour",
+                                               repos=["payments-api"])
+        b = self.multirepo.plan_multirepo_sync(goal="Add UUID keys",
+                                               repos=["payments-api"])
+        self.assertEqual(a.transforms["payments-api"].example_diff,
+                         b.transforms["payments-api"].example_diff)
+        self.assertTrue(a.caveats)
 
     def test_silicon_circuit_orchestrator(self):
         design: SiliconCircuitDesign = self.silicon.synthesize_hardware_circuit(
@@ -101,9 +127,32 @@ class SpecializedOrchestratorsTests(unittest.TestCase):
         self.assertIn("module saleha_alu_core", design.verilog_rtl)
         self.assertIn("tb_saleha_alu_core", design.testbench_sv)
         self.assertIn("create_clock", design.timing_constraints_sdc)
-        self.assertGreater(design.estimated_lut_count, 0)
-        self.assertGreater(design.estimated_max_freq_mhz, 100.0)
-        self.assertTrue(design.is_synthesizable)
+        # These three assertions used to pin literals: 184 LUTs, 450 MHz and
+        # an unconditional True, none of which came from a synthesis tool --
+        # and the 450 contradicted the 400 MHz the SDC file asks for.
+        self.assertIsNone(design.estimated_lut_count)
+        self.assertIsNone(design.is_synthesizable)
+        self.assertTrue(design.is_template)
+
+    def test_silicon_returns_the_same_alu_for_any_specification(self):
+        """
+        Measured: a UART receiver request and a ripple-carry adder request
+        differ by one comment line. The UART gets an ALU with no receiver, no
+        baud logic and no start bit.
+        """
+        a = self.silicon.synthesize_hardware_circuit("4-bit ripple carry adder",
+                                                     module_name="m")
+        b = self.silicon.synthesize_hardware_circuit("UART receiver with parity",
+                                                     module_name="m")
+        self.assertEqual(a.testbench_sv, b.testbench_sv)
+        self.assertNotIn("baud", b.verilog_rtl.lower())
+        self.assertTrue(b.caveats)
+
+    def test_silicon_sdc_target_matches_the_sdc_file(self):
+        """The reported figure must agree with the file actually emitted."""
+        d = self.silicon.synthesize_hardware_circuit("x")
+        self.assertIn("2.50", d.timing_constraints_sdc)
+        self.assertEqual(d.sdc_target_freq_mhz, 400.0)
 
     def test_debate_consensus_orchestrator(self):
         verdict: DebateVerdict = self.debate.conduct_architectural_debate(

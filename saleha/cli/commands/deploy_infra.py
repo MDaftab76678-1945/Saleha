@@ -137,5 +137,10 @@ def silicon_build_cmd(goal: str, name: Optional[str], output_dir: Optional[str])
         (out_p / f'{design.module_name}.sdc').write_text(design.timing_constraints_sdc, encoding='utf-8')
         console.print(f'[bold green]✅ Wrote hardware RTL, testbench & SDC timing to:[/] {output_dir}')
     console.print(Panel(design.verilog_rtl[:380] + '\n  ...', title=f'Verilog RTL: {design.module_name}', border_style='yellow'))
-    console.print(f'[cyan]📊 Estimated LUTs:[/] {design.estimated_lut_count} | [magenta]⏱️ Max Frequency:[/] {design.estimated_max_freq_mhz} MHz | [green]Synthesizable:[/] {design.is_synthesizable}')
+    console.print(f'[cyan]SDC target:[/] {design.sdc_target_freq_mhz} MHz '
+                  f'[dim](what the constraints ask for, not a measured result)[/]')
+    console.print('[yellow]No synthesis or simulation tool was run: no LUT count, '
+                  'timing result or synthesizability verdict.[/]')
+    for c in design.caveats:
+        console.print(f'  [dim]- {c}[/]')
 
