@@ -776,3 +776,73 @@ always-healthy.
 
 **Still open from the 2026-09-06 audit:** `silicon-build` and `causal-eval`.
 
+
+## Twelfth pass — the orchestrator family, and a fabricated PR (2026-09-07)
+
+Audited all 8 orchestrator classes, probing each with two unrelated goals to
+see whether the output depends on the request at all.
+
+Four are real (`SalehaOrchestrator`, `TeamOrchestrator`,
+`DebateConsensusOrchestrator`, `ToTOrchestrator`) — their hardcoded-score
+defects were fixed in the sixth pass. Four make **zero model calls** and
+return constants:
+
+| Orchestrator | Command | Measured |
+| --- | --- | --- |
+| `AutonomousRepoOrchestrator` | `/autopr` | `tests_passed=True` always, files invented |
+| `CloudInfraOrchestrator` | `cloud-plan` | 4 of 5 artifacts byte-identical across goals |
+| `SiliconCircuitOrchestrator` | `silicon-build` | one comment line differs |
+| `MultiRepoOrchestrator` | `multirepo` | every field identical |
+
+### The one that had to be fixed first
+
+`repo_orchestrator.py` was the most dangerous thing found in this whole audit.
+Its own comment said "Simulate file modifications and test verification", and
+it returned:
+
+```
+tests_passed      : True        <- unconditionally, no test ever ran
+files_modified    : ['saleha/core/add_rate_limiting_to_the_api.py',
+                     'saleha/tests/test_add_rate_limiting_to_the_api.py']
+those files exist : [False, False]
+PR body asserts   : "5/5 PASSED" in 12.4ms
+                    "SecurityGuard SAST | 0 Findings" in 3.1ms
+                    "OWASP Top-10 SAST audit cleared with 0 CWE vulnerabilities"
+                    "Pytest assertions verified inside Ephemeral Container Sandbox"
+```
+
+No branch, no file, no test, no scanner. And `/autopr` in the chat session
+printed **"Branch Created"** and **"✅ 100% Invariants Passed"** on top of it.
+The output is a PR description — something a user pastes into a real review,
+where it tells human reviewers that a security audit passed.
+
+Every other defect in this audit produced a wrong answer. This one produced a
+**fake green**, which is worse: a wrong answer gets caught by the next person
+to look, a fabricated pass is designed not to be.
+
+Rebuilt on `git_native.py`, which already had real git operations:
+
+- `files_modified` now comes from real `git status` — verified against this
+  repo, it lists the actual files being edited in this session.
+- `tests_passed` is `Optional[bool]` and stays `None` unless a caller supplies
+  a real run. Nothing infers a pass. `None` renders as "not run", never a tick.
+- The PR body lists what was **not** verified instead of claiming it passed.
+- Branch creation is opt-in, so rendering a description cannot mutate the repo.
+- Outside a git repository it says so rather than inventing a branch name.
+
+The old test asserted `result.tests_passed is True` and
+`len(result.files_modified) == 2` — it pinned the fabrication in place, which
+is why this survived. Replaced with 7 tests, including one that asserts every
+reported file actually exists on disk and one that asserts the fabricated
+strings never return.
+
+### Deliberately not fixed in this pass
+
+`cloud-plan`, `silicon-build` and `multirepo` are documented in
+`ARCHITECTURE.md` with their measurements, but left as-is. They are template
+generators whose honest form is a *scaffold* — which is genuinely useful, but
+naming them accurately and reworking three CLI surfaces is its own pass, and
+none of them fabricates a passing test. `cloud-plan --output-dir` writing
+`main.tf` and `iam-policy.json` to disk is the next-most-serious item and
+should be taken next.
+

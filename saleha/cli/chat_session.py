@@ -408,13 +408,28 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_autopr_command(self, task: str):
-        self.console.print(f"\n[bold cyan]🤖 Autonomous Git Repo Orchestrator Executing: [yellow]\"{task}\"[/yellow][/bold cyan]")
+        self.console.print(f"\n[bold cyan]🤖 Preparing PR from repository state: [yellow]\"{task}\"[/yellow][/bold cyan]")
         result = repo_orchestrator.execute_auto_pr(task)
-        self.console.print(f"[bold green]✨ PR Autonomously Synthesized in {result.execution_time_ms}ms![/bold green]")
-        self.console.print(f"- Branch Created : [cyan]{result.branch_name}[/cyan]")
+
+        if not result.is_git_repo:
+            self.console.print(f"[bold red]Not a git repository — nothing to prepare.[/bold red]")
+            self.console.print()
+            return
+
+        self.console.print(f"[bold green]✨ PR description prepared in {result.execution_time_ms}ms[/bold green]")
+        branch_state = "created" if result.branch_created else "proposed, not created"
+        self.console.print(f"- Branch         : [cyan]{result.branch_name}[/cyan] ({branch_state})")
         self.console.print(f"- Commit Message : [white]{result.commit_message.splitlines()[0]}[/white]")
-        self.console.print(f"- Test Sandbox   : {'✅ 100% Invariants Passed' if result.tests_passed else '❌ Failed'}")
-        self.console.print(Panel(result.pr_markdown_body[:1000] + "\n...", title="[bold cyan]Synthesized GitHub Pull Request[/]", border_style="cyan"))
+        self.console.print(f"- Changed files  : {len(result.files_modified)}")
+        # tests_passed is None when nothing ran. The old line rendered that as
+        # "100% Invariants Passed", so an unrun suite looked like a green one.
+        if result.tests_passed is None:
+            self.console.print("- Tests          : [yellow]not run by this pipeline[/yellow]")
+        elif result.tests_passed:
+            self.console.print("- Tests          : [green]PASSED[/green]")
+        else:
+            self.console.print("- Tests          : [red]FAILED[/red]")
+        self.console.print(Panel(result.pr_markdown_body[:1000] + "\n...", title="[bold cyan]Prepared Pull Request[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_voice_command(self, topic: str):

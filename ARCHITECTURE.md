@@ -70,6 +70,48 @@ These are genuine pieces of logic worth describing plainly. Framing them as "PBF
 
 `formal_verifier.py` and `formal_smt_verifier.py` generate Lean 4- and SMT/Z3-shaped text (theorem statements, "certificate" strings) from simple heuristics about a function's structure. **Neither module invokes an actual Lean or Z3 toolchain**, so nothing they produce is a checked mathematical proof. If real formal verification is added later, it belongs in [ROADMAP.md](ROADMAP.md) until it exists.
 
+### The orchestrator family, audited 2026-09-07
+
+All 8 orchestrator classes were read end-to-end and probed with two unrelated
+goals each, to see whether the output actually depends on the request.
+
+**Real (fixed in earlier passes):**
+
+- `SalehaOrchestrator` (`saleha/orchestrator.py`), `TeamOrchestrator`,
+  `DebateConsensusOrchestrator`, `ToTOrchestrator` — real model calls, real
+  sandboxed execution. The hardcoded-score defects in these were fixed in the
+  sixth pass; `team_orchestrator` additionally records swarm handoffs as of the
+  eleventh.
+
+**Templates — zero model calls, output independent of the request:**
+
+- **`AutonomousRepoOrchestrator`** (`repo_orchestrator.py`, `/autopr`) —
+  **fixed 2026-09-07.** Was the most dangerous of the group: it returned
+  `tests_passed=True` unconditionally with no test ever run, invented two
+  `files_modified` paths from the goal slug that did not exist on disk, and
+  emitted a PR body asserting "5/5 PASSED", "0 CWE vulnerabilities" and
+  "verified inside Ephemeral Container Sandbox". The chat command printed
+  "Branch Created" and "100% Invariants Passed" for a branch never created. It
+  now reads real `git status`, reports `tests_passed=None` unless a caller
+  supplies a real run, and lists unrun checks as unrun. Branch creation is
+  opt-in.
+- **`CloudInfraOrchestrator`** (`cloud_infra_orchestrator.py`, `cloud-plan`) —
+  **template.** Measured: "Design a multi-region Postgres cluster" and "Write a
+  haiku about frogs" produce byte-identical Kubernetes manifests, Helm values,
+  IAM policy and CI/CD workflow. The Terraform differs on exactly 3 lines, all
+  of them the echoed goal string (a comment, the S3 state key, a tag). Cost is
+  always $142.50/mo and the CIS security score always 96. `--output-dir` writes
+  these to disk as `main.tf` / `iam-policy.json`.
+- **`SiliconCircuitOrchestrator`** (`silicon_circuit_orchestrator.py`,
+  `silicon-build`) — **template.** "4-bit ripple carry adder" and "UART
+  receiver with parity check" differ by one comment line; the same fixed ALU is
+  emitted for both, at a constant 184 LUTs and 450 MHz, with
+  `is_synthesizable=True` unconditional. No synthesis toolchain is invoked.
+- **`MultiRepoOrchestrator`** (`multirepo_orchestrator.py`, `multirepo`) —
+  **template.** Every field of the returned plan is byte-identical across
+  unrelated goals, including `breaking_changes_identified` and
+  `migration_order`.
+
 ### More grandiosely-named commands, audited 2026-09-06
 
 Following the same pattern as the two sections above, 8 more CLI commands with research-sounding names were read end-to-end (CLI wiring through to the real `saleha/core/` implementation) to check what they actually do:
