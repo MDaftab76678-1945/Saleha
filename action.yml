@@ -42,48 +42,8 @@ runs:
       id: review
       shell: bash
       env:
-        OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
         SALEHA_SCAN_PATH: ${{ inputs.scan-path }}
         SALEHA_FAIL_ON_CRITICAL: ${{ inputs.fail-on-critical }}
       run: |
-        python -c "
-        import os, sys, json
-        from saleha.core.ai_reviewer import AIReviewer, Severity
-        from saleha.core.review_reporter import ReviewReporter
-
-        rev = AIReviewer()
-        target = os.environ.get('SALEHA_SCAN_PATH', '.')
-        report = rev.review_workspace(target) if os.path.isdir(target) else (rev.review_file(target) and None)
-        
-        if os.path.isfile(target):
-            r = rev.review_file(target)
-            from saleha.core.ai_reviewer import WorkspaceReviewReport
-            report = WorkspaceReviewReport(files_reviewed=1, average_score=r.overall_score, file_reviews=[r])
-            
-        print('Files Reviewed:', report.files_reviewed)
-        print('Average Score:', report.average_score)
-        print('Total Issues:', report.total_issues)
-        
-        reporter = ReviewReporter()
-        md = reporter.render_markdown(report)
-        print('\n=== SALEHA REVIEW SUMMARY ===\n')
-        print(md)
-        
-        with open('saleha_review.md', 'w', encoding='utf-8') as f:
-            f.write(md)
-            
-        summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
-        if summary_path:
-            with open(summary_path, 'a', encoding='utf-8') as sf:
-                sf.write(md)
-                
-        has_critical = any(
-            iss.severity in (Severity.CRITICAL, Severity.HIGH)
-            for fr in report.file_reviews
-            for iss in fr.issues
-        )
-        if os.environ.get('SALEHA_FAIL_ON_CRITICAL', 'true') == 'true' and has_critical:
-            print('::error title=Security Vulnerability::Saleha detected Critical or High severity security issues in reviewed files.')
-            sys.exit(1)
-        "
+        python "${{ github.action_path }}/scripts/run_pr_review.py"
 
