@@ -10,7 +10,7 @@ Pulled the useful, not-yet-integrated code out of `Notebook/` into the repo.
 | `rust/intent-kernel/` | `Notebook/intent-kernel/` | ~4,500 | **Rust agentic core.** intent → plan compiler → capability registry → executor (snapshot/rollback) → hash-chained proof ledger → Ollama LLM client → reflexion/negotiation. Working; ships runtime state in `.ik/`. This is the Rust performance layer saleha's Python side never had. See `docs/v0.3-technical-spec.md`. |
 | `rust/meridian-core/` | `Notebook/meridian-core/` | ~2,700 | Rust agent framework — agent runtime, swarm (`swam.rs` 696 ln), LLM bindings, MCP client. Half-built: `swam.rs`, `client.rs`, `bindings.rs` are real; `memory/*`, `workflow/*`, several `llm/*` are empty stubs. |
 | `rust/fragments/` | loose `.rs` in Notebook root | ~900 | `runtime.rs` (lock-free ring buffer / IPC), `server.rs`, `sync.rs`, `swarm_demo.rs`. Unattached snippets — mine for the IPC / hot-path patterns. |
-| `saleha/sandbox/` | `Notebook/v5_production_system_with_33_specs/02_v5_engine/` | ~420 | `sandbox_jail.py` (POSIX process jail, 128MB cap, anti-fork-bomb), `ast_security_verifier.py` (AST auditor, banned imports), `local_llm_driver.py` (Ollama/vLLM + JSON mode), `v5_production_core.py` (evaluator-optimizer self-heal loop + SQLite). **Real sandbox** — `saleha/core/` only has sandbox theater. |
+| `saleha/sandbox/` | `Notebook/v5_production_system_with_33_specs/02_v5_engine/` | ~420 | `sandbox_jail.py` (POSIX process jail, 128MB cap, anti-fork-bomb), `ast_security_verifier.py` (AST auditor, banned imports), `local_llm_driver.py` (Ollama/vLLM + JSON mode), `v5_production_core.py` (evaluator-optimizer self-heal loop + SQLite). A real jail — but **POSIX only**, and on this Windows machine two of the four modules did not import at all until pass 25. See that pass before relying on this row. |
 | `saleha/specs/agent_specs/` | v5 `01_agent_specs/` | 34 files | Agent role definitions (YAML frontmatter): ai_engineer, cloud_architect, firmware_engineer, ml_engineer, qa_engineer, sre, security_engineer, … Reference for `saleha/agents/`. |
 | `saleha/experimental/aionx/extensions_v10.py` | `Notebook/aionx-v10-backend_1/` | ~800 | Claude-API agent extensions: self-consistency voting, Critic-A/B/Judge debate, multi-lang codegen, GitHub PR gen, cron missions, plugin system, WS token streaming, cost routing. Uses `anthropic` SDK (cloud, not local). |
 | `saleha/server/dashboard_reference.jsx` | `Notebook/saleha_dashboard.jsx` | ~460 | React dashboard — reference for `saleha/server/web_server.py`'s UI. |
@@ -1717,3 +1717,70 @@ along with its two Machine-level PATH entries. The rest are in use:
 `browser-use` tool, the other is `.venv_train`'s parent. `.venv_train` is
 5.3 GB, of which `torch` is 4.27 GB; ten modules import torch for the
 LoRA/training path, so it stays.
+
+
+## Twenty-fifth pass -- the "Real sandbox" did not import on this machine (2026-09-07)
+
+Row 13 of this file, written in the first pass, called `saleha/sandbox/` the
+"**Real sandbox** -- `saleha/core/` only has sandbox theater". Measured on the
+machine that note was written on:
+
+```text
+BREAK  saleha.sandbox.sandbox_jail      : No module named 'resource'
+BREAK  saleha.sandbox.v5_production_core: No module named 'local_llm_driver'
+OK     saleha.sandbox.ast_security_verifier
+OK     saleha.sandbox.local_llm_driver
+```
+
+Two of the four modules could not be imported at all. The claim was not
+wrong about the code -- the jail is real -- it was wrong about where it runs,
+and it was made without ever importing it here.
+
+### 1. `resource` was imported unguarded
+
+`resource` is POSIX-only, and `preexec_fn` (which is how the rlimits get
+applied, between fork and exec) is unsupported on Windows. So the whole
+mechanism has no Windows equivalent. That is a legitimate platform limit; the
+defect was that it surfaced as `ModuleNotFoundError: No module named
+'resource'` -- a stdlib module -- rather than as a statement about platforms.
+
+The import is guarded now, and the module carries `is_available()` and
+`unavailable_reason()`:
+
+```text
+import: OK
+is_available(): False
+reason: the POSIX process jail needs the `resource` module and fork
+        (this is win32). rlimits cannot be applied here, so the memory,
+        CPU and process ceilings would not be enforced.
+```
+
+**`run_isolated()` raises `SandboxUnavailableError` rather than running.**
+This is the point of the pass. A sandbox that executes code with none of its
+limits applied, and returns the same shape of result as a confined run, is
+worse than no sandbox: the caller believes the code was contained. Refusing
+is the honest failure.
+
+`SelfHealingEngine` refuses at construction for the same reason -- every
+verification path in it goes through the jail, so failing after a model call,
+partway through a healing loop, would be strictly worse.
+
+### 2. Flat imports inside a package
+
+```python
+from local_llm_driver import LocalLLMDriver      # only resolves with this
+from ast_security_verifier import ASTContractAuditor  # directory on sys.path
+from sandbox_jail import HardenedSandbox
+```
+
+There was also no `__init__.py`, so `saleha/sandbox/` was not a package at
+all. Both fixed; all five modules now import.
+
+### The ledger row is corrected
+
+Row 13 now says POSIX-only and points here. A stale "this works" note costs
+the same trust as a stale "this is broken" one -- the tenth pass made that
+exact point about `ARCHITECTURE.md`, and this is the same error in this file.
+
+One of the seven new tests asserts the row keeps saying it: if someone
+rewrites it back to an unqualified "Real sandbox", the suite fails.

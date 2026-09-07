@@ -6,9 +6,13 @@ import sqlite3
 import logging
 import asyncio
 from typing import Dict, Any, Optional
-from local_llm_driver import LocalLLMDriver
-from ast_security_verifier import ASTContractAuditor
-from sandbox_jail import HardenedSandbox
+# These were flat imports (`from local_llm_driver import ...`), which only
+# resolve when this directory is the working directory. Imported as part of
+# the package -- which is how everything else in the repo reaches it -- they
+# raised ModuleNotFoundError, so this module could not be imported at all.
+from saleha.sandbox.local_llm_driver import LocalLLMDriver
+from saleha.sandbox.ast_security_verifier import ASTContractAuditor
+from saleha.sandbox.sandbox_jail import HardenedSandbox, SandboxUnavailableError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("V5_ProductionEngine")
@@ -95,7 +99,22 @@ Explain responsibilities and validation checklists.
 
 
 class SelfHealingEngine:
+    """
+    Generate -> AST audit -> sandboxed execution -> retry loop.
+
+    Every verification path here runs code through `HardenedSandbox`, which is
+    POSIX-only. Refuse at construction rather than partway through a healing
+    run: the alternative is discovering the platform limit after a model call,
+    or -- worse -- someone removing the sandbox step to make it work on
+    Windows and leaving the "verified in sandbox" log line in place.
+    """
+
     def __init__(self):
+        if not HardenedSandbox.is_available():
+            raise SandboxUnavailableError(
+                f"SelfHealingEngine verifies generated code inside the POSIX "
+                f"jail, and {HardenedSandbox.unavailable_reason()}"
+            )
         self.llm = LocalLLMDriver()
         self.sandbox = HardenedSandbox(max_mem_mb=128, max_cpu_sec=3)
         self.db = PersistentSwarmDB()
