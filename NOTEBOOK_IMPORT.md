@@ -846,3 +846,61 @@ none of them fabricates a passing test. `cloud-plan --output-dir` writing
 `main.tf` and `iam-policy.json` to disk is the next-most-serious item and
 should be taken next.
 
+
+## Thirteenth pass — `saleha/orchestrator.py` accepted code it never ran (2026-09-07)
+
+`SalehaOrchestrator` was one of the four orchestrators classified as **real**
+in the twelfth pass, and it is — real agents, real sandboxed execution. Reading
+it line by line anyway found a defect that the classification hid.
+
+`execute_task` has ~20 return points. The verifier call lives inside
+`if review_result.approved`. So on the path where the reviewer **never**
+approves and max attempts run out — the "best-effort accept" branch — the code
+was returned as a success having never been executed at all.
+
+Probed with a reviewer that always rejects and a body that crashes:
+
+```
+success reported : True
+verifier calls   : 0
+code returned    : def solve(): return 1 / 0
+does it run?     : CRASHES: ZeroDivisionError
+```
+
+A `1 / 0` was reported as a successful task. Not a hardcoded score, not a
+template — a control-flow gap in genuinely working code, which is why every
+previous pass walked past it.
+
+After the fix, same probe:
+
+```
+success reported : False
+verifier calls   : 1
+```
+
+### `verified` is now separate from `success`
+
+`OrchestrationResult` gained `verified` and `unverified_reason`, because
+"the task completed" and "the code was executed and ran clean" are different
+claims and the second is stronger. Three paths return success without running
+code in *this* invocation, and each now says so rather than being silently
+indistinguishable from a verified run:
+
+- **reviewer never approved** — now executed before accepting; fails outright
+  if it crashes, and if it runs, the unresolved objection is recorded.
+- **skill hit** — a skill computes the answer directly; there is no generated
+  program to execute.
+- **memory replay** — the cached solution was verified when first solved, but
+  nothing ran this time.
+
+`saleha run` prints the caveat, and `--json` carries both fields.
+
+Worth being precise about what was *not* wrong: a failed execution already
+returned `success=False` correctly, and a blocked one too. The bug was
+strictly the branch that skipped execution entirely.
+
+6 regression tests added to `test_orchestrator_honesty.py`, which already
+exists for exactly this failure family. One asserts the verifier is called at
+least once on the unapproved path — so re-introducing the skip fails the suite
+rather than quietly restoring a fake success.
+

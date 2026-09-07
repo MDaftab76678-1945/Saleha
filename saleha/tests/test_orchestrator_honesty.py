@@ -21,7 +21,7 @@ No real model is contacted: the inference engine is injected everywhere.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from saleha.core.fast_inference import InferenceResult
 
@@ -156,6 +156,85 @@ class ToTBranchRepairTests(unittest.TestCase):
         fi = _engine(content="```python\nx = 1\n```")
         self._tot(fi)._generate_branch_code(self.BASE, 0, "err")
         self.assertIs(fi.run.call_args.kwargs["use_cache"], False)
+
+
+class SalehaOrchestratorVerificationTests(unittest.TestCase):
+    """
+    `SalehaOrchestrator.execute_task` returned success=True for code it had
+    never executed.
+
+    The verifier call lives inside `if review_result.approved`. When the
+    reviewer never approved and max attempts ran out, the "best-effort accept"
+    branch returned success=True having skipped the verifier entirely.
+    Measured before the fix: a `1 / 0` body came back as a success with the
+    verifier called zero times.
+    """
+
+    BROKEN = "def solve():\n    return 1 / 0\n\nsolve()\n"
+    WORKING = "def solve():\n    return 1 + 1\n\nsolve()\n"
+
+    def _orch(self, code: str, approved: bool):
+        from saleha.agents.coder import CodeResult
+        from saleha.agents.planner import PlanResult
+        from saleha.agents.reviewer import ReviewResult
+        from saleha.agents.tester import TestResult
+        from saleha.orchestrator import SalehaOrchestrator
+
+        orch = SalehaOrchestrator(model="fake-model", max_healing_attempts=1)
+        orch.planner.create_plan = MagicMock(return_value=PlanResult(
+            success=True, steps=["step"], recommendation="go",
+            raw_response="plan", complexity_score=1.0))
+        orch.coder.generate_code = MagicMock(return_value=CodeResult(
+            success=True, code=code, attempts=1, model_used="fake-model"))
+        # Syntax/security check passes; the reviewer is the gate under test.
+        orch.tester.test_code = MagicMock(return_value=TestResult(
+            passed=True, error_message="", error_type="None"))
+        orch.reviewer.review_code = MagicMock(return_value=ReviewResult(
+            approved=approved, feedback="needs work", model_used="fake-model"))
+        return orch
+
+    def _run(self, orch):
+        with patch("saleha.core.memory_store.memory_store.recall", return_value=None),              patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+            return orch.execute_task("do a thing", use_context=False)
+
+    def test_unapproved_broken_code_is_not_reported_as_success(self):
+        res = self._run(self._orch(self.BROKEN, approved=False))
+        self.assertFalse(res.success)
+
+    def test_unapproved_code_is_actually_executed(self):
+        orch = self._orch(self.BROKEN, approved=False)
+        spy = MagicMock(side_effect=orch.verifier.execute)
+        orch.verifier.execute = spy
+        self._run(orch)
+        self.assertGreaterEqual(
+            spy.call_count, 1,
+            "unapproved code must be executed before it is accepted")
+
+    def test_unapproved_but_working_code_is_accepted_and_flagged(self):
+        """Best-effort accept is fine; it just has to be honest about why."""
+        res = self._run(self._orch(self.WORKING, approved=False))
+        self.assertTrue(res.success)
+        self.assertTrue(res.verified)
+        self.assertIn("reviewer", res.unverified_reason.lower())
+
+    def test_approved_and_working_code_is_verified(self):
+        res = self._run(self._orch(self.WORKING, approved=True))
+        self.assertTrue(res.success)
+        self.assertTrue(res.verified)
+
+    def test_approved_but_broken_code_still_fails(self):
+        res = self._run(self._orch(self.BROKEN, approved=True))
+        self.assertFalse(res.success)
+
+    def test_memory_replay_is_success_but_not_verified_this_run(self):
+        from saleha.orchestrator import SalehaOrchestrator
+        cached = MagicMock(code=self.WORKING, model="fake-model", hit_count=3)
+        orch = SalehaOrchestrator(model="fake-model")
+        with patch("saleha.core.memory_store.memory_store.recall", return_value=cached),              patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+            res = orch.execute_task("do a thing", use_context=False)
+        self.assertTrue(res.success)
+        self.assertFalse(res.verified)
+        self.assertIn("memory", res.unverified_reason.lower())
 
 
 if __name__ == "__main__":

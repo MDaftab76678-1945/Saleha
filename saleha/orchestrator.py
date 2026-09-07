@@ -37,12 +37,34 @@ load_builtin_skills()
 # ==============================================================================
 
 class OrchestrationResult:
-    def __init__(self, success: bool, final_code: str, attempts: int, log: str, profile_used: str = ""):
+    """
+    Outcome of one orchestrated task.
+
+    `verified` is the important field alongside `success`. It says whether the
+    returned code was actually executed and ran clean, which is a stronger
+    claim than `success` and must never be inferred from it:
+
+      verified=True   the code ran, no runtime error
+      verified=False  it was accepted without ever being executed --
+                      `unverified_reason` says why
+
+    This distinction was missing. `success=True` was returned on the
+    "max attempts exhausted, accept the reviewer's objections anyway" path,
+    where the verifier is never reached at all because it lives inside the
+    `if review_result.approved` branch. Measured: a `1 / 0` crash was returned
+    as a success with the verifier called zero times.
+    """
+
+    def __init__(self, success: bool, final_code: str, attempts: int, log: str,
+                 profile_used: str = "", verified: bool = False,
+                 unverified_reason: str = ""):
         self.success = success
         self.final_code = final_code
         self.attempts = attempts
         self.log = log
         self.profile_used = profile_used
+        self.verified = verified
+        self.unverified_reason = unverified_reason
 
 # ==============================================================================
 # 2. कोर लॉजिक (Core Logic)
@@ -164,7 +186,18 @@ class SalehaOrchestrator:
                     log += f"✅ {skill_result.output}\n"
                     self.history.log(goal=user_goal, model=f"skill:{matched_skill.name}",
                                       success=True, attempts=0, code=skill_result.output)
-                    return OrchestrationResult(success=True, final_code=skill_result.output, attempts=0, log=log, profile_used=profile_name)
+                    # A skill computes its answer directly (e.g. arithmetic);
+                    # there is no generated program to execute, so `verified`
+                    # stays False with the reason stated rather than implying
+                    # a run that never applies here.
+                    return OrchestrationResult(
+                        success=True, final_code=skill_result.output, attempts=0,
+                        log=log, profile_used=profile_name, verified=False,
+                        unverified_reason=(
+                            f"Answered directly by skill '{matched_skill.name}'; "
+                            "no generated code was executed."
+                        ),
+                    )
                 else:
                     log += f"⚠️ Skill fail hui ({skill_result.error}), normal pipeline pe fallback ho raha hai.\n"
                     # aage normal pipeline chalega
@@ -190,7 +223,17 @@ class SalehaOrchestrator:
                                   success=True, attempts=0, code=cached_mem.code)
                 self.last_goal = user_goal
                 self.last_code = cached_mem.code
-                return OrchestrationResult(success=True, final_code=cached_mem.code, attempts=0, log=log, profile_used="memory_store")
+                # The cache only stores solutions that passed verification when
+                # first solved, but nothing was executed in THIS run, so the
+                # distinction is recorded rather than glossed over.
+                return OrchestrationResult(
+                    success=True, final_code=cached_mem.code, attempts=0, log=log,
+                    profile_used="memory_store", verified=False,
+                    unverified_reason=(
+                        "Replayed a previously verified solution from memory; "
+                        "not re-executed in this run."
+                    ),
+                )
 
             context_note = ""
             if use_context and self.last_code:
@@ -491,7 +534,10 @@ class SalehaOrchestrator:
                             _pl2.trigger_event("on_test_complete", result="passed", goal=user_goal)
                         except Exception:
                             pass
-                        return OrchestrationResult(success=True, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
+                        return OrchestrationResult(
+                            success=True, final_code=current_code, attempts=attempts,
+                            log=log, profile_used=profile_name, verified=True,
+                        )
 
                     # Execution fail hui -- syntax/review sahi tha lekin runtime pe crash hua
                     log += f"❌ Verifier: Execution fail hui: {exec_result.error}\n"
@@ -554,10 +600,37 @@ class SalehaOrchestrator:
                         log += f"❌ Coder ने सुधारने में विफल रहे: {current_code_result.error}\n"
                         break
                 else:
-                    # Max attempts khatam -- code syntactically/security-wise theek hai,
-                    # bas reviewer ki opinion me perfect nahi. Ise fail nahi karte,
-                    # best-effort accept karte hain aur warning log karte hain.
-                    log += "🚫 Max attempts khatam -- reviewer ki suggestion ke bina hi accept kar rahe hain.\n"
+                    # Max attempts khatam -- reviewer ne approve nahi kiya.
+                    #
+                    # Pehle yahan seedha success=True return hota tha. Verifier
+                    # `if review_result.approved` ke andar hai, to is raaste par
+                    # code KABHI chala hi nahi tha -- measured: `1 / 0` crash
+                    # success ban kar wapas aaya, verifier zero baar call hua.
+                    #
+                    # Ab accept karne se pehle actually chalta hai. Best-effort
+                    # accept karna theek hai; bina chalaye "success" bolna nahi.
+                    log += "🚫 Max attempts khatam -- reviewer approval ke bina accept karne se pehle verify kar rahe hain...\n"
+                    final_exec = self.verifier.execute(current_code)
+
+                    if final_exec.blocked:
+                        log += f"🚫 Verifier ne block kar diya: {final_exec.block_reason}\n"
+                        self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
+                        self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
+                                          success=False, attempts=attempts, code=current_code,
+                                          error=f"Blocked: {final_exec.block_reason}")
+                        _checkpoint("failed")
+                        return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
+
+                    if not final_exec.success:
+                        log += f"❌ Reviewer ne approve nahi kiya AUR code run par fail hua: {final_exec.error}\n"
+                        self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
+                        self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
+                                          success=False, attempts=attempts, code=current_code,
+                                          error=f"Unapproved and execution failed: {final_exec.error}")
+                        _checkpoint("failed")
+                        return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
+
+                    log += "✅ Code chal to gaya, lekin reviewer ki objection unresolved hai (best-effort accept).\n"
                     self.stats.record(model=current_code_result.model_used or self.model, success=True, attempts=attempts, task_type="coding")
                     self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
                                       success=True, attempts=attempts, code=current_code,
@@ -565,7 +638,14 @@ class SalehaOrchestrator:
                     self.last_goal = user_goal
                     self.last_code = current_code
                     _checkpoint("completed")
-                    return OrchestrationResult(success=True, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
+                    return OrchestrationResult(
+                        success=True, final_code=current_code, attempts=attempts,
+                        log=log, profile_used=profile_name, verified=True,
+                        unverified_reason=(
+                            "Code executed cleanly, but the reviewer's objection "
+                            f"was never resolved: {review_result.feedback}"
+                        ),
+                    )
 
             log += f"❌ Tester Failed: {test_result.error_type}\n"
             log += f"   कारण: {test_result.error_message}\n"

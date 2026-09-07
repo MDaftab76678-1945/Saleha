@@ -81,7 +81,9 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
             if stream:
                 console.print('\n[dim]── stream end ──[/]')
     if as_json:
-        payload = {'success': result.success, 'final_code': result.final_code, 'attempts': result.attempts, 'profile_used': getattr(result, 'profile_used', ''), 'log': result.log}
+        payload = {'success': result.success, 'final_code': result.final_code, 'attempts': result.attempts, 'profile_used': getattr(result, 'profile_used', ''), 'log': result.log,
+                   'verified': getattr(result, 'verified', False),
+                   'unverified_reason': getattr(result, 'unverified_reason', '')}
         click.echo(json.dumps(payload, ensure_ascii=True))
         if not result.success:
             raise click.exceptions.Exit(1)
@@ -89,6 +91,11 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
     console.print()
     if result.success:
         console.print(Panel(f'[bold green]✅ SUCCESS[/] in {result.attempts} attempt(s)', border_style='green'))
+        # `verified` is a stronger claim than `success`: it means the code was
+        # actually executed and ran clean. A caveat must be shown, not implied.
+        _reason = getattr(result, 'unverified_reason', '')
+        if _reason:
+            console.print(f'[yellow]⚠ {_reason}[/]')
         console.print('\n[bold cyan]📝 Generated Code:[/]')
         syntax = Syntax(result.final_code, 'python', theme='monokai', line_numbers=True)
         console.print(syntax)
