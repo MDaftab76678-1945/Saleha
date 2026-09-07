@@ -1,7 +1,8 @@
 """
 Saleha Agents: Planner Agent
-उद्देश्य: यूजर के लक्ष्य (Goal) को समझना, उसकी जटिलता मापना,
-और यदि आवश्यक हो तो उसे छोटे, प्रबंधनीय चरणों (DAG) में तोड़ना।
+
+Purpose: understand the user's goal, measure its complexity, and if needed
+break it into small, manageable steps (a DAG).
 """
 
 from typing import Optional
@@ -12,7 +13,7 @@ from saleha.core.math_logic import MathLogicEngine
 
 
 # ==============================================================================
-# 1. डेटा स्ट्रक्चर्स
+# 1. Data structures
 # ==============================================================================
 
 class PlanResult:
@@ -23,9 +24,9 @@ class PlanResult:
         self.steps = steps
         self.recommendation = recommendation
         self.raw_response = raw_response
-        # Naya: MathLogicEngine ka complexity score ab route tak jaata hai
-        # (pehle compute hota tha par discard ho jaata tha -- SmartRouter ke
-        # complexity tiers effectively dead the).
+        # The MathLogicEngine complexity score now travels through to the
+        # router (it used to be computed and then discarded -- SmartRouter's
+        # complexity tiers were effectively dead).
         self.complexity_score = complexity_score
         # Set when the goal was too vague to act on: recommendation becomes
         # NEEDS_CLARIFICATION and this carries the one question worth asking.
@@ -38,30 +39,31 @@ class PlanResult:
 
 
 # ==============================================================================
-# 2. कोर लॉजिक (Core Logic)
+# 2. Core Logic
 # ==============================================================================
 
 class PlannerAgent(BaseAgent):
     def __init__(self, model: str = "qwen2.5-coder:3b"):
-        # BaseAgent को "Planner" की भूमिका के साथ इनिशियलाइज़ करें
+        # Initialise BaseAgent with the "Planner" role.
         super().__init__(role="Planner", model=model)
         self.math_engine = MathLogicEngine()
 
     def create_plan(self, user_goal: str, context_has_target: bool = False,
                     skip_clarity_check: bool = False) -> PlanResult:
         """
-        यूजर के लक्ष्य के लिए एक योजना बनाता है।
+        Builds a plan for the user's goal.
 
-        `context_has_target`: caller ke paas already pata hai kis file par kaam
-        ho raha hai (open file, ya pichhli baat) -- to bare "fix it" valid hai.
-        `skip_clarity_check`: gate ko bypass karo (batch/non-interactive runs).
+        `context_has_target`: the caller already knows which file is being
+        worked on (an open file, or a prior turn) -- so a bare "fix it" is
+        valid.
+        `skip_clarity_check`: bypass the gate (batch / non-interactive runs).
         """
-        # 0. Kya goal itna spasht hai ki shuru kiya ja sake?
+        # 0. Is the goal clear enough to start?
         #
-        # Yeh complexity se alag axis hai. Measured: create_plan("fix it")
-        # complexity 0.0 ke saath success=True aur EXECUTE return karta tha --
-        # koi file, repo ya bug bataye bina. Chhota hona aur saaf hona alag
-        # cheezein hain; andaze se galat code likhne se behtar ek sawal hai.
+        # This is a separate axis from complexity. Measured: create_plan("fix
+        # it") returned success=True and EXECUTE with complexity 0.0 -- without
+        # naming a file, repo or bug. Being small and being clear are
+        # different things; one question beats guessing at wrong code.
         if not skip_clarity_check:
             unc = active_inference_gate.assess(
                 user_goal, context_has_target=context_has_target)
@@ -78,37 +80,37 @@ class PlannerAgent(BaseAgent):
                     uncertainty_reasons=list(unc.reasons),
                 )
 
-        # 1. पहले जटिलता (Complexity) चेक करें
+        # 1. Check complexity first.
         complexity_result = self.math_engine.estimate_complexity(user_goal)
 
-        # 2. जटिलता के आधार पर प्रॉम्प्ट तैयार करें
+        # 2. Build the prompt based on complexity.
         if complexity_result.recommendation == "REQUIRES_APPROVAL":
             prompt = f"""
-यूजर का लक्ष्य: {user_goal}
-चेतावनी: यह टास्क बहुत विशाल और जोखिम भरा है (Complexity Score: {complexity_result.complexity_score})।
-निर्देश: इस टास्क को तुरंत execute न करें। यूजर को स्पष्ट रूप से बताएं कि इस टास्क को छोटे, विशिष्ट हिस्सों में तोड़ना होगा।
-केवल एक स्पष्ट चेतावनी और 2-3 सुझाव दें कि इसे कैसे तोड़ा जाए।
-सख्त चेतावनी: मेरे निर्देशों को कभी दोहराएं नहीं।
+User goal: {user_goal}
+Warning: this task is very large and risky (Complexity Score: {complexity_result.complexity_score}).
+Instruction: do NOT execute this task now. Tell the user clearly that it must be broken into
+small, specific pieces. Give only a clear warning and 2-3 suggestions for how to break it down.
+Strict instruction: never repeat my instructions back.
 """
         elif complexity_result.recommendation == "BREAK_DOWN":
             prompt = f"""
-यूजर का लक्ष्य: {user_goal}
-जटिलता: मध्यम/उच्च (Score: {complexity_result.complexity_score})। अनुमानित फाइलें: {complexity_result.estimated_files}
-निर्देश: इस टास्क को 3 से 5 छोटे, तार्किक और क्रमिक चरणों (Steps) में तोड़ें।
-प्रत्येक चरण स्पष्ट होना चाहिए (जैसे: Step 1: फाइल स्ट्रक्चर बनाओ, Step 2: बेस कोड लिखो)।
-आउटपुट केवल चरणों (Steps) की एक सूची होनी चाहिए।
-सख्त चेतावनी: मेरे निर्देशों को कभी दोहराएं नहीं। केवल चरणों की सूची दें।
+User goal: {user_goal}
+Complexity: medium/high (Score: {complexity_result.complexity_score}). Estimated files: {complexity_result.estimated_files}
+Instruction: break this task into 3 to 5 small, logical, sequential steps.
+Each step must be clear (for example: Step 1: create the file structure, Step 2: write the base code).
+The output must be only a list of steps.
+Strict instruction: never repeat my instructions back. Give only the list of steps.
 """
         else:
             prompt = f"""
-यूजर का लक्ष्य: {user_goal}
-जटिलता: कम (Score: {complexity_result.complexity_score})।
+User goal: {user_goal}
+Complexity: low (Score: {complexity_result.complexity_score}).
 
-निर्देश:
-इस टास्क को सीधे execute किया जा सकता है।
-कृपया केवल यह बताएं कि आप इस टास्क को कैसे पूरा करेंगे (1-2 वाक्यों में)।
-सख्त चेतावनी: अपने जवाब में मेरे निर्देशों को कभी दोहराएं नहीं। केवल अपनी योजना लिखें।
-उदाहरण: "मैं एक Python फंक्शन बनाऊंगा जो दो संख्याओं को जोड़ता है।"
+Instruction:
+This task can be executed directly.
+Please state only how you will complete this task (in 1-2 sentences).
+Strict instruction: never repeat my instructions back in your answer. Write only your plan.
+Example: "I will write a Python function that adds two numbers."
 """
 
         # 3. BaseAgent
@@ -118,7 +120,7 @@ class PlannerAgent(BaseAgent):
         response: AgentResponse = self.think(prompt)
 
         if response.success:
-            # चरणों को सरल सूची में बदलें
+            # Turn the steps into a plain list.
             steps = [line.strip() for line in response.content.split('\n') if line.strip()]
             return PlanResult(
                 success=True,
@@ -138,20 +140,21 @@ class PlannerAgent(BaseAgent):
 
 
 # ==============================================================================
-# 3. टेस्टिंग (Testing)
+# 3. Testing
 # ==============================================================================
 
 if __name__ == "__main__":
     print("="*70)
-    print("📋 SALEHA PLANNER AGENT - LIVE TEST")
+    print("SALEHA PLANNER AGENT - LIVE TEST")
     print("="*70)
 
     planner = PlannerAgent(model="qwen2.5-coder:3b")
 
     test_goals = [
-        "एक simple Python script बनाओ जो hello world print करे।",
-        "पूरे प्रोजेक्ट को refactor करो, सभी फाइलों में जाकर database connections को async बनाओ और नए tests लिखो।",
-        "एक नया React component बनाओ और उसे main app में integrate करो।"
+        "Create a simple Python script that prints hello world.",
+        "Refactor the whole project: go through every file, make the database "
+        "connections async, and write new tests.",
+        "Create a new React component and integrate it into the main app."
     ]
 
     for i, goal in enumerate(test_goals, 1):
@@ -161,12 +164,12 @@ if __name__ == "__main__":
         result = planner.create_plan(goal)
 
         if result.success:
-            print(f"✅ Recommendation: {result.recommendation}")
-            print("📝 Plan Steps:")
+            print(f"Recommendation: {result.recommendation}")
+            print("Plan Steps:")
             for step in result.steps[:5]:
-                print(f"  ➔ {step}")
+                print(f"  -> {step}")
             if len(result.steps) > 5:
-                print("  ... (और चरण)")
+                print("  ... (more steps)")
         else:
-            print(f"❌ Failed: {result.raw_response}")
+            print(f"Failed: {result.raw_response}")
         print("-" * 70)
