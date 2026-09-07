@@ -1181,3 +1181,104 @@ the module existed.
 
 Suite: 1591 passed. **All four template commands from the 2026-09-06 audit are
 now honest.**
+
+## Eighteenth pass -- the three "real but misnamed" commands (2026-09-07)
+
+`ARCHITECTURE.md` classified these as real code wearing an oversized name. Two
+of the three turned out to have a live defect underneath the naming, and the
+third had the most dangerous claim found in this whole audit.
+
+### `quantum-sim` -- gates that silently did nothing
+
+The single-qubit linear algebra was always correct. Two things were not.
+
+The name: "M-Theory Tensor Simulator" with "11-dimensional" state and
+"entanglement state vectors". There is one qubit, `[alpha, beta]`. Entanglement
+needs at least two qubits and there is no tensor product. `dimensions = 11` was
+carried on every state and read by nothing.
+
+The bug: unsupported gates were skipped without a word.
+
+```
+simulate_circuit(["H"])                        -> P0=0.5, P1=0.5
+simulate_circuit(["H","Z","S","T","CNOT","Y"]) -> P0=0.5, P1=0.5
+```
+
+Identical, because five of six gates did nothing -- while the summary printed
+"6 gates: H->Z->S->T->CNOT->Y".
+
+Z, S, T and Y are real single-qubit gates and are implemented now, verified
+against standard identities:
+
+```
+HZH == X      -> both give P(|1>) = 1.0
+T . T == S    -> amplitudes match to 1e-9
+```
+
+Amplitudes are complex (S, T and Y require it) and normalisation is asserted
+across gate sequences. Two-qubit gates (CNOT, CZ, SWAP, Toffoli) are rejected
+**by name with the reason** -- they need a second qubit -- and the summary
+reports "5 of 6 gates applied" plus what was not.
+
+This module had **no tests at all**, which is exactly how a silent no-op
+survives. It has 19 now.
+
+### `cognitive` -- a regex miss reported as an assurance
+
+Four "cognitive vectors", each one regex or substring test, with `ast` imported
+and never called -- the same defect `mech_interp.py` had.
+
+The naming was not the danger. The **positive claim** was:
+
+```
+code that POSTs a user's private keys to a remote host:
+    ethical score : 100  EXCELLENT
+    observation   : "Zero unconsented telemetry or surveillance mechanisms found."
+
+the literal string  x = "telemetry"  in a comment:
+    ethical score : 75
+```
+
+The checks are lexical. They see words, not behaviour, and cannot follow data
+flow. Every "nothing found" message now says what was actually searched --
+"No matches for the telemetry word list ... it is not an assurance" -- and the
+summary states the score is four text patterns with arbitrary weights rather
+than a measurement.
+
+### `constitutional-check` -- COMPLIANT for code that wipes the disk
+
+The worst single claim in this audit.
+
+Its docstring listed **five** rules, including "No unauthorized network
+sockets" and "No obfuscated payload execution". There were **four** rules, and
+neither of those two had a pattern at all. The docstring described a guard that
+did not exist.
+
+`is_compliant` was True whenever none of the four regexes matched. Measured, on
+code that walks `/` deleting every file it can reach, opens a socket to a
+remote host, ships `/etc/passwd` down it and execs a downloaded payload:
+
+```
+is_compliant : True
+summary      : "4/4 clauses evaluated. Status: COMPLIANT"
+```
+
+Not one of those behaviours is in the pattern list.
+
+`is_compliant` is removed entirely and replaced by `matched_rules`. The summary
+names the four patterns it checked, states that a miss is not a safety verdict,
+and points at `saleha sast` -- the real AST scanner -- instead. `godel_utility`
+consumed this field to compute a "safety_score"; it now reads `matched_rules`
+and the comment says plainly that it is a pattern-clean rate, not safety.
+
+### The trap, three more times
+
+```
+assertTrue(rep.is_compliant)                       # clean code "compliant"
+assertEqual(report.ethical.rating, "EXCELLENT")    # a word-list miss
+```
+
+and `quantum_compiler.py` had no test file whatsoever, so nothing ever compared
+a circuit with extra gates against one without.
+
+Suite: 1615 passed.

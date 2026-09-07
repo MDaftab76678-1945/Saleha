@@ -142,14 +142,22 @@ def generate_app_cmd(name: str, desc: str, out: str):
 @click.option('--gates', default='H,X,H', help='Comma-separated quantum gates (e.g. H,X,H)')
 def quantum_sim_cmd(gates: str):
     """
-    Quantum Logic & M-Theory Tensor Simulator.
-    
+    Simulate a single-qubit circuit: apply gates to |0>, measure under the
+    Born rule, report the outcome distribution and entropy.
+
+    Supports H, X, Y, Z, S, T, I. Two-qubit gates (CNOT, CZ, SWAP) cannot run
+    on one qubit and are reported as not applied rather than skipped.
+
     Example: saleha quantum-sim --gates H,X,H
     """
     from saleha.core.quantum_compiler import quantum_compiler
     gate_list = [g.strip() for g in gates.split(',') if g.strip()]
     res = quantum_compiler.simulate_circuit(gate_list)
-    console.print(Panel(f'[bold magenta]⚛️ Quantum State Reality Simulation[/bold magenta]\n{res.summary}', border_style='magenta'))
+    colour = 'magenta' if res.all_gates_applied else 'yellow'
+    console.print(Panel(f'[bold {colour}]Single-qubit circuit simulation[/bold {colour}]\n{res.summary}',
+                        border_style=colour))
+    for r in res.rejected_gates:
+        console.print(f'  [yellow]not applied:[/] {r}')
 
 @cli.command(name='search-code')
 @click.argument('query', required=True)

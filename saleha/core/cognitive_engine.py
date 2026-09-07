@@ -65,7 +65,11 @@ class CognitiveEngine:
         eth_dim = CognitiveDimensionScore("Ethical", ethical_score, _rating(ethical_score), ethical_obs, ethical_recs)
         reas_dim = CognitiveDimensionScore("Reasoning", reasoning_score, _rating(reasoning_score), reasoning_obs, reasoning_recs)
 
-        summary = f"Cognitive Health Score: {overall}/100 [T:{temporal_score} S:{spatial_score} E:{ethical_score} R:{reasoning_score}]"
+        summary = (f"Heuristic score {overall}/100 "
+                   f"[loops:{temporal_score} growth:{spatial_score} "
+                   f"telemetry-words:{ethical_score} hints:{reasoning_score}] "
+                   f"-- four text patterns with arbitrary weights, not a "
+                   f"measurement.")
 
         return CognitiveStateReport(
             overall_score=overall,
@@ -86,7 +90,8 @@ class CognitiveEngine:
             obs.append(f"Detected {nested_loops} cubic O(n³) nested loop construct(s).")
             recs.append("Refactor deeply nested loops into hash maps or lookup sets.")
         else:
-            obs.append("Algorithmic loop structures exhibit acceptable O(n) or O(n log n) bounds.")
+            obs.append("No triple-nested `for` pattern matched. This is a text "
+                       "search, not a complexity analysis.")
         return max(0, score), obs, recs
 
     def _eval_spatial(self, code: str) -> tuple[int, List[str], List[str]]:
@@ -97,7 +102,8 @@ class CognitiveEngine:
             obs.append("Unbounded collection growth detected in potential infinite loop.")
             recs.append("Apply a ring buffer or max length eviction policy.")
         else:
-            obs.append("Memory allocation footprint is bounded.")
+            obs.append("No `.append(` inside a `while True:` matched. Nothing "
+                       "else about memory was examined.")
         return max(0, score), obs, recs
 
     def _eval_ethical(self, code: str) -> tuple[int, List[str], List[str]]:
@@ -108,7 +114,10 @@ class CognitiveEngine:
             obs.append("Potential unconsented tracking or telemetry identifier detected.")
             recs.append("Ensure explicit opt-in privacy consent before telemetry dispatch.")
         else:
-            obs.append("Zero unconsented telemetry or surveillance mechanisms found.")
+            obs.append("No matches for the telemetry word list (telemetry, "
+                       "track_user, analytics_send). This is a word search over "
+                       "source text: it cannot see data flow and is not an "
+                       "assurance.")
         return max(0, score), obs, recs
 
     def _eval_reasoning(self, code: str) -> tuple[int, List[str], List[str]]:
@@ -125,14 +134,9 @@ class CognitiveEngine:
             obs.append("Interface documentation docstrings missing.")
             recs.append("Add structured docstrings explaining invariants.")
         if score == 100:
-            obs.append("Strong logical reasoning structure with verified type signatures.")
+            obs.append("Type hints and docstrings are present. Neither was "
+                       "checked for correctness.")
         return max(0, score), obs, recs
 
 
 cognitive_engine = CognitiveEngine()
-
-
-if __name__ == "__main__":
-    _engine = CognitiveEngine()
-    _test_code = "def add(a: int, b: int) -> int:\n    \"\"\"Adds two numbers.\"\"\"\n    return a + b\n"
-    _rep = _engine.evaluate_code(_test_code)

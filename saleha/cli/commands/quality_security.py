@@ -287,8 +287,8 @@ def constitutional_check_cmd(path: str):
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         code = f.read()
     rep = constitutional_guard.audit_code(code, filename=os.path.basename(path))
-    status_col = 'green' if rep.is_compliant else 'red'
-    console.print(Panel(f'[bold {status_col}]📜 Constitutional AI Alignment Report: {path}[/bold {status_col}]\n{rep.summary}', border_style=status_col))
+    status_col = 'red' if rep.matched_rules else 'yellow'
+    console.print(Panel(f'[bold {status_col}]Pattern screen: {path}[/bold {status_col}]\n{rep.summary}', border_style=status_col))
 
 @cli.command(name='godel-utility')
 def godel_utility_cmd():

@@ -205,9 +205,12 @@ def measure_current_state(repo_root: Optional[str] = None,
                 except Exception:
                     continue
                 scanned += 1
-                if not report.is_compliant:
+                if report.matched_rules:
                     offending += 1
         if scanned:
+            # The fraction of scanned files matching none of the guard's four
+            # patterns. Named honestly: a regex miss is not evidence of safety,
+            # so this is a pattern-clean rate, not a safety measurement.
             safety = round(1.0 - (offending / scanned), 4)
             measured["safety_score"] = True
     except Exception:
