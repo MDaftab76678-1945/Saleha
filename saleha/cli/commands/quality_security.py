@@ -153,19 +153,28 @@ def review_cmd(target_file_or_dir, ensemble, min_confidence):
         console.print('[yellow]Pass --ensemble to run the 3-Agent consensus reviewer (e.g. saleha review . --ensemble)[/]')
 
 @cli.command(name='threat')
-@click.option('--output', default='docs/threat_model.md', help='Output path for STRIDE matrix markdown')
-def threat_cmd(output):
+@click.option('--output', default='docs/threat_model.md', help='Output path for the STRIDE checklist')
+@click.option('--dir', 'target_dir', default='.', help='Directory to check')
+def threat_cmd(output, target_dir):
     """
-    Generate automated Microsoft STRIDE Threat Modeling Security Matrix.
-    
+    Check the codebase for the mitigation each STRIDE category needs.
+
+    This is a checklist over source text: it detects whether a mitigation is
+    present, not whether it is correct. Not a penetration test.
+
     Example: saleha threat --output docs/threat_model.md
     """
     from saleha.core.threat_modeler import threat_modeler
-    console.print(f'[bold cyan]🛡️ Synthesizing STRIDE Threat Model Matrix...[/]')
-    rep = threat_modeler.analyze_workspace()
+    console.print(f'[bold cyan]Checking STRIDE mitigations in {target_dir}...[/]')
+    rep = threat_modeler.analyze_workspace(target_dir)
+    if rep.files_scanned == 0:
+        console.print('[yellow]No Python source found: every category is '
+                      'UNKNOWN and this report says nothing about security.[/]')
     saved = threat_modeler.save_report(rep, output_path=output)
     console.print(Markdown(rep.markdown_matrix))
-    console.print(f'\n[bold green]✅ STRIDE Threat Model saved to:[/] [cyan]{saved}[/]\n')
+    console.print(f'[dim]{rep.files_scanned} file(s) scanned | '
+                  f'{rep.mitigated_count} mitigated | {rep.total_threats} gap(s)[/]')
+    console.print(f'[bold green]Checklist saved to:[/] [cyan]{saved}[/]')
 
 @cli.command(name='debt')
 @click.option('--threshold', default=10, help='Cyclomatic complexity hotspot threshold')

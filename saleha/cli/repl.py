@@ -289,7 +289,10 @@ class SalehaREPL:
         if cmd == "/threat":
             from saleha.core.threat_modeler import threat_modeler
             rep = threat_modeler.analyze_workspace()
-            console.print(f"[cyan]STRIDE Threat Model:[/] {rep.total_threats} identified risks (High: {rep.high_threats}, Med: {rep.medium_threats})")
+            console.print(
+                f"[cyan]STRIDE checklist:[/] {rep.files_scanned} file(s) scanned, "
+                f"{rep.mitigated_count} mitigated, {rep.total_threats} gap(s) "
+                f"(High: {rep.high_threats}, Med: {rep.medium_threats})")
             return True
 
         if cmd == "/budget":

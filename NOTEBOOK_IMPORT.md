@@ -1282,3 +1282,62 @@ and `quantum_compiler.py` had no test file whatsoever, so nothing ever compared
 a circuit with extra gates against one without.
 
 Suite: 1615 passed.
+
+## Nineteenth pass -- `threat_modeler.py` never opened a file (2026-09-07)
+
+First of the eight modules that import `ast` and never call it. That signature
+had already led to a real defect three times (`mech_interp`,
+`cognitive_engine`, `constitutional_guard`); it did again.
+
+`analyze_workspace(root_dir)` accepted a directory, assigned it to
+`self.root_dir`, and then never opened it. Six `ThreatFinding` objects were
+appended unconditionally and returned. Both `ast` and `dependency_graph` were
+imported and never used.
+
+Measured:
+
+```
+analyze_workspace(<this repo>)  vs  analyze_workspace(<empty dir>)
+    identical findings : True
+    on the empty dir   : 6 threats, 4 HIGH
+```
+
+It named `SmartPatcher`, `AgenticLoop` and `SelfHealingEngine` as affected
+components of a directory containing no files at all -- and the CLI wrote that
+to `docs/threat_model.md`, where it reads as a real security audit.
+
+### Rebuilt as a checklist that reads the code
+
+Each STRIDE category now looks for the mitigation it needs, and the finding
+records the files that satisfied it:
+
+```
+662 files scanned
+  Spoofing              MITIGATED   saleha/core/deliberation_engine.py
+  Tampering             MITIGATED   saleha/core/architecture_debater.py
+  Repudiation           MITIGATED   examples/plugins/hello_task_logger.py
+  InfoDisclosure        MITIGATED   saleha/core/threat_modeler.py
+  DoS                   MITIGATED   datasets/synthesize_omni_leaderboard_data.py
+  ElevationOfPrivilege  MITIGATED   saleha/agents/__init__.py
+```
+
+An empty tree now reports **UNKNOWN**, not HIGH: "no code" is not "insecure
+code", and the old version could not tell those apart. The report says outright
+that it detects whether a mitigation is *present*, not whether it is *correct*,
+and points at `saleha sast` for the AST scanner.
+
+One thing the first run caught: `.claude/worktrees` holds checkouts of this
+repo, so evidence paths came back as
+`.claude/worktrees/agent-a4f9.../saleha/core/...` -- the same file counted
+twice under a confusing name. `SKIP_DIRS` was widened; 1735 files became 662
+real ones.
+
+### The trap, again
+
+The old test ran against an **empty temp directory** and asserted
+`total_threats >= 6`. It could only pass because the module ignored its input:
+the test encoded the bug as the requirement. Replaced with 12 tests, including
+one that writes a file with a mitigation and asserts it is found and cited, and
+one that asserts two different trees give different results.
+
+Suite: 1625 passed.
