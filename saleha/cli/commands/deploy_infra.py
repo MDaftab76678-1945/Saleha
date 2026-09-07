@@ -104,9 +104,21 @@ def cloud_plan_cmd(goal: str, provider: str, ha: bool, output_dir: Optional[str]
         (out_p / 'values.yaml').write_text(plan.helm_values, encoding='utf-8')
         (out_p / 'iam-policy.json').write_text(plan.iam_policy_json, encoding='utf-8')
         (out_p / 'deploy.yml').write_text(plan.ci_cd_workflow, encoding='utf-8')
-        console.print(f'[bold green]✅ Wrote 5 cloud manifests to:[/] {output_dir}')
-    console.print(Panel(plan.terraform_code[:380] + '\n  ...', title=f'Terraform ({provider.upper()})', border_style='cyan'))
-    console.print(f'[green]💰 Estimated Monthly Cost:[/] ${plan.finops_estimated_monthly_cost:.2f}/mo | [yellow]🛡️ Security CIS Score:[/] {plan.security_score}/100')
+        # A README travels with the files. Someone opening main.tf a week
+        # later has no other way to learn these were never designed for them.
+        (out_p / 'README-SALEHA.md').write_text(
+            '# Generated scaffold -- review before use\n\n'
+            f'Goal recorded: {goal}\n\n'
+            + '\n'.join(f'- {c}' for c in plan.caveats) + '\n',
+            encoding='utf-8')
+        console.print(f'[bold green]Wrote 5 scaffold files + README-SALEHA.md to:[/] {output_dir}')
+    console.print(Panel(plan.terraform_code[:380] + '\n  ...', title=f'Terraform template ({provider.upper()})', border_style='cyan'))
+    cost = plan.finops_estimated_monthly_cost
+    console.print(f'[yellow]Template cost figure:[/] ${cost:.2f}/mo '
+                  f'[dim](a constant, not an estimate)[/]')
+    console.print('[yellow]No security analysis was performed.[/]')
+    for c in plan.caveats:
+        console.print(f'  [dim]- {c}[/]')
 
 @cli.command(name='silicon-build')
 @click.argument('goal')

@@ -1025,3 +1025,56 @@ stays profile-less.
 All four verified by probe before and after; 4 regression tests added to
 `test_orchestrator_honesty.py`. Suite: 1581 passed.
 
+
+## Sixteenth pass — `cloud-plan` wrote plausible infrastructure to disk (2026-09-07)
+
+First of the four template commands. Taken first because it is the only one
+that writes files a user might actually deploy.
+
+### What reading it in full turned up
+
+The twelfth pass measured that four of five artifacts are byte-identical across
+unrelated goals. Reading all 204 lines found two things that measurement missed:
+
+**The provider option only substitutes a name.** Ask for `gcp` or `azure` and
+the Terraform is still AWS -- an S3 backend, `us-east-1`,
+`terraform-aws-modules/vpc/aws`, AWS subnet CIDRs -- with `hashicorp/gcp` in
+the `required_providers` block, which is not a real provider address at all
+(it is `hashicorp/google`). That configuration cannot `terraform init`.
+
+**The "IAM Least-Privilege" policy grants `"Resource": "*"`.** The docstring
+advertised "IAM Least-Privilege Policies & CIS Benchmark Hardening".
+
+Plus the constants already known: cost always 142.50 (or 48.00 without HA),
+security score always the literal 96.
+
+And `--output-dir` writes all of it to disk as `main.tf`, `iam-policy.json`,
+`k8s-deployment.yaml` -- files that look entirely real a week later.
+
+### Not deleted, made honest
+
+A scaffold has real value: a starting set of IaC files beats an empty
+directory. What had no value was the claim that it was designed for the goal.
+
+- `security_score` is `None`. There was no analysis; a number implied one.
+- `is_template=True` and a `caveats` list travel on the result, so no caller
+  can present it as generated infrastructure by accident.
+- A non-AWS provider request sets `provider_mismatch` **and** prepends a
+  warning comment into the Terraform itself, so it survives being written to
+  disk and read later out of context.
+- `--output-dir` now also writes `README-SALEHA.md` listing every caveat next
+  to the files. Someone opening `main.tf` a week later has no other way to
+  learn these were never designed for them.
+- The docstring and CLI help say what it is: a scaffold, not a synthesis.
+
+### The trap again
+
+`test_specialized_orchestrators.py` asserted
+`assertGreaterEqual(plan.security_score, 90)` -- pinning the fabricated 96 in
+place, exactly like `assert result.tests_passed is True` did for `/autopr`.
+Replaced with tests that assert the honesty: no score, the template flag set,
+identical output across unrelated goals, and the provider mismatch reported.
+
+Suite: 1584 passed. Remaining templates: `silicon-build`, `causal-eval`,
+`multirepo` -- none of which writes to disk.
+

@@ -1,12 +1,41 @@
 """
-Saleha Core: Cloud Infrastructure & IaC Orchestrator
+Saleha Core: Cloud Infrastructure scaffold generator.
 
-Autonomously synthesizes end-to-end cloud infrastructure:
-1. Terraform / OpenTofu Multi-AZ Architecture
-2. Kubernetes Helm Charts & Ingress Topologies
-3. FinOps Cloud Cost & Budget Optimization
-4. IAM Least-Privilege Policies & CIS Benchmark Hardening
-5. Automated CI/CD Deployment Workflows
+Emits a fixed starting-point set of IaC files -- Terraform, Kubernetes
+manifests, Helm values, an IAM policy and a CI/CD workflow -- so a project has
+something to edit instead of a blank directory.
+
+## Read this before trusting the output
+
+**These are templates. They are not designed from your request.** Nothing here
+reads the goal, calls a model, or reasons about infrastructure. Measured, with
+two unrelated goals:
+
+    "Design a multi-region Postgres cluster"  vs  "Write a haiku about frogs"
+
+    kubernetes_manifests : byte-identical
+    helm_values          : byte-identical
+    iam_policy_json      : byte-identical
+    ci_cd_workflow       : byte-identical
+    terraform_code       : differs on 3 lines -- all of them the goal string
+                           echoed into a comment, the S3 state key and a tag
+
+Specific things the caller must know:
+
+- **The provider argument only changes a name.** Ask for `gcp` or `azure` and
+  you still get AWS: an S3 backend, `us-east-1`, `terraform-aws-modules/vpc/aws`
+  and AWS subnet CIDRs, with `hashicorp/gcp` written in the required_providers
+  block -- which is not even a real provider address (it is `hashicorp/google`).
+  That configuration cannot `terraform init`.
+- **The cost is a constant**, not an estimate: 142.50 with HA, 48.00 without,
+  for any architecture in any region.
+- **The security score is the literal 96**, from no analysis of anything.
+- **The IAM policy is not least-privilege.** It grants its actions on
+  `"Resource": "*"`.
+
+Treat the output as a skeleton to rewrite, never as a reviewed design. The
+dataclass carries `is_template=True` and `caveats` so callers cannot present it
+as generated infrastructure by accident.
 """
 
 from __future__ import annotations
@@ -18,6 +47,19 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 
 
+# Every caveat below is a measured fact about this generator, not a hedge.
+# They travel with the result so a caller cannot render it as a real design.
+TEMPLATE_CAVEATS = (
+    "These files are fixed templates; nothing was designed from the goal.",
+    "The provider option only substitutes a name -- the Terraform is AWS "
+    "regardless, and will not `terraform init` for gcp/azure.",
+    "The monthly cost is a constant, not an estimate.",
+    "The IAM policy grants its actions on Resource '*'; it is not "
+    "least-privilege.",
+    "No security analysis was performed.",
+)
+
+
 @dataclass
 class CloudInfraPlan:
     goal: str
@@ -25,10 +67,18 @@ class CloudInfraPlan:
     terraform_code: str
     kubernetes_manifests: str
     helm_values: str
-    finops_estimated_monthly_cost: float
     iam_policy_json: str
     ci_cd_workflow: str
-    security_score: int  # 0 to 100
+    # Constants, not measurements. `None` is the honest value for a figure
+    # nothing computed; the previous code returned 142.50 and 96 for every
+    # architecture in every region, presented as an estimate and a score.
+    finops_estimated_monthly_cost: Optional[float] = None
+    security_score: Optional[int] = None
+    # Fixed template output, not generated from the request.
+    is_template: bool = True
+    caveats: List[str] = field(default_factory=lambda: list(TEMPLATE_CAVEATS))
+    # Set when the requested provider is not the one the template emits.
+    provider_mismatch: str = ""
 
 
 class CloudInfraOrchestrator:
@@ -187,6 +237,27 @@ jobs:
       - run: terraform apply -auto-approve
 """
 
+        # The Terraform body is AWS whatever provider was asked for. Say so in
+        # the result rather than letting the caller discover it at `terraform
+        # init`, and warn inside the file itself so it survives being written
+        # to disk and read later out of context.
+        mismatch = ""
+        if provider != "aws":
+            mismatch = (
+                f"Requested provider '{provider}', but the Terraform emitted "
+                f"is AWS (S3 backend, us-east-1, terraform-aws-modules/vpc/aws). "
+                f"It will not initialise as {provider}."
+            )
+            tf_template = (
+                f"# WARNING: requested provider was '{provider}', but this is "
+                f"an AWS template. It will not `terraform init` unmodified.\n"
+                + tf_template
+            )
+
+        caveats = list(TEMPLATE_CAVEATS)
+        if mismatch:
+            caveats.insert(0, mismatch)
+
         return CloudInfraPlan(
             goal=goal,
             cloud_provider=provider,
@@ -196,7 +267,10 @@ jobs:
             finops_estimated_monthly_cost=est_cost,
             iam_policy_json=iam_json,
             ci_cd_workflow=ci_cd,
-            security_score=96
+            security_score=None,
+            is_template=True,
+            caveats=caveats,
+            provider_mismatch=mismatch,
         )
 
 

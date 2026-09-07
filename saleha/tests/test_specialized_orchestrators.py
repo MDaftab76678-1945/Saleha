@@ -44,7 +44,41 @@ class SpecializedOrchestratorsTests(unittest.TestCase):
         self.assertIn("replicaCount: 3", plan.helm_values)
         self.assertGreater(plan.finops_estimated_monthly_cost, 0)
         self.assertEqual(plan.cloud_provider, "aws")
-        self.assertGreaterEqual(plan.security_score, 90)
+        # `assertGreaterEqual(plan.security_score, 90)` used to be here. It
+        # pinned a hardcoded 96 that came from no analysis of anything -- the
+        # same shape of trap as the other tests that asserted fabricated
+        # values. There is no score now, and the plan says it is a template.
+        self.assertIsNone(plan.security_score)
+        self.assertTrue(plan.is_template)
+        self.assertTrue(plan.caveats)
+
+    def test_cloud_plan_is_marked_as_a_template_not_a_design(self):
+        """
+        Measured: two unrelated goals produce byte-identical k8s manifests,
+        helm values, IAM policy and CI/CD workflow. The Terraform differs only
+        where the goal string is echoed.
+        """
+        a = self.cloud.plan_and_generate_infra(goal="Multi-region Postgres")
+        b = self.cloud.plan_and_generate_infra(goal="Write a haiku about frogs")
+        self.assertEqual(a.kubernetes_manifests, b.kubernetes_manifests)
+        self.assertEqual(a.iam_policy_json, b.iam_policy_json)
+        self.assertTrue(a.is_template)
+
+    def test_non_aws_provider_is_reported_not_silently_wrong(self):
+        """
+        The Terraform is AWS whatever provider is asked for -- S3 backend,
+        us-east-1, terraform-aws-modules/vpc/aws -- and `hashicorp/gcp` is not
+        even a real provider address. It cannot `terraform init`.
+        """
+        plan = self.cloud.plan_and_generate_infra(goal="x", cloud_provider="gcp")
+        self.assertTrue(plan.provider_mismatch)
+        self.assertIn("AWS", plan.provider_mismatch)
+        self.assertTrue(plan.terraform_code.startswith("# WARNING"))
+
+    def test_aws_provider_has_no_mismatch_warning(self):
+        plan = self.cloud.plan_and_generate_infra(goal="x", cloud_provider="aws")
+        self.assertEqual(plan.provider_mismatch, "")
+        self.assertFalse(plan.terraform_code.startswith("# WARNING"))
 
     def test_multirepo_orchestrator(self):
         repos = ["payments-api", "web-frontend", "notification-worker"]
