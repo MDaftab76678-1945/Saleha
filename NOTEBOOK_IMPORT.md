@@ -533,3 +533,78 @@ with the leave-one-out blind spot for pieces that only matter together
 model; one GPU here cannot hold 8B + 1B. The notebook's own conclusion
 (`chat-Understanding Each Point.txt:8904`) was to defer it until the project
 moves to server hardware. Unchanged.
+
+## Ninth pass — `agent_council.py` returned constants (2026-09-07)
+
+`saleha council "<problem>"` was a pure constant function. Every method in
+`agent_council.py` returned a literal:
+
+- `generate_proposals()` returned three hand-written snippets (an HMAC
+  validator, an `lru_cache` wrapper, a `Protocol` class) with the problem
+  string interpolated into a comment and ignored everywhere else.
+- The twelve dimension scores were literals (98/85/90/88, 88/99/92/95,
+  90/88/98/90).
+- `critique_proposals()` returned six fixed sentences naming those snippets.
+- `debate_and_synthesize()` emitted a fixed `HighThroughputService` class and
+  a trade-off analysis asserting each critique had been "resolved".
+
+Measured before the fix:
+
+```
+debate_and_synthesize("Design a distributed rate limiter")
+debate_and_synthesize("Write a haiku about frogs")
+
+consensus_code identical (mod the echoed problem string) : True
+trade_off_analysis identical                             : True
+winner / score for both      : Performance Optimizer, 93.3/100
+```
+
+The Performance Optimizer won every debate ever run, because its 99 was the
+largest literal in the file. The haiku request got HMAC signature-validation
+boilerplate rated 93.3/100.
+
+Rebuilt on the same convention as the pass-six orchestrators
+(`recursive_solver.py`): the three personas stay as **prompt framings**, and
+the model writes the proposal for the actual problem. Each persona scores its
+own proposal on all four dimensions, then critiques the other two — shown
+their real generated code, not a fixed description of it. The three proposal
+calls are independent, so they go out as one batch, and so do the critiques.
+
+Verified against `qwen2.5-coder:3b`:
+
+```
+"Design a token bucket rate limiter"  -> Performance Optimizer 90.2, real token-bucket code
+"Parse an ISO-8601 duration string"   -> Senior Architect      88.2, real regex parser
+"Thread-safe LRU cache with TTL"      -> tie 88.2, reported as a tie
+```
+
+Different winners and different code per problem — the property the constant
+version could not have.
+
+**Honesty carried through to the output.** A persona whose call fails or
+returns unparseable JSON keeps every score at 0 and is marked `analysed=False`,
+so it cannot win by default and is listed as failed; all three failing gives
+`degenerate=True` with no code at all rather than a fabricated consensus. A tie
+at the top is reported as a tie-break, not a judgement (this fires on real runs
+— the LRU cache problem above). The trade-off table says the scores are
+self-reported and that nothing was executed or tested, and critiques are
+"recorded, not resolved" — the old text claimed each objection had been fixed
+in code that was a constant and therefore contained none of the fixes.
+
+The consensus code is now the winning proposal as written, not a claimed merge
+of all three. Merging three independent designs into one correct program is not
+something this pipeline verifies, so it is no longer claimed.
+
+Worth stating plainly: the winning code is a *draft*. In the LRU run above the
+model imported `TTLCache` from `functools`, which is wrong. That is why the
+output now states scores are self-reported and nothing was executed — the
+command ranks three drafts, it does not certify one.
+
+21 tests replaced the 4 that existed. The old ones asserted the fake behaviour
+directly (`assertIn("HighThroughputService", res.consensus_code)`), so they
+would have passed forever while the command stayed broken. The new suite runs
+offline against a stub engine and pins the properties that separate real from
+constant: the problem reaches every persona's prompt, each persona can win,
+critics see the others' real code and never their own, failures score 0, and
+the old template is asserted absent.
+

@@ -101,20 +101,41 @@ def debate_cmd(topic: str, rounds: int):
 @click.argument('problem')
 def council_cmd(problem):
     """
-    Assemble Multi-Agent Architectural Council to debate & synthesize optimal solution.
-    
+    Assemble a three-persona architectural council: each proposes a solution,
+    scores it, and critiques the others. The highest self-scored proposal wins.
+
+    Scores are self-reported by each persona, not measured -- no proposal is
+    executed or tested. Treat the output as three drafts and a ranking, not a
+    verified optimum.
+
     Example: saleha council "Design a high-throughput distributed caching layer"
     """
     from saleha.core.agent_council import agent_council
     console.print(f'[bold cyan]👥 Assembling Multi-Agent Architectural Council for:[/] [yellow]{problem}[/]\n')
     res = agent_council.debate_and_synthesize(problem)
+
+    if res.degenerate:
+        console.print('[bold red]No consensus:[/] every council member failed to '
+                      'return a usable proposal. Nothing was synthesized.')
+        console.print(f'[dim]Failed: {", ".join(res.failed_personas)}[/]')
+        return
+
     for p in res.proposals:
+        if not p.analysed:
+            console.print(f'[bold magenta]{p.persona_name}[/] — '
+                          f'[red]no analysis returned (excluded)[/]\n')
+            continue
         console.print(f'[bold magenta]{p.persona_name}[/] — [italic]{p.perspective}[/] (Score: {p.overall_score}/100)')
         for arg in p.key_arguments:
             console.print(f'  • {arg}')
         console.print()
+
     console.print(f'[bold green]🏆 Consensus Winner:[/] {res.winning_persona} (Consensus Score: {res.total_consensus_score}/100)')
-    console.print(f'\n[bold cyan]Synthesized Consensus Code:[/]\n{res.consensus_code}')
+    if res.tied:
+        console.print(f'[yellow]Tie at the top between {", ".join(res.tied_personas)} — '
+                      f'winner is a tie-break, not a judgement.[/]')
+    console.print(f'\n[bold cyan]Winning Proposal Code:[/]\n{res.consensus_code}')
+    console.print(f'\n{res.trade_off_analysis}')
 
 @cli.command(name='resolve-conflicts')
 @click.argument('path', default='.')
