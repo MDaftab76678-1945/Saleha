@@ -155,27 +155,61 @@ def swe_export_cmd(output, scorecard, model):
 @cli.command(name='resolve-issue')
 @click.argument('issue_ref')
 @click.option('--branch', '-b', default=None, help='Custom branch name')
-@click.option('--auto-pr', is_flag=True, help='Automatically open Pull Request on GitHub')
-def resolve_issue_cmd(issue_ref, branch, auto_pr):
+@click.option('--auto-pr', is_flag=True, help='Open a Pull Request on GitHub')
+@click.option('--test-command', default=None,
+              help='Command to run as verification, e.g. "pytest -q". '
+                   'Without it nothing is verified.')
+def resolve_issue_cmd(issue_ref, branch, auto_pr, test_command):
     """
-    Autonomously fetch a GitHub issue, fix it on a dedicated branch, test, and open a PR.
-    
-    Example: saleha resolve-issue 42 --auto-pr
+    Fetch a GitHub issue and create a fix branch with a PR description.
+
+    This prepares the branch; it does not write the fix. Pass --test-command
+    to have the result reflect a real test run.
+
+    Example: saleha resolve-issue 42 --test-command "pytest -q"
     """
+    import shlex
     from saleha.core.issue_resolver import issue_resolver
-    console.print(f'[bold cyan]🐙 Autonomous GitHub Issue Resolver started for:[/] [yellow]{issue_ref}[/]')
-    res = issue_resolver.resolve_issue(issue_ref=issue_ref, branch_name=branch, auto_pr=auto_pr)
-    if res.success:
-        console.print(f'[bold green]✅ Issue #{res.issue.issue_number} Resolved Successfully![/]')
-        console.print(f'  • Branch: [cyan]{res.branch_name}[/]')
-        if res.diff_result:
-            console.print(f'  • Changes: [green]{res.diff_result.change_summary}[/]')
-        if res.pr_result and res.pr_result.pr_url:
-            console.print(f'  • Pull Request: [bold blue]{res.pr_result.pr_url}[/]')
-        else:
-            console.print(f"  • Status: [yellow]{(res.pr_result.message if res.pr_result else 'Ready')}[/]")
+    console.print(f'[bold cyan]Preparing fix branch for:[/] [yellow]{issue_ref}[/]')
+
+    res = issue_resolver.resolve_issue(
+        issue_ref=issue_ref,
+        branch_name=branch,
+        auto_pr=auto_pr,
+        test_command=shlex.split(test_command) if test_command else None,
+    )
+
+    if not res.success and res.error:
+        console.print(f'[bold red]Failed:[/] {res.error}')
+        raise click.exceptions.Exit(1)
+
+    # The old version printed "Issue #N Resolved Successfully!" here on a run
+    # that created an empty branch, fabricated a diff and ran no tests. The
+    # headline now states what actually happened.
+    colour = 'green' if res.tests_passed else (
+        'red' if res.tests_passed is False else 'yellow')
+    console.print(f'[bold {colour}]{res.summary}[/]')
+    console.print(f'  Branch: [cyan]{res.branch_name}[/]')
+    if res.diff_result:
+        console.print(f'  Changes: {res.diff_result.change_summary}')
+    if res.tests_passed is None:
+        console.print('  Tests: [yellow]not run[/]')
     else:
-        console.print(f'[bold red]❌ Resolution failed:[/] {res.error}')
+        console.print(f"  Tests: "
+                      f"[{'green' if res.tests_passed else 'red'}]"
+                      f"{'passed' if res.tests_passed else 'FAILED'}[/]")
+    if res.pr_result and res.pr_result.pr_url:
+        console.print(f'  Pull Request: [bold blue]{res.pr_result.pr_url}[/]')
+    elif res.pr_result:
+        console.print(f'  Status: [yellow]{res.pr_result.message}[/]')
+
+    if res.caveats:
+        console.print('\n[bold yellow]Not established by this run:[/]')
+        for caveat in res.caveats:
+            console.print(f'  - {caveat}')
+
+    if res.tests_passed is False:
+        raise click.exceptions.Exit(1)
 
 @cli.command(name='benchmark-eval')
 @click.option('--model', default='auto', help='Model to benchmark')

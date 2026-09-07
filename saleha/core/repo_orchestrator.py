@@ -42,6 +42,7 @@ description cannot mutate the user's repository.
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -178,6 +179,11 @@ class AutonomousRepoOrchestrator:
 
         Porcelain format is `XY <path>`, and a rename is `R  old -> new`; the
         new name is the one a reviewer cares about.
+
+        Deletions are skipped. A `D setup.py` line is a real change, but the
+        path no longer exists on disk, and this list is consumed as "files you
+        can open" -- reporting a path that cannot be opened is the same class
+        of claim this module was rewritten to stop making.
         """
         paths = []
         for line in status.get("files", []) or []:
@@ -185,10 +191,14 @@ class AutonomousRepoOrchestrator:
             if not entry:
                 continue
             parts = entry.split(None, 1)
+            code = parts[0] if len(parts) > 1 else ""
             path = parts[1] if len(parts) > 1 else parts[0]
             if " -> " in path:
                 path = path.split(" -> ", 1)[1]
-            paths.append(path.strip().strip('"'))
+            path = path.strip().strip('"')
+            if "D" in code and not os.path.exists(path):
+                continue
+            paths.append(path)
         return paths
 
     @staticmethod
