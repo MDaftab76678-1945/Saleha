@@ -1,8 +1,11 @@
 """Unit & Integration Test Suite for Saleha v3.5.0 Ultimate Frontier Intelligence Engines:
 1. MCTSSearchEngine (Test-Time Reasoning Search)
 2. SpeculativeAccelerator (Dual-Engine Accelerated Stream)
-3. SWERepoFixerEngine (Multi-File Repo Bug Resolution)
-4. SelfEvolvingLoop (Continuous Learning Buffer)
+3. SelfEvolvingLoop (Continuous Learning Buffer)
+
+SWERepoFixerEngine used to be tested here. It was deleted: it returned
+constants. The test below it asserted `res.tests_passing` -- the hardcoded
+True -- which is why the module stayed broken for as long as it existed.
 """
 
 import ast
@@ -10,7 +13,6 @@ import unittest
 
 from saleha.core.mcts_search_engine import MCTSSearchEngine, mcts_search_engine, MCTSExecutionResult
 from saleha.core.speculative_accelerator import SpeculativeAccelerator, speculative_accelerator, SpeculativeMetrics
-from saleha.core.swe_repo_fixer import SWERepoFixerEngine, swe_repo_fixer, SWERepoFixResult
 from saleha.core.self_evolving_loop import SelfEvolvingLoop, self_evolving_loop, EvolvingBufferStats
 from saleha.cli.chat_session import SwarmChatSession
 
@@ -40,17 +42,22 @@ class TestUltimateFrontierSuite(unittest.TestCase):
         self.assertGreaterEqual(metrics.acceptance_rate_pct, 50.0)
         self.assertGreaterEqual(metrics.dual_engine_speedup, 0.0)
 
-    def test_swe_repo_fixer_resolves_multi_file_issue(self):
-        fixer = SWERepoFixerEngine()
-        res: SWERepoFixResult = fixer.resolve_issue(
-            issue_title="Fix JWT auth token validation and session expiry",
-            issue_body="Tokens with expired timestamps are not properly rejected in gateway."
-        )
-        self.assertTrue(res.tests_passing)
-        self.assertGreaterEqual(res.total_files_affected, 2)
-        self.assertTrue(res.unified_git_diff)
-        self.assertIn("--- a/", res.unified_git_diff)
-        self.assertIn("+++ b/", res.unified_git_diff)
+    def test_swe_repo_fixer_is_gone(self):
+        """
+        `swe_repo_fixer` returned constants: two unrelated issues gave the
+        identical root_cause_analysis, target files were chosen by
+        `if "auth" in description`, the patch was a fixed string returning
+        'RESOLVED_INVARIANT_CLEAN', and tests_passing was True with nothing
+        ever run.
+
+        The test that stood here asserted `res.tests_passing` -- the hardcoded
+        True -- so it would have passed forever while the module was a
+        template. Use `saleha resolve-issue`, which creates a real branch and
+        runs the test command it is given.
+        """
+        import importlib
+        with self.assertRaises(ImportError):
+            importlib.import_module("saleha.core.swe_repo_fixer")
 
     def test_self_evolving_loop_ingests_and_buffers(self):
         loop = SelfEvolvingLoop(quality_threshold=0.80)

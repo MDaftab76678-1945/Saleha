@@ -46,7 +46,6 @@ from saleha.core.swarm_cluster_node import swarm_cluster
 from saleha.core.ephemeral_container_runner import container_runner
 from saleha.core.mcts_search_engine import mcts_search_engine
 from saleha.core.speculative_accelerator import speculative_accelerator
-from saleha.core.swe_repo_fixer import swe_repo_fixer
 from saleha.core.self_evolving_loop import self_evolving_loop
 from saleha.tools.release_manager import release_manager
 
@@ -532,11 +531,24 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_swe_fix_command(self, issue: str):
-        self.console.print(f"\n[bold cyan]🐙 SWE-bench Multi-File Repo Fixer:[/] [yellow]{issue}[/]")
-        res = swe_repo_fixer.resolve_issue(issue)
-        self.console.print(f"[bold green]✨ Issue resolved across {res.total_files_affected} files in {res.resolution_time_ms}ms (Tests: PASS)![/bold green]\n")
-        self.console.print(Panel(res.unified_git_diff, title="[bold green]Unified Multi-File Git Diff[/]", border_style="green"))
-        self.console.print()
+        """
+        `swe_repo_fixer` was deleted: it returned constants. Two unrelated
+        issues produced the identical root_cause_analysis, target files were
+        picked by `if "auth" in description`, the "patch" was a fixed string
+        returning 'RESOLVED_INVARIANT_CLEAN', and tests_passing was True with
+        nothing ever run. This handler printed "(Tests: PASS)" on top of it.
+
+        Point at the command that does the real work instead of reimplementing
+        a weaker version here.
+        """
+        self.console.print(
+            f"\n[bold yellow]/swe-fix has been removed.[/]\n"
+            f"It reported a resolved issue and a passing test run without "
+            f"reading a file or running anything.\n\n"
+            f"Use the real command, which creates a branch and runs the tests "
+            f"you name:\n"
+            f'  [cyan]saleha resolve-issue {issue} --test-command "pytest -q"[/]\n'
+        )
 
     def _execute_evolving_status_command(self):
         stats = self_evolving_loop.get_stats()
