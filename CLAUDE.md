@@ -505,8 +505,19 @@ Current checklist for existing commands:
 
 - [x] `design-vision` — template (hardcoded component list, no input inference)
 - [x] `design-model` — template (hardcoded architecture params)
-- [ ] `vision` (in voice_vision.py line 54–78) — claims real vision model via
-  llava/qwen-vl; untested in this environment.
+- [x] `vision` (`vision_coder.py`) — **real, not a template.** Probed:
+  no vision model installed on this machine (`find_vision_model()` returned
+  `None`), so `used_vision=False` for both test calls — correctly reported,
+  not faked. But the two different specs ("simple login form" vs "complex
+  dashboard with charts") produced **different code** (338 vs 350 chars,
+  `layout_spec[:40]` actually varies the output), and the orchestrator's
+  Planner/Coder stages genuinely ran (visible `[Planner] Complexity Analysis`,
+  `[Coder] Generating code...` logs) before falling back to template because
+  the local LLM call did not complete. `vision_backend.py`'s image path calls
+  a real Ollama `/api/generate` endpoint with `images: [b64]` — no template
+  there either. This command should be installed with a vision model
+  (`ollama pull llava` or similar) to exercise the true vision path; current
+  behavior on this machine is an honest fallback, not a fabrication.
 - [ ] All other 150+ commands — apply the checklist incrementally.
 
 ---
