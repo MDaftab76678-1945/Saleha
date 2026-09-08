@@ -155,29 +155,28 @@ UnifiedDiffResult` on every real invocation, and behind that crash reported
 `requires-python` said 3.12 and the venv ran 3.11. `setup.py` deleted (it
 duplicated `pyproject.toml` and had drifted).
 
-**Next candidates, not yet examined.** Of the eight modules that import `ast`
-and never call it, this signature has now flagged a real defect five times for
-five (`mech_interp.py`, `cognitive_engine.py`, `constitutional_guard.py`,
-`threat_modeler.py`, `multi_file_auto_repair.py`). Remaining:
+**`swe_repo_fixer.py` and `extreme_contrastive_trainer.py` — deleted, not
+fixed** (commit `f9814b6`, 2026-09-07). Both confirmed pure templates (see
+git history for the probes); no production caller for either, so the fix was
+removal rather than a rebuild. `apex_97_validator.py`'s hardcoded per-domain
+scores were fixed properly in the same commit (real benchmarking, not
+deleted — it had a caller). Verify these are still gone before citing them as
+open work; this file said "not yet fixed" about them for a stale audit pass.
 
-- `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+
-  files". **Probed and confirmed a pure template**: two unrelated issues give
-  identical `root_cause_analysis`, `tests_passing=True` and
-  `verified_no_regressions=True` with nothing run, and target files chosen by
-  `if "auth" in desc`. Not yet fixed. No production caller.
-- `extreme_contrastive_trainer.py` (114) — "InfoNCE, 3σ margin, eliminates
-  subtle hallucinations". **Probed and confirmed a pure template**: 5 triplets
-  and 500 both return `final_loss 0.12, sigma 3.42`; every "hard negative" is
-  the same binary-search off-by-one. Not yet fixed. No production caller.
-- `docs_generator.py` (187), `swarm_self_play_arena.py`, `code_executor.py`
-  (the unused import there is likely harmless — it is a real, working sandbox).
+**Next candidates, not yet examined**: `docs_generator.py` (187),
+`swarm_self_play_arena.py`, `code_executor.py` (the unused import there is
+likely harmless — it is a real, working sandbox).
 
-**`quality_guard.py` is real but has three design issues** (read in full, not
-yet fixed): its `SOV-001` "brand leak" rule marks `"claude-opus-5"` as a
-CRITICAL violation and fails the file — naming a model you actually call is
-not a defect; the score clamps at 0.0 so 25 and 400 untyped functions look
-identical; and `check_workspace`'s `all_passed` is computed over the first 50
-files `os.walk` reached without the key saying it is a sample.
+**`quality_guard.py` — all three design issues fixed** (2026-09-08, commits
+in this session). `SOV-001` removed entirely (naming a model you call is not
+a defect). `raw_score` added, uncapped, alongside the clamped
+`quality_score`, so 25 and 400 untyped functions are distinguishable for
+ranking. `check_workspace` now returns `files_found`, `files_analyzed`,
+`truncated`, and `scan_is_complete` instead of a silent partial scan. Also
+found and fixed while auditing further: `ScopeVisitor` had no `visit_Lambda`,
+so any lambda parameter scored a false CRITICAL `UNDEF-001` (caught auditing
+`saleha/tools/base.py`'s `lambda params: self.execute(**params)`). 20 tests
+in `test_quality_guard.py`, full suite 1750 passed / 14 skipped.
 
 **`saleha/sandbox/` does not import on this machine** (found in pass 23's
 scan, not yet fixed). `NOTEBOOK_IMPORT.md` line 13 calls it "**Real sandbox**":
