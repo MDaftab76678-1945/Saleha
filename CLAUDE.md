@@ -155,6 +155,29 @@ UnifiedDiffResult` on every real invocation, and behind that crash reported
 `requires-python` said 3.12 and the venv ran 3.11. `setup.py` deleted (it
 duplicated `pyproject.toml` and had drifted).
 
+**The full test suite had never once completed — fixed** (pass 30). Fixing
+`swarm_pipeline_engine.py` (above) required a full-suite run to check for
+side effects; it hung indefinitely. Investigation found no `conftest.py`
+existed anywhere in the project, so `SALEHA_TEST_MODE` — which three modules
+already checked to route around real model calls — was never actually set
+for a normal `pytest saleha/tests/` run, only when someone remembered to
+export it by hand. Added `saleha/tests/conftest.py` to set it session-wide,
+then found and fixed three separate modules that each independently hung
+the suite for 15+ minutes on an unguarded real Ollama call:
+`ttc_solver.py` (the REPL's `model="mock"` never reached its module-level
+singleton), `demo_cli.py`'s `dogfood_cmd` (which also turned out to
+fabricate "ALL 9 ENGINEERING PILLARS VALIDATED" while checking only 6, all
+hardcoded PASS — fixed alongside the hang, see NOTEBOOK_IMPORT.md), and
+`BaseAgent.__init__` (the root fix, since any future module built on
+`BaseAgent` would have hit the same gap). Fixing the third one broke 7 tests
+that were relying on real fallback behavior the mock now short-circuited —
+both breaks were genuine test-intent conflicts, not fixed by reverting;
+resolved by narrowing both guards (`self.inference is None`,
+`model != "mock"`). Final verified result:
+`1686 passed, 14 skipped, 60 subtests passed in 80.31s` — zero failures, no
+manual setup. Full multi-stage writeup in `NOTEBOOK_IMPORT.md`, "Thirtieth
+pass".
+
 **Design UI synthesis commands are templates** (pass 30 finding):
 `design-vision` (CLI in `voice_vision.py` line 104–115) calls
 `vision_designer.synthesize_from_wireframe()`, which **generates hardcoded
@@ -302,9 +325,16 @@ worth deciding whether they should exist before maintaining them.
 - `pip install -e ".[dev]"` alone does **not** give a passing test run: two SMT
   tests need `z3-solver`, which lives in the `[formal]` extra. A working test
   environment also wants `tree-sitter*` and `numpy`.
-- Test suite: `python -m pytest saleha/tests/ -q` — ~1661 tests, takes ~5 min.
-  Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and emoji in output will
-  otherwise crash the run.
+- Test suite: `python -m pytest saleha/tests/ -q` — 1686 passed, 14 skipped,
+  60 subtests, ~80s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+  emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
+  sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
+  export needed as of pass 30. Before that fix the suite had never once
+  completed: three separate modules (`ttc_solver.py`, `demo_cli.py`,
+  `base_agent.py`, see "Known open work" below) made unguarded real Ollama
+  calls and could hang 15+ minutes each. If a test hangs again, it is very
+  likely the same shape of bug — a module reaching a real model call it
+  should have mocked under `SALEHA_TEST_MODE`.
 - TypeScript: `npx turbo run typecheck` must stay at 8/8. It was 0/6 and
   failing until pass 22.
 - `radon` is a dev dependency; `test_mech_interp.py` cross-checks our own

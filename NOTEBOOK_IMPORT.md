@@ -2048,3 +2048,135 @@ not a sample.
 `test_end_to_end_swarm_execution` deliberately keeps the hyphenated goal
 string, with a comment explaining why, so this exact regression -- a
 fabrication hiding a syntax error -- cannot silently return.
+
+### The full suite had never once completed: three hangs, one per module
+
+Fixing `swarm_pipeline_engine.py` above required a full-suite run to check
+for side effects. It never finished. This section is that investigation:
+three unrelated modules, each blocking the suite indefinitely on a real,
+unguarded model call, found one at a time by watching where the `-v` output
+stopped moving and reading the module it stalled on.
+
+**Root cause, part one: no `conftest.py` existed anywhere in the project.**
+Three modules (`swarm_pipeline_engine.py`, `swebench_runner.py`,
+`persona_debate.py`) already checked `SALEHA_TEST_MODE` to route around real
+model calls -- but nothing ever set that variable for a normal `pytest
+saleha/tests/` run. It only worked when whoever ran the suite remembered to
+export it by hand, which is how the earlier `swarm_pipeline_engine.py` fix
+above was verified without anyone noticing the gap. Added
+`saleha/tests/conftest.py`, setting it session-wide.
+
+**Stall one: `saleha/core/ttc_solver.py`.** `test_repl_slash_ttc` constructs
+`SalehaREPL(model="mock")`, but the REPL's `/ttc` handler calls the
+module-level `ttc_solver` singleton directly -- the REPL's model preference
+never reaches it. Each `solve()` call generated 3 candidates through
+`FastInference` against a real Ollama endpoint (300s timeout, 2 retries),
+able to block for up to ~15 minutes on one slow model. Isolating the test
+confirmed it: 15+ minutes, no completion. Fixed by adding a
+`SALEHA_TEST_MODE` branch that returns deterministic placeholder candidates
+with no network call -- deliberately weak code, not a "passing" stub, so
+`evaluate_candidate()` still scores it honestly.
+
+**Stall two: `saleha/cli/demo_cli.py`.** `test_dogfood_command_execution`
+stalled the same way -- `dogfood_cmd` calls `default_provider.generate(...)`
+directly with no test-mode branch at all. Reading the command to fix the hang
+surfaced a second, independent fabrication in the same function: the panel
+unconditionally printed **"ALL 9 ENGINEERING PILLARS VALIDATED &
+PRODUCTION-READY (100% GREEN)"** while the results list only ever had 6
+entries appended -- pillars 2, 3, 6, and 8 were never checked at all -- and
+every one of those 6 was a hardcoded `"PASS"` regardless of what the called
+module returned:
+
+- step 2 counted `DEPARTMENT_ATTRACTORS` but never compared the count to 10
+- step 3 called `mailbox.send()`/`.receive()` but never checked either
+  return value
+- step 4 called `validate_compartment_isolation()`, which returns a real
+  `isolated` bool, and printed a hardcoded "0.0% Semantic Bleeding" instead
+  of reading it
+- step 5 printed `error_type` but never read `error_detected`, the field
+  that actually says whether classification succeeded
+- step 6 printed p50/p99 but never checked the recorded max against the
+  actual input samples
+
+The five modules under test -- `hyperbolic_engine`, `saleha_swarm_topology`,
+`self_healing`, `latency_histogram`, `padic_ultrametric` -- are real, working
+implementations. This was not template code calling nothing, the same shape
+as `swe_repo_fixer.py` or `extreme_contrastive_trainer.py` earlier in this
+ledger. The fabrication was entirely in `demo_cli.py` discarding real return
+values and hardcoding `"PASS"` over them. Rewrote `dogfood_cmd` to read each
+module's own signal, report the correct count (6, not 9), and print PASS/FAIL
+per row.
+
+Doing that exposed a third, real bug: `self_healing.py` had no
+`ZeroDivisionError` pattern (nor `KeyError`, `IndexError`, `ValueError`,
+`RuntimeError`), so the deliberately-triggered `ZeroDivisionError` in step 5
+fell through to `"UnknownError"` -- yet `error_detected` was hardcoded `True`
+even in that fallback, making "detected" and "unknown" simultaneously true.
+Added the missing patterns; `error_detected` is now `True` only when a
+pattern actually matched. `test_self_healing.py`'s
+`test_unknown_error_still_generates_guidance` had used `"RuntimeError:
+failed"` specifically because it did not match anything -- it now does
+(`RuntimeError` is a real, common error type that belongs in the list), so
+the test was split: `test_known_error_type_is_reported_detected` for the
+now-classified case, and `test_truly_unknown_error_is_honestly_undetected`
+for a genuinely unclassifiable error, asserting `error_detected=False` --
+the case the old test's name claimed to cover but its assertion contradicted.
+
+**Stall three: `saleha/agents/base_agent.py`.** `test_graph_rag_query` hung
+the same way again. `graph_rag.py`'s `GraphRAGEngine` constructs a bare
+`BaseAgent(model="auto")`, and `BaseAgent.__init__` always fell through to
+the real `default_provider` regardless of `SALEHA_TEST_MODE` -- unlike the
+per-call `"mock"` string resolution in `swarm_pipeline_engine.py`,
+`BaseAgent` had no test-mode awareness at the provider level at all. This was
+the third module in one investigation to hit an equivalent gap, so rather
+than patch `graph_rag.py` alone, the fix went into `BaseAgent` itself: under
+`SALEHA_TEST_MODE`, a `BaseAgent` constructed without an explicit `provider=`
+gets `MockProvider` instead of `default_provider`.
+
+### The fix broke seven tests, and both breaks were real
+
+Wiring three independent modules into one flag surfaced a genuine conflict
+between them, caught only because the full suite could finally run to
+completion instead of hanging first:
+
+**Four tests in `test_ttc_solver.py`** construct
+`TTCTrajectorySolver(inference=fake_engine)` specifically to verify
+`_generate_default_candidates` calls `fake_engine.run_batch()` for real --
+distinct strategies per candidate, `use_cache=False`, an honest zero score
+when the injected engine reports failure. The unconditional
+`SALEHA_TEST_MODE` bypass skipped that call entirely, which would have made
+all four tests pass without checking anything -- the exact "old test pins
+the fabrication in place" trap this ledger keeps finding, this time produced
+by today's own fix rather than caught in an old one. Fixed by adding
+`self.inference is None` to the guard: the placeholder path is for the
+actually-unconfigured case, never for an injected mock.
+
+**Three tests** (`test_qa_lead_agent_generate_test_suite`,
+`test_sre_incident_agent_diagnose_incident`,
+`test_generate_adversarial_suite_creates_valid_tests`) construct agents with
+`model="mock"` -- an established convention in this codebase, predating
+today, meaning "make the real provider chain fail, so this agent's own
+fallback template runs." `MockProvider` always returns `success=True` with a
+fixed generic body (`"def solve(): return 42"`), a different contract that
+made those fallback branches unreachable once `conftest.py` started setting
+`SALEHA_TEST_MODE` for the whole suite. Fixed by adding `model != "mock"` to
+`BaseAgent`'s guard: the new branch is additive for the three modules that
+had no mock convention of their own, not a replacement for what
+`model="mock"` already meant everywhere else.
+
+### Verified
+
+```text
+python -m pytest saleha/tests/ -q
+1686 passed, 14 skipped, 60 subtests passed in 80.31s (0:01:20)
+```
+
+Zero failures, no manual environment setup. The prior run at this same point
+in the investigation -- before the two guard refinements above -- was
+`7 failed, 1679 passed, 14 skipped, 60 subtests passed in 93.28s`; every one
+of those seven is accounted for above, not silenced. This is the first time
+the full suite has completed at all in this project's history, hang or
+failure. Every prior "full suite passes" claim in this ledger's own earlier
+passes was necessarily a claim about however far a manually-set
+`SALEHA_TEST_MODE` happened to reach that day -- itself a small instance of
+the exact pattern this ledger exists to find.
