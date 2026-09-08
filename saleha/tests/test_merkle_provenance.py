@@ -32,5 +32,29 @@ class TestMerkleProvenance(unittest.TestCase):
         self.assertIn("tampered", msg.lower())
 
 
+class MerkleSwarmWiringTests(unittest.TestCase):
+    """merkle_provenance_ledger's hashing was always real, but nothing in
+    production ever called record_event() -- `saleha merkle-audit` could
+    only ever report "Ledger is empty and untampered." These tests exist to
+    prove swarm_pipeline_engine.py actually records a leaf per stage now,
+    not just that the ledger's own hashing works in isolation."""
+
+    def test_execute_swarm_records_one_leaf_per_stage(self):
+        import os
+        os.environ["SALEHA_TEST_MODE"] = "1"
+        from saleha.core.merkle_provenance import merkle_provenance_ledger
+        from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+
+        before = len(merkle_provenance_ledger.leaves)
+        engine = SwarmPipelineEngine()
+        res = engine.execute_swarm("Build a caching service")
+        after = len(merkle_provenance_ledger.leaves)
+
+        self.assertEqual(after - before, len(res.stages))
+        is_valid, msg = merkle_provenance_ledger.verify_integrity()
+        self.assertTrue(is_valid)
+        self.assertIn("verified", msg.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

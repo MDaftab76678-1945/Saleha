@@ -34,6 +34,7 @@ from saleha.core.agent_contracts import (
     ReviewerOutputContract,
     FinOpsOutputContract,
 )
+from saleha.core.merkle_provenance import merkle_provenance_ledger
 
 
 @dataclass
@@ -298,6 +299,23 @@ class SwarmPipelineEngine:
             stage.duration_ms = round((time.time() - stage_start) * 1000, 2)
             stage.status = "success"
             stages.append(stage)
+
+            # Record this stage in the cryptographic Merkle provenance chain.
+            # merkle_provenance_ledger's hashing and tamper-detection were
+            # always real (verified by test_merkle_provenance.py), but
+            # nothing in production ever called record_event() -- the
+            # `saleha merkle-audit` CLI command could only ever report
+            # "Ledger is empty and untampered.", which is honest but useless
+            # as an audit trail. Recording is best-effort: a hashing failure
+            # here must not break the pipeline it is meant to be observing.
+            try:
+                merkle_provenance_ledger.record_event(
+                    action_type=stage.agent_role.lower(),
+                    agent_id=f"{stage.agent_role}Agent",
+                    data=stage.output_summary,
+                )
+            except Exception:
+                pass
 
             # Persist intermediate checkpoint
             cp.completed_stages.append({
