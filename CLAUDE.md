@@ -174,12 +174,26 @@ production caller for either.
 
 **Full 139-command triage is done** (pass 30). Roughly 100 commands are real,
 19 were already covered by earlier passes, and six new fabrications were
-found — none fixed yet:
+found. One fixed:
 
-- **`leaderboard`** (`saleha/core/leaderboard_generator.py`) — highest
-  priority. Hardcodes benchmark numbers for *other companies' named
-  products* (Devin 41.2%, Claude Code 39.8%, Cursor 28.5%) and presents them
-  as a measured comparison. Nothing measured.
+- **`leaderboard` — fixed (pass 30).** Deleted entirely, not rewritten:
+  `saleha/core/leaderboard_generator.py`, the CLI command in
+  `testing_bench.py`, and `test_leaderboard_generator.py` (which asserted the
+  fabricated numbers were present — pinning the bug, same trap as always).
+  This project has no real SWE-Bench Lite measurement for itself, let alone
+  for Devin/Claude Code/Cursor, so there was no honest version of "compare
+  Saleha to named competitors" to fall back to — the command should not
+  exist until real cross-tool measurement exists (that belongs in
+  `ROADMAP.md`, not shipped as a live command). Note: `saleha harness
+  leaderboard` is a different, unrelated command (`harness_group.py` ->
+  `saleha/harness/reporter.py`) that ranks models from real stored run
+  history and correctly says "No records found" when empty — left alone,
+  it was never fabricating anything. Verified: `cli.commands` still
+  registers 154 commands post-deletion, `pytest -k "leaderboard or
+  testing_bench or cli_commands"` 20/20 pass.
+
+Five remaining, not yet fixed:
+
 - **`solve-issue` is two commands, both fabricate.** `swarm_team.py:285` and
   `testing_bench.py:230` both register the same command name; Click keeps
   only the second, so `ticket_resolver.py` (the first) is dead code that also

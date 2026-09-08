@@ -1929,6 +1929,55 @@ reports "No snapshots available," because the snapshot from the `snapshot`
 process no longer exists. It fails honestly rather than fabricating success,
 so it belongs on the open-work list, not the fabrication list.
 
-None of the six are fixed yet. Recorded here and in `CLAUDE.md`'s "Next
-candidates" so the next pass has a starting list instead of another blind
-sweep.
+None of the six were fixed in the sweep itself. Recorded here and in
+`CLAUDE.md`'s "Next candidates" so the next pass has a starting list instead
+of another blind sweep.
+
+### `leaderboard` fixed same pass
+
+The most severe of the six -- fabricated benchmark numbers for named
+competing products -- was fixed immediately rather than left for a future
+pass, given the direction the user gave: fix it now, starting with the worst
+one.
+
+The fix is deletion, not rewrite. `saleha/core/leaderboard_generator.py`
+hardcoded a `swe_bench_lite_pass` figure for Saleha itself (38.4%) alongside
+Devin (41.2%), Claude Code (39.8%), Cursor (28.5%), and SWE-agent (32.1%) --
+none of it measured. This project has never run the actual SWE-Bench Lite
+suite against itself, let alone against four other products it does not
+control. There was no honest number to substitute for the fake one, because
+none exists. The measured number this project does have (pass 29: 12 small
+tasks, 10/12 and 11/12 across two local models) is not SWE-Bench Lite and
+does not license a claim about Devin or Claude Code at all.
+
+Deleted:
+
+- `saleha/core/leaderboard_generator.py` (the module)
+- the `leaderboard` command in `testing_bench.py`
+- `test_leaderboard_generator.py`, whose two tests asserted `"Devin"` and
+  `"Saleha v2.6.0"` appeared in the rendered markdown -- pinning the
+  fabrication in place exactly the way this ledger keeps finding tests do
+
+Checked first that nothing else in the active codebase imported the deleted
+module (`grep -rn "leaderboard_generator|LeaderboardGenerator"` across
+`saleha/`, one hit, in the already-dead `commands.py.old`). Confirmed
+`saleha harness leaderboard` is unrelated -- a different command
+(`harness_group.py` -> `saleha/harness/reporter.py`) that ranks models from
+real stored run history and says "No harness benchmark records found" when
+there is nothing to show. That command was never fabricating anything and
+was left untouched.
+
+### Verified
+
+```text
+python -c "from saleha.cli.commands import cli; print(len(cli.commands))"
+154 commands registered, 'leaderboard' not among them
+
+pytest -k "leaderboard or testing_bench or cli_commands" -q
+20 passed, 1679 deselected in 242.23s
+```
+
+Five findings from this pass remain open: the duplicate-and-fabricating
+`solve-issue`, `swarm_pipeline_engine.py`'s hardcoded `tests_passed = True`,
+`pr_generator.py`'s unconditional "Verified (100%)" badge, and the two
+lower-priority no-ops (`quadratic-vote`, `merkle-audit`).

@@ -265,23 +265,6 @@ def swebench_eval_cmd():
     rep = swebench_runner.run_benchmark_suite()
     console.print(Panel(f'[bold cyan]📊 SWE-Bench Benchmark Scorecard[/bold cyan]\n{rep.summary}', border_style='cyan'))
 
-@cli.command(name='leaderboard')
-@click.option('--out', default='', help='Optional HTML output file path')
-def leaderboard_cmd(out: str):
-    """
-    Generate the SWE-Bench Public Leaderboard comparing Saleha vs Devin vs Claude Code.
-    
-    Example: saleha leaderboard
-    """
-    from saleha.core.leaderboard_generator import leaderboard_generator
-    md = leaderboard_generator.generate_markdown()
-    console.print(Markdown(md))
-    if out:
-        html = leaderboard_generator.generate_html()
-        with open(out, 'w', encoding='utf-8') as f:
-            f.write(html)
-        console.print(f"[bold green]✅ Interactive HTML leaderboard saved to '{out}'[/bold green]")
-
 @cli.command('solve-issue')
 @click.argument('issue_description')
 @click.option('--repo', default='Saleha', help='Target repository name')
