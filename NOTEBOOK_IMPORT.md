@@ -1981,3 +1981,70 @@ Five findings from this pass remain open: the duplicate-and-fabricating
 `solve-issue`, `swarm_pipeline_engine.py`'s hardcoded `tests_passed = True`,
 `pr_generator.py`'s unconditional "Verified (100%)" badge, and the two
 lower-priority no-ops (`quadratic-vote`, `merkle-audit`).
+
+### `swarm_pipeline_engine.py` fixed same pass
+
+`tests_passed = True` at line 222 of the QALead stage was set unconditionally.
+`QALeadAgent.generate_test_suite` -- traced in full -- only ever synthesizes
+test *code* (LLM output, or a hardcoded fallback template when the LLM is
+offline); nothing in it executes anything. The overall pipeline `success`
+flag, three hundred lines away, was also a literal `True`, so neither this
+nor `SecurityGuard`'s `is_secure` result was ever consulted before the
+pipeline declared victory. This is the identical shape of bug already fixed
+once in `orchestrator.py` (pass 13) -- a different pipeline, never touched
+by that fix.
+
+The fix follows the same rule pass 13 established: concatenate the generated
+source and test code, execute the combination for real, and read the exit
+code. `CodeExecutor` (`saleha/core/code_executor.py`) already does exactly
+this for `orchestrator.py`, sandboxed subprocess with import blocking and
+audit logging -- reused rather than duplicated. `success` is now
+`is_secure and tests_passed`.
+
+### Fixing the fabrication immediately found a second, real bug
+
+The very first run against a goal string containing a hyphen --
+`"Synthesize thread-safe token bucket rate limiter in Python"` -- failed:
+
+```text
+File "...tmpv883t0fw.py", line 10
+    def test_synthesize_thread-sa_happy_path():
+                              ^
+SyntaxError: expected '('
+```
+
+`qa_lead.py`'s fallback test template builds Python function names directly
+from the task string with `task.lower().replace(' ', '_')[:20]` -- a hyphen
+survives that transform and lands inside an identifier. This has been in the
+codebase the whole time `tests_passed = True` was hardcoded, and could never
+surface: nothing ever ran the generated file, so a SyntaxError inside it had
+no way to be observed. Fixed with a proper sanitizer,
+`re.sub(r"\W+", "_", task.lower()).strip("_")[:20]`, which collapses any
+non-word character (not just spaces) to underscores.
+
+This is the exact mechanism this file has been describing for thirty
+passes, caught in the act: a fabricated green light does not just misreport
+one result, it actively prevents the next bug from ever being found.
+
+### Verified
+
+```text
+pytest saleha/tests/test_swarm_pipeline_and_bus.py -v
+10 passed (was 9 passed, 1 failed immediately after the tests_passed fix,
+until the qa_lead sanitizer fix landed too)
+
+pytest saleha/tests/test_enterprise_architecture.py -v
+9 passed (execute_swarm + resume_swarm integration test)
+
+pytest saleha/tests/test_issue_resolver.py saleha/tests/test_issue_resolver_and_live_wiring.py -q
+23 passed (issue_resolver.py is the one production caller of execute_swarm)
+```
+
+These three files are the only test files in the suite that import
+`swarm_pipeline_engine` or `qa_lead` (checked by grep across
+`saleha/tests/`), so this is complete coverage of what the change can affect,
+not a sample.
+
+`test_end_to_end_swarm_execution` deliberately keeps the hyphenated goal
+string, with a comment explaining why, so this exact regression -- a
+fabrication hiding a syntax error -- cannot silently return.

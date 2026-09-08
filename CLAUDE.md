@@ -192,7 +192,23 @@ found. One fixed:
   registers 154 commands post-deletion, `pytest -k "leaderboard or
   testing_bench or cli_commands"` 20/20 pass.
 
-Five remaining, not yet fixed:
+- **`swarm_pipeline_engine.py:222` — fixed (pass 30).** `tests_passed = True`
+  was hardcoded in the QALead stage regardless of whether a test ran; the
+  overall `success` flag was also hardcoded True, ignoring both this and
+  SecurityGuard's result. Now runs the generated source + test code for real
+  through `CodeExecutor` (same sandboxed runner `orchestrator.py` uses) and
+  sets `success = is_secure and tests_passed`. Fixing this immediately
+  exposed a second, previously-invisible bug: `qa_lead.py`'s fallback test
+  template built function names directly from the task string, so a goal
+  containing a hyphen (`"thread-safe rate limiter"`) produced an invalid
+  Python identifier (`def test_thread-sa_happy_path():`) — a SyntaxError
+  that could never be caught while `tests_passed=True` meant nothing ever
+  ran the code. Fixed with a `re.sub(r"\W+", "_", ...)` slug sanitizer.
+  Verified: `test_swarm_pipeline_and_bus.py` 10/10,
+  `test_enterprise_architecture.py` 9/9, `test_issue_resolver*.py` 23/23 —
+  the only three test files that import either module.
+
+Four remaining, not yet fixed:
 
 - **`solve-issue` is two commands, both fabricate.** `swarm_team.py:285` and
   `testing_bench.py:230` both register the same command name; Click keeps
@@ -202,11 +218,11 @@ Five remaining, not yet fixed:
   (0 Syntax Errors)"` unconditionally and uses the literal
   `"def test_regression(): assert True\n"` as the test for every issue,
   never executed. Same bug class as `resolve-issue` (fixed pass 23) — this is
-  a different command, unfixed.
-- **`swarm_pipeline_engine.py:222`** — `tests_passed = True` hardcoded in the
-  QALead stage regardless of whether a test ran. Feeds `team`, `swarm`, and
-  transitively `solve-issue`. Same bug already fixed once in
-  `orchestrator.py` (pass 13); unfixed here (separate pipeline).
+  a different command, unfixed. Note: this command now inherits a genuinely
+  running `tests_passed` from the `swarm_pipeline_engine.py` fix above (via
+  `issue_resolver.py`'s call to `execute_swarm`) — the "0 Syntax Errors" and
+  literal `assert True` fabrications are still separate, unaddressed code in
+  `issue_resolver.py` itself.
 - **`pr_generator.py`** (backs `pr` command) — "Verified (100%)" / "Security
   Audit Passed" badges hardcoded unconditionally; empty `execution_output`
   becomes the literal "All unit tests passed successfully."
