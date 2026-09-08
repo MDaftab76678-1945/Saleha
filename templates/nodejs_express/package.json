@@ -1,7 +1,7 @@
 {
-  "name": "saleha-express-template",
+  "name": "{{PROJECT_SLUG}}",
   "version": "1.0.0",
-  "description": "Production Express TypeScript Service Scaffolded by Saleha AI",
+  "description": "{{PROJECT_NAME}} -- Express TypeScript service scaffolded by Saleha",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

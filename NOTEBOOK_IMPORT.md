@@ -2595,3 +2595,91 @@ python -m pytest saleha/tests/ -q
 ```
 
 Zero failures.
+
+## Thirty-fourth pass -- lockfiles confirmed resolved, `templates/` given a use (2026-09-08)
+
+Two long-standing "user's call" items from `CLAUDE.md`.
+
+### Lockfiles -- already fixed, doc was stale
+
+Checked: only `pnpm-lock.yaml` is at the repo root. `package-lock.json` was
+deleted in commit `2d5915a` ("...and one lockfile too many"),
+`package.json` declares `"packageManager": "pnpm@9.15.0"`, `.npmrc` has the
+pnpm-only `link-workspace-packages=true`, and `.gitignore` lists
+`package-lock.json` / `yarn.lock`. The IDE "multiple lockfiles" warning is
+gone. The two `package-lock.json` that `find` still turns up are under
+`.claude/worktrees/` -- other agents' isolated copies, not this repo.
+`CLAUDE.md`'s "still open / nobody has decided" paragraph was out of date
+and is now corrected.
+
+### `templates/` -- three scaffolds nothing read, now the backend for `saleha new`
+
+`templates/{python_fastapi,nodejs_express,go_service}` were valid starter
+services (a `/health` and a `/` endpoint each) that no code referenced.
+Rather than delete them, they are now the fast path for that boilerplate:
+
+- Each template got `{{PROJECT_NAME}}` / `{{PROJECT_SLUG}}` placeholders
+  where a name was previously hardcoded ("saleha-express-template", "Saleha
+  Enterprise FastAPI Service", ...).
+- New `saleha/core/project_scaffolder.py`: `scaffold(stack, name, ...)`
+  walks the template dir, substitutes the name into every text file, and
+  writes the copy to `<dest>/<slug>`. No model call anywhere -- the output
+  is byte-identical for the same inputs (a test asserts this by scaffolding
+  the same project twice into different dirs and diffing). `create-react-app`
+  works the same way; a template is honest here because the command says
+  "scaffold from template", not "synthesize".
+- After the copy, the stack's real toolchain verifies it:
+  - **fastapi**: probe `import fastapi, httpx, pytest` in the interpreter;
+    if that fails, `verify_ran=False` with a `pip install` hint. Otherwise
+    run `pytest test_main.py` against the copy.
+  - **express**: `npm install` in the new project (brings its declared
+    `typescript` devDep local), then `npx --no-install tsc --noEmit` -- the
+    project's own compiler, not a global or the deprecated `tsc@2.0.4` stub
+    npx pulls when nothing is installed. Needed a `tsconfig.json` added to
+    the template (a bare `tsc --noEmit` with no config and no file args
+    just prints help and exits 1).
+  - **go**: `go build ./...`. `_which("go")` falls back to
+    `C:\Program Files\Go\bin\go.exe` since a minimal shell PATH can omit it
+    even when Go is installed and on the persistent PATH.
+  A missing toolchain is `verify_ran=False` / "...skipped" -- never a pass.
+  A verification that ran and failed makes `success=False`.
+- With go, node/npm, and `fastapi`+`httpx` installed on this box, all three
+  now report `Verification passed` on a real run, not "skipped".
+- CLI: `saleha new <stack> <name>` in a new
+  `saleha/cli/commands/scaffold.py` (its own file, so `misc_tools.py` --
+  which has a pre-existing file-wide TYPE-001 args-annotation gap the
+  pre-flight gate fails on -- was not touched).
+
+`saleha build` (the LLM multi-file path in `project_builder.py`) is
+unchanged; `saleha new` is the deterministic complement for the parts that
+never vary.
+
+### Verified
+
+```text
+saleha new go pay-svc --into <tmp>
+  -> module pay-svc, "Welcome to pay-svc", Verification passed  (real go build)
+saleha new fastapi orders-api --into <tmp>
+  -> 3 files, Verification passed  (real pytest on the template's test_main.py)
+saleha new express web-ui --into <tmp>
+  -> 4 files, Verification passed  (real npm install + local tsc --noEmit)
+saleha new rails foo  -> "Unknown stack 'rails'. Available: express, fastapi, go"
+```
+
+```text
+pytest saleha/tests/test_project_scaffolder.py -q
+5 passed, 1 skipped        # express test is SALEHA_RUN_SLOW_TESTS-gated (npm install)
+
+SALEHA_RUN_SLOW_TESTS=1 pytest ...::test_express_scaffold_verifies_with_local_tsc -q
+1 passed                    # verify_ran=True, verify_ok=True on a real run
+
+python -m pytest saleha/tests/ -q
+1706 passed, 15 skipped, 60 subtests passed in 92.56s
+```
+
+New tests: `test_scaffold_substitutes_name_and_is_deterministic` (twice into
+different dirs -> identical bytes), `test_fastapi_scaffold_verifies_by_running_its_tests`
+and `test_express_scaffold_verifies_with_local_tsc` (real pass when the
+toolchain is present, `verify_ran=False` when not -- never a false pass;
+the express one is slow-gated), `test_existing_dir_needs_force`,
+`test_unknown_stack_is_rejected`. Command count 155 -> 156. Zero failures.

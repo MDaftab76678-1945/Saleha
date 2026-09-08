@@ -16,7 +16,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(HealthResponse{
 		Status:  "healthy",
-		Service: "go-microservice",
+		Service: "{{PROJECT_SLUG}}",
 		Version: "1.0.0",
 	})
 }
@@ -24,7 +24,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Welcome to Saleha Go Microservice",
+		"message": "Welcome to {{PROJECT_NAME}}",
 	})
 }
 

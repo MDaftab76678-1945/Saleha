@@ -352,12 +352,31 @@ rather than executing code with none of its limits applied.
 `NOTEBOOK_IMPORT.md`'s old "Real sandbox" row (line 13) predates this and is
 stale — the jail is real but does not run here.
 
-**Unrelated, still open:** the repo carries both `package-lock.json` and
-`pnpm-lock.yaml`, which is what the IDE's "multiple lockfiles" warning is
-about. Nobody has decided which package manager this project uses; that is the
-user's call, not a defect to fix silently. `templates/` holds three scaffolds
-(`nodejs_express`, `go_service`, `python_fastapi`) that **no code reads** —
-worth deciding whether they should exist before maintaining them.
+**Lockfiles — resolved (commit `2d5915a`).** `package-lock.json` was
+deleted; only `pnpm-lock.yaml` remains. `package.json` declares
+`"packageManager": "pnpm@9.15.0"`, `.npmrc` carries the pnpm-only
+`link-workspace-packages=true` (with a comment explaining the `@saleha/*`
+workspace-range resolution), and `.gitignore` now lists `package-lock.json`
+and `yarn.lock` so they cannot come back silently. The two
+`package-lock.json` under `.claude/worktrees/` are other agents' isolated
+worktrees, not this repo.
+
+**`templates/` — now used by `saleha new` (pass 34).** The three scaffolds
+(`python_fastapi`, `nodejs_express`, `go_service`) each got
+`{{PROJECT_NAME}}` / `{{PROJECT_SLUG}}` placeholders and are copied by
+`saleha/core/project_scaffolder.py` into a new project directory with the
+name substituted -- deterministic file copy, no model call, byte-identical
+for the same inputs. After copying, the stack's own build/test is run
+(`pytest` for fastapi via the template's `test_main.py`, `tsc --noEmit` for
+express, `go build` for go); a toolchain that is absent is reported
+`verify_ran=False` ("skipped"), never a pass. With go, node/npm, and `fastapi`+`httpx` installed on this box, all three
+stacks report `Verification passed` on a real run. A missing toolchain is
+`verify_ran=False` / "skipped", never a fake pass. This is the honest fast
+path for the health/root boilerplate that never changes; `saleha build`
+remains the LLM path for bespoke multi-file projects. CLI: `saleha new
+<stack> <name>` in `saleha/cli/commands/scaffold.py`. The express template
+gained a `tsconfig.json` (needed for `tsc --noEmit` to have something to
+check).
 
 **Branch state:** work happens on `test-issue-101`. It is many commits ahead of
 `origin/test-issue-101` and has not been pushed. `main` is behind.
