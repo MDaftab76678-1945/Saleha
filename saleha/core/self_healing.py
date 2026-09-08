@@ -21,6 +21,11 @@ ERROR_PATTERNS = {
     "IndentationError": r"(IndentationError|expected an indented block)",
     "AttributeError": r"(AttributeError|'\w+' object has no attribute)",
     "PermissionError": r"(PermissionError|Access is denied)",
+    "ZeroDivisionError": r"(ZeroDivisionError|division by zero|float division by zero)",
+    "KeyError": r"(KeyError)",
+    "IndexError": r"(IndexError|list index out of range|string index out of range)",
+    "ValueError": r"(ValueError|invalid literal for|could not convert)",
+    "RuntimeError": r"(RuntimeError|maximum recursion depth exceeded)",
 }
 
 # ==============================================================================
@@ -60,13 +65,15 @@ class SelfHealingEngine:
 
         detected_type = "UnknownError"
         root_cause = "एरर का सटीक कारण अज्ञात है। कृपया लॉग की अंतिम पंक्तियों की जाँच करें।"
+        pattern_matched = False
 
         # 1. एरर का प्रकार पहचानें
         for err_type, pattern in self.compiled_errors.items():
             if pattern.search(error_log):
                 detected_type = err_type
+                pattern_matched = True
                 break
-        
+
         # 2. जड़ कारण (Root Cause) का अनुमान लगाएं
         if detected_type == "SyntaxError":
             root_cause = "कोड में व्याकरण (Syntax) की गलती है, जैसे बिना बंद हुआ ब्रैकेट, कोलन (:) की कमी, या स्ट्रिंग कोट्स।"
@@ -93,7 +100,13 @@ class SelfHealingEngine:
         """
 
         return HealingResult(
-            error_detected=True,
+            # error_detected used to be hardcoded True here regardless of
+            # whether any pattern in ERROR_PATTERNS actually matched -- so
+            # a log this engine could not classify ("UnknownError") still
+            # reported error_detected=True, which is a claim of successful
+            # detection, not the "I don't know" it actually is. Now true
+            # only when a known error type was matched by name.
+            error_detected=pattern_matched,
             error_type=detected_type,
             root_cause_hint=root_cause,
             reflexion_prompt=reflexion_prompt.strip()
