@@ -37,9 +37,25 @@ says how many files exist and whether the scan was truncated.
 from __future__ import annotations
 
 import ast
+import builtins
 import os
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Set
+from typing import List, Dict, Optional, Any, Set, Sequence, Union
+
+_BUILTIN_NAMES: Set[str] = set(dir(builtins)) | {
+    "__file__", "__name__", "__doc__", "__package__", "__annotations__",
+    "__builtins__", "__loader__", "__spec__", "__path__", "__cached__",
+}
+
+
+def _collect_target_names(node: ast.AST, names_set: Set[str]) -> None:
+    if isinstance(node, ast.Name):
+        names_set.add(node.id)
+    elif isinstance(node, (ast.Tuple, ast.List)):
+        for elt in node.elts:
+            _collect_target_names(elt, names_set)
+    elif isinstance(node, ast.Starred):
+        _collect_target_names(node.value, names_set)
 
 
 @dataclass
@@ -96,11 +112,18 @@ class QualityGuard:
         self.strict_mode = strict_mode
 
     def _calculate_nesting_depth(self, node: ast.AST, current_depth: int = 0) -> int:
-        """Computes maximum AST control block nesting depth."""
+        """Computes maximum AST control block nesting depth without descending into nested functions."""
         nesting_types = (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.AsyncFor, ast.AsyncWith)
+        match_type = getattr(ast, "Match", None)
+        if match_type:
+            nesting_types = nesting_types + (match_type,)
+
         max_depth = current_depth
 
         for child in ast.iter_child_nodes(node):
+            # Do NOT descend into nested function or class definitions
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
             if isinstance(child, nesting_types):
                 sub_depth = self._calculate_nesting_depth(child, current_depth + 1)
             else:
@@ -109,6 +132,164 @@ class QualityGuard:
                 max_depth = sub_depth
 
         return max_depth
+
+    def _detect_undefined_names(self, tree: ast.AST) -> List[QualityIssue]:
+        """Detects references to undefined names and missing imports using AST scope analysis."""
+        issues: List[QualityIssue] = []
+
+        tree_body: List[ast.stmt] = getattr(tree, "body", [])
+        has_wildcard = any(
+            isinstance(n, ast.ImportFrom) and any(a.name == "*" for a in n.names)
+            for n in tree_body
+        )
+        if has_wildcard:
+            return issues
+
+        global_names: Set[str] = set(_BUILTIN_NAMES)
+        for node in tree_body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    global_names.add(alias.asname or alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.name != "*":
+                        global_names.add(alias.asname or alias.name)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                global_names.add(node.name)
+            elif isinstance(node, ast.Assign):
+                for t in node.targets:
+                    _collect_target_names(t, global_names)
+            elif isinstance(node, ast.AnnAssign):
+                _collect_target_names(node.target, global_names)
+
+        class ScopeVisitor(ast.NodeVisitor):
+            def __init__(self, globals_set: Set[str]):
+                self.scopes: List[Set[str]] = [set(globals_set)]
+
+            def _is_defined(self, name: str) -> bool:
+                return any(name in s for s in self.scopes)
+
+            def _collect_local_bindings(self, stmts: Sequence[ast.AST]) -> Set[str]:
+                """Collects variable bindings in the current scope without descending into child scopes."""
+                bindings: Set[str] = set()
+                stack: List[ast.AST] = list(stmts)
+                while stack:
+                    curr = stack.pop()
+                    # Boundary: do NOT descend into nested function, class, or comprehension scopes
+                    if isinstance(curr, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        bindings.add(curr.name)
+                        continue
+                    if isinstance(curr, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp, ast.Lambda)):
+                        continue
+
+                    if isinstance(curr, ast.Name) and isinstance(curr.ctx, ast.Store):
+                        bindings.add(curr.id)
+                    elif isinstance(curr, ast.ExceptHandler) and curr.name:
+                        bindings.add(curr.name)
+                    elif isinstance(curr, ast.Import):
+                        for alias in curr.names:
+                            bindings.add(alias.asname or alias.name.split(".")[0])
+                    elif isinstance(curr, ast.ImportFrom):
+                        for alias in curr.names:
+                            if alias.name != "*":
+                                bindings.add(alias.asname or alias.name)
+
+                    stack.extend(ast.iter_child_nodes(curr))
+                return bindings
+
+            def _process_function(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> None:
+                for d in node.decorator_list:
+                    self.visit(d)
+                if node.returns:
+                    self.visit(node.returns)
+                for d in node.args.defaults + [d for d in node.args.kw_defaults if d]:
+                    self.visit(d)
+
+                local_scope: Set[str] = set()
+                posonly = getattr(node.args, "posonlyargs", [])
+                for arg in posonly + node.args.args + node.args.kwonlyargs:
+                    local_scope.add(arg.arg)
+                    if arg.annotation:
+                        self.visit(arg.annotation)
+                if node.args.vararg:
+                    local_scope.add(node.args.vararg.arg)
+                    if node.args.vararg.annotation:
+                        self.visit(node.args.vararg.annotation)
+                if node.args.kwarg:
+                    local_scope.add(node.args.kwarg.arg)
+                    if node.args.kwarg.annotation:
+                        self.visit(node.args.kwarg.annotation)
+
+                # Collect bindings without leaking inner function definitions into local scope
+                local_scope |= self._collect_local_bindings(node.body)
+
+                self.scopes.append(local_scope)
+                for stmt in node.body:
+                    self.visit(stmt)
+                self.scopes.pop()
+
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                self._process_function(node)
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                self._process_function(node)
+
+            def visit_ClassDef(self, node: ast.ClassDef) -> None:
+                for base in node.bases:
+                    self.visit(base)
+                for d in node.decorator_list:
+                    self.visit(d)
+
+                class_scope = self._collect_local_bindings(node.body)
+                self.scopes.append(class_scope)
+                for stmt in node.body:
+                    self.visit(stmt)
+                self.scopes.pop()
+
+            def _visit_comprehension(self, node: Union[ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp]) -> None:
+                comp_scope: Set[str] = set()
+                for gen in node.generators:
+                    self.visit(gen.iter)
+                    for n in ast.walk(gen.target):
+                        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+                            comp_scope.add(n.id)
+
+                self.scopes.append(comp_scope)
+                for gen in node.generators:
+                    for if_expr in gen.ifs:
+                        self.visit(if_expr)
+                if isinstance(node, ast.DictComp):
+                    self.visit(node.key)
+                    self.visit(node.value)
+                else:
+                    self.visit(node.elt)
+                self.scopes.pop()
+
+            def visit_ListComp(self, node: ast.ListComp) -> None:
+                self._visit_comprehension(node)
+
+            def visit_SetComp(self, node: ast.SetComp) -> None:
+                self._visit_comprehension(node)
+
+            def visit_DictComp(self, node: ast.DictComp) -> None:
+                self._visit_comprehension(node)
+
+            def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+                self._visit_comprehension(node)
+
+            def visit_Name(self, node: ast.Name) -> None:
+                if isinstance(node.ctx, ast.Load):
+                    if not self._is_defined(node.id):
+                        issues.append(QualityIssue(
+                            severity="CRITICAL",
+                            rule_id="UNDEF-001",
+                            message=f"Undefined name '{node.id}': missing import or variable definition.",
+                            line_number=node.lineno,
+                            column=node.col_offset,
+                        ))
+
+        ScopeVisitor(global_names).visit(tree)
+        return issues
 
     def check_code(self, code: str, file_path: Optional[str] = None) -> QualityReport:
         """Performs static AST inspection, type coverage evaluation, and hygiene checks."""
@@ -133,7 +314,13 @@ class QualityGuard:
                 file_path=file_path,
             )
 
-        # 2. Security and Anti-Pattern Detection
+        # 2. Undefined Name & Missing Import Check (UNDEF-001)
+        undef_issues = self._detect_undefined_names(tree)
+        for issue in undef_issues:
+            issues.append(issue)
+            score -= 25.0
+
+        # 3. Security and Anti-Pattern Detection
         total_functions = 0
         typed_functions = 0
         max_depth = 0
@@ -169,8 +356,22 @@ class QualityGuard:
                 total_functions += 1
                 has_return_type = node.returns is not None
                 args = node.args
-                # Check parameters (excluding 'self' and 'cls')
-                all_params = [a for a in args.args if a.arg not in ("self", "cls")]
+                # Check parameters (excluding 'self' and 'cls') across all 5 parameter groups
+                all_params: List[ast.arg] = []
+                posonly = getattr(args, "posonlyargs", [])
+                for a in posonly:
+                    if a.arg not in ("self", "cls"):
+                        all_params.append(a)
+                for a in args.args:
+                    if a.arg not in ("self", "cls"):
+                        all_params.append(a)
+                if args.vararg:
+                    all_params.append(args.vararg)
+                for a in args.kwonlyargs:
+                    all_params.append(a)
+                if args.kwarg:
+                    all_params.append(args.kwarg)
+
                 typed_params = [a for a in all_params if a.annotation is not None]
                 
                 is_fully_typed = has_return_type and (len(typed_params) == len(all_params))
@@ -200,7 +401,7 @@ class QualityGuard:
                     ))
                     score -= 6.0
 
-        type_coverage = round((typed_functions / total_functions) * 100, 1) if total_functions > 0 else 100.0
+        type_coverage = round((typed_functions / total_functions) * 100, 1) if total_functions > 0 else 0.0
         final_score = max(0.0, min(100.0, round(score, 1)))
         passed = final_score >= 70.0 and not any(i.severity == "CRITICAL" for i in issues)
 
@@ -250,9 +451,13 @@ class QualityGuard:
         named for what it covers.
         """
         candidates: List[str] = []
-        for root, _, files in os.walk(root_dir):
-            if any(p in root for p in [".git", "node_modules", ".venv", "apps", "dist", "build"]):
-                continue
+        ignored_names = {
+            ".git", "node_modules", ".venv", ".venv_train", "build", "dist",
+            "__pycache__", ".pytest_cache", ".saleha", ".turbo",
+        }
+        for root, dirs, files in os.walk(root_dir):
+            # Prune ignored directories in-place so os.walk does not descend into them
+            dirs[:] = [d for d in dirs if d not in ignored_names and not d.startswith(".")]
             for f in files:
                 if f.endswith(".py") and not f.startswith("test_"):
                     candidates.append(os.path.join(root, f))

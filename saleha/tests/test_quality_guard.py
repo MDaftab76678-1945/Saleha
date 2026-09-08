@@ -13,7 +13,7 @@ import tempfile
 from saleha.core.quality_guard import QualityGuard, QualityReport, QualityIssue, quality_guard
 
 
-def test_clean_code_passes():
+def test_clean_code_passes() -> None:
     guard = QualityGuard()
     code = '''
 def add_numbers(a: int, b: int) -> int:
@@ -29,7 +29,7 @@ def add_numbers(a: int, b: int) -> int:
     assert report.type_coverage_pct == 100.0
 
 
-def test_syntax_error_detected():
+def test_syntax_error_detected() -> None:
     guard = QualityGuard()
     code = '''
 def broken_syntax(
@@ -42,7 +42,7 @@ def broken_syntax(
     assert any(i.rule_id == "SYNTAX-001" for i in report.issues)
 
 
-def test_eval_exec_detected():
+def test_eval_exec_detected() -> None:
     guard = QualityGuard()
     code = '''
 def run_dangerous(payload: str) -> None:
@@ -54,7 +54,7 @@ def run_dangerous(payload: str) -> None:
     assert report.passed is False
 
 
-def test_naked_except_detected():
+def test_naked_except_detected() -> None:
     guard = QualityGuard()
     code = '''
 def handle_error(val: int) -> int:
@@ -68,7 +68,7 @@ def handle_error(val: int) -> int:
     assert report.major_count >= 1
 
 
-def test_the_brand_rule_is_gone():
+def test_the_brand_rule_is_gone() -> None:
     """
     SOV-001 matched the bare words "claude", "hermes" and "kimi" anywhere in a
     file and raised a CRITICAL that failed it. Ordinary code posting to a
@@ -94,7 +94,7 @@ def fetch(prompt: str) -> str:
     assert report.quality_score == 100.0
 
 
-def test_no_rule_scores_a_file_on_what_its_strings_say():
+def test_no_rule_scores_a_file_on_what_its_strings_say() -> None:
     """Naming any product, in any form, is not a quality defect."""
     guard = QualityGuard()
     samples = [
@@ -107,7 +107,7 @@ def test_no_rule_scores_a_file_on_what_its_strings_say():
         assert not any(i.rule_id == "SOV-001" for i in report.issues), text
 
 
-def test_raw_score_survives_the_clamp():
+def test_raw_score_survives_the_clamp() -> None:
     """
     quality_score clamps at 0.0, so 25 untyped functions and 400 looked
     identical. raw_score keeps them apart for callers that rank candidates.
@@ -122,7 +122,7 @@ def test_raw_score_survives_the_clamp():
     assert small.raw_score > large.raw_score
 
 
-def test_type_coverage_calculation():
+def test_type_coverage_calculation() -> None:
     guard = QualityGuard()
     code = '''
 def typed_func(x: int) -> int:
@@ -138,7 +138,7 @@ def untyped_func(x, y):
     assert any(i.rule_id == "TYPE-001" for i in report.issues)
 
 
-def test_nesting_depth_detection():
+def test_nesting_depth_detection() -> None:
     guard = QualityGuard()
     code = '''
 def deeply_nested() -> None:
@@ -156,7 +156,7 @@ def deeply_nested() -> None:
     assert any(i.rule_id == "COMPLEX-001" for i in report.issues)
 
 
-def test_check_file_and_workspace():
+def test_check_file_and_workspace() -> None:
     guard = QualityGuard()
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tf:
         tf.write('''
@@ -176,3 +176,109 @@ def sample(x: int) -> int:
     assert "scan_is_complete" in summary
     assert "average_quality_score" in summary
     assert "average_type_coverage_pct" in summary
+
+
+def test_undefined_name_detected_on_missing_import() -> None:
+    guard = QualityGuard()
+    # Exactly replicates the defect where Set was used without importing from typing
+    code = '''
+from typing import Dict, Any, Optional, List, Tuple
+
+def get_tool_names() -> Set[str]:
+    return {"a", "b"}
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert report.critical_count >= 1
+    undef_issues = [i for i in report.issues if i.rule_id == "UNDEF-001"]
+    assert len(undef_issues) >= 1
+    assert any("Set" in i.message for i in undef_issues)
+
+
+def test_undefined_name_detected_on_undefined_variable() -> None:
+    guard = QualityGuard()
+    code = '''
+def calculate() -> int:
+    return unimported_var + 10
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert any(i.rule_id == "UNDEF-001" and "unimported_var" in i.message for i in report.issues)
+
+
+def test_valid_imports_pass_undef_check() -> None:
+    guard = QualityGuard()
+    code = '''
+from typing import Dict, Any, Optional, List, Tuple, Set
+
+def get_tool_names() -> Set[str]:
+    tools: Set[str] = set()
+    return tools
+'''
+    report = guard.check_code(code)
+    assert report.passed is True
+    assert not any(i.rule_id == "UNDEF-001" for i in report.issues)
+
+
+def test_scope_leakage_prevented_in_nested_functions() -> None:
+    """Inner function bindings must NOT hoist into outer function scope."""
+    guard = QualityGuard()
+    code = '''
+def outer_func() -> int:
+    def inner_func() -> int:
+        inner_var = 10
+        return inner_var
+    return inner_var + 5  # inner_var is undefined in outer_func!
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert any(i.rule_id == "UNDEF-001" and "inner_var" in i.message for i in report.issues)
+
+
+def test_comprehension_scope_isolation() -> None:
+    """Python 3 comprehension loop variables must NOT leak into the enclosing function."""
+    guard = QualityGuard()
+    code = '''
+def calculate_data() -> int:
+    squares = [x * x for x in range(10)]
+    return x  # x is undefined outside the comprehension!
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert any(i.rule_id == "UNDEF-001" and "x" in i.message for i in report.issues)
+
+
+def test_nesting_depth_isolated_from_inner_functions() -> None:
+    """Outer function with zero nesting must NOT be penalized for inner function's nesting depth."""
+    guard = QualityGuard()
+    code = '''
+def outer_clean() -> None:
+    def inner_deep() -> None:
+        if True:
+            for i in range(5):
+                while False:
+                    try:
+                        if True:
+                            pass
+                    except Exception:
+                        pass
+    inner_deep()
+'''
+    report = guard.check_code(code)
+    # The warning COMPLEX-001 should only target inner_deep, NOT outer_clean
+    complex_issues = [i for i in report.issues if i.rule_id == "COMPLEX-001"]
+    assert len(complex_issues) == 1
+    assert "inner_deep" in complex_issues[0].message
+    assert "outer_clean" not in complex_issues[0].message
+
+
+def test_varargs_untyped_counted_in_coverage() -> None:
+    """Functions with untyped *args or **kwargs must NOT be marked fully typed."""
+    guard = QualityGuard()
+    code = '''
+def func_untyped_args(x: int, *args, **kwargs) -> int:
+    return x
+'''
+    report = guard.check_code(code)
+    assert report.typed_functions == 0
+    assert any(i.rule_id == "TYPE-001" for i in report.issues)

@@ -64,6 +64,8 @@ Over 29 audit passes, the following concrete fabrications were uncovered and era
 | **POSIX Violations on Windows** | `saleha/sandbox/sandbox_jail.py` | Unguarded `import resource` or POSIX signal calls crashing on Windows. |
 | **Test Pinning** | Multiple tests | Writing unit tests that assert the fake mock values (`assert res.score == 93.3`). |
 | **Silent Premature Finish** | `AgentLoop` | Calling `finish()` on step 0 without executing any investigative tool call. |
+| **Shallow Static Analysis / Happy-Path AST** | `saleha/tools/ast_inspector.py` | Writing shallow `ast.walk` checks that ignore full language spec (omitting `*args`/`**kwargs`/`posonlyargs`/`kwonlyargs`, missing ternary `IfExp` and comprehension branches, and bleeding nested function complexity into parent scope). |
+| **Vacuous Metrics Distortion** | Static tools / Metrics | Reporting `100.0%` for empty sets (e.g. 0 functions -> 100% type coverage) instead of `0.0` or explicit empty state. |
 
 ---
 
