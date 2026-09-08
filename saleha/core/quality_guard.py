@@ -277,6 +277,24 @@ class QualityGuard:
             def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
                 self._visit_comprehension(node)
 
+            def visit_Lambda(self, node: ast.Lambda) -> None:
+                """Lambda parameters are their own scope, same as a function's."""
+                for d in node.args.defaults + [d for d in node.args.kw_defaults if d]:
+                    self.visit(d)
+
+                local_scope: Set[str] = set()
+                posonly = getattr(node.args, "posonlyargs", [])
+                for arg in posonly + node.args.args + node.args.kwonlyargs:
+                    local_scope.add(arg.arg)
+                if node.args.vararg:
+                    local_scope.add(node.args.vararg.arg)
+                if node.args.kwarg:
+                    local_scope.add(node.args.kwarg.arg)
+
+                self.scopes.append(local_scope)
+                self.visit(node.body)
+                self.scopes.pop()
+
             def visit_Name(self, node: ast.Name) -> None:
                 if isinstance(node.ctx, ast.Load):
                     if not self._is_defined(node.id):

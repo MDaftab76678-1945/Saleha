@@ -282,3 +282,45 @@ def func_untyped_args(x: int, *args, **kwargs) -> int:
     report = guard.check_code(code)
     assert report.typed_functions == 0
     assert any(i.rule_id == "TYPE-001" for i in report.issues)
+
+
+def test_lambda_parameter_is_not_undefined() -> None:
+    """
+    Found while auditing saleha/tools/base.py: `lambda params: self.execute(**params)`
+    scored a CRITICAL UNDEF-001 on 'params' and failed the file, because
+    ScopeVisitor had no visit_Lambda -- it fell through to generic_visit,
+    which walks straight into the lambda body without ever putting the
+    lambda's own parameters into scope.
+    """
+    guard = QualityGuard()
+    code = '''
+def to_dict() -> dict:
+    return {"handler": lambda params: params}
+'''
+    report = guard.check_code(code)
+    assert report.passed is True
+    assert not any(i.rule_id == "UNDEF-001" for i in report.issues)
+
+
+def test_lambda_parameter_does_not_leak_outside_lambda() -> None:
+    """A lambda's parameters must stay scoped to the lambda body."""
+    guard = QualityGuard()
+    code = '''
+def make() -> int:
+    f = lambda x: x + 1
+    return x
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert any(i.rule_id == "UNDEF-001" and "x" in i.message for i in report.issues)
+
+
+def test_real_undefined_name_inside_lambda_is_still_caught() -> None:
+    """The lambda scope fix must not make UNDEF-001 blind to real defects inside lambdas."""
+    guard = QualityGuard()
+    code = '''
+f = lambda x: x + totally_undefined_name
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert any(i.rule_id == "UNDEF-001" and "totally_undefined_name" in i.message for i in report.issues)
