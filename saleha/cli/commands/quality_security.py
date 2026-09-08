@@ -385,17 +385,55 @@ def merkle_audit_cmd():
     console.print(Panel(f'[bold {col}]🌳 Cryptographic Merkle Audit Trail[/bold {col}]\n{msg}', border_style=col))
 
 @cli.command(name='quadratic-vote')
-def quadratic_vote_cmd():
+@click.argument('title', required=True)
+@click.option('--proposer', default='cli-user', help='Who is proposing this (agent name or your own)')
+@click.option('--threshold', default=5, type=int, help='Net votes required to approve (default: 5)')
+@click.option('--vote', 'votes', multiple=True, required=True,
+              help='One voter and their vote count as agent:count, e.g. --vote CoderAgent:3. '
+                   'Repeat --vote for each voter. Negative counts (e.g. SecurityAgent:-2) oppose.')
+def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple):
     """
-    Quadratic Voting & VCG Swarm Consensus Status.
-    
-    Example: saleha quadratic-vote
+    Quadratic Voting & VCG consensus on a real proposal you supply.
+
+    This used to replay one fixed hardcoded scenario (same proposal, same
+    two votes) on every run -- the underlying engine's math is real, but
+    nothing fed it a real proposal or real votes. Now takes both from the
+    command line: this is a standalone voting calculator, not something
+    wired to observe an actual swarm's internal deliberation (no code in
+    this project generates proposals or casts votes on its own).
+
+    Example: saleha quadratic-vote "Adopt async event sourcing" \\
+        --vote CoderAgent:3 --vote SecurityAgent:2 --vote ReviewerAgent:-1
     """
-    from saleha.core.quadratic_voting import quadratic_voting_engine
-    p = quadratic_voting_engine.create_proposal('ARCH_V2', 'Enable Asynchronous Event Sourcing', 'ArchitectAgent')
-    quadratic_voting_engine.cast_vote('CoderAgent', 'ARCH_V2', 3)
-    quadratic_voting_engine.cast_vote('SecurityAgent', 'ARCH_V2', 2)
-    rep = quadratic_voting_engine.tally_proposal('ARCH_V2')
+    from saleha.core.quadratic_voting import QuadraticVotingEngine
+
+    parsed: list[tuple[str, int]] = []
+    for raw in votes:
+        agent, _, count_str = raw.partition(':')
+        if not _ or not agent.strip():
+            console.print(f"[bold red]Invalid --vote '{raw}' -- expected agent:count, e.g. CoderAgent:3[/bold red]")
+            raise click.exceptions.Exit(1)
+        try:
+            count = int(count_str)
+        except ValueError:
+            console.print(f"[bold red]Invalid vote count in '{raw}' -- '{count_str}' is not an integer[/bold red]")
+            raise click.exceptions.Exit(1)
+        parsed.append((agent.strip(), count))
+
+    engine = QuadraticVotingEngine(approval_threshold=threshold)
+    proposal_id = 'CLI_PROPOSAL'
+    engine.create_proposal(proposal_id, title, proposer)
+    for agent, count in parsed:
+        engine.cast_vote(agent, proposal_id, count)
+    rep = engine.tally_proposal(proposal_id)
+
+    table = Table(title='Ballots Cast', border_style='magenta')
+    table.add_column('Agent', style='bold cyan')
+    table.add_column('Votes', justify='right')
+    table.add_column('Credit Cost', justify='right', style='dim')
+    for agent, count in parsed:
+        table.add_row(agent, str(count), str(count ** 2))
+    console.print(table)
     console.print(Panel(f'[bold magenta]🗳️ Quadratic Voting & VCG Allocation[/bold magenta]\n{rep.summary}', border_style='magenta'))
 
 
