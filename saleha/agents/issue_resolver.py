@@ -9,6 +9,7 @@ Automatically analyzes software issue reports, tracebacks, and repository requir
 
 from __future__ import annotations
 
+import ast
 import re
 import time
 import uuid
@@ -43,6 +44,21 @@ class AutonomousIssueResolver:
         clean_title = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-")[:40]
         return f"fix/{issue_id.lower()}-{clean_title}"
 
+    def _find_ast_error(self, code: str) -> Optional[str]:
+        """Returns a SyntaxError message if `code` does not parse, else None.
+
+        This used to be claimed unconditionally in the PR markdown
+        ("AST Syntax Verification: Clean (0 Syntax Errors)") with no ast
+        call anywhere in this class -- the claim was true only by luck.
+        """
+        if not code or not code.strip():
+            return "no code was generated"
+        try:
+            ast.parse(code)
+            return None
+        except SyntaxError as e:
+            return f"{e.msg} (line {e.lineno})"
+
     def resolve_issue(self, issue_description: str, repo_name: str = "Saleha") -> IssueResolutionPlan:
         """Resolves an issue autonomously using the multi-agent swarm pipeline."""
         start_time = time.time()
@@ -61,6 +77,18 @@ class AutonomousIssueResolver:
         # 2. Formulate Root Cause Analysis (RCA)
         rca_text = f"Identified inconsistency or bug in requirement: '{first_line}'. Applied AST-validated hardening and regression assertions."
 
+        # The QALead stage (swarm_pipeline_engine.py) already generates and
+        # actually executes a real test suite against the patch -- pull that
+        # out instead of returning a hardcoded literal that was never run.
+        # This used to be "def test_regression(): assert True\n" for every
+        # issue, unconditionally, regardless of what the swarm produced.
+        qa_stage = next((s for s in swarm_result.stages if s.agent_role == "QALead"), None)
+        real_test_code = (qa_stage.payload.get("test_code", "") if qa_stage else "") or (
+            "# QALead stage did not run for this issue -- no test was generated.\n"
+        )
+
+        ast_error = self._find_ast_error(swarm_result.final_code)
+
         # 3. Synthesize GitHub PR Body Markdown
         pr_body = self._render_pr_markdown(
             issue_id=issue_id,
@@ -68,7 +96,8 @@ class AutonomousIssueResolver:
             branch_name=branch_name,
             rca=rca_text,
             swarm_result=swarm_result,
-            repo_name=repo_name
+            repo_name=repo_name,
+            ast_error=ast_error,
         )
 
         elapsed = round((time.time() - start_time) * 1000, 2)
@@ -79,7 +108,7 @@ class AutonomousIssueResolver:
             pr_title=pr_title,
             root_cause_analysis=rca_text,
             patch_code=swarm_result.final_code,
-            test_code="# Verified with Pytest Suite\ndef test_regression(): assert True\n",
+            test_code=real_test_code,
             security_clean=swarm_result.security_clean,
             tests_passed=swarm_result.tests_passed,
             pr_body_markdown=pr_body,
@@ -94,12 +123,26 @@ class AutonomousIssueResolver:
         branch_name: str,
         rca: str,
         swarm_result: SwarmExecutionResult,
-        repo_name: str
+        repo_name: str,
+        ast_error: Optional[str] = None,
     ) -> str:
         stages_summary = "\n".join(
             f"- **{s.agent_role}Agent**: {s.output_summary} (`{s.duration_ms}ms`)"
             for s in swarm_result.stages
         )
+
+        # Each checklist line below now reflects a value this function was
+        # actually given, not a literal "Clean" / "Passed" written before any
+        # of these fields existed on the result. An unchecked box with a
+        # reason ("- [ ] ... : <what actually happened>") is the honest state
+        # when a check did not run or did not pass -- not a checked box with
+        # a caveat buried in the wording next to it.
+        ast_status = "Clean (0 Syntax Errors)" if ast_error is None else f"FAILED: {ast_error}"
+        ast_box = "[x]" if ast_error is None else "[ ]"
+        security_box = "[x]" if swarm_result.security_clean else "[ ]"
+        security_status = "Passed (0 CWEs Detected)" if swarm_result.security_clean else "Hardened (vulnerabilities found and patched)"
+        tests_box = "[x]" if swarm_result.tests_passed else "[ ]"
+        tests_status = "Generated tests executed and passed" if swarm_result.tests_passed else "Generated tests did not pass -- see QALead stage trace above"
 
         return f"""## 🚀 {pr_title}
 
@@ -121,9 +164,9 @@ class AutonomousIssueResolver:
 ---
 
 ### 🛡️ Quality & Verification Gate
-- [x] **AST Syntax Verification**: Clean (0 Syntax Errors)
-- [x] **OWASP & SAST Security Audit**: {'Passed (0 CWEs Detected)' if swarm_result.security_clean else 'Hardened'}
-- [x] **Unit & Regression Testing**: {'100% Invariant Tests Passed' if swarm_result.tests_passed else 'Failed'}
+- {ast_box} **AST Syntax Verification**: {ast_status}
+- {security_box} **OWASP & SAST Security Audit**: {security_status}
+- {tests_box} **Unit & Regression Testing**: {tests_status}
 - [x] **Context Optimization**: `{swarm_result.token_savings_pct}%` Token Reduction
 
 ```python

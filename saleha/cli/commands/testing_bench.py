@@ -227,20 +227,6 @@ def benchmark_eval_cmd(model: str):
         summary = harness.run_suite()
     console.print(Markdown(harness.render_markdown(summary)))
 
-@cli.command(name='solve-issue')
-@click.argument('issue_title', required=True)
-@click.option('--desc', default='', help='Issue description / reproduction steps')
-def solve_issue_cmd(issue_title: str, desc: str):
-    """
-    Autonomous Issue-to-PR resolution engine (SWE-Bench workflow).
-    
-    Example: saleha solve-issue "Fix ZeroDivisionError in calculation"
-    """
-    from saleha.core.ticket_resolver import ticket_resolver
-    console.print(Panel(f'[bold yellow]🎫 Autonomous Issue Resolver: {issue_title}[/bold yellow]', border_style='yellow'))
-    res = ticket_resolver.solve_issue(issue_title, desc)
-    console.print(Markdown(res.pull_request_markdown))
-
 @cli.command(name='test-ui')
 @click.argument('path', required=True)
 def test_ui_cmd(path: str):
