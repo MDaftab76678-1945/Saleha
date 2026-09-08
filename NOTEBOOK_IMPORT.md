@@ -2180,3 +2180,67 @@ failure. Every prior "full suite passes" claim in this ledger's own earlier
 passes was necessarily a claim about however far a manually-set
 `SALEHA_TEST_MODE` happened to reach that day -- itself a small instance of
 the exact pattern this ledger exists to find.
+
+### `solve-issue` fixed (next session, same pass)
+
+Of the six findings from the 139-command triage, `solve-issue` was next.
+Reading `testing_bench.py` in full found a discrepancy worth noting: the
+triage subagent that first flagged this had said the winning definition
+lived in `swarm_team.py:285`. It does not -- both `solve-issue`
+registrations turned out to be in `testing_bench.py` itself (one at line
+230, one at line 268), confirmed directly with
+`cli.commands.get('solve-issue').callback.__module__` rather than taken on
+the earlier report. The earlier finding's substance (two definitions, one
+dead, both fabricating) held; only the file attribution was off. Worth
+recording as its own small instance of the rule at the top of this file: an
+agent's own summary is not exempt from the "measure, don't assert" standard
+applied to everything else here.
+
+The dead one, wired to `saleha/core/ticket_resolver.py`, was deleted rather
+than fixed -- Click had already made it unreachable, and its own test
+(`test_ticket_resolver.py`) was asserting
+`reproduction_test_written is True` unconditionally, the same
+fabrication-pinning shape this ledger keeps finding, on a field that was
+`True` regardless of whether any reproduction test was ever written (it
+never was, in either implementation).
+
+The live command, `saleha/agents/issue_resolver.py`, had two fabrications
+independent of the ones `swarm_pipeline_engine.py` already fixed:
+
+1. `test_code` returned the literal `"def test_regression():
+   assert True\n"` for every issue, never executed, regardless of what the
+   swarm actually produced. The QALead stage -- fixed in the
+   `swarm_pipeline_engine.py` work above to genuinely execute its generated
+   tests -- already carries real test code in `swarm_result.stages`; this
+   now reads that instead of returning a constant.
+
+2. The PR markdown's "Quality & Verification Gate" section printed
+   `"AST Syntax Verification: Clean (0 Syntax Errors)"` unconditionally --
+   there was no `ast` import, no `ast.parse()` call, nothing in the class
+   that could have failed this check even if the swarm's code did not parse.
+   Added a real check (`_find_ast_error`, a straightforward `ast.parse()`
+   wrapped to return the `SyntaxError` message on failure) and changed all
+   three gate lines (AST, security, tests) to render an unchecked box with
+   the actual reason when the corresponding result was not clean, instead of
+   a checked box that never varied.
+
+### Verified
+
+```text
+pytest saleha/tests/test_issue_resolver.py saleha/tests/test_issue_resolver_and_live_wiring.py saleha/tests/test_swarm_pipeline_and_bus.py saleha/tests/test_enterprise_architecture.py -v
+42 passed in 5.87s
+```
+
+```text
+python -c "from saleha.cli.commands import cli; print(len(cli.commands))"
+154 commands registered (unchanged from the count after leaderboard's deletion)
+```
+
+Manual CLI run (`saleha solve-issue "IndexError..." --repo TestRepo`) under
+`SALEHA_TEST_MODE=1`: exit 0, and the printed `test_code` was a real
+generated pytest suite (`"# Auto-Generated Pytest Test Suite for: Fix issue
+in Saleha: IndexError..."`), not the old literal string.
+
+Four findings from the 139-command triage remain open:
+`pr_generator.py`'s hardcoded "Verified (100%)" badge, `quadratic-vote`,
+`merkle-audit`, and the non-fabrication `snapshot`/`rollback` breakage.

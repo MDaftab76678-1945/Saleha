@@ -231,21 +231,24 @@ found. One fixed:
   `test_enterprise_architecture.py` 9/9, `test_issue_resolver*.py` 23/23 —
   the only three test files that import either module.
 
-Four remaining, not yet fixed:
-
-- **`solve-issue` is two commands, both fabricate.** `swarm_team.py:285` and
-  `testing_bench.py:230` both register the same command name; Click keeps
-  only the second, so `ticket_resolver.py` (the first) is dead code that also
-  hardcodes `reproduction_test_written=True` with nothing written. The live
-  one (`agents/issue_resolver.py`) hardcodes `"AST Syntax Verification: Clean
-  (0 Syntax Errors)"` unconditionally and uses the literal
-  `"def test_regression(): assert True\n"` as the test for every issue,
-  never executed. Same bug class as `resolve-issue` (fixed pass 23) — this is
-  a different command, unfixed. Note: this command now inherits a genuinely
-  running `tests_passed` from the `swarm_pipeline_engine.py` fix above (via
-  `issue_resolver.py`'s call to `execute_swarm`) — the "0 Syntax Errors" and
-  literal `assert True` fabrications are still separate, unaddressed code in
-  `issue_resolver.py` itself.
+- **`solve-issue` — fixed (pass 30).** Was two commands in the same file
+  (`testing_bench.py`), both defined `@cli.command(name='solve-issue')`;
+  Click kept only the second, so the first (wired to
+  `saleha/core/ticket_resolver.py`) was dead code, unreachable from the CLI,
+  that also hardcoded `reproduction_test_written=True` with nothing ever
+  written. Deleted the dead code (the module, its test, and the first command
+  definition) rather than fixing something nothing can call. The live command
+  (`agents/issue_resolver.py`) had two separate fabrications: `test_code` was
+  a hardcoded literal (`"def test_regression(): assert True\n"`) for every
+  issue regardless of what the swarm pipeline generated — now pulls the real
+  test code the QALead stage actually produced (see the
+  `swarm_pipeline_engine.py` fix above); and the PR markdown unconditionally
+  printed `"AST Syntax Verification: Clean (0 Syntax Errors)"` with no `ast`
+  call anywhere in the class — added a real `ast.parse()` check, and all
+  three verification-gate lines (AST/security/tests) now render an unchecked
+  box with the actual reason when a check did not pass. Verified: 42/42
+  tests across the four related test files, plus a manual CLI invocation
+  confirming genuinely generated test code in the output.
 - **`pr_generator.py`** (backs `pr` command) — "Verified (100%)" / "Security
   Audit Passed" badges hardcoded unconditionally; empty `execution_output`
   becomes the literal "All unit tests passed successfully."
