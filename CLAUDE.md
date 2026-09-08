@@ -155,6 +155,23 @@ UnifiedDiffResult` on every real invocation, and behind that crash reported
 `requires-python` said 3.12 and the venv ran 3.11. `setup.py` deleted (it
 duplicated `pyproject.toml` and had drifted).
 
+**Design UI synthesis commands are templates** (pass 30 finding):
+`design-vision` (CLI in `voice_vision.py` line 104–115) calls
+`vision_designer.synthesize_from_wireframe()`, which **generates hardcoded
+HTML/CSS/JSX regardless of input**. Probe: `"login form"` and `"dashboard
+with charts"` both return identical `components = ["HeaderBar", "MetricsGrid",
+"ActionCard", "StatusBadge", "FooterNav"]` and the same 6-color palette —
+a login form has no metrics grid. The JSX `<h1>{clean_prompt[:50]}</h1>` copies
+the first 50 chars of input; everything else (button styles, card layout, CSS
+rules) is the same literal every time. No layout-type inference, no vision
+model call. `design-model` (line 113–124 in `research_experimental.py`) calls
+`neural_designer.design_transformer()`, which always returns the same
+NeuralArchitectureSpec defaults (512 dims, 8 heads, 6 layers, 32000 vocab)
+regardless of input name — two different `design-model MySmall` and
+`design-model MyHuge` calls return parameters differing only in the name field
+in the returned string, not in the actual architecture. Not yet fixed. No
+production caller for either.
+
 **Next candidates, not yet examined.** Of the eight modules that import `ast`
 and never call it, this signature has now flagged a real defect five times for
 five (`mech_interp.py`, `cognitive_engine.py`, `constitutional_guard.py`,
@@ -455,6 +472,70 @@ Not instructions — this is what they are building toward. Keep it in view.
 
 The honesty work in this file serves that vision — a system that fabricates its
 own results cannot improve itself, because it cannot tell what actually worked.
+
+---
+
+## Quality pipeline: design-level checks for new commands
+
+Every new CLI command or agent must pass a design audit before shipping:
+
+1. **Probe inputs across the range.** Two different calls with meaningfully
+   different inputs must produce meaningfully different outputs. If
+   `design-model SmallNet` and `design-model MassiveNet` return architectures
+   differing only in the name string (same layer counts, dims, etc.), the
+   command is a template.
+
+2. **Check for missing model calls.** If a command claims to reason, generate
+   code, analyze a file, or use ML, count calls to the model in production code.
+   If the count is zero and there are no comments explaining why, it is
+   fabricated.
+
+3. **Trace the data flow.** Follow input → processing → output in the code.
+   If processing is hardcoded or deterministic regardless of input, say so
+   explicitly in ARCHITECTURE.md or ROADMAP.md.
+
+4. **Run, don't just read.** Import the module, call it with test data, inspect
+   the return value. Never declare a feature done from a grep alone.
+
+5. **Document in NOTEBOOK_IMPORT.md.** When a command is confirmed real or
+   template, record the probe that proved it: "called with X and Y, got
+   identical output" or "called 1 model invocation with input Z."
+
+Current checklist for existing commands:
+
+- [x] `design-vision` — template (hardcoded component list, no input inference)
+- [x] `design-model` — template (hardcoded architecture params)
+- [ ] `vision` (in voice_vision.py line 54–78) — claims real vision model via
+  llava/qwen-vl; untested in this environment.
+- [ ] All other 150+ commands — apply the checklist incrementally.
+
+---
+
+## Claude Code capabilities used in this repo
+
+These are real, working tools that Saleha will be integrated with:
+
+- **Agent tool** — spawn subagents to parallelize work (Explore, Coder,
+  Researcher types). Used by `refactor-orchestrator` pass 29 to audit 40 files.
+- **Artifact system** — publish HTML/React pages with live state and databases.
+  Saleha's `/design-vision` should ship results here instead of plaintext.
+- **Skill system** — invoke pre-built workflows (init, run, design, dataviz).
+  Saleha's agents could call `/skill run` to start the project and probe
+  runtime behavior in real time.
+- **Code Review** — `/code-review ultra` launches multi-agent cloud review of a
+  branch or PR.
+- **Git/GitHub** — full `gh` CLI access, branch management, PR creation/reading.
+- **Memory system** — persistent JSON files across sessions, auto-loaded at
+  start. Saleha's own task history would fit here.
+- **MCP servers** — Anthropic context (docs lookup), Supabase (database), etc.
+  Orchestrator could query live service state via these.
+- **Bash/PowerShell** — native shell; Saleha already uses this for git.
+- **Web search / fetch** — browse external documentation on demand.
+
+**Integration point:** Saleha's orchestrator could use Claude Code as a
+backend — when Claude Code tasks are triggered from Saleha's CLI, their
+results flow back to inform Saleha's own decision-making. This is the
+"self-building" vision from line 447–448 of this file.
 
 ---
 
