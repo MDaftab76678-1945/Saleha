@@ -173,10 +173,8 @@ hardcoded PASS — fixed alongside the hang, see NOTEBOOK_IMPORT.md), and
 that were relying on real fallback behavior the mock now short-circuited —
 both breaks were genuine test-intent conflicts, not fixed by reverting;
 resolved by narrowing both guards (`self.inference is None`,
-`model != "mock"`). Final verified result:
-`1686 passed, 14 skipped, 60 subtests passed in 80.31s` — zero failures, no
-manual setup. Full multi-stage writeup in `NOTEBOOK_IMPORT.md`, "Thirtieth
-pass".
+`model != "mock"`). Full multi-stage writeup in `NOTEBOOK_IMPORT.md`,
+"Thirtieth pass".
 
 **Design UI synthesis commands — fixed (pass 32).** Both were pass-30
 template findings; the fix was to make them input-driven, not to delete
@@ -198,6 +196,28 @@ them (no production caller for either, but the instruction was to fix).
   `used_model=False`, tokens `0` — the CLI/REPL print which path ran.
   Docstring corrected: no image parsing. Probe: four different prompts →
   four different layout types, components and palettes.
+
+**`swe_repo_fixer.py` and `extreme_contrastive_trainer.py` — deleted, not
+fixed** (commit `f9814b6`, 2026-09-07). Both confirmed pure templates (see
+git history for the probes); no production caller for either, so the fix was
+removal rather than a rebuild. `apex_97_validator.py`'s hardcoded per-domain
+scores were fixed in the same commit (it had a caller).
+
+**`docs_generator.py`, `swarm_self_play_arena.py`, `code_executor.py`** —
+the unused `import ast` in each was removed in pass 32. `swarm_self_play_arena.py`
+went further in pass 33 (its `fight_battle` was a hardcoded template with
+`6/6` "attacks neutralized" — now calls `CoderAgent.generate_code()` and the
+real `ASTSecurityScanner`).
+
+**`quality_guard.py` — all three design issues fixed** (commits `2d5915a`,
+`ade661b`, follow-ups `d0e237b`/`121c55b`). `SOV-001` removed entirely
+(naming a model you call is not a defect). `raw_score` added, uncapped,
+alongside the clamped `quality_score`, so 25 and 400 untyped functions are
+distinguishable for ranking. `check_workspace` now returns `files_found`,
+`files_analyzed`, `truncated`, and `scan_is_complete` instead of a silent
+partial scan. Also: `ScopeVisitor` had no `visit_Lambda`, so any lambda
+parameter scored a false CRITICAL `UNDEF-001` — fixed. 20 tests in
+`test_quality_guard.py`.
 
 Detail: `NOTEBOOK_IMPORT.md`, "Thirty-second pass."
 

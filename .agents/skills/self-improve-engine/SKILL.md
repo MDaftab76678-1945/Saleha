@@ -17,6 +17,7 @@ Every action and outcome is recorded to `~/.saleha/self_improve_log.jsonl` for i
 ## Safety Rails
 
 These constraints are non-negotiable and baked into the execution:
+
 1. **Never Edits Existing Source**: Only ever creates and commits a new test file under `saleha/tests/test_<module>.py`.
 2. **Dedicated Branch**: Commits only to the local `auto/self-improve` branch. Never touches the working branch or main branch history.
 3. **No Remote Push**: Commits remain strictly local; human operators decide when to publish or merge.
@@ -32,11 +33,13 @@ These constraints are non-negotiable and baked into the execution:
 ## Quick Start
 
 Inspect coverage and find the next candidate module:
+
 ```bash
 python .agents/skills/self-improve-engine/scripts/run_self_improve.py status --output scratch/status.json
 ```
 
 Run a single self-improvement cycle:
+
 ```bash
 python .agents/skills/self-improve-engine/scripts/run_self_improve.py cycle --output scratch/cycle_result.json
 ```
@@ -46,25 +49,33 @@ python .agents/skills/self-improve-engine/scripts/run_self_improve.py cycle --ou
 The skill provides `.agents/skills/self-improve-engine/scripts/run_self_improve.py` with the following subcommands:
 
 ### 1. `status`
+
 Summarizes total core modules, tested count on working branch, tests accumulated on `auto/self-improve`, and next untested candidate.
+
 ```bash
 python .agents/skills/self-improve-engine/scripts/run_self_improve.py status --output <path_to_json> [--log-limit N]
 ```
 
 ### 2. `cycle`
+
 Executes one single cycle.
+
 ```bash
 python .agents/skills/self-improve-engine/scripts/run_self_improve.py cycle --output <path_to_json>
 ```
 
 ### 3. `batch`
+
 Executes multiple cycles sequentially, automatically skipping modules that encounter repeated model generation failures.
+
 ```bash
 python .agents/skills/self-improve-engine/scripts/run_self_improve.py batch --cycles 5 --output <path_to_json>
 ```
 
 ### 4. `logs`
+
 Inspects `~/.saleha/self_improve_log.jsonl` with optional filtering by status (`committed`, `test_failed`, `generation_failed`, `no_candidate`).
+
 ```bash
 python .agents/skills/self-improve-engine/scripts/run_self_improve.py logs --limit 20 --status committed --output <path_to_json>
 ```

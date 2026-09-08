@@ -1,21 +1,21 @@
 """
 Saleha Core: Code Executor (Security-Hardened Version)
-Generated code ko temporary file mein save karke automatically run karta hai.
+Saves generated code to a temporary file and runs it automatically.
 
-Naya (security checklist se):
-5. Import allowlist/blocklist -- AST se code ke saare imports padhta hai
-   (regex se zyada bharosemand, kyunki string-matching bypass nahi kar
-   sakta jaise "im" + "port socket" jaisi tricks).
-6. Audit log -- har execution attempt (allowed ho ya blocked) record hoti
-   hai ~/.saleha/audit_log.jsonl me.
-7. Output size limit -- bahut zyada output (jaise accidental infinite
-   print loop) ko cap karta hai, taaki terminal/memory flood na ho.
+New (from the security checklist):
+5. Import allowlist/blocklist -- reads all imports from the code's AST
+   (more reliable than regex, since string-matching tricks like
+   "im" + "port socket" cannot bypass it).
+6. Audit log -- every execution attempt (allowed or blocked) is recorded
+   to ~/.saleha/audit_log.jsonl.
+7. Output size limit -- caps excessive output (e.g. an accidental infinite
+   print loop) so the terminal/memory does not flood.
 
-Pehle se:
+Already present:
 1. python/python3 fallback
 2. Configurable timeout
 3. Cleanup failure logging
-4. Pattern-based dangerous-code check (safety_patterns.py se)
+4. Pattern-based dangerous-code check (from safety_patterns.py)
 """
 
 import subprocess
@@ -33,7 +33,7 @@ from saleha.core.execution_policy import resolve_backend, build_docker_command, 
 from saleha.core.audit_log import AuditLog
 
 
-MAX_OUTPUT_CHARS = 50_000  # ~50KB -- itna kaafi hai normal script output ke liye
+MAX_OUTPUT_CHARS = 50_000  # ~50KB -- enough for normal script output
 
 
 @dataclass
@@ -50,7 +50,7 @@ class ExecutionResult:
 
 
 def _find_python_executable() -> Optional[str]:
-    """python3 ko prefer karo (zyada systems pe consistent hai), fallback python."""
+    """Prefers python3 (more consistent across systems), falls back to python."""
     for candidate in ("python3", "python"):
         path = shutil.which(candidate)
         if path:
@@ -60,8 +60,8 @@ def _find_python_executable() -> Optional[str]:
 
 def _check_blocked_imports(code: str) -> Optional[str]:
     """Single source of truth: safety_patterns._check_blocked_imports
-    (static imports + dynamic __import__/importlib detection). Pehle yahan
-    ek duplicate weaker copy thi jo sirf static statements dekhti thi."""
+    (static imports + dynamic __import__/importlib detection). This used to
+    have a duplicate, weaker copy here that only looked at static statements."""
     return _sp_check_blocked_imports(code)
 
 
@@ -91,9 +91,24 @@ class CodeExecutor:
         code: str,
         timeout: Optional[int] = None,
         allow_dangerous: bool = False,
+        language: str = "python",
     ) -> ExecutionResult:
-        """Executes code in isolated environment (Docker or host subprocess) and returns ExecutionResult."""
+        """Executes code in isolated environment (Docker or host subprocess, or Polyglot sandbox) and returns ExecutionResult."""
         effective_timeout = timeout if timeout is not None else self.timeout
+
+        if language != "python":
+            from saleha.core.polyglot_executor import PolyglotExecutor
+            poly = PolyglotExecutor(timeout=effective_timeout)
+            res = poly.execute(code, language=language)
+            return ExecutionResult(
+                success=res.success,
+                output=res.output,
+                error=res.error,
+                exit_code=res.exit_code,
+                blocked=res.blocked,
+                block_reason=res.block_reason,
+                backend="polyglot",
+            )
 
         if self.python_cmd is None:
             return ExecutionResult(

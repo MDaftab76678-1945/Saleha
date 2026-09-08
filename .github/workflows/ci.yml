@@ -33,7 +33,12 @@ jobs:
       - name: Install Core Dependencies & Test Suite
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -e ".[dev]" pytest pytest-asyncio rich click psutil pydantic requests pyyaml
+          # [formal] carries z3-solver, which test_2026_disciplines_suite's
+          # SMT test needs -- without it that test fails (not skips) on
+          # z3_available. [codeintel] carries the tree-sitter parsers other
+          # tests need. Both were absent here, so the matrix was red on a
+          # missing dependency, not a real regression.
+          python -m pip install -e ".[dev,formal,codeintel]" pytest pytest-asyncio rich click psutil pydantic requests pyyaml
 
       - name: Execute Full Autonomous Test Suite
         run: |

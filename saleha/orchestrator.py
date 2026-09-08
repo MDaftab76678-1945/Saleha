@@ -16,7 +16,7 @@ Notes on the pieces that are easy to misread:
 """
 
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 from saleha.agents.planner import PlannerAgent, PlanResult
 from saleha.agents.coder import CoderAgent, CodeResult
@@ -104,6 +104,198 @@ class SalehaOrchestrator:
         self.verifier = CodeExecutor(timeout=15)     # runs the code to verify it
         self.last_goal: str = ""                     # previous task, session-scoped
         self.last_code: str = ""
+
+    def _try_parallel_candidates(
+        self,
+        user_goal: str,
+        profile_context: str,
+        context_note: str,
+        repo_note: str,
+        plan_result: PlanResult,
+        current_test_code: str,
+        draft_result: Optional[CodeResult],
+        target_language: str,
+    ) -> Tuple[Optional[CodeResult], str]:
+        """Races `self.parallel_candidates` solutions against `current_test_code`
+        and returns the winner, or `(None, log)` to fall through to the normal
+        single-shot generation path.
+
+        Extracted out of `execute_task()` as its own step: generating N
+        candidates concurrently and racing them against a real test suite is
+        one coherent decision ("did anything actually pass?"), and pulling it
+        out drops `execute_task`'s own control-flow nesting depth back under
+        this repo's quality gate limit without changing any behavior --
+        verified via COMPLEX-001 score before/after and the full orchestrator
+        test suite.
+        """
+        log = ""
+        current_code_result: Optional[CodeResult] = None
+        try:
+            from saleha.core.parallel_solver import ParallelSolver
+            solver = ParallelSolver(model=self.model, candidates=self.parallel_candidates)
+            par = solver.solve_with_executor(
+                goal=user_goal + profile_context,
+                test_suite=current_test_code,
+                context="\n".join(plan_result.steps[:3]) + context_note + repo_note,
+            )
+            passed = sum(1 for c in par.candidates if c.passed)
+            log += (f"   {len(par.candidates)} candidates in parallel "
+                    f"({par.total_latency_sec}s): {passed} passed tests\n")
+            if par.verified:
+                log += f"   {par.reason}\n"
+                return CodeResult(
+                    success=True, code=par.code,
+                    model_used=self.model, attempts=1,
+                    language=target_language,
+                ), log
+
+            # Every candidate failed. Before falling back, try the draft --
+            # it was generated anyway and is a real candidate, so discarding
+            # it untested would waste a call already paid for.
+            if draft_result is not None and draft_result.code.strip():
+                chk = self.verifier.execute(
+                    f"{draft_result.code}\n\n{current_test_code}",
+                    language=target_language)
+                if getattr(chk, "success", False) and (
+                        "TEST_PASSED" not in current_test_code
+                        or "TEST_PASSED" in (getattr(chk, "output", "") or "")):
+                    log += "   draft passed the suite; using it\n"
+                    current_code_result = draft_result
+
+            if current_code_result is None:
+                # Nothing verified. Fall through to the normal single-shot
+                # path plus healing rather than returning an unverified
+                # candidate as if it worked.
+                log += f"   {par.reason} -- falling back to single-shot\n"
+            return current_code_result, log
+        except Exception as exc:
+            log += f"   parallel generation unavailable ({exc}); single-shot\n"
+            return None, log
+
+    def _fix_runtime_failure(
+        self,
+        user_goal: str,
+        current_code: str,
+        exec_error: str,
+        next_attempt: int,
+        task_complexity: float,
+        target_language: str,
+    ) -> Tuple[CodeResult, str]:
+        """Handles a runtime failure (syntax and review passed, but execution
+        crashed): tries the Debugger first, falls back to the Coder with the
+        real error attached if the Debugger fails. Returns the resulting
+        `CodeResult` plus the log lines to append.
+
+        Extracted out of `execute_task()`'s healing loop for the same reason
+        as `_try_parallel_candidates()`: it is one coherent decision
+        ("how do we fix this crash?"), and pulling it out removes another
+        level of the nesting the quality gate's COMPLEX-001 rule flagged.
+        """
+        log = "   Sending the real runtime error to the Debugger...\n"
+        debug_result = self.debugger.debug_code(
+            task=user_goal, code=current_code, error_log=exec_error,
+        )
+        if debug_result.success:
+            return CodeResult(
+                success=True,
+                code=debug_result.fixed_code,
+                attempts=next_attempt,
+                model_used=debug_result.model_used,
+                language=target_language,
+            ), log
+
+        log += f"   Debugger failed: {debug_result.error}; falling back to the Coder.\n"
+        fallback_result = self.coder.generate_code(
+            task=user_goal,
+            plan=f"Previous code:\n{current_code}\n\nRunning it produced this real error:\n{exec_error}\n\nFix it.",
+            attempt=next_attempt,
+            complexity_score=task_complexity,
+            language=target_language,
+        )
+        return fallback_result, log
+
+    def _handle_verified_success(
+        self,
+        user_goal: str,
+        current_code: str,
+        current_code_result: CodeResult,
+        current_test_code: str,
+        attempts: int,
+        profile_name: str,
+        auto_commit: bool,
+        checkpoint,
+        log: str,
+    ) -> OrchestrationResult:
+        """The code ran with no runtime error: records it (stats, history,
+        memory_store), optionally auto-commits, checkpoints as completed,
+        fires the on_test_complete plugin hook, and returns the final
+        OrchestrationResult.
+
+        Extracted out of `execute_task()`'s healing loop for the same reason
+        as the other `_*` helpers here: it is one coherent terminal step
+        ("we have a verified success, record and return it"), and pulling it
+        out removes another level of nesting the quality gate flagged.
+        `checkpoint` is the enclosing `_checkpoint` closure, passed through
+        since it captures loop-local state that has no reason to be
+        duplicated here.
+        """
+        log += "Code ran successfully with no runtime error.\n"
+        model_used = current_code_result.model_used or self.model
+        self.stats.record(model=model_used, success=True, attempts=attempts, task_type="coding")
+        self.history.log(goal=user_goal, model=model_used, success=True, attempts=attempts, code=current_code)
+        try:
+            # Record HOW this was verified, not just that it was. Without a
+            # generated test suite the only check that ran is "the code did
+            # not crash", which is much weaker than a passing test run --
+            # and the recall path advertises these entries as "previously
+            # verified solution". Storing the distinction keeps that claim honest.
+            memory_store.remember(
+                goal=user_goal,
+                code=current_code,
+                model=model_used,
+                source_type="verified_execution" if current_test_code else "ran_without_error",
+            )
+        except (IOError, OSError, TypeError) as e:
+            log += f"   Warning: Memory store save failed: {e}\n"
+
+        if auto_commit and git_engine.is_git_repo():
+            # This pipeline returns generated code; it never writes it to a
+            # file. So there is no file list of "what the agent changed" to
+            # stage.
+            #
+            # This call used to pass no files, which made auto_commit_task
+            # run `git add .` -- committing every unrelated uncommitted
+            # change in the user's working tree under a message describing
+            # the agent's task. It also hardcoded test_passed=True, so the
+            # message claimed tests passed even when generate_tests was
+            # False and no suite existed.
+            #
+            # Staging everything is now opt-in and deliberate, and
+            # test_passed reflects whether a real suite ran.
+            commit_res = git_engine.auto_commit_task(
+                goal=user_goal,
+                task_type="feat",
+                model=model_used,
+                test_passed=bool(current_test_code),
+                allow_stage_all=True,
+            )
+            if commit_res.success:
+                log += f"\nGit auto-commit: [{commit_res.commit_hash}] {commit_res.message.splitlines()[0]}\n"
+            else:
+                log += f"\nGit auto-commit skipped: {commit_res.error}\n"
+
+        self.last_goal = user_goal
+        self.last_code = current_code
+        checkpoint("completed")
+        try:
+            from saleha.core.plugin_loader import plugin_loader as _pl2
+            _pl2.trigger_event("on_test_complete", result="passed", goal=user_goal)
+        except Exception:
+            pass
+        return OrchestrationResult(
+            success=True, final_code=current_code, attempts=attempts,
+            log=log, profile_used=profile_name, verified=True,
+        )
 
     def execute_task(self, user_goal: str, use_context: bool = True, profile: Optional[str] = None, auto_commit: bool = False, context_dir: Optional[str] = None, generate_tests: bool = False, resume_session: bool = False, on_token=None) -> OrchestrationResult:
         """
@@ -328,19 +520,22 @@ class SalehaOrchestrator:
             # written against that draft, then N candidates raced against
             # those tests. The draft is a real candidate itself, not thrown
             # away, so the extra call is not wasted.
+            target_language = CoderAgent.detect_language(user_goal)
             current_test_code = ""
             draft_result = None
             if self.parallel_candidates > 1 and generate_tests:
-                log += "\n[2a] Coder: draft + unittest suite (for candidate selection)...\n"
+                log += "\n[2a] Coder: draft + test suite (for candidate selection)...\n"
                 draft_result = self.coder.generate_code(
                     user_goal + profile_context,
                     plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
                     attempt=1, complexity_score=task_complexity,
+                    language=target_language,
                 )
                 if draft_result.success and draft_result.code.strip():
                     pre_tests = self.coder.generate_tests(
                         draft_result.code, goal=user_goal,
-                        complexity_score=task_complexity)
+                        complexity_score=task_complexity,
+                        language=target_language)
                     if pre_tests.success and pre_tests.code.strip():
                         current_test_code = self.healer.auto_patch_code(pre_tests.code)
                         log += (f"Test suite ready "
@@ -350,7 +545,7 @@ class SalehaOrchestrator:
                 else:
                     log += "Draft failed -- parallel selection skipped.\n"
 
-            log += "\n[2/4] Coder: generating code...\n"
+            log += f"\n[2/4] Coder: generating {target_language} code...\n"
 
             # Parallel candidate generation, when asked for AND when there
             # is a real test suite to select with. Without tests the choice
@@ -358,44 +553,17 @@ class SalehaOrchestrator:
             # attempt -- so this deliberately does not run in that case.
             current_code_result = None
             if self.parallel_candidates > 1 and generate_tests and current_test_code:
-                try:
-                    from saleha.core.parallel_solver import ParallelSolver
-                    solver = ParallelSolver(model=self.model,
-                                            candidates=self.parallel_candidates)
-                    par = solver.solve_with_executor(
-                        goal=user_goal + profile_context,
-                        test_suite=current_test_code,
-                        context="\n".join(plan_result.steps[:3]) + context_note + repo_note,
-                    )
-                    passed = sum(1 for c in par.candidates if c.passed)
-                    log += (f"   {len(par.candidates)} candidates in parallel "
-                            f"({par.total_latency_sec}s): {passed} passed tests\n")
-                    if par.verified:
-                        log += f"   {par.reason}\n"
-                        current_code_result = CodeResult(
-                            success=True, code=par.code,
-                            model_used=self.model, attempts=1,
-                        )
-                    else:
-                        # Every candidate failed. Before falling back, try
-                        # the draft -- it was generated anyway and is a real
-                        # candidate, so discarding it untested would waste a
-                        # call already paid for.
-                        if draft_result is not None and draft_result.code.strip():
-                            chk = self.verifier.execute(
-                                f"{draft_result.code}\n\n{current_test_code}")
-                            if getattr(chk, "success", False) and (
-                                    "TEST_PASSED" not in current_test_code
-                                    or "TEST_PASSED" in (getattr(chk, "output", "") or "")):
-                                log += "   draft passed the suite; using it\n"
-                                current_code_result = draft_result
-                        if current_code_result is None:
-                            # Nothing verified. Fall through to the normal
-                            # single-shot path plus healing rather than
-                            # returning an unverified candidate as if it worked.
-                            log += f"   {par.reason} -- falling back to single-shot\n"
-                except Exception as exc:
-                    log += f"   parallel generation unavailable ({exc}); single-shot\n"
+                current_code_result, parallel_log = self._try_parallel_candidates(
+                    user_goal=user_goal,
+                    profile_context=profile_context,
+                    context_note=context_note,
+                    repo_note=repo_note,
+                    plan_result=plan_result,
+                    current_test_code=current_test_code,
+                    draft_result=draft_result,
+                    target_language=target_language,
+                )
+                log += parallel_log
 
             if current_code_result is None:
                 current_code_result = self.coder.generate_code(
@@ -403,6 +571,7 @@ class SalehaOrchestrator:
                     plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
                     attempt=1,
                     complexity_score=task_complexity,
+                    language=target_language,
                     on_token=on_token,
                 )
 
@@ -427,9 +596,10 @@ class SalehaOrchestrator:
             # winner; clearing it would throw away a working suite and
             # regenerate it for no reason.
             if generate_tests and not current_test_code:
-                log += "\n[2b] Coder: generating unittest suite...\n"
+                log += f"\n[2b] Coder: generating {target_language} test suite...\n"
                 tests_result = self.coder.generate_tests(
-                    current_code, goal=user_goal, complexity_score=task_complexity
+                    current_code, goal=user_goal, complexity_score=task_complexity,
+                    language=target_language,
                 )
                 if tests_result.success and tests_result.code.strip():
                     current_test_code = self.healer.auto_patch_code(tests_result.code)
@@ -486,13 +656,17 @@ class SalehaOrchestrator:
         except Exception:
             pass
 
+        target_language = getattr(current_code_result, "language", None) or CoderAgent.detect_language(user_goal)
+
         # Step 3 & 4: Self-Healing Loop (Tester -> Healer -> Coder)
         while attempts <= self.max_healing_attempts:
-            log += f"\n[3/4] Tester: checking the code (attempt {attempts})...\n"
+            log += f"\n[3/4] Tester: checking the {target_language} code (attempt {attempts})...\n"
 
             if current_test_code:
-                # REAL test execution: the unittest suite runs in the sandbox.
-                suite_res = self.tester.run_suite(current_code, test_code=current_test_code)
+                # REAL test execution: the test suite runs in the sandbox.
+                suite_res = self.tester.run_suite(
+                    current_code, test_code=current_test_code, language=target_language
+                )
                 test_result = TestResult(
                     passed=suite_res.passed,
                     error_message="" if suite_res.passed else (
@@ -502,17 +676,19 @@ class SalehaOrchestrator:
                     error_type="TestFailure" if not suite_res.passed else "None",
                 )
             else:
-                test_result: TestResult = self.tester.test_code(current_code)
+                test_result: TestResult = self.tester.test_code(current_code, language=target_language)
 
             if test_result.passed:
-                log += "\n[4/5] Tester: code is safe and syntactically valid.\n"
-                log += f"\n[5/5] Reviewer: reviewing the code (attempt {attempts})...\n"
-                review_result: ReviewResult = self.reviewer.review_code(user_goal, current_code)
+                log += f"\n[4/5] Tester: {target_language} code is safe and syntactically valid.\n"
+                log += f"\n[5/5] Reviewer: reviewing the {target_language} code (attempt {attempts})...\n"
+                review_result: ReviewResult = self.reviewer.review_code(
+                    user_goal, current_code, language=target_language
+                )
 
                 if review_result.approved:
                     log += "Reviewer approved.\n"
-                    log += f"\n[6/6] Verifier: running the code to check it...\n"
-                    exec_result = self.verifier.execute(current_code)
+                    log += f"\n[6/6] Verifier: running the {target_language} code to check it...\n"
+                    exec_result = self.verifier.execute(current_code, language=target_language)
 
                     if exec_result.blocked:
                         # A dangerous pattern cannot be fixed by retrying:
@@ -532,104 +708,23 @@ class SalehaOrchestrator:
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
 
                     if exec_result.success:
-                        log += "Code ran successfully with no runtime error.\n"
-                        self.stats.record(model=current_code_result.model_used or self.model, success=True, attempts=attempts, task_type="coding")
-                        self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
-                                          success=True, attempts=attempts, code=current_code)
-                        try:
-                            # Record HOW this was verified, not just that it
-                            # was. Without a generated test suite the only
-                            # check that ran is "the code did not crash", which
-                            # is much weaker than a passing test run -- and the
-                            # recall path advertises these entries as
-                            # "previously verified solution". Storing the
-                            # distinction keeps that claim honest.
-                            memory_store.remember(
-                                goal=user_goal,
-                                code=current_code,
-                                model=current_code_result.model_used or self.model,
-                                source_type=("verified_execution"
-                                             if current_test_code
-                                             else "ran_without_error"),
-                            )
-                        except (IOError, OSError, TypeError) as e:
-                            log += f"   Warning: Memory store save failed: {e}\n"
-
-                        if auto_commit and git_engine.is_git_repo():
-                            # This pipeline returns generated code; it never
-                            # writes it to a file. So there is no file list of
-                            # "what the agent changed" to stage.
-                            #
-                            # This call used to pass no files, which made
-                            # auto_commit_task run `git add .` -- committing
-                            # every unrelated uncommitted change in the user's
-                            # working tree under a message describing the
-                            # agent's task. It also hardcoded test_passed=True,
-                            # so the message claimed tests passed even when
-                            # generate_tests was False and no suite existed.
-                            #
-                            # Staging everything is now opt-in and deliberate,
-                            # and test_passed reflects whether a real suite ran.
-                            commit_res = git_engine.auto_commit_task(
-                                goal=user_goal,
-                                task_type="feat",
-                                model=current_code_result.model_used or self.model,
-                                test_passed=bool(current_test_code),
-                                allow_stage_all=True,
-                            )
-                            if commit_res.success:
-                                log += f"\nGit auto-commit: [{commit_res.commit_hash}] {commit_res.message.splitlines()[0]}\n"
-                            else:
-                                log += f"\nGit auto-commit skipped: {commit_res.error}\n"
-
-                        self.last_goal = user_goal
-                        self.last_code = current_code
-                        _checkpoint("completed")
-                        try:
-                            from saleha.core.plugin_loader import plugin_loader as _pl2
-                            _pl2.trigger_event("on_test_complete", result="passed", goal=user_goal)
-                        except Exception:
-                            pass
-                        return OrchestrationResult(
-                            success=True, final_code=current_code, attempts=attempts,
-                            log=log, profile_used=profile_name, verified=True,
+                        return self._handle_verified_success(
+                            user_goal=user_goal,
+                            current_code=current_code,
+                            current_code_result=current_code_result,
+                            current_test_code=current_test_code,
+                            attempts=attempts,
+                            profile_name=profile_name,
+                            auto_commit=auto_commit,
+                            checkpoint=_checkpoint,
+                            log=log,
                         )
 
                     # Execution failed: syntax and review were fine, but it
                     # crashed at runtime.
                     log += f"Verifier: execution failed: {exec_result.error}\n"
 
-                    if attempts < self.max_healing_attempts:
-                        log += "   Sending the real runtime error to the Debugger...\n"
-                        next_attempt = attempts + 1
-                        debug_result = self.debugger.debug_code(
-                            task=user_goal,
-                            code=current_code,
-                            error_log=exec_result.error,
-                        )
-                        if debug_result.success:
-                            current_code_result = CodeResult(
-                                success=True,
-                                code=debug_result.fixed_code,
-                                attempts=next_attempt,
-                                model_used=debug_result.model_used,
-                            )
-                        else:
-                            log += f"   Debugger failed: {debug_result.error}; falling back to the Coder.\n"
-                            current_code_result = self.coder.generate_code(
-                                task=user_goal,
-                                plan=f"Previous code:\n{current_code}\n\nRunning it produced this real error:\n{exec_result.error}\n\nFix it.",
-                                attempt=next_attempt,
-                                complexity_score=task_complexity,
-                            )
-                        if current_code_result.success:
-                            current_code = self.healer.auto_patch_code(current_code_result.code)
-                            attempts = next_attempt
-                            continue  # re-run tester + reviewer + verifier
-                        else:
-                            log += f"Coder failed to fix it: {current_code_result.error}\n"
-                            break
-                    else:
+                    if attempts >= self.max_healing_attempts:
                         log += "Max attempts reached -- accepting with the execution error (best-effort).\n"
                         self.stats.record(model=current_code_result.model_used or self.model, success=False, attempts=attempts, task_type="coding")
                         self.history.log(goal=user_goal, model=current_code_result.model_used or self.model,
@@ -637,6 +732,23 @@ class SalehaOrchestrator:
                                           error=f"Execution failed: {exec_result.error}")
                         _checkpoint("failed")
                         return OrchestrationResult(success=False, final_code=current_code, attempts=attempts, log=log, profile_used=profile_name)
+
+                    next_attempt = attempts + 1
+                    current_code_result, fix_log = self._fix_runtime_failure(
+                        user_goal=user_goal,
+                        current_code=current_code,
+                        exec_error=exec_result.error,
+                        next_attempt=next_attempt,
+                        task_complexity=task_complexity,
+                        target_language=target_language,
+                    )
+                    log += fix_log
+                    if not current_code_result.success:
+                        log += f"Coder failed to fix it: {current_code_result.error}\n"
+                        break
+                    current_code = self.healer.auto_patch_code(current_code_result.code)
+                    attempts = next_attempt
+                    continue  # re-run tester + reviewer + verifier
 
                 log += f"Reviewer feedback: {review_result.feedback}\n"
 
@@ -648,6 +760,7 @@ class SalehaOrchestrator:
                         plan=f"Previous code:\n{current_code}\n\nReviewer feedback:\n{review_result.feedback}",
                         attempt=next_attempt,
                         complexity_score=task_complexity,
+                        language=target_language,
                     )
                     if current_code_result.success:
                         current_code = self.healer.auto_patch_code(current_code_result.code)
@@ -668,7 +781,7 @@ class SalehaOrchestrator:
                     # It is now executed before being accepted. Best-effort
                     # acceptance is fine; calling it "success" unrun is not.
                     log += "Max attempts reached -- verifying before accepting without reviewer approval...\n"
-                    final_exec = self.verifier.execute(current_code)
+                    final_exec = self.verifier.execute(current_code, language=target_language)
 
                     if final_exec.blocked:
                         log += f"Verifier blocked execution: {final_exec.block_reason}\n"
@@ -721,6 +834,7 @@ class SalehaOrchestrator:
                     plan=f"Previous code:\n{current_code}\n\nFix instructions:\n{healing_result.reflexion_prompt}",
                     attempt=next_attempt,
                     complexity_score=task_complexity,
+                    language=target_language,
                 )
 
                 if current_code_result.success:
