@@ -46,18 +46,25 @@ Requirements:
 """
         resp: AgentResponse = self.think(prompt)
 
-        # Fallback generator if LLM is offline or in mock environment
+        # Fallback generator if LLM is offline or in mock environment. The
+        # task string becomes part of a Python function name, so it must be
+        # sanitized to a valid identifier first -- a task like "thread-safe
+        # rate limiter" used to produce `def test_thread-sa_happy_path():`,
+        # a SyntaxError. This went unnoticed for as long as the pipeline
+        # never actually executed the generated test code (see
+        # swarm_pipeline_engine.py's QALead stage).
+        slug = re.sub(r"\W+", "_", task.lower()).strip("_")[:20] or "task"
         test_content = resp.content if resp.success and resp.content else f"""# Auto-Generated {framework.title()} Test Suite for: {task}
 import pytest
 import unittest
 
-def test_{task.lower().replace(' ', '_')[:20]}_happy_path():
+def test_{slug}_happy_path():
     assert True
 
-def test_{task.lower().replace(' ', '_')[:20]}_boundary_empty():
+def test_{slug}_boundary_empty():
     assert True
 
-def test_{task.lower().replace(' ', '_')[:20]}_error_handling():
+def test_{slug}_error_handling():
     with pytest.raises(Exception):
         pass
 """

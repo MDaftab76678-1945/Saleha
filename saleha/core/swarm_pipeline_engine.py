@@ -217,9 +217,19 @@ class SwarmPipelineEngine:
 
             elif role == "QALead":
                 from saleha.agents.qa_lead import QALeadAgent
+                from saleha.core.code_executor import CodeExecutor
                 agent = QALeadAgent(model=self._resolve_model("qa"))
                 suite = agent.generate_test_suite(goal, source_code or "def f(): pass", framework="pytest")
-                tests_passed = True
+                # Actually run the generated tests against the generated code --
+                # this used to set tests_passed = True unconditionally, meaning
+                # no test ever ran before the pipeline reported success. Concat
+                # source + test code and execute it for real; a plain "assert"
+                # failure raises AssertionError, which CodeExecutor sees as a
+                # non-zero exit code, exactly like running pytest would.
+                combined = f"{source_code or 'def f(): pass'}\n\n{suite.test_code}"
+                exec_result = CodeExecutor(timeout=15).execute(combined)
+                tests_passed = exec_result.success
+                run_note = "blocked by sandbox" if exec_result.blocked else exec_result.error[:200]
                 contract = QAOutputContract(
                     framework="pytest",
                     test_code=suite.test_code,
@@ -227,8 +237,16 @@ class SwarmPipelineEngine:
                     passed=tests_passed
                 )
                 contract.validate()
-                stage.output_summary = f"Synthesized pytest suite with {suite.test_case_count} boundary test assertions"
-                stage.payload = {"test_code": suite.test_code, "test_count": suite.test_case_count}
+                stage.output_summary = (
+                    f"Ran {suite.test_case_count} generated test assertion(s): "
+                    f"{'PASSED' if tests_passed else f'FAILED ({run_note})' if run_note else 'FAILED'}"
+                )
+                stage.payload = {
+                    "test_code": suite.test_code,
+                    "test_count": suite.test_case_count,
+                    "exit_code": exec_result.exit_code,
+                    "stderr": exec_result.error[:500],
+                }
                 message_bus.publish(TestExecutionEvent(
                     sender_agent="QALeadAgent",
                     passed=tests_passed,
@@ -313,10 +331,18 @@ class SwarmPipelineEngine:
 
         total_duration = round((time.time() - start_time) * 1000, 2)
 
+        # Overall success used to be hardcoded True regardless of whether
+        # QALead's tests actually passed or SecurityGuard found the code
+        # unsafe -- both flags were computed and stored, then ignored here.
+        # A pipeline that ran a SecurityGuard or QALead stage and got a
+        # negative result is not a success just because every stage
+        # completed without raising.
+        overall_success = is_secure and tests_passed
+
         return SwarmExecutionResult(
             execution_id=exec_id,
             goal=goal,
-            success=True,
+            success=overall_success,
             stages=stages,
             final_code=source_code,
             adr_title=adr_title,
