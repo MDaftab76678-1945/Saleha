@@ -6,12 +6,13 @@ ke through hota hai. Behavior bilkul same hai (same URL, same payload,
 same timeout) -- sirf ye ki agar kabhi backend badalna ho, sirf
 model_provider.py me naya provider likhna hoga, ye file chhedni nahi padegi.
 """
+import os
 import uuid
 import time
 from dataclasses import dataclass
 from typing import Optional
 
-from saleha.core.model_provider import default_provider, ModelProvider
+from saleha.core.model_provider import default_provider, MockProvider, ModelProvider
 
 
 @dataclass
@@ -32,7 +33,26 @@ class BaseAgent:
     def __init__(self, role: str, model: str = "auto", provider: Optional[ModelProvider] = None):
         self.role = role
         self.model_preference = model
-        self.provider = provider or default_provider  # naya: pluggable backend
+        # Under SALEHA_TEST_MODE, any agent constructed without an explicit
+        # provider gets the fast in-process MockProvider instead of the real
+        # Ollama/OpenAI-compatible fallback chain. This is not optional
+        # behavior tucked behind a flag someone has to remember -- it is the
+        # default for every subclass of BaseAgent, because a caller that
+        # explicitly passes `provider=` (a real integration test) still
+        # overrides it below.
+        #
+        # Found necessary in pass 30 after three independent modules stalled
+        # the full test suite for 15+ minutes each by reaching this class's
+        # default_provider with no mock in the chain: ttc_solver.py (fixed
+        # directly, since it bypasses BaseAgent entirely), demo_cli.py (fixed
+        # directly, for the same reason), and graph_rag.py's GraphRAGEngine,
+        # which does go through BaseAgent -- and was the module that made
+        # this the right place for the fix, rather than patching every
+        # caller individually as they turn up one at a time.
+        if provider is None and os.environ.get("SALEHA_TEST_MODE") == "1":
+            self.provider: ModelProvider = MockProvider()
+        else:
+            self.provider = provider or default_provider  # naya: pluggable backend
         self.task_counter = 0
         # "auto" mode me runtime Ollama probing enable -- router sirf installed
         # models choose karta hai (2026 catalog + adaptive candidate filtering).
