@@ -1,22 +1,21 @@
 """
-Saleha Agents: Reviewer Agent (New -- pehle ye file khaali thi)
+Saleha Agents: Reviewer Agent (New -- this file was previously empty)
 
-Ye agent Tester se aage jaata hai. Tester sirf check karta hai:
-  - Syntax sahi hai?
-  - Koi khatarnak command to nahi?
-  - Kuch keywords maujood hain?
+This agent goes further than the Tester. The Tester only checks:
+  - Is the syntax correct?
+  - Is there any dangerous command?
+  - Are certain keywords present?
 
-Lekin Tester ye nahi keh sakta: "ye code kaam to karega, lekin edge case
-X me fail hoga" ya "variable naming bekar hai" ya "ye O(n^2) hai jab O(n)
-me ho sakta tha". Ye judgement-based review hai -- isliye Reviewer khud LLM
-se poochta hai, jaise koi senior developer PR review karta hai.
+But the Tester cannot say: "this code will run, but will fail on edge case
+X" or "the variable naming is poor" or "this is O(n^2) when O(n) was
+possible". That is judgement-based review -- so the Reviewer asks an LLM
+directly, the way a senior developer would review a PR.
 
-Design: BaseAgent se inherit karta hai (jaisa Coder karta hai), taaki wahi
-Ollama connection aur SmartRouter use ho jo already kaam kar raha hai.
+Design: inherits from BaseAgent (like the Coder does), so it reuses the
+same Ollama connection and SmartRouter that already work.
 """
 
 import os
-import re
 from dataclasses import dataclass
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
@@ -33,38 +32,37 @@ class ReviewerAgent(BaseAgent):
     def __init__(self, model: str = "auto"):
         super().__init__(role="Reviewer", model=model)
 
-    def review_code(self, task: str, code: str) -> ReviewResult:
+    def review_code(self, task: str, code: str, language: str = "python") -> ReviewResult:
         """
-        Code ko ek senior-developer nazariye se review karta hai. Agar koi
-        real problem mile (bug, edge case, bad practice), to approved=False
-        aur feedback me kya theek karna hai wo milta hai -- ye feedback
-        seedha Coder ke agle attempt ko diya ja sakta hai, self-healing
-        loop ki tarah.
+        Reviews code from a senior developer perspective. Returns approved=True
+        if clean, or approved=False with actionable feedback for the self-healing loop.
         """
-        prompt = f"""आप एक अनुभवी Python code reviewer हैं। नीचे दिए गए कोड की समीक्षा करें।
+        fence_lang = language.lower() if language else "python"
+        prompt = f"""You are an experienced {language} code reviewer. Review the following code.
 
-टास्क: {task}
+Task: {task}
 
-कोड:
-```python
+Code:
+```{fence_lang}
 {code}
 ```
 
-निर्देश:
-- अगर कोड सही है और कोई गंभीर समस्या नहीं है, तो पहली लाइन में केवल लिखें: APPROVED
-- अगर कोई bug, edge case, या स्पष्ट improvement है, तो पहली लाइन में लिखें: NEEDS_WORK
-  उसके बाद संक्षेप में बताएं क्या सुधारना है (2-3 lines, code मत लिखें, सिर्फ feedback)।
+Instructions:
+- If the code is correct, robust, and has no critical issues, write only 'APPROVED' on the first line.
+- If there is a bug, edge case, or obvious defect, write 'NEEDS_WORK' on the first line.
+  Then briefly explain what needs to be fixed (2-3 lines of feedback, do not write full code).
 
-केवल APPROVED या NEEDS_WORK से शुरू करें, कुछ और नहीं।
+Begin your response with either APPROVED or NEEDS_WORK only.
 """
         response: AgentResponse = self.think(prompt)
 
         if not response.success:
-            # SECURITY: fail-closed. Pehle LLM error par approved=True milta tha
-            # -- matlab Ollama down hone par bina review ke code "approve" ho
-            # jaata tha. Ab review unavailable = NOT approved, jab tak operator
-            # explicitly SALEHA_REVIEW_OFFLINE_PASS=1 se legacy behavior na
-            # chunne (offline dev convenience ke liye escape hatch).
+            # SECURITY: fail-closed. Previously an LLM error returned
+            # approved=True -- meaning code got "approved" with no review at
+            # all whenever Ollama was down. Now a review that could not run
+            # counts as NOT approved, unless the operator explicitly opts
+            # into the legacy behavior via SALEHA_REVIEW_OFFLINE_PASS=1
+            # (an escape hatch for offline dev convenience).
             if os.getenv("SALEHA_REVIEW_OFFLINE_PASS", "").strip() == "1":
                 return ReviewResult(
                     approved=True,
@@ -87,7 +85,7 @@ class ReviewerAgent(BaseAgent):
         if "APPROVED" in first_line:
             return ReviewResult(approved=True, feedback="", model_used=response.model_used)
 
-        # NEEDS_WORK ya kuch bhi unclear response -- safe default: feedback ke saath pass on
+        # NEEDS_WORK or any unclear response -- safe default: pass through with feedback
         feedback = content
         if content.upper().startswith("NEEDS_WORK"):
             feedback = "\n".join(content.split("\n")[1:]).strip()
@@ -97,9 +95,9 @@ class ReviewerAgent(BaseAgent):
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("👀 SALEHA REVIEWER AGENT TEST")
+    print("SALEHA REVIEWER AGENT TEST")
     print("=" * 70)
-    print("Note: is test ke liye Ollama chalu hona chahiye.")
+    print("Note: Ollama must be running for this test.")
 
     reviewer = ReviewerAgent(model="qwen2.5-coder:3b")
 

@@ -21,18 +21,24 @@ from saleha.agents.base_agent import BaseAgent, AgentResponse
 
 
 class CodeResult:
-    def __init__(self, success: bool, code: str, error: str = "", attempts: int = 1, model_used: str = ""):
+    def __init__(
+        self,
+        success: bool,
+        code: str,
+        error: str = "",
+        attempts: int = 1,
+        model_used: str = "",
+        language: str = "python",
+    ):
         self.success = success
         self.code = code
         self.error = error
         self.attempts = attempts  # now actually set by caller, not hardcoded
         self.model_used = model_used  # real model name (e.g. "qwen3.5:4b"), not "auto"
+        self.language = language
 
 
 class CoderAgent(BaseAgent):
-    # C2: multi-language support -- pehle prompts Hindi/Python-only the,
-    # JS/Go/Rust codegen quality untested thi. Task se language detect karke
-    # language-specific rules inject hote hain.
     LANGUAGE_KEYWORDS = {
         "typescript": ("typescript", " ts ", "tsx", "type-safe"),
         "javascript": ("javascript", " js ", "jsx", "node.js", "nodejs"),
@@ -43,23 +49,23 @@ class CoderAgent(BaseAgent):
     }
 
     LANGUAGE_RULES = {
-        "python": "Standard library `unittest` use karo. Full type hints do.",
+        "python": "Use standard library unittest with full type annotations.",
         "typescript": (
             "Use strict TypeScript with explicit types/interfaces. "
             "Prefer async/await. Export via ES modules. No `any` types."
         ),
         "javascript": (
-            "Modern ES2022+ JavaScript (CommonJS or ESM consistent rakho). "
+            "Modern ES2022+ JavaScript (consistent CommonJS or ESM). "
             "JSDoc comments for public functions. Prefer async/await."
         ),
         "go": (
-            "Idiomatic Go: error values return karo (panic nahi), "
+            "Idiomatic Go: return error values (do not panic), "
             "`if err != nil` pattern, context.Context for cancellation, "
             "table-driven tests with `testing` package."
         ),
         "rust": (
-            "Idiomatic Rust: Result<T, E> for fallible ops, ownership/borrow "
-            "respect karo, `#[cfg(test)]` mod tests with assert! macros."
+            "Idiomatic Rust: Result<T, E> for fallible ops, adhere to "
+            "ownership/borrow rules, `#[cfg(test)]` mod tests with assert! macros."
         ),
         "java": "Modern Java (17+): records where apt, streams for collections, JUnit 5 tests.",
         "bash": "POSIX-safe bash: set -euo pipefail, functions, quotes on all expansions.",
@@ -80,35 +86,18 @@ class CoderAgent(BaseAgent):
     def generate_code(self, task: str, plan: str = "", attempt: int = 1,
                       complexity_score: float = 0.0, language: str = "auto",
                       on_token=None) -> CodeResult:
-        """
-        `attempt` = which try this is within the self-healing retry loop
-        (1-indexed). The orchestrator/self-healing engine should pass this
-        in on each retry so the final CodeResult reports the real count.
-
-        `complexity_score` Planner ke MathLogicEngine se aata hai aur
-        SmartRouter ko pass hota hai -- taaki task-complexity ke hisaab se
-        sahi model tier chune (chhota script -> fast model, bada system ->
-        flagship model).
-
-        `language="auto"`: task text se language detect hoti hai (C2) aur
-        prompt me language-specific rules inject hote hain.
-
-        `on_token`: diya jaye to STREAMING generation (v1.2 `--stream`) --
-        har token chunk callback ko milta hai.
-        """
         if language == "auto":
             language = self.detect_language(task)
         lang_rules = self.LANGUAGE_RULES.get(language, self.LANGUAGE_RULES["python"])
         fence_lang = {"javascript": "javascript", "typescript": "typescript",
                       "go": "go", "rust": "rust", "java": "java", "bash": "bash",
                       "python": "python"}.get(language, language)
-        plan_section = f"\nयोजना: {plan}" if plan and len(plan) > 10 else ""
+        plan_section = f"\nPlan:\n{plan}" if plan and len(plan) > 10 else ""
 
-        prompt = f"""
-आप एक विशेषज्ञ {language} डेवलपर हैं।
-टास्क: {task}{plan_section}
-नियम:
-- केवल कोड दें। ```{fence_lang} और ``` का उपयोग करें।
+        prompt = f"""You are an expert {language} developer.
+Task: {task}{plan_section}
+Rules:
+- Provide only code wrapped in ```{fence_lang} and ``` fences.
 - {lang_rules}
 """
         print(f"  [Coder] Generating code... (Attempt {attempt}/{self.max_attempts}, lang={language})")
@@ -123,6 +112,7 @@ class CoderAgent(BaseAgent):
             return CodeResult(
                 success=False, code="", error=response.error_message,
                 attempts=attempt, model_used=response.model_used,
+                language=language,
             )
 
         code = self._extract_code(response.content)
@@ -133,66 +123,70 @@ class CoderAgent(BaseAgent):
                 error="Model returned no extractable code.",
                 attempts=attempt,
                 model_used=response.model_used,
+                language=language,
             )
 
-        return CodeResult(success=True, code=code, error="", attempts=attempt, model_used=response.model_used)
+        return CodeResult(
+            success=True, code=code, error="", attempts=attempt,
+            model_used=response.model_used, language=language,
+        )
 
-    def generate_tests(self, code: str, goal: str = "", complexity_score: float = 0.0) -> CodeResult:
-        """Given solution code ke liye unittest suite generate karta hai
-        (--tests mode). Same extraction pipeline reuse karta hai."""
-        prompt = f"""
-आप एक विशेषज्ञ QA इंजीनियर हैं।
-नीचे दिए गए कोड के लिए Python `unittest` टेस्ट सूट लिखें।
-लक्ष्य: {goal}
+    def generate_tests(self, code: str, goal: str = "", complexity_score: float = 0.0, language: str = "python") -> CodeResult:
+        """Generates a test suite for given solution code (--tests mode)."""
+        fence_lang = {"javascript": "javascript", "typescript": "typescript",
+                      "go": "go", "rust": "rust", "java": "java", "bash": "bash",
+                      "python": "python"}.get(language, language)
+        prompt = f"""You are an expert QA engineer.
+Write a comprehensive test suite for the following {language} code.
+Goal: {goal}
 
-कोड:
-```python
+Code:
+```{fence_lang}
 {code}
 ```
 
-नियम:
-1. Standard library `unittest` ही use करें।
-2. Normal paths + boundary/edge cases cover करें।
-3. केवल टेस्ट कोड दें, ```python और ``` block में।
-4. कोई `unittest.main()` call न करें।
+Rules:
+1. Cover happy paths, boundary conditions, and edge cases.
+2. Provide only runnable test code inside ```{fence_lang} and ``` blocks.
+3. No unnecessary conversational text.
 """
-        print("  [Coder] Generating test suite...")
+        print(f"  [Coder] Generating test suite... (lang={language})")
         response: AgentResponse = self.think(prompt, complexity_score=min(complexity_score, 5.0))
 
         if not response.success:
             return CodeResult(success=False, code="", error=response.error_message,
-                              attempts=1, model_used=response.model_used)
+                              attempts=1, model_used=response.model_used, language=language)
 
         extracted = self._extract_code(response.content)
-        # The check used to be `"def test" not in extracted.replace(" ", "")`,
-        # which strips the very space it then looks for -- "def test_x" became
-        # "deftest_x" and never matched. Measured: 3/3 well-formed unittest
-        # suites from qwen2.5-coder:3b were rejected as "no runnable tests",
-        # so test generation had a 0% success rate for any model.
-        # Match the real declaration instead, allowing async and any spacing.
-        has_test = bool(re.search(r"\b(?:async\s+)?def\s+test\w*\s*\(", extracted or ""))
+        if language == "python":
+            has_test = bool(re.search(r"\b(?:async\s+)?def\s+test\w*\s*\(", extracted or ""))
+        elif language in ("javascript", "typescript"):
+            has_test = bool(re.search(r"\b(?:test|it|describe)\s*\(", extracted or ""))
+        elif language == "go":
+            has_test = bool(re.search(r"\bfunc\s+Test\w*\s*\(", extracted or ""))
+        elif language == "rust":
+            has_test = bool(re.search(r"#\[test\]", extracted or ""))
+        else:
+            has_test = bool(extracted and len(extracted.strip()) > 10)
+
         if not extracted or not has_test:
             return CodeResult(success=False, code="", error="No runnable tests found in model output.",
-                              attempts=1, model_used=response.model_used)
+                              attempts=1, model_used=response.model_used, language=language)
 
-        return CodeResult(success=True, code=extracted, error="", attempts=1, model_used=response.model_used)
+        return CodeResult(success=True, code=extracted, error="", attempts=1,
+                          model_used=response.model_used, language=language)
 
     def _extract_code(self, response: str) -> str:
         """
         Robust extraction:
-        1. Try ```python ... ```
-        2. Try ``` ... ```
-        3. Fallback: return raw text (lets the Tester catch syntax errors,
-           prevents the "empty code" retry loop the original had)
+        1. Extract code block matching markdown fences: ```lang ... ```
+        2. Fallback: return raw text if no code fence found.
         """
         if not response:
             return ""
 
-        match = re.search(r"```python\s*(.*?)\s*```", response, re.DOTALL | re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-
-        match = re.search(r"```\s*(.*?)\s*```", response, re.DOTALL)
+        # Match any fenced code block, stripping language identifier e.g. ```python\n
+        match = re.search(r"```(?:[a-zA-Z0-9_\-]+)?\s*\n?(.*?)\s*```", response, re.DOTALL)
         if match:
             return match.group(1).strip()
 

@@ -328,19 +328,22 @@ class SalehaOrchestrator:
             # written against that draft, then N candidates raced against
             # those tests. The draft is a real candidate itself, not thrown
             # away, so the extra call is not wasted.
+            target_language = CoderAgent.detect_language(user_goal)
             current_test_code = ""
             draft_result = None
             if self.parallel_candidates > 1 and generate_tests:
-                log += "\n[2a] Coder: draft + unittest suite (for candidate selection)...\n"
+                log += "\n[2a] Coder: draft + test suite (for candidate selection)...\n"
                 draft_result = self.coder.generate_code(
                     user_goal + profile_context,
                     plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
                     attempt=1, complexity_score=task_complexity,
+                    language=target_language,
                 )
                 if draft_result.success and draft_result.code.strip():
                     pre_tests = self.coder.generate_tests(
                         draft_result.code, goal=user_goal,
-                        complexity_score=task_complexity)
+                        complexity_score=task_complexity,
+                        language=target_language)
                     if pre_tests.success and pre_tests.code.strip():
                         current_test_code = self.healer.auto_patch_code(pre_tests.code)
                         log += (f"Test suite ready "
@@ -350,7 +353,7 @@ class SalehaOrchestrator:
                 else:
                     log += "Draft failed -- parallel selection skipped.\n"
 
-            log += "\n[2/4] Coder: generating code...\n"
+            log += f"\n[2/4] Coder: generating {target_language} code...\n"
 
             # Parallel candidate generation, when asked for AND when there
             # is a real test suite to select with. Without tests the choice
@@ -375,6 +378,7 @@ class SalehaOrchestrator:
                         current_code_result = CodeResult(
                             success=True, code=par.code,
                             model_used=self.model, attempts=1,
+                            language=target_language,
                         )
                     else:
                         # Every candidate failed. Before falling back, try
@@ -383,7 +387,8 @@ class SalehaOrchestrator:
                         # call already paid for.
                         if draft_result is not None and draft_result.code.strip():
                             chk = self.verifier.execute(
-                                f"{draft_result.code}\n\n{current_test_code}")
+                                f"{draft_result.code}\n\n{current_test_code}",
+                                language=target_language)
                             if getattr(chk, "success", False) and (
                                     "TEST_PASSED" not in current_test_code
                                     or "TEST_PASSED" in (getattr(chk, "output", "") or "")):
@@ -403,6 +408,7 @@ class SalehaOrchestrator:
                     plan="\n".join(plan_result.steps[:3]) + context_note + repo_note,
                     attempt=1,
                     complexity_score=task_complexity,
+                    language=target_language,
                     on_token=on_token,
                 )
 
@@ -427,9 +433,10 @@ class SalehaOrchestrator:
             # winner; clearing it would throw away a working suite and
             # regenerate it for no reason.
             if generate_tests and not current_test_code:
-                log += "\n[2b] Coder: generating unittest suite...\n"
+                log += f"\n[2b] Coder: generating {target_language} test suite...\n"
                 tests_result = self.coder.generate_tests(
-                    current_code, goal=user_goal, complexity_score=task_complexity
+                    current_code, goal=user_goal, complexity_score=task_complexity,
+                    language=target_language,
                 )
                 if tests_result.success and tests_result.code.strip():
                     current_test_code = self.healer.auto_patch_code(tests_result.code)
@@ -486,13 +493,17 @@ class SalehaOrchestrator:
         except Exception:
             pass
 
+        target_language = getattr(current_code_result, "language", None) or CoderAgent.detect_language(user_goal)
+
         # Step 3 & 4: Self-Healing Loop (Tester -> Healer -> Coder)
         while attempts <= self.max_healing_attempts:
-            log += f"\n[3/4] Tester: checking the code (attempt {attempts})...\n"
+            log += f"\n[3/4] Tester: checking the {target_language} code (attempt {attempts})...\n"
 
             if current_test_code:
-                # REAL test execution: the unittest suite runs in the sandbox.
-                suite_res = self.tester.run_suite(current_code, test_code=current_test_code)
+                # REAL test execution: the test suite runs in the sandbox.
+                suite_res = self.tester.run_suite(
+                    current_code, test_code=current_test_code, language=target_language
+                )
                 test_result = TestResult(
                     passed=suite_res.passed,
                     error_message="" if suite_res.passed else (
@@ -502,17 +513,19 @@ class SalehaOrchestrator:
                     error_type="TestFailure" if not suite_res.passed else "None",
                 )
             else:
-                test_result: TestResult = self.tester.test_code(current_code)
+                test_result: TestResult = self.tester.test_code(current_code, language=target_language)
 
             if test_result.passed:
-                log += "\n[4/5] Tester: code is safe and syntactically valid.\n"
-                log += f"\n[5/5] Reviewer: reviewing the code (attempt {attempts})...\n"
-                review_result: ReviewResult = self.reviewer.review_code(user_goal, current_code)
+                log += f"\n[4/5] Tester: {target_language} code is safe and syntactically valid.\n"
+                log += f"\n[5/5] Reviewer: reviewing the {target_language} code (attempt {attempts})...\n"
+                review_result: ReviewResult = self.reviewer.review_code(
+                    user_goal, current_code, language=target_language
+                )
 
                 if review_result.approved:
                     log += "Reviewer approved.\n"
-                    log += f"\n[6/6] Verifier: running the code to check it...\n"
-                    exec_result = self.verifier.execute(current_code)
+                    log += f"\n[6/6] Verifier: running the {target_language} code to check it...\n"
+                    exec_result = self.verifier.execute(current_code, language=target_language)
 
                     if exec_result.blocked:
                         # A dangerous pattern cannot be fixed by retrying:
@@ -613,6 +626,7 @@ class SalehaOrchestrator:
                                 code=debug_result.fixed_code,
                                 attempts=next_attempt,
                                 model_used=debug_result.model_used,
+                                language=target_language,
                             )
                         else:
                             log += f"   Debugger failed: {debug_result.error}; falling back to the Coder.\n"
@@ -621,6 +635,7 @@ class SalehaOrchestrator:
                                 plan=f"Previous code:\n{current_code}\n\nRunning it produced this real error:\n{exec_result.error}\n\nFix it.",
                                 attempt=next_attempt,
                                 complexity_score=task_complexity,
+                                language=target_language,
                             )
                         if current_code_result.success:
                             current_code = self.healer.auto_patch_code(current_code_result.code)
@@ -648,6 +663,7 @@ class SalehaOrchestrator:
                         plan=f"Previous code:\n{current_code}\n\nReviewer feedback:\n{review_result.feedback}",
                         attempt=next_attempt,
                         complexity_score=task_complexity,
+                        language=target_language,
                     )
                     if current_code_result.success:
                         current_code = self.healer.auto_patch_code(current_code_result.code)
@@ -668,7 +684,7 @@ class SalehaOrchestrator:
                     # It is now executed before being accepted. Best-effort
                     # acceptance is fine; calling it "success" unrun is not.
                     log += "Max attempts reached -- verifying before accepting without reviewer approval...\n"
-                    final_exec = self.verifier.execute(current_code)
+                    final_exec = self.verifier.execute(current_code, language=target_language)
 
                     if final_exec.blocked:
                         log += f"Verifier blocked execution: {final_exec.block_reason}\n"
@@ -721,6 +737,7 @@ class SalehaOrchestrator:
                     plan=f"Previous code:\n{current_code}\n\nFix instructions:\n{healing_result.reflexion_prompt}",
                     attempt=next_attempt,
                     complexity_score=task_complexity,
+                    language=target_language,
                 )
 
                 if current_code_result.success:
