@@ -376,13 +376,91 @@ def emergence_check_cmd(clear):
 def merkle_audit_cmd():
     """
     Verify tamper-proof cryptographic Merkle tree audit provenance.
-    
+
     Example: saleha merkle-audit
     """
     from saleha.core.merkle_provenance import merkle_provenance_ledger
     ok, msg = merkle_provenance_ledger.verify_integrity()
     col = 'green' if ok else 'red'
     console.print(Panel(f'[bold {col}]🌳 Cryptographic Merkle Audit Trail[/bold {col}]\n{msg}', border_style=col))
+
+@cli.command(name='merkle-leaves')
+@click.option('--limit', default=20, type=int, help='Max leaves to show, most recent first (default: 20, 0 = all)')
+@click.option('--json', 'as_json', is_flag=True, help='Output as JSON instead of a table')
+def merkle_leaves_cmd(limit: int, as_json: bool):
+    """
+    List the individual audit leaves recorded in the Merkle provenance ledger.
+
+    `saleha merkle-audit` only reports whether the chain is valid; this shows
+    what is actually in it -- one row per stage swarm_pipeline_engine.py
+    recorded (agent, action type, timestamp, and the leaf's own hash).
+
+    IMPORTANT: the ledger is an in-memory singleton, not persisted to disk.
+    It only has leaves from swarm runs executed in THIS process. Running
+    `saleha team "..."` or `saleha solve-issue "..."` in one terminal and
+    then `saleha merkle-leaves` in another will show an empty ledger --
+    that is not a bug, it is what "in-memory" means. To see leaves, run a
+    swarm command and this command in the same process (e.g. via the REPL,
+    `saleha chat`, where state persists across commands within one session)
+    or add a caller that pipes both into one script.
+
+    Example: saleha merkle-leaves --limit 5
+    """
+    import json as json_mod
+    from datetime import datetime, timezone
+    from saleha.core.merkle_provenance import merkle_provenance_ledger
+
+    leaves = merkle_provenance_ledger.leaves
+    if not leaves:
+        if as_json:
+            click.echo(json_mod.dumps({'leaf_count': 0, 'leaves': []}))
+        else:
+            console.print(Panel(
+                '[yellow]Ledger is empty in this process.[/yellow]\n'
+                '[dim]No swarm stage has been recorded here yet -- this is a fresh '
+                'process, or nothing has called execute_swarm() since it started. '
+                'Run a swarm command (e.g. `saleha team "..."`) first, in the same '
+                'process if you want this command to see it.[/dim]',
+                title='[bold]Merkle Audit Leaves[/bold]', border_style='yellow'
+            ))
+        return
+
+    shown = leaves if limit <= 0 else leaves[-limit:]
+    root = merkle_provenance_ledger.get_merkle_root()
+
+    if as_json:
+        click.echo(json_mod.dumps({
+            'leaf_count': len(leaves),
+            'shown_count': len(shown),
+            'root_hash': root,
+            'leaves': [
+                {
+                    'leaf_index': l.leaf_index,
+                    'action_type': l.action_type,
+                    'agent_id': l.agent_id,
+                    'timestamp': l.timestamp,
+                    'payload_hash': l.payload_hash,
+                    'leaf_hash': l.leaf_hash,
+                }
+                for l in shown
+            ],
+        }, ensure_ascii=True))
+        return
+
+    table = Table(title=f'🌳 Merkle Audit Leaves ({len(shown)} of {len(leaves)} shown, most recent last)',
+                  border_style='cyan')
+    table.add_column('#', justify='right', style='dim')
+    table.add_column('Time', style='dim')
+    table.add_column('Agent', style='bold cyan')
+    table.add_column('Action', style='yellow')
+    table.add_column('Leaf Hash', style='green')
+    for l in shown:
+        ts = datetime.fromtimestamp(l.timestamp, tz=timezone.utc).strftime('%H:%M:%S')
+        table.add_row(str(l.leaf_index), ts, l.agent_id, l.action_type, l.leaf_hash[:16] + '...')
+    console.print(table)
+    console.print(f'[dim]Root hash: {root[:32]}...[/dim]')
+    if limit > 0 and len(leaves) > limit:
+        console.print(f'[dim]{len(leaves) - limit} older leaf(ves) not shown -- raise --limit or pass --limit 0 for all.[/dim]')
 
 @cli.command(name='quadratic-vote')
 @click.argument('title', required=True)

@@ -1,7 +1,9 @@
 """Unit tests for Merkle-Tree Cryptographic Provenance Ledger."""
 
 import unittest
+from click.testing import CliRunner
 from saleha.core.merkle_provenance import MerkleProvenanceLedger, MerkleAuditLeaf
+from saleha.cli.commands import cli
 
 
 class TestMerkleProvenance(unittest.TestCase):
@@ -54,6 +56,71 @@ class MerkleSwarmWiringTests(unittest.TestCase):
         is_valid, msg = merkle_provenance_ledger.verify_integrity()
         self.assertTrue(is_valid)
         self.assertIn("verified", msg.lower())
+
+
+class MerkleLeavesCLITests(unittest.TestCase):
+    """Tests for `saleha merkle-leaves`, which lists individual audit leaves
+    (merkle-audit only reports pass/fail on the whole chain)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_empty_ledger_is_reported_honestly_not_as_an_error(self):
+        # A fresh ledger in this test process, distinct from whatever the
+        # module-level singleton holds from other tests in this file --
+        # verifies the command's own empty-state message, not that the
+        # singleton happens to be empty right now.
+        from saleha.core import merkle_provenance
+        original = merkle_provenance.merkle_provenance_ledger
+        merkle_provenance.merkle_provenance_ledger = MerkleProvenanceLedger()
+        try:
+            result = self.runner.invoke(cli, ['merkle-leaves'])
+            self.assertEqual(result.exit_code, 0)
+            self.assertIn('empty', result.output.lower())
+        finally:
+            merkle_provenance.merkle_provenance_ledger = original
+
+    def _fresh_ledger_used_everywhere(self) -> "MerkleProvenanceLedger":
+        """Swaps the module-level singleton for a fresh ledger in both
+        merkle_provenance and swarm_pipeline_engine -- the latter already
+        holds its own top-level `from ... import merkle_provenance_ledger`
+        binding at import time, so patching only the source module's
+        attribute leaves swarm_pipeline_engine still pointing at the old
+        object. Both must be repointed for a swarm run to actually populate
+        the ledger this test then reads back."""
+        from saleha.core import merkle_provenance, swarm_pipeline_engine
+        fresh = MerkleProvenanceLedger()
+        merkle_provenance.merkle_provenance_ledger = fresh
+        swarm_pipeline_engine.merkle_provenance_ledger = fresh
+        return fresh
+
+    def test_populated_ledger_shows_real_leaves(self):
+        import os
+        os.environ["SALEHA_TEST_MODE"] = "1"
+        from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+
+        self._fresh_ledger_used_everywhere()
+        SwarmPipelineEngine().execute_swarm("Build a rate limiter")
+
+        result = self.runner.invoke(cli, ['merkle-leaves'])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('CoderAgent', result.output)
+        self.assertIn('Root hash', result.output)
+
+    def test_json_output_is_valid_and_limit_respected(self):
+        import os, json
+        os.environ["SALEHA_TEST_MODE"] = "1"
+        from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+
+        self._fresh_ledger_used_everywhere()
+        SwarmPipelineEngine().execute_swarm("Build a rate limiter")
+
+        result = self.runner.invoke(cli, ['merkle-leaves', '--json', '--limit', '2'])
+        self.assertEqual(result.exit_code, 0)
+        payload = json.loads(result.output)
+        self.assertEqual(payload['shown_count'], 2)
+        self.assertGreater(payload['leaf_count'], 2)
+        self.assertTrue(payload['root_hash'])
 
 
 if __name__ == "__main__":
