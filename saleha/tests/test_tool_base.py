@@ -1,12 +1,10 @@
 """Unit tests for saleha.tools.base, ToolRegistry, and ASTInspectorTool."""
 
-import pytest
-from typing import Dict, Any
 from saleha.tools.base import BaseTool, ToolResult, ToolRegistry
 from saleha.tools.ast_inspector import ASTInspectorTool
 
 
-def test_tool_result():
+def test_tool_result() -> None:
     res_ok = ToolResult(success=True, data="data", metadata={"k": "v"})
     assert res_ok.success is True
     assert res_ok.data == "data"
@@ -21,7 +19,7 @@ def test_tool_result():
     assert res_err.error == "Something went wrong"
 
 
-def test_ast_inspector_execution():
+def test_ast_inspector_execution() -> None:
     tool = ASTInspectorTool()
     assert tool.name == "ast_inspector"
     assert "inspects python code" in tool.description.lower()
@@ -51,7 +49,7 @@ class SampleClass:
     assert "File not found" in err_res.error
 
 
-def test_ast_inspector_mcp_definition():
+def test_ast_inspector_mcp_definition() -> None:
     tool = ASTInspectorTool()
     mcp_def = tool.to_mcp_definition()
     assert mcp_def["name"] == "ast_inspector"
@@ -66,7 +64,7 @@ def test_ast_inspector_mcp_definition():
     assert handler_out["data"]["function_count"] == 1
 
 
-def test_tool_registry():
+def test_tool_registry() -> None:
     registry = ToolRegistry()
     assert len(registry.list_tools()) == 0
 
@@ -78,7 +76,7 @@ def test_tool_registry():
     assert len(registry.list_tools()) == 1
 
 
-def test_nested_function_complexity_isolated():
+def test_nested_function_complexity_isolated() -> None:
     """Verifies that nested functions do not inflate the parent function's complexity."""
     tool = ASTInspectorTool()
     code = """
@@ -101,7 +99,7 @@ def outer(x: int) -> int:
     assert funcs["outer"]["cyclomatic_complexity"] == 1
 
 
-def test_ternary_and_comprehension_complexity():
+def test_ternary_and_comprehension_complexity() -> None:
     """Verifies that IfExp (ternary) and comprehensions are counted in cyclomatic complexity."""
     tool = ASTInspectorTool()
     code = """
@@ -117,7 +115,7 @@ def process_data(items: list) -> list:
     assert func["cyclomatic_complexity"] >= 4
 
 
-def test_full_argument_type_coverage():
+def test_full_argument_type_coverage() -> None:
     """Verifies that *args, **kwargs, and keyword-only args are validated for type coverage."""
     tool = ASTInspectorTool()
     # Function with untyped *args and **kwargs must NOT be marked fully typed
@@ -145,7 +143,7 @@ def func_fully_typed(x: int, *args: str, **kwargs: bool) -> int:
     assert f2["typed_args_count"] == 3
 
 
-def test_zero_functions_edge_case():
+def test_zero_functions_edge_case() -> None:
     """Verifies that a file with 0 functions returns 0.0% type coverage instead of 100.0%."""
     tool = ASTInspectorTool()
     code = """
@@ -158,7 +156,7 @@ CONSTANT_B = "hello"
     assert res.data["type_coverage_pct"] == 0.0
 
 
-def test_security_findings_and_maintainability():
+def test_security_findings_and_maintainability() -> None:
     """Verifies that security risks like eval and shell=True are detected and maintainability is scored."""
     tool = ASTInspectorTool()
     code = """

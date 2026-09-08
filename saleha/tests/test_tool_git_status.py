@@ -6,6 +6,8 @@ secret hygiene auditing, and MCP definition.
 
 import os
 import tempfile
+from typing import List, Tuple
+
 import pytest
 from saleha.tools.git_status_auditor import (
     GitStatusAuditorTool,
@@ -15,12 +17,11 @@ from saleha.tools.git_status_auditor import (
     GitStateInspector,
     FileStatusCode,
     RepositoryState,
-    SecretRiskLevel,
 )
 from saleha.tools import tool_registry
 
 
-def test_git_status_auditor_registered():
+def test_git_status_auditor_registered() -> None:
     """Verifies that GitStatusAuditorTool is registered in tool_registry."""
     tool = tool_registry.get("git_status_auditor")
     assert tool is not None
@@ -28,7 +29,7 @@ def test_git_status_auditor_registered():
     assert tool.name == "git_status_auditor"
 
 
-def test_git_status_auditor_live_execution():
+def test_git_status_auditor_live_execution() -> None:
     """Verifies live execution against the current repository workspace."""
     tool = GitStatusAuditorTool()
     res = tool.execute(include_diff_stats=True, include_recent_commits=True)
@@ -48,7 +49,7 @@ def test_git_status_auditor_live_execution():
     assert "total_lines_deleted" in summary
 
 
-def test_git_status_auditor_non_git_dir():
+def test_git_status_auditor_non_git_dir() -> None:
     """Verifies error handling when pointed at a non-git directory."""
     tool = GitStatusAuditorTool()
     with tempfile.TemporaryDirectory() as tmp:
@@ -60,7 +61,7 @@ def test_git_status_auditor_non_git_dir():
         assert res.metadata["state"] == RepositoryState.NOT_A_GIT_REPO.value
 
 
-def test_porcelain_v2_parser():
+def test_porcelain_v2_parser() -> None:
     """Verifies porcelain v2 parser handles branch, tracked, untracked, and renamed entries."""
     raw_status = """# branch.oid 0123456789abcdef0123456789abcdef01234567
 # branch.head feature/test-branch
@@ -100,7 +101,7 @@ def test_porcelain_v2_parser():
     assert paths["ignored_file.log"].status == FileStatusCode.IGNORED
 
 
-def test_security_auditor_detects_sensitive_files():
+def test_security_auditor_detects_sensitive_files() -> None:
     """Verifies that .env files and private keys are flagged as sensitive."""
     from saleha.tools.git_status_auditor import FileChangeDetail
 
@@ -136,7 +137,7 @@ def test_security_auditor_detects_sensitive_files():
         def __init__(self) -> None:
             super().__init__(repo_path=".")
 
-        def execute(self, args: list, timeout: int = 30) -> tuple[int, str, str]:
+        def execute(self, args: List[str], timeout: int = 30) -> Tuple[int, str, str]:
             return 0, "", ""
 
     findings = GitSecurityAuditor.audit_working_tree(MockExecutor(), files, repo_root=".")
@@ -148,7 +149,7 @@ def test_security_auditor_detects_sensitive_files():
     assert "saleha/core/safe_code.py" not in flagged_files
 
 
-def test_security_auditor_detects_secret_in_diff():
+def test_security_auditor_detects_secret_in_diff() -> None:
     """Verifies that AWS access keys or Google API keys in staged diffs are flagged."""
     diff_text = """diff --git a/app.py b/app.py
 --- a/app.py
@@ -166,7 +167,7 @@ def test_security_auditor_detects_secret_in_diff():
     assert any("Google API / AI Key" in f.message for f in findings)
 
 
-def test_mcp_definition_and_markdown_report():
+def test_mcp_definition_and_markdown_report() -> None:
     """Verifies MCP definition schema and markdown report generation."""
     tool = GitStatusAuditorTool()
     mcp_def = tool.to_mcp_definition()
@@ -182,7 +183,7 @@ def test_mcp_definition_and_markdown_report():
     assert "Hygiene Score:" in report_md
 
 
-def test_edge_case_c_quoting_command_construction():
+def test_edge_case_c_quoting_command_construction() -> None:
     """Edge Case 1: Verifies executor injects -c core.quotePath=false."""
     executor = GitCLIExecutor(".")
     if not executor.git_bin:
@@ -194,7 +195,7 @@ def test_edge_case_c_quoting_command_construction():
     assert "true" in out.lower()
 
 
-def test_edge_case_double_counting_prevented():
+def test_edge_case_double_counting_prevented() -> None:
     """Edge Case 2: Verifies partially staged files are not double-counted in summary or security audit."""
     from saleha.tools.git_status_auditor import FileChangeDetail
 
@@ -217,7 +218,7 @@ def test_edge_case_double_counting_prevented():
         def __init__(self) -> None:
             super().__init__(repo_path=".")
 
-        def execute(self, args: list, timeout: int = 30) -> tuple[int, str, str]:
+        def execute(self, args: List[str], timeout: int = 30) -> Tuple[int, str, str]:
             return 0, "", ""
 
     findings = GitSecurityAuditor.audit_working_tree(MockExecutor(), files, repo_root=".")
@@ -226,13 +227,13 @@ def test_edge_case_double_counting_prevented():
     assert len(env_findings) == 1
 
 
-def test_edge_case_tab_character_in_commit_and_stash():
+def test_edge_case_tab_character_in_commit_and_stash() -> None:
     """Edge Case 3: Verifies maxsplit prevents misalignment when commit/stash subjects contain tabs."""
     class MockStashExecutor(GitCLIExecutor):
         def __init__(self) -> None:
             super().__init__(repo_path=".")
 
-        def execute(self, args: list, timeout: int = 30) -> tuple[int, str, str]:
+        def execute(self, args: List[str], timeout: int = 30) -> Tuple[int, str, str]:
             # Formatted line with message at the end (%gd%x09%cr%x09%gs)
             line = "stash@{0}\t10 minutes ago\tWIP on main:\tinternal tab in commit subject"
             return 0, line, ""
@@ -247,7 +248,7 @@ def test_edge_case_tab_character_in_commit_and_stash():
         def __init__(self) -> None:
             super().__init__(repo_path=".")
 
-        def execute(self, args: list, timeout: int = 30) -> tuple[int, str, str]:
+        def execute(self, args: List[str], timeout: int = 30) -> Tuple[int, str, str]:
             # Commit subject with tabs inside
             line = "a1b2c3d4e5f6\ta1b2c3d\tDev Name\tdev@test.com\t2026-09-08T00:00:00\t1 hour ago\tfix(core):\trefactor\tsomething"
             return 0, line, ""
@@ -260,7 +261,7 @@ def test_edge_case_tab_character_in_commit_and_stash():
     assert commits[0].subject == "fix(core):\trefactor\tsomething"
 
 
-def test_edge_case_redos_and_lockfile_guards():
+def test_edge_case_redos_and_lockfile_guards() -> None:
     """Edge Case 4: Verifies _scan_diff_for_secrets skips lockfiles and oversized lines."""
     findings: list = []
 
@@ -288,7 +289,7 @@ def test_edge_case_redos_and_lockfile_guards():
     assert len(findings) == 0
 
 
-def test_edge_case_git_state_detection_revert_and_auto_merge():
+def test_edge_case_git_state_detection_revert_and_auto_merge() -> None:
     """Edge Case 5: Verifies REVERT_HEAD and AUTO_MERGE state markers are recognized."""
     with tempfile.TemporaryDirectory() as tmp:
         git_dir = os.path.join(tmp, ".git")
@@ -313,7 +314,7 @@ def test_edge_case_git_state_detection_revert_and_auto_merge():
         os.remove(revert_head)
 
 
-def test_edge_case_root_directory_basename_fallback():
+def test_edge_case_root_directory_basename_fallback() -> None:
     """Edge Case 6: Verifies markdown report handles root filesystem path without blank title."""
     tool = GitStatusAuditorTool()
     data = {
@@ -337,4 +338,3 @@ def test_edge_case_root_directory_basename_fallback():
     }
     report = tool.generate_markdown_report(data)
     assert "# Git Repository Audit: `/`" in report
-
