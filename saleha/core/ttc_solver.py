@@ -212,7 +212,8 @@ class TTCTrajectorySolver:
         unreachable the candidate is recorded as a failure with score 0 -- never
         as a passing stub, which is what made `/ttc` untrustworthy.
 
-        Under SALEHA_TEST_MODE, skips the network call entirely and returns
+        Under SALEHA_TEST_MODE, and only when the caller did not inject their
+        own `inference` engine, skips the network call entirely and returns
         deterministic placeholder candidates instead. This module used to have
         no test-mode branch at all -- unlike swarm_pipeline_engine.py,
         swebench_runner.py, and persona_debate.py, which already checked this
@@ -225,8 +226,20 @@ class TTCTrajectorySolver:
         pass"). The placeholder is deliberately weak code, not a "passing"
         stub -- it exists to be evaluated and scored honestly by
         evaluate_candidate(), the same as a real generation would be.
+
+        The `self.inference is None` guard matters: several tests construct
+        `TTCTrajectorySolver(inference=fake_engine)` specifically to verify
+        this method calls `fake_engine.run_batch()` for real (distinct
+        strategies, use_cache=False, honest zero-score on an unreachable
+        model). An unconditional SALEHA_TEST_MODE bypass would have skipped
+        that call and made those tests pass without checking anything --
+        exactly the "old test pins the fabrication" trap this project keeps
+        finding. This placeholder path exists only for the *unconfigured*
+        default case (nothing injected), not to intercept every test.
         """
-        if os.environ.get("SALEHA_TEST_MODE") == "1" or self.model == "mock":
+        if self.inference is None and (
+            os.environ.get("SALEHA_TEST_MODE") == "1" or self.model == "mock"
+        ):
             out: List[CandidateTrajectory] = []
             strategies = list(self.DEFAULT_STRATEGIES)[:num_candidates]
             while len(strategies) < num_candidates:

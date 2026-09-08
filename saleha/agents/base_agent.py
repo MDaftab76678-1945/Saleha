@@ -34,12 +34,25 @@ class BaseAgent:
         self.role = role
         self.model_preference = model
         # Under SALEHA_TEST_MODE, any agent constructed without an explicit
-        # provider gets the fast in-process MockProvider instead of the real
-        # Ollama/OpenAI-compatible fallback chain. This is not optional
-        # behavior tucked behind a flag someone has to remember -- it is the
-        # default for every subclass of BaseAgent, because a caller that
-        # explicitly passes `provider=` (a real integration test) still
-        # overrides it below.
+        # provider AND without model="mock" gets the fast in-process
+        # MockProvider instead of the real Ollama/OpenAI-compatible fallback
+        # chain. A caller that passes `provider=` (a real integration test)
+        # still overrides it below, unconditionally.
+        #
+        # The `model != "mock"` half of the guard matters just as much as the
+        # SALEHA_TEST_MODE check: model="mock" was already a widely-used
+        # convention across this codebase (RedTeamEngine, QALeadAgent, and
+        # others construct agents this way in their own tests) meaning "force
+        # the real provider chain to fail, so this agent's own fallback
+        # template runs" -- several tests assert on exactly that fallback
+        # content. MockProvider always returns success=True with a fixed
+        # generic body, which is a different contract: it would have made
+        # those fallback branches unreachable now that conftest.py (added
+        # alongside this fix) sets SALEHA_TEST_MODE for the whole suite. This
+        # branch is additive for modules with no mock convention of their own
+        # (ttc_solver.py, demo_cli.py, graph_rag.py -- the three that
+        # actually stalled the suite), not a replacement for model="mock"'s
+        # existing meaning.
         #
         # Found necessary in pass 30 after three independent modules stalled
         # the full test suite for 15+ minutes each by reaching this class's
@@ -49,7 +62,8 @@ class BaseAgent:
         # which does go through BaseAgent -- and was the module that made
         # this the right place for the fix, rather than patching every
         # caller individually as they turn up one at a time.
-        if provider is None and os.environ.get("SALEHA_TEST_MODE") == "1":
+        if (provider is None and model != "mock"
+                and os.environ.get("SALEHA_TEST_MODE") == "1"):
             self.provider: ModelProvider = MockProvider()
         else:
             self.provider = provider or default_provider  # naya: pluggable backend
