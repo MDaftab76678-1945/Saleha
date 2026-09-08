@@ -22,13 +22,10 @@ import subprocess
 import tempfile
 import os
 import shutil
-import sys
-import ast
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from saleha.core.safety_patterns import (
-    BLOCKED_IMPORTS,
     check_dangerous,
     _check_blocked_imports as _sp_check_blocked_imports,
 )

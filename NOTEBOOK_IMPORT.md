@@ -2401,3 +2401,101 @@ python -m pytest saleha/tests/ -q
 ```
 
 Zero failures.
+
+## Thirty-second pass -- design-model and design-vision made input-driven (2026-09-08)
+
+Two commands flagged in pass 30 as templates. Neither had a production
+caller; the user's instruction was to fix, not delete.
+
+### `design-model` -- engine was real, CLI wasted it
+
+`neural_designer.py` already computed parameter count, FP16 size, per-token
+FLOPs and inference VRAM from the `NeuralArchitectureSpec` fields, and the
+generated PyTorch source interpolates the real dims. The CLI took only a
+`name` argument and built `NeuralArchitectureSpec(model_name=name)` -- every
+other field defaulted, so `design-model MySmall` and `design-model MyHuge`
+returned the same architecture with a different label. Same shape as the
+`quadratic-vote` fix in pass 30: real engine, inert CLI.
+
+Added `--d-model`, `--layers`, `--heads`, `--vocab`, `--seq-len`,
+`--show-code`, a `d_model % n_heads` guard, and a report that prints the
+computed metrics rather than just the one-line summary.
+
+```text
+design-model Small --d-model 256 --layers 4 --heads 4
+  -> 20,580,352 parameters, 39.25 MB FP16, 41,160,704 FLOPs/token, 51.02 MB VRAM
+design-model Large --d-model 4096 --layers 32 --heads 32
+  -> 8,852,340,736 parameters, 16884.5 MB FP16, 17,704,681,472 FLOPs/token, 21949.85 MB VRAM
+```
+
+### `design-vision` -- was a genuine template, now infers and calls the model
+
+`vision_designer.py` had a hardcoded component list
+(`["HeaderBar", "MetricsGrid", "ActionCard", "StatusBadge", "FooterNav"]`),
+one hardcoded 6-colour palette, and a fully literal CSS block, all returned
+regardless of input -- a login form got a metrics grid. It extended
+`BaseAgent` but never called the model. `total_tokens_generated` was a
+hardcoded `420`. The docstring claimed it "parses UI mockups, Figma
+wireframes, screenshots".
+
+Rewritten:
+
+- Six layout families (auth, dashboard, pricing, article, settings,
+  landing), each with its own component set and palette, chosen by keyword
+  match against the prompt.
+- The JSX and CSS now come from a real `self.think()` call; the response is
+  parsed for a `jsx` and a `css` fenced block. Only if that succeeds is
+  `used_model=True` and `total_tokens_generated` set from the real
+  `response.tokens_used`.
+- If the model is unavailable or unparseable, a *layout-specific* template
+  is returned (its component sections differ per family) and labelled
+  "template fallback (model unavailable)" -- `used_model=False`, tokens `0`.
+  The CLI and chat REPL both print which path was taken.
+- Docstring corrected: no image parsing here; a path is used as filename
+  text only.
+
+```text
+'login form with email and password' -> Auth Form      | AuthCard      | accent #6366f1
+'analytics dashboard with charts'    -> Dashboard Grid  | SidebarNav    | accent #38bdf8
+'pricing page with 3 plans'          -> Pricing Table   | PricingHeader | accent #7c3aed
+'blog article about rust'            -> Article         | ArticleHeader | accent #2563eb
+```
+
+### Dead imports removed
+
+`import ast` was present and unused in `docs_generator.py`,
+`swarm_self_play_arena.py` and `code_executor.py` (the AST import check in
+the last one is delegated to `safety_patterns.py`, which does the parsing).
+Also removed `time`/`Optional`/`Any` (docs_generator), `field`/`Tuple`
+(swarm arena), `sys`/`List`/`BLOCKED_IMPORTS` (code_executor) -- all
+unreferenced. `docs_generator.py`'s docstring was corrected: it does not
+scan modules or CLI commands, the Quick Start section is a curated list.
+
+Type annotations: added return types across `chat_session.py` (33 methods,
+score 0.0 -> 96 on the pre-flight gate), the `research_experimental.py` CLI
+commands, and the vision test methods. These files carried the annotations
+gap before this pass; the gate now enforces it.
+
+Two notes on things seen but left for a later pass, both in
+`swarm_self_play_arena.py` and `chat_session.py`:
+`swarm_self_play_arena.py:131`'s `coder_code` is a hardcoded template
+interpolating the prompt at two points with no model call, and
+`chat_session.py:_generate_turn_response` returns a hardcoded
+"I have analyzed your requirement..." string (plus a fixed `process_data`
+snippet when the message contains "code") with no model call. Both are the
+REPL's own turn handlers, out of scope here, flagged for their own pass.
+
+### Verified
+
+```text
+pytest saleha/tests/test_vision_chat_and_release.py -q
+7 passed
+
+python -m pytest saleha/tests/ -q
+1699 passed, 14 skipped, 60 subtests passed in 82.12s
+```
+
+New vision tests: `test_layout_family_inferred_from_prompt` (different
+prompts -> different families/components/palettes; fails against the old
+version), `test_template_fallback_is_labelled` (fallback is marked, tokens
+are 0, not 420). Zero failures.

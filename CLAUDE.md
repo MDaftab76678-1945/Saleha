@@ -178,22 +178,28 @@ resolved by narrowing both guards (`self.inference is None`,
 manual setup. Full multi-stage writeup in `NOTEBOOK_IMPORT.md`, "Thirtieth
 pass".
 
-**Design UI synthesis commands are templates** (pass 30 finding):
-`design-vision` (CLI in `voice_vision.py` line 104–115) calls
-`vision_designer.synthesize_from_wireframe()`, which **generates hardcoded
-HTML/CSS/JSX regardless of input**. Probe: `"login form"` and `"dashboard
-with charts"` both return identical `components = ["HeaderBar", "MetricsGrid",
-"ActionCard", "StatusBadge", "FooterNav"]` and the same 6-color palette —
-a login form has no metrics grid. The JSX `<h1>{clean_prompt[:50]}</h1>` copies
-the first 50 chars of input; everything else (button styles, card layout, CSS
-rules) is the same literal every time. No layout-type inference, no vision
-model call. `design-model` (line 113–124 in `research_experimental.py`) calls
-`neural_designer.design_transformer()`, which always returns the same
-NeuralArchitectureSpec defaults (512 dims, 8 heads, 6 layers, 32000 vocab)
-regardless of input name — two different `design-model MySmall` and
-`design-model MyHuge` calls return parameters differing only in the name field
-in the returned string, not in the actual architecture. Not yet fixed. No
-production caller for either.
+**Design UI synthesis commands — fixed (pass 32).** Both were pass-30
+template findings; the fix was to make them input-driven, not to delete
+them (no production caller for either, but the instruction was to fix).
+
+- **`design-model`** — `neural_designer.py` was always real (parameter
+  count, FP16 size, FLOPs/token, VRAM all computed from the spec; generated
+  PyTorch source uses the real dims). The CLI took only `name`, so every
+  other field defaulted. Now takes `--d-model`, `--layers`, `--heads`,
+  `--vocab`, `--seq-len`, `--show-code`. Probe: `--d-model 256 --layers 4` →
+  20.5M params / 39 MB; `--d-model 4096 --layers 32` → 8.85B params / 16.9 GB.
+- **`design-vision`** — was a genuine template: hardcoded component list,
+  one palette, literal CSS, `total_tokens_generated = 420`, no model call
+  despite extending `BaseAgent`. Rewritten: six layout families (auth,
+  dashboard, pricing, article, settings, landing) chosen by keyword match,
+  each with its own components and palette; JSX/CSS from a real
+  `self.think()` call parsed for `jsx`/`css` fenced blocks. If the model is
+  unavailable, a layout-specific template is returned and labelled
+  `used_model=False`, tokens `0` — the CLI/REPL print which path ran.
+  Docstring corrected: no image parsing. Probe: four different prompts →
+  four different layout types, components and palettes.
+
+Detail: `NOTEBOOK_IMPORT.md`, "Thirty-second pass."
 
 **Full 139-command triage is done** (pass 30). Roughly 100 commands are real,
 19 were already covered by earlier passes, and six new fabrications were
@@ -310,8 +316,14 @@ Full detail and evidence for each: `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
   and `apex_97_validator` deleted in the same commit for the same reason
   (constant `final_loss 0.12` regardless of input; eight hand-typed "Rank #1"
   scores).
-- `docs_generator.py` (187), `swarm_self_play_arena.py`, `code_executor.py`
-  (the unused import there is likely harmless — it is a real, working sandbox).
+- `docs_generator.py`, `swarm_self_play_arena.py`, `code_executor.py` — the
+  unused `import ast` in each was removed in pass 32 (plus other dead
+  imports). **Still open in two of them:**
+  `swarm_self_play_arena.py:131`'s `coder_code` is a hardcoded template
+  (prompt interpolated at two points, no model call), and
+  `chat_session.py:_generate_turn_response` returns a hardcoded
+  "I have analyzed your requirement..." string with no model call. Both are
+  REPL turn handlers, flagged for their own pass.
 
 **`quality_guard.py` — three design issues fixed (commits `2d5915a`,
 `ade661b`, plus follow-ups `d0e237b`/`121c55b`).** The `SOV-001` "brand leak"
@@ -631,8 +643,12 @@ Every new CLI command or agent must pass a design audit before shipping:
 Current checklist for existing commands — **all 139 CLI commands triaged as
 of pass 30** (see NOTEBOOK_IMPORT.md "Thirtieth pass" for full detail):
 
-- [x] `design-vision` — template (hardcoded component list, no input inference)
-- [x] `design-model` — template (hardcoded architecture params)
+- [x] `design-vision` — **fixed pass 32.** Was a template; now infers one of
+  six layout families from the prompt and calls the model for JSX/CSS,
+  labelling a template fallback when the model is unreachable.
+- [x] `design-model` — **fixed pass 32.** Engine was always real; CLI now
+  takes `--d-model`/`--layers`/`--heads`/`--vocab` so the architecture
+  actually varies.
 - [x] `vision` (`vision_coder.py`) — **real, not a template.** Probed:
   no vision model installed on this machine (`find_vision_model()` returned
   `None`), so `used_vision=False` for both test calls — correctly reported,
