@@ -57,6 +57,7 @@ class TimeMachine:
         """
         self.max_snapshots = max_snapshots
         self.store_dir = store_dir or os.path.join(os.getcwd(), ".saleha", "snapshots")
+        self._seq = 0
 
     def _snapshot_path(self, snapshot_id: str) -> str:
         """Returns the on-disk JSON path for a snapshot id."""
@@ -102,7 +103,8 @@ class TimeMachine:
                 except OSError:
                     pass
 
-        snap_id = f"snap_{int(time.time() * 1000)}"
+        self._seq += 1
+        snap_id = f"snap_{int(time.time() * 1000)}_{self._seq}"
         snapshot = CodebaseSnapshot(
             snapshot_id=snap_id,
             label=label,
