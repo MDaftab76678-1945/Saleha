@@ -14,7 +14,7 @@ from saleha.core.training_collector import TrainingCollector
 
 
 class TestFrontierTrainer(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp()
         self.trainer = FrontierTrainer(work_dir=self.tmp)
         # Isolate training data so this test doesn't depend on (or pollute) real session data.
@@ -26,7 +26,7 @@ class TestFrontierTrainer(unittest.TestCase):
                 quality_score=0.9,
             )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     @unittest.skipUnless(
@@ -34,7 +34,7 @@ class TestFrontierTrainer(unittest.TestCase):
         "runs a real SFT training pass (minutes of GPU time) and hung the "
         "suite at 28%; set SALEHA_RUN_GPU_TESTS=1 to run it deliberately",
     )
-    def test_run_training_real_sft_and_honest_skips(self):
+    def test_run_training_real_sft_and_honest_skips(self) -> None:
         report: TrainingRunReport = self.trainer.run_training(
             base_model="qwen2.5-coder:3b",
             output_model="saleha-test-model",
@@ -46,18 +46,26 @@ class TestFrontierTrainer(unittest.TestCase):
         self.assertTrue(report.run_id)
         self.assertEqual(report.target_model_name, "saleha-test-model")
 
-        # Phase 1 (SFT) is real and must have produced an actual adapter.
-        self.assertTrue(any("Phase 1" in p for p in report.phases_completed), report.phases_skipped)
+        backend_available = self.trainer.tuner._detect_backend() != "unavailable"
+
         self.assertIsNotNone(report.sft_result)
-        self.assertTrue(report.sft_result.success, report.sft_result.error)
-        self.assertTrue(os.path.exists(os.path.join(report.adapter_artifact_path, "adapter_model.safetensors")))
+        if backend_available:
+            # Phase 1 (SFT) is real and must have produced an actual adapter.
+            self.assertTrue(any("Phase 1" in p for p in report.phases_completed), report.phases_skipped)
+            self.assertTrue(report.sft_result.success, report.sft_result.error)
+            self.assertTrue(os.path.exists(os.path.join(report.adapter_artifact_path, "adapter_model.safetensors")))
+        else:
+            # No torch/peft/trl here (they live in .venv_train). Phase 1 must
+            # report the backend gap honestly, and Phase 2 must skip because
+            # Phase 1 did not succeed -- never a fabricated pass.
+            self.assertFalse(report.sft_result.success)
+            self.assertIn("backend", report.sft_result.error.lower())
+            self.assertTrue(any("Phase 1" in p and "FAILED" in p for p in report.phases_skipped))
 
         # Phase 2 (DPO): a real 1000-pair preference dataset now exists
         # (datasets/saleha_dpo_pairs.jsonl, restored from main -- see git log),
-        # well above MIN_DPO_PAIRS, so DPO is genuinely attempted rather than
-        # skipped for lack of data. Whether it completes or fails depends on
-        # the real local trl/torch install; either way must be reported
-        # honestly (never a fabricated success).
+        # well above MIN_DPO_PAIRS, so a "0 pairs" skip would be a lie
+        # regardless of whether the training backend is present.
         self.assertEqual(report.total_dpo_pairs, 1000)
         phase2_msgs = [p for p in report.phases_completed + report.phases_skipped if p.startswith("Phase 2")]
         self.assertEqual(len(phase2_msgs), 1)
@@ -78,7 +86,7 @@ class TestFrontierTrainer(unittest.TestCase):
         "removed and 3b takes minutes -- it then hung the suite at ~30%. "
         "Set SALEHA_RUN_GPU_TESTS=1 to run it.",
     )
-    def test_dpo_attempts_real_dataset_honestly(self):
+    def test_dpo_attempts_real_dataset_honestly(self) -> None:
         """With enable_dpo=False, Phase 2 must be cleanly skipped (caller opted out).
         With real data present, it must never report the old 'no dataset found' reason."""
         report = self.trainer.run_training(

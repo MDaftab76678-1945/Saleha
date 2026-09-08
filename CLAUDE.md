@@ -397,13 +397,19 @@ check).
   Normalise both when talking to Ollama directly.
 - **Python: use `.venv` (3.14.7), not `.venv_train`.** `.venv_train` is the old
   3.11.16 environment — a version `requires-python = ">=3.12"` forbids and CI
-  never tests. It is kept only because it holds `torch` (4.27 GB of its 5.3 GB)
-  for the LoRA/training path that ten modules import. Everyday work belongs in
-  `.venv`.
+  never tests. It was kept for `torch` (the LoRA/training path), but as of
+  pass 35 its `Scripts/` has no `python.exe` any more (only the
+  `accelerate`/`torch` console shims), so it is not a usable interpreter —
+  recreate it if training is actually needed. `.vscode/settings.json`
+  (gitignored) now points `defaultInterpreterPath` at `.venv`. The GPU
+  training tests are backend-aware since pass 35: with no `torch` they
+  assert the honest `success=False`, not a skip or a crash.
 - `pip install -e ".[dev]"` alone does **not** give a passing test run: two SMT
   tests need `z3-solver`, which lives in the `[formal]` extra. A working test
-  environment also wants `tree-sitter*` and `numpy`.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1693 passed, 14 skipped,
+  environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
+  the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
+  `test_repo_graph.py` skip.
+- Test suite: `python -m pytest saleha/tests/ -q` — 1714 passed, 7 skipped,
   60 subtests, ~80-130s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
