@@ -21,7 +21,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from saleha.core.smart_router import smart_router
+from saleha.agents.base_agent import BaseAgent
 from saleha.core.swarm_pipeline_engine import swarm_engine
 from saleha.agents.issue_resolver import issue_resolver
 from saleha.agents.vision_designer import vision_designer
@@ -57,6 +57,15 @@ class SwarmChatSession:
         self.console = console or Console()
         self.history: List[Dict[str, str]] = []
         self.active_role: str = "Assistant"
+        self._chat_agent: Optional[BaseAgent] = None
+
+    def _get_chat_agent(self) -> BaseAgent:
+        """Lazily builds the conversational agent used for plain chat turns."""
+        if self._chat_agent is None:
+            self._chat_agent = BaseAgent(
+                role="Saleha pair-programming assistant", model="auto"
+            )
+        return self._chat_agent
 
     def render_welcome(self) -> None:
         """Renders welcome banner and slash command cheat-sheet."""
@@ -568,18 +577,49 @@ class SwarmChatSession:
         self.console.print(table)
         self.console.print()
 
+    def _build_conversation_prompt(self, user_msg: str, max_turns: int = 8) -> str:
+        """Renders recent history plus the new message into a single prompt.
+
+        Only the last `max_turns` entries are included so a long session does
+        not blow the context budget; BaseAgent trims further if needed.
+        """
+        recent = self.history[-max_turns:] if len(self.history) > max_turns else self.history
+        lines = [
+            "You are Saleha, a local-first pair-programming assistant. Answer "
+            "the last user message directly and concisely. Use fenced code "
+            "blocks for code.",
+            "",
+        ]
+        for turn in recent:
+            speaker = "User" if turn["role"] == "user" else "Assistant"
+            lines.append(f"{speaker}: {turn['content']}")
+        lines.append(f"User: {user_msg}")
+        lines.append("Assistant:")
+        return "\n".join(lines)
+
     def _generate_turn_response(self, user_msg: str) -> None:
-        self.console.print("\n[bold magenta]Saleha AI[/bold magenta] [dim](Ollama / DeepSeek Failover)[/dim]:")
+        self.console.print("\n[bold magenta]Saleha AI[/bold magenta]:")
 
-        # Route through SmartRouter
-        model = smart_router.route_task(user_msg, complexity=0.4)
-        response_text = f"I have analyzed your requirement: **\"{user_msg}\"** using the `{model}` failover tier.\n\n"
-        if "code" in user_msg.lower() or "python" in user_msg.lower() or "function" in user_msg.lower():
-            response_text += "```python\n# Synthesized Python Solution\ndef process_data(items: list[str]) -> dict[str, int]:\n    return {item: len(item) for item in items}\n```"
-        else:
-            response_text += "Ready to assist! You can use `/swarm <goal>` for full autonomous DAG synthesis, `/solve <bug>` for instant PR creation, `/vision <prompt>` for UI generation, or `/container <code>` to run sandboxed code."
+        agent = self._get_chat_agent()
+        prompt = self._build_conversation_prompt(user_msg)
+        result = agent.think(prompt)
 
+        if not result.success or not result.content.strip():
+            reason = result.error_message or "the model returned an empty response"
+            self.console.print(
+                f"[bold red]No answer generated.[/bold red] [dim]{reason}[/dim]\n"
+                "[dim]Check that Ollama is running and a model is installed "
+                "(`ollama list`).[/dim]"
+            )
+            return
+
+        response_text = result.content.strip()
         self.console.print(Markdown(response_text))
+        if result.context_trimmed_chars:
+            self.console.print(
+                f"[dim](prompt was trimmed by {result.context_trimmed_chars} "
+                f"chars to fit the context window)[/dim]"
+            )
         self.history.append({"role": "assistant", "content": response_text})
         self.console.print()
 

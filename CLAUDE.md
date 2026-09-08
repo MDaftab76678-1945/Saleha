@@ -318,12 +318,23 @@ Full detail and evidence for each: `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
   scores).
 - `docs_generator.py`, `swarm_self_play_arena.py`, `code_executor.py` — the
   unused `import ast` in each was removed in pass 32 (plus other dead
-  imports). **Still open in two of them:**
-  `swarm_self_play_arena.py:131`'s `coder_code` is a hardcoded template
-  (prompt interpolated at two points, no model call), and
-  `chat_session.py:_generate_turn_response` returns a hardcoded
-  "I have analyzed your requirement..." string with no model call. Both are
-  REPL turn handlers, flagged for their own pass.
+  imports).
+
+**The two REPL turn handlers are fixed (pass 33).**
+`chat_session.py:_generate_turn_response` now builds a
+`BaseAgent(model="auto")` and calls `think()` with the recent conversation
+turns, printing an honest "No answer generated" (with the provider error)
+on failure instead of the old hardcoded "I have analyzed your
+requirement..." reply. `swarm_self_play_arena.py:fight_battle` now calls
+`CoderAgent.generate_code()` for a real candidate and runs the real
+`ASTSecurityScanner` over it; `red_attacks = 6 / neutralized = 6` and
+`hard_negative_mined=True` (both unconditional) are gone, and
+`StochasticWeightAverager` (which had a `+1.8` magic "ensemble boost" and
+an `adapter_weights_mock` despite claiming to fuse adapter checkpoints) is
+now `RewardAggregator` — a plain top-K mean of the round rewards, with a
+docstring that says it trains nothing. Old tests that pinned the
+fabrication (`6 == 6`, `reward >= 0.8`) replaced. Detail:
+`NOTEBOOK_IMPORT.md`, "Thirty-third pass."
 
 **`quality_guard.py` — three design issues fixed (commits `2d5915a`,
 `ade661b`, plus follow-ups `d0e237b`/`121c55b`).** The `SOV-001` "brand leak"

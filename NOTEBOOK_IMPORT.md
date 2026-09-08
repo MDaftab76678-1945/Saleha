@@ -2499,3 +2499,99 @@ New vision tests: `test_layout_family_inferred_from_prompt` (different
 prompts -> different families/components/palettes; fails against the old
 version), `test_template_fallback_is_labelled` (fallback is marked, tokens
 are 0, not 420). Zero failures.
+
+## Thirty-third pass -- the two REPL turn handlers that never called a model (2026-09-08)
+
+Both were flagged at the end of pass 32 and fixed here.
+
+### `chat_session.py:_generate_turn_response` -- hardcoded reply
+
+Every plain (non-slash) chat message ran through this. It called
+`smart_router.route_task()` -- which only returns a model *name* -- and then
+built the reply as a literal:
+
+```python
+response_text = f"I have analyzed your requirement: ... using the `{model}` failover tier."
+if "code" in user_msg.lower() or "python" in ...:
+    response_text += "```python\n# Synthesized Python Solution\ndef process_data(...): ...```"
+else:
+    response_text += "Ready to assist! You can use `/swarm` ..."
+```
+
+No model was ever called. A user asking "how do I implement binary search"
+got the fixed `process_data` snippet because the message contained the
+substring "python".
+
+Fixed: the session now builds a `BaseAgent(role="Saleha pair-programming
+assistant", model="auto")` lazily and calls `agent.think()` with a prompt
+assembled from the last eight conversation turns plus the new message. If
+the call fails or returns empty, it prints an honest "No answer generated"
+with the provider's error and a hint to check Ollama -- it does not
+substitute a canned reply. Context-trim is surfaced when it happens.
+`smart_router` import dropped (BaseAgent builds its own router for
+`model="auto"`).
+
+Probe under `SALEHA_TEST_MODE` (MockProvider): "write a python function to
+reverse a string" now returns the mock's `def solve(): return 42` -- i.e.
+the reply comes from the provider, not the old template.
+
+### `swarm_self_play_arena.py` -- template candidate plus four more fabrications
+
+`fight_battle` built `coder_code` as a hardcoded f-string (the prompt
+interpolated at two points, `import time` inside the literal), then:
+
+- `red_attacks = 6`, `neutralized = 6` -- hardcoded "100% neutralized", no
+  scan.
+- `hard_negative_mined=True` -- unconditional.
+- `StochasticWeightAverager.fuse_model_soup()` -- `fused_score = avg + 1.8`
+  ("SWA ensemble boost", a magic constant); `adapter_weights_mock={"rank":
+  16, "alpha": 32}`; the docstring claimed it "fuses top-K adapter
+  checkpoints without catastrophic forgetting". There are no adapters and
+  no weights anywhere in the file.
+- `master_model_score` defaulted to `98.5`.
+
+The two genuine calls (`spics_fuzz_engine.fuzz_test_code`,
+`neuro_symbolic_engine.score_code`) were real but were scoring the template,
+not any generated code.
+
+Rewritten:
+
+- `fight_battle` calls `CoderAgent.generate_code(prompt)` for a real
+  candidate. If the coder returns nothing, the round is reported
+  `coder_succeeded=False`, a hard negative, with zeroed scores -- not a
+  fake pass.
+- The `ASTSecurityScanner` attacks the real candidate;
+  `security_findings` = total, `security_findings_unresolved` = HIGH-severity
+  count (the attacks that got through). The reward now carries a penalty
+  factor for unresolved findings.
+- `hard_negative_mined` is true only when the candidate actually failed a
+  check (unresolved HIGH finding, a failed fuzz trial, or invariant score
+  < 0.6).
+- `StochasticWeightAverager` -> `RewardAggregator`: it takes the mean of the
+  top-K round rewards and nothing else. No `+1.8`, no weights, no "model
+  soup". The module docstring now says plainly it trains nothing.
+- `AdversarialBattleResult` / `SwarmSelfPlaySummary` field names corrected
+  (`coder_model_used`, `coder_succeeded`, `security_findings*`,
+  `total_attacks_through`, `aggregate_reward_score`, `run_artifact_path`).
+
+The old `test_swarm_self_play_arena.py` pinned the fabrication --
+`assertEqual(battle_res.red_team_attacks_neutralized,
+battle_res.red_team_attacks_detected)` (6 == 6),
+`assertGreaterEqual(judge_pareto_reward, 0.8)` (with `+ 0.3` baked in),
+`fused_master_score > average_individual_score` (guaranteed by the `+1.8`).
+Replaced with tests that assert structure: the coder's model is recorded,
+reward is a real 0-1 value, unresolved <= total findings, a failed
+generation is reported not scored, and the aggregator returns the plain
+top-K mean (94.0 for 92/94/96, not 95.8).
+
+### Verified
+
+```text
+pytest saleha/tests/test_swarm_self_play_arena.py saleha/tests/test_vision_chat_and_release.py -q
+13 passed
+
+python -m pytest saleha/tests/ -q
+1701 passed, 14 skipped, 60 subtests passed in 81.99s
+```
+
+Zero failures.
