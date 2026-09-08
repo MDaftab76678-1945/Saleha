@@ -97,6 +97,25 @@ The user has had to repeat this. Do not make them repeat it again.
    `PYTHONIOENCODING=utf-8`. Plain text says the same thing and always renders.
 4. **A variable assigned only inside branches must be initialised first.**
    That was the exact cause of the ten errors above.
+5. **Before touching a file, read the whole surrounding area — not just the
+   line you are fixing.** A one-line patch to `polyglot_executor.py`'s
+   `subprocess.run()` call (pass 36: missing `encoding="utf-8"`, silently
+   falling back to this machine's cp1252 default and risking a swallowed
+   decode crash on non-ASCII subprocess output) is only safe once you have
+   also checked every other `subprocess.run`/`text=True` call in the file for
+   the same gap, and checked whether the test that would have caught it
+   actually asserts on the failure reason (`res.error`) or just a bare
+   boolean (`res.success`) — a bare-boolean assert is a test that cannot tell
+   you why it failed, which is how this one first reached CI as an
+   unexplained red job on two different Windows/Python versions before the
+   real cause was found.
+6. **A CI failure without a fix in hand is not the same as a proven fix.**
+   Don't report a bug as fixed until it has been reproduced locally (or the
+   report explicitly says it could not be, and why) and the fix has been
+   re-run against that reproduction. Guessing at a plausible cause and
+   shipping it as "fixed" — without ever seeing it fail the same way
+   locally — is exactly the kind of confident-but-unverified claim this
+   whole file exists to stop making.
 
 ---
 
