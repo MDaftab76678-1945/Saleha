@@ -194,23 +194,26 @@ def changelog_cmd(version, write_file):
 @cli.command(name='snapshot')
 @click.argument('paths', nargs=-1)
 @click.option('--label', default='manual_snapshot', help='Label for the snapshot')
-def snapshot_cmd(paths: tuple, label: str):
+def snapshot_cmd(paths: tuple, label: str) -> None:
     """
     Create an atomic point-in-time workspace snapshot.
-    
+
     Example: saleha snapshot pyproject.toml saleha/core/
     """
     from saleha.core.time_machine import time_machine
     target_paths = list(paths) or ['pyproject.toml']
     snap = time_machine.create_snapshot(target_paths, label=label)
-    console.print(f"[bold green]✅ Snapshot created:[/bold green] ID='{snap.snapshot_id}', {snap.file_count} files captured.")
+    console.print(
+        f"[bold green]Snapshot created:[/bold green] ID='{snap.snapshot_id}', "
+        f"{snap.file_count} file(s) captured -> {time_machine.store_dir}"
+    )
 
 @cli.command(name='rollback')
 @click.option('--snapshot-id', default=None, help='Snapshot ID to rollback to')
-def rollback_cmd(snapshot_id: Optional[str]):
+def rollback_cmd(snapshot_id: Optional[str]) -> None:
     """
     Instant 1-click rollback to a previous workspace snapshot.
-    
+
     Example: saleha rollback
     """
     from saleha.core.time_machine import time_machine

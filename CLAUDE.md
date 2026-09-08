@@ -284,48 +284,50 @@ found. One fixed:
   Remember the ledger is an in-memory singleton: a swarm run in one process
   and `merkle-leaves` in another will show empty, which the command's own
   empty-state message says explicitly.
-- **Not fabrication, functionally broken, not yet fixed:** `saleha
-  snapshot`/`rollback` (`time_machine.py`) — in-memory only despite
-  docstring claiming disk persistence; `rollback` in a separate process
-  always reports "No snapshots available." Fails honestly, just doesn't
-  work as documented.
+- **`snapshot`/`rollback` — fixed (pass 31).** `time_machine.py`'s docstring
+  promised "In-memory and disk persistence"; there was no disk anything (the
+  `json` import was unused) and `time_machine` was a module-level singleton,
+  so `saleha snapshot` and `saleha rollback` — two separate processes — never
+  saw each other's state and `rollback` always printed "No snapshots
+  available." Each snapshot is now written to `.saleha/snapshots/<id>.json`
+  (already gitignored); `rollback`/`list_snapshots`/pruning all read the
+  directory, so there is no in-process state to diverge. Corrupt JSON is
+  skipped on load. Probe: a snapshot taken in one process is now rolled back
+  from a second. Verified: `test_time_machine.py` 5/5 (new
+  `test_snapshot_persists_across_instances` fails against the old version),
+  full suite `1697 passed`. Detail: `NOTEBOOK_IMPORT.md`, "Thirty-first pass."
 
 All six fabrication findings from the 139-command triage are now fixed.
 Full detail and evidence for each: `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
 
-**Older candidates, still not examined:**
+**Older candidates:**
 
-- `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+
-  files". **Probed and confirmed a pure template**: two unrelated issues give
-  identical `root_cause_analysis`, `tests_passing=True` and
-  `verified_no_regressions=True` with nothing run, and target files chosen by
-  `if "auth" in desc`. Not yet fixed. No production caller.
-- `extreme_contrastive_trainer.py` (114) — "InfoNCE, 3σ margin, eliminates
-  subtle hallucinations". **Probed and confirmed a pure template**: 5 triplets
-  and 500 both return `final_loss 0.12, sigma 3.42`; every "hard negative" is
-  the same binary-search off-by-one. Not yet fixed. No production caller.
+- `swe_repo_fixer.py` — **deleted (commit `f9814b6`, pass 30-adjacent).**
+  Was a pure template: two unrelated issues gave identical
+  `root_cause_analysis`, `tests_passing=True` with nothing run, target files
+  chosen by `if "auth" in desc`. The chat REPL's `/swe-fix` handler now
+  points at the real `saleha resolve-issue`. `extreme_contrastive_trainer.py`
+  and `apex_97_validator` deleted in the same commit for the same reason
+  (constant `final_loss 0.12` regardless of input; eight hand-typed "Rank #1"
+  scores).
 - `docs_generator.py` (187), `swarm_self_play_arena.py`, `code_executor.py`
   (the unused import there is likely harmless — it is a real, working sandbox).
 
-**`quality_guard.py` is real but has three design issues** (read in full, not
-yet fixed): its `SOV-001` "brand leak" rule marks `"claude-opus-5"` as a
-CRITICAL violation and fails the file — naming a model you actually call is
-not a defect; the score clamps at 0.0 so 25 and 400 untyped functions look
-identical; and `check_workspace`'s `all_passed` is computed over the first 50
-files `os.walk` reached without the key saying it is a sample.
+**`quality_guard.py` — three design issues fixed (commits `2d5915a`,
+`ade661b`, plus follow-ups `d0e237b`/`121c55b`).** The `SOV-001` "brand leak"
+rule that failed a file for naming a model it calls is removed entirely; the
+score still clamps at 0.0 but keeps `raw_score` uncapped so 25 and 400
+untyped functions are distinguishable for ranking; `check_workspace` now
+returns explicit `files_found`/`files_analyzed`/`truncated`/`scan_is_complete`
+keys instead of a silent 50-file sample. 17 tests pass.
 
-**`saleha/sandbox/` does not import on this machine** (found in pass 23's
-scan, not yet fixed). `NOTEBOOK_IMPORT.md` line 13 calls it "**Real sandbox**":
-
-```text
-BREAK  saleha.sandbox.sandbox_jail      : No module named 'resource'
-BREAK  saleha.sandbox.v5_production_core: No module named 'local_llm_driver'
-OK     saleha.sandbox.ast_security_verifier
-```
-
-`sandbox_jail.py:5` has an unguarded `import resource`, which is POSIX-only —
-this is a Windows machine. `v5_production_core.py` uses flat imports
-(`from local_llm_driver import ...`) for files inside a package.
+**`saleha/sandbox/` — Windows import fixed (commit `4d248a6`).** The
+unguarded POSIX-only `import resource` in `sandbox_jail.py` is now guarded;
+the module imports on Windows and exposes `is_available()` /
+`unavailable_reason()`, and `run_isolated()` raises `SandboxUnavailableError`
+rather than executing code with none of its limits applied.
+`NOTEBOOK_IMPORT.md`'s old "Real sandbox" row (line 13) predates this and is
+stale — the jail is real but does not run here.
 
 **Unrelated, still open:** the repo carries both `package-lock.json` and
 `pnpm-lock.yaml`, which is what the IDE's "multiple lockfiles" warning is

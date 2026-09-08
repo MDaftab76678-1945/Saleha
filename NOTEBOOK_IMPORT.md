@@ -2335,3 +2335,69 @@ remaining item from that triage, `saleha snapshot`/`rollback`'s in-memory
 persistence gap, was never a fabrication -- it fails honestly -- and stays
 open as ordinary unfinished work rather than something this ledger's rule
 about fabricated results applies to.
+
+## Thirty-first pass -- snapshot/rollback given the disk persistence its docstring claimed (2026-09-08)
+
+`time_machine.py` opened with a docstring promising "In-memory and disk
+persistence." Read in full (106 lines): there was no disk anything. The
+`json` import on line 11 was never used. `self.snapshots` was a plain list,
+and `time_machine = TimeMachine()` on line 100 was a module-level singleton,
+so every `python`/`saleha` process started with an empty one.
+
+The CLI made the gap user-visible. `saleha snapshot` (in `git_release.py`)
+and `saleha rollback` are two separate invocations -- two processes -- both
+importing that singleton. So the documented workflow ("snapshot before a
+refactor, roll back if tests fail") could not work: the second process never
+saw the first process's snapshot and always printed
+"No snapshots available to rollback."
+
+### Probe -- before
+
+```text
+proc1: time_machine.create_snapshot(['demo.py']) -> snap_...
+edit demo.py: V = 1  ->  V = 999_BROKEN
+proc2: time_machine.list_snapshots() -> []        (fresh empty singleton)
+proc2: time_machine.rollback()       -> (False, "No snapshots available to rollback.")
+demo.py still: V = 999_BROKEN
+```
+
+### Fix
+
+Each snapshot is now written to `.saleha/snapshots/<id>.json` (already
+gitignored, line 62) at `create_snapshot` time. `rollback`, `list_snapshots`
+and pruning all read the directory rather than an in-process list, so there
+is no in-memory state to diverge between processes. `CodebaseSnapshot` got
+`to_dict`/`from_dict`. A corrupt or partial JSON file is skipped on load
+rather than crashing the listing -- rollback to a bad snapshot is simply not
+offered. `store_dir` is a constructor arg so tests get an isolated
+directory. Removed the two decorative emoji from the `snapshot` CLI output
+(cp1252 rule) and made it print the store path.
+
+### Probe -- after
+
+```text
+proc1: create_snapshot(['demo.py']) -> snap_1788888099329
+edit demo.py: V = 1  ->  V = 999_BROKEN
+proc2: list_snapshots() -> 1 snapshot
+proc2: rollback()       -> (True, "Successfully rolled back 1 file(s) ...")
+demo.py now: V = 1
+```
+
+### Verified
+
+```text
+pytest saleha/tests/test_time_machine.py -q
+5 passed
+```
+
+New tests: `test_snapshot_persists_across_instances` (the cross-process
+case -- fails against the old in-memory version), `test_rollback_with_no_snapshots`,
+`test_prune_keeps_only_max_snapshots`, `test_corrupt_snapshot_file_is_skipped`.
+The pre-existing single-instance snapshot/rollback test was kept as-is.
+
+```text
+python -m pytest saleha/tests/ -q
+1697 passed, 14 skipped, 60 subtests passed in 82.23s
+```
+
+Zero failures.
