@@ -58,6 +58,52 @@ def _collect_target_names(node: ast.AST, names_set: Set[str]) -> None:
         _collect_target_names(node.value, names_set)
 
 
+def _collect_module_level_bindings(stmts: Sequence[ast.stmt], names_set: Set[str]) -> None:
+    """Collects every name bound at module scope, descending into `if`/`try`/
+    `for`/`while`/`with` bodies -- unlike a function or class, these do NOT
+    open a new scope in Python, so `if __name__ == "__main__": x = 1` binds
+    `x` at module level, not inside some inaccessible sub-scope.
+
+    Without this, any module-level `if __name__ == "__main__":` block (the
+    single most common pattern in this codebase's own files) scored every
+    name it assigned as a false CRITICAL UNDEF-001, because the caller only
+    ever scanned direct top-level statements.
+    """
+    stack: List[ast.stmt] = list(stmts)
+    while stack:
+        node = stack.pop()
+
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                names_set.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name != "*":
+                    names_set.add(alias.asname or alias.name)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names_set.add(node.name)
+            continue  # these DO open a new scope -- do not descend into their body
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                _collect_target_names(t, names_set)
+        elif isinstance(node, ast.AnnAssign):
+            _collect_target_names(node.target, names_set)
+        elif isinstance(node, ast.AugAssign):
+            _collect_target_names(node.target, names_set)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            names_set.add(node.name)
+        elif isinstance(node, (ast.For, ast.AsyncFor)):
+            _collect_target_names(node.target, names_set)
+        elif isinstance(node, ast.With):
+            for item in node.items:
+                if item.optional_vars:
+                    _collect_target_names(item.optional_vars, names_set)
+
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.stmt):
+                stack.append(child)
+
+
 @dataclass
 class QualityIssue:
     severity: str          # "CRITICAL" | "MAJOR" | "MINOR"
@@ -146,21 +192,7 @@ class QualityGuard:
             return issues
 
         global_names: Set[str] = set(_BUILTIN_NAMES)
-        for node in tree_body:
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    global_names.add(alias.asname or alias.name.split(".")[0])
-            elif isinstance(node, ast.ImportFrom):
-                for alias in node.names:
-                    if alias.name != "*":
-                        global_names.add(alias.asname or alias.name)
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                global_names.add(node.name)
-            elif isinstance(node, ast.Assign):
-                for t in node.targets:
-                    _collect_target_names(t, global_names)
-            elif isinstance(node, ast.AnnAssign):
-                _collect_target_names(node.target, global_names)
+        _collect_module_level_bindings(tree_body, global_names)
 
         class ScopeVisitor(ast.NodeVisitor):
             def __init__(self, globals_set: Set[str]):

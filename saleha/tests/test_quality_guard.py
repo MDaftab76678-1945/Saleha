@@ -324,3 +324,61 @@ f = lambda x: x + totally_undefined_name
     report = guard.check_code(code)
     assert report.passed is False
     assert any(i.rule_id == "UNDEF-001" and "totally_undefined_name" in i.message for i in report.issues)
+
+
+def test_main_guard_block_assignment_is_not_undefined() -> None:
+    """
+    Found auditing Gemini's Round 10 files: EVERY `if __name__ == "__main__":`
+    demo block in saleha/orchestrator.py, code_executor.py, tester.py, and
+    reviewer.py scored a false CRITICAL UNDEF-001 on every name it assigned.
+
+    Root cause: `if` is not a new scope in Python (unlike a function or
+    class), so `if __name__ == "__main__": x = 1` binds `x` at module level.
+    The old code only scanned direct top-level statements for bindings, never
+    descending into an `if` block's body, so every such assignment looked
+    undefined the moment it was referenced.
+    """
+    guard = QualityGuard()
+    code = '''
+if __name__ == "__main__":
+    result = 5
+    print(result)
+'''
+    report = guard.check_code(code)
+    assert report.passed is True
+    assert not any(i.rule_id == "UNDEF-001" for i in report.issues)
+
+
+def test_function_scope_does_not_leak_through_module_level_if() -> None:
+    """A function defined inside a module-level `if` block still opens its
+    own scope -- its locals must not leak to module level."""
+    guard = QualityGuard()
+    code = '''
+if True:
+    def f() -> int:
+        local_var = 1
+        return local_var
+print(local_var)
+'''
+    report = guard.check_code(code)
+    assert report.passed is False
+    assert any(i.rule_id == "UNDEF-001" and "local_var" in i.message for i in report.issues)
+
+
+def test_try_except_and_for_loop_bindings_at_module_level() -> None:
+    """Exception names and for-loop variables bound inside a module-level
+    try/for block must be visible afterward, same as real Python scoping."""
+    try_code = '''
+try:
+    import json
+except ImportError:
+    json = None
+print(json)
+'''
+    for_code = '''
+for item in range(10):
+    pass
+print(item)
+'''
+    assert quality_guard.check_code(try_code).passed is True
+    assert quality_guard.check_code(for_code).passed is True
