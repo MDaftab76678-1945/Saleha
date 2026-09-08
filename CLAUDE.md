@@ -278,7 +278,12 @@ found. One fixed:
   leaf. Running `execute_swarm` took a fresh ledger from 0 to one leaf per
   stage, with genuine cryptographic verification (a real root hash) instead
   of the empty-ledger message. Verified with a new test asserting the leaf
-  count delta equals `len(result.stages)` exactly.
+  count delta equals `len(result.stages)` exactly. Follow-up: `saleha
+  merkle-leaves` (new command) lists the individual leaves — `merkle-audit`
+  only ever reported pass/fail on the whole chain, not what is in it.
+  Remember the ledger is an in-memory singleton: a swarm run in one process
+  and `merkle-leaves` in another will show empty, which the command's own
+  empty-state message says explicitly.
 - **Not fabrication, functionally broken, not yet fixed:** `saleha
   snapshot`/`rollback` (`time_machine.py`) — in-memory only despite
   docstring claiming disk persistence; `rollback` in a separate process
@@ -354,8 +359,8 @@ worth deciding whether they should exist before maintaining them.
 - `pip install -e ".[dev]"` alone does **not** give a passing test run: two SMT
   tests need `z3-solver`, which lives in the `[formal]` extra. A working test
   environment also wants `tree-sitter*` and `numpy`.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1690 passed, 14 skipped,
-  60 subtests, ~80-125s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1693 passed, 14 skipped,
+  60 subtests, ~80-130s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once
