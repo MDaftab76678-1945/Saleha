@@ -172,10 +172,41 @@ regardless of input name — two different `design-model MySmall` and
 in the returned string, not in the actual architecture. Not yet fixed. No
 production caller for either.
 
-**Next candidates, not yet examined.** Of the eight modules that import `ast`
-and never call it, this signature has now flagged a real defect five times for
-five (`mech_interp.py`, `cognitive_engine.py`, `constitutional_guard.py`,
-`threat_modeler.py`, `multi_file_auto_repair.py`). Remaining:
+**Full 139-command triage is done** (pass 30). Roughly 100 commands are real,
+19 were already covered by earlier passes, and six new fabrications were
+found — none fixed yet:
+
+- **`leaderboard`** (`saleha/core/leaderboard_generator.py`) — highest
+  priority. Hardcodes benchmark numbers for *other companies' named
+  products* (Devin 41.2%, Claude Code 39.8%, Cursor 28.5%) and presents them
+  as a measured comparison. Nothing measured.
+- **`solve-issue` is two commands, both fabricate.** `swarm_team.py:285` and
+  `testing_bench.py:230` both register the same command name; Click keeps
+  only the second, so `ticket_resolver.py` (the first) is dead code that also
+  hardcodes `reproduction_test_written=True` with nothing written. The live
+  one (`agents/issue_resolver.py`) hardcodes `"AST Syntax Verification: Clean
+  (0 Syntax Errors)"` unconditionally and uses the literal
+  `"def test_regression(): assert True\n"` as the test for every issue,
+  never executed. Same bug class as `resolve-issue` (fixed pass 23) — this is
+  a different command, unfixed.
+- **`swarm_pipeline_engine.py:222`** — `tests_passed = True` hardcoded in the
+  QALead stage regardless of whether a test ran. Feeds `team`, `swarm`, and
+  transitively `solve-issue`. Same bug already fixed once in
+  `orchestrator.py` (pass 13); unfixed here (separate pipeline).
+- **`pr_generator.py`** (backs `pr` command) — "Verified (100%)" / "Security
+  Audit Passed" badges hardcoded unconditionally; empty `execution_output`
+  becomes the literal "All unit tests passed successfully."
+- **`quadratic-vote`, `merkle-audit`** — lower priority, no-ops rather than
+  false claims: `quadratic-vote` replays one hardcoded scenario every run;
+  `merkle-audit`'s ledger is written to by nothing in production.
+- **Not fabrication, functionally broken:** `saleha snapshot`/`rollback`
+  (`time_machine.py`) — in-memory only despite docstring claiming disk
+  persistence; `rollback` in a separate process always reports "No snapshots
+  available." Fails honestly, just doesn't work as documented.
+
+Full detail and evidence for each: `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
+
+**Older candidates, still not examined:**
 
 - `swe_repo_fixer.py` (107) — "solves real-world GitHub issues across 100+
   files". **Probed and confirmed a pure template**: two unrelated issues give
@@ -501,7 +532,8 @@ Every new CLI command or agent must pass a design audit before shipping:
    template, record the probe that proved it: "called with X and Y, got
    identical output" or "called 1 model invocation with input Z."
 
-Current checklist for existing commands:
+Current checklist for existing commands — **all 139 CLI commands triaged as
+of pass 30** (see NOTEBOOK_IMPORT.md "Thirtieth pass" for full detail):
 
 - [x] `design-vision` — template (hardcoded component list, no input inference)
 - [x] `design-model` — template (hardcoded architecture params)
@@ -515,10 +547,11 @@ Current checklist for existing commands:
   `[Coder] Generating code...` logs) before falling back to template because
   the local LLM call did not complete. `vision_backend.py`'s image path calls
   a real Ollama `/api/generate` endpoint with `images: [b64]` — no template
-  there either. This command should be installed with a vision model
-  (`ollama pull llava` or similar) to exercise the true vision path; current
-  behavior on this machine is an honest fallback, not a fabrication.
-- [ ] All other 150+ commands — apply the checklist incrementally.
+  there either.
+- [x] Remaining ~100 commands — genuine (real AST/subprocess/git/LLM calls,
+  output varies with input). 6 confirmed template/fabrication findings, none
+  fixed yet — see "Next candidates" above. All findings and their evidence
+  are in `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
 
 ---
 

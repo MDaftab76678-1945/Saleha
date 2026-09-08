@@ -1861,3 +1861,74 @@ leaderboard position, and not a claim about multi-file repository work, which
 is the thing this project actually aims at and has never measured. The script
 prints that caveat itself, every run, so a future reader cannot lift the
 figure out of context.
+
+## Thirtieth pass -- a full triage of all 139 CLI commands (2026-09-08)
+
+Every prior pass found template commands one or a few at a time, each time
+after a specific reason to suspect that command. This pass instead read every
+`@cli.command()` in `saleha/cli/commands/*.py` -- 139 in total, traced into
+roughly 50 `core/`/`agents/` modules -- to find what had never been looked at.
+
+Two design-synthesis commands were confirmed templates first, before the full
+sweep: `design-vision` returns the identical hardcoded component list
+(`HeaderBar`, `MetricsGrid`, `ActionCard`, `StatusBadge`, `FooterNav`) for
+"login form" and "dashboard with charts" alike; `design-model` returns the
+same architecture parameters regardless of the model name given. `vision` was
+checked the same way and is real: two different specs produced different
+code, and the orchestrator's Planner/Coder stages visibly ran before an
+honest fallback (no vision model is installed on this machine).
+
+### What the full sweep found
+
+Roughly 100 of the 139 commands trace into genuine computation -- real AST
+parsing, real subprocess/git calls, real LLM calls through the orchestrator,
+output that actually varies with input. 19 were already covered by prior
+passes. Six new findings:
+
+**`leaderboard` (`saleha/core/leaderboard_generator.py`) -- highest priority.**
+Hardcodes specific benchmark numbers for *other companies' named products* --
+Cognition Devin at 41.2%, Claude Code at 39.8%, Cursor IDE at 28.5% -- and
+presents them as a measured comparison. Nothing here was measured; earlier
+passes fixed this project fabricating claims about *itself*, this fabricates
+claims about competitors.
+
+**`solve-issue` is two commands, and both fabricate.** `swarm_team.py:285`
+and `testing_bench.py:230` both register `@cli.command(name='solve-issue')`;
+Click silently keeps only the second, so the first (`ticket_resolver.py`) is
+dead code nobody can reach from the CLI -- and it also hardcodes
+`reproduction_test_written=True` with no file ever written, and reports
+`all_tests_passed=success` by relabelling the orchestrator's raw success flag.
+The live one (`agents/issue_resolver.py`, via `swarm_team.py`) hardcodes
+`"AST Syntax Verification: Clean (0 Syntax Errors)"` unconditionally and uses
+the literal string `"def test_regression(): assert True\n"` as the test for
+every issue -- never executed. This is the same shape of bug already fixed
+once in `saleha resolve-issue` (pass 23); it was not fixed here because this
+is a different command wired to a different module.
+
+**`swarm_pipeline_engine.py:222` -- `tests_passed = True` hardcoded** in the
+QALead stage regardless of whether a test ran. This feeds `team`, `swarm`,
+and transitively `solve-issue`. The identical bug already fixed once in
+`orchestrator.py` (pass 13), unfixed here because it is a separate pipeline.
+
+**`pr_generator.py` (backs the `pr` command)** prints "Verified (100%)" and
+"Security Audit Passed" badges unconditionally, and turns an empty
+`execution_output` into the literal string "All unit tests passed
+successfully." -- silently fabricating a result on the failure path.
+
+**`quadratic-vote` and `merkle-audit`** are lower-priority: not claims about
+real work, but no-ops. `quadratic-vote` replays one hardcoded scenario
+(`ARCH_V2` proposal, two fixed votes) every run with nothing else in the
+codebase ever calling it. `merkle-audit`'s ledger is written to by nothing in
+production, so it always reports "empty and untampered."
+
+**Not fabrication, but broken:** `saleha snapshot` / `saleha rollback`
+(`time_machine.py`) keep snapshots in a process-local in-memory list with no
+disk persistence, despite the docstring claiming both. Run as separate CLI
+invocations -- the normal way anyone would use them -- `rollback` always
+reports "No snapshots available," because the snapshot from the `snapshot`
+process no longer exists. It fails honestly rather than fabricating success,
+so it belongs on the open-work list, not the fabrication list.
+
+None of the six are fixed yet. Recorded here and in `CLAUDE.md`'s "Next
+candidates" so the next pass has a starting list instead of another blind
+sweep.
