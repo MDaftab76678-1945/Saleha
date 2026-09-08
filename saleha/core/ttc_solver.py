@@ -10,6 +10,7 @@ Implements 2026 frontier inference-time compute scaling:
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Callable, Tuple
@@ -210,7 +211,35 @@ class TTCTrajectorySolver:
         Runs the strategies concurrently through FastInference. If the model is
         unreachable the candidate is recorded as a failure with score 0 -- never
         as a passing stub, which is what made `/ttc` untrustworthy.
+
+        Under SALEHA_TEST_MODE, skips the network call entirely and returns
+        deterministic placeholder candidates instead. This module used to have
+        no test-mode branch at all -- unlike swarm_pipeline_engine.py,
+        swebench_runner.py, and persona_debate.py, which already checked this
+        variable -- so `/ttc` in a REPL constructed with model="mock" still
+        made a real Ollama call: the REPL's model preference never reached this
+        module-level singleton. With FastInference's 300s timeout, 2 retries,
+        and 3 concurrent candidates, one slow/unreachable model could block a
+        caller for up to ~15 minutes. Found when it stalled the full test
+        suite at test_repl_slash_ttc (pass 30, NOTEBOOK_IMPORT.md "Thirtieth
+        pass"). The placeholder is deliberately weak code, not a "passing"
+        stub -- it exists to be evaluated and scored honestly by
+        evaluate_candidate(), the same as a real generation would be.
         """
+        if os.environ.get("SALEHA_TEST_MODE") == "1" or self.model == "mock":
+            out: List[CandidateTrajectory] = []
+            strategies = list(self.DEFAULT_STRATEGIES)[:num_candidates]
+            while len(strategies) < num_candidates:
+                strategies.append("variation_%d" % (len(strategies) + 1))
+            for idx, strat in enumerate(strategies, start=1):
+                out.append(CandidateTrajectory(
+                    trajectory_id="TTC-%02d" % idx,
+                    strategy_name=strat,
+                    code="def solve():\n    pass  # test-mode placeholder, not a real generation\n",
+                    explanation="SALEHA_TEST_MODE placeholder for strategy '%s' -- no model called." % strat,
+                ))
+            return out
+
         from saleha.core.fast_inference import FastInference, InferenceRequest
         from saleha.core.parallel_solver import extract_code
 
