@@ -2244,3 +2244,94 @@ in Saleha: IndexError..."`), not the old literal string.
 Four findings from the 139-command triage remain open:
 `pr_generator.py`'s hardcoded "Verified (100%)" badge, `quadratic-vote`,
 `merkle-audit`, and the non-fabrication `snapshot`/`rollback` breakage.
+
+### The remaining three fabrication findings, fixed in one sitting
+
+Two of the three were the same defect shape as `quadratic-vote` in the
+next paragraph -- a hardcoded engine result -- and the third
+(`merkle-audit`) turned out to share it too, once read closely: in all
+three cases the underlying computation was genuinely real, and the
+fabrication was entirely in what fed it.
+
+**`pr_generator.py`.** Read `team_orchestrator.py` in full before touching
+the generator, since the badges' correctness depends entirely on what
+`TeamResult.success` and `.security_report` actually mean -- and confirmed
+both are real: `final_success = exec_result.success and not
+exec_result.blocked`, backed by a genuine sandboxed test run with a
+self-healing retry loop, and a security gate that cross-checks an LLM's
+verdict against a real AST scanner before deciding whether to trigger
+remediation. So the fix was not to loosen the badges' claim, it was to
+make them read the real result instead of a fixed one: `"Status: Verified"`
+/ `"Needs Review"` from `team_res.success`, `"Security: Approved"` /
+`"Warnings"` / `"Vulnerable"` parsed from the same `security_report` text
+the pipeline's own gate already parses. The other bug, `execution_output
+or 'All unit tests passed successfully.'`, could fire on two different
+empty-output paths (genuine no-stdout success, or the security gate's
+fail-closed early return) and said the same false thing on both -- now
+distinguishes them and surfaces the real `execution_error` on failure.
+
+**`quadratic-vote`.** `QuadraticVotingEngine` -- read in full -- has a
+correct quadratic cost formula (`credit_cost = votes ** 2`) and a real
+tally/threshold computation; `test_quadratic_credit_cost_calculation`
+already proved this and needed no change. The CLI command took no
+arguments at all, so every run created the identical proposal (`ARCH_V2`)
+with the identical two votes. This is a different kind of finding than the
+others in this pass: not a false claim (the summary line was always an
+accurate description of the fixed scenario it was given), but a
+coordination tool that can only ever report one outcome is not doing
+coordination. Grepping confirmed nothing in this project generates
+proposals or casts votes on its own, so there was no real swarm data
+available to wire in -- the honest fix was to make the CLI take a real
+title and repeatable `--vote agent:count` options, with the docstring
+explicit that this is a standalone calculator, not something observing an
+actual swarm's deliberation.
+
+**`merkle-audit`.** Same shape again: `merkle_provenance.py`'s SHA-256
+leaf hashing, chain linkage, and tamper-detection -- read in full -- were
+already real and already tested (`test_tamper_detection` deliberately
+corrupts a leaf and confirms `verify_integrity()` catches it). Nothing in
+production ever called `record_event()`. Unlike `quadratic-vote`, this one
+has a natural real data source: `swarm_pipeline_engine.py`'s stage loop,
+which already tracks exactly the kind of event a provenance ledger exists
+to record. Wired one `record_event()` call per completed stage, wrapped in
+a bare `except` so a hashing failure can never break the pipeline it
+observes -- the same rule this file's `handoff()` function already follows
+for `emergence_detector`.
+
+### Verified
+
+```text
+pytest saleha/tests/test_pr_generator.py -v
+4 passed
+```
+
+```text
+pytest saleha/tests/test_quadratic_voting.py -v
+5 passed (1 existing engine test + 4 new CLI tests)
+```
+
+```text
+pytest saleha/tests/test_merkle_provenance.py -v
+3 passed (2 existing engine tests + 1 new wiring test)
+```
+
+Manual checks: two different `quadratic-vote` invocations (different
+titles, different `--vote` sets) produced genuinely different Net
+Votes / APPROVED-REJECTED output. Running `execute_swarm` against a fresh
+merkle ledger took it from 0 leaves to one leaf per stage (8 for the
+tested goal), with `verify_integrity()` reporting a real root hash instead
+of "empty." `saleha merkle-audit` invoked after that swarm run showed the
+real count and hash.
+
+```text
+python -m pytest saleha/tests/ -q
+1690 passed, 14 skipped, 60 subtests passed in 125.50s (0:02:05)
+```
+
+Zero failures. All six fabrication findings from the 139-command triage
+(`leaderboard`, `solve-issue`, `swarm_pipeline_engine.py`,
+`pr_generator.py`, `quadratic-vote`, `merkle-audit`) are now fixed. The one
+remaining item from that triage, `saleha snapshot`/`rollback`'s in-memory
+persistence gap, was never a fabrication -- it fails honestly -- and stays
+open as ordinary unfinished work rather than something this ledger's rule
+about fabricated results applies to.

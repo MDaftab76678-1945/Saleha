@@ -249,17 +249,43 @@ found. One fixed:
   box with the actual reason when a check did not pass. Verified: 42/42
   tests across the four related test files, plus a manual CLI invocation
   confirming genuinely generated test code in the output.
-- **`pr_generator.py`** (backs `pr` command) — "Verified (100%)" / "Security
-  Audit Passed" badges hardcoded unconditionally; empty `execution_output`
-  becomes the literal "All unit tests passed successfully."
-- **`quadratic-vote`, `merkle-audit`** — lower priority, no-ops rather than
-  false claims: `quadratic-vote` replays one hardcoded scenario every run;
-  `merkle-audit`'s ledger is written to by nothing in production.
-- **Not fabrication, functionally broken:** `saleha snapshot`/`rollback`
-  (`time_machine.py`) — in-memory only despite docstring claiming disk
-  persistence; `rollback` in a separate process always reports "No snapshots
-  available." Fails honestly, just doesn't work as documented.
+- **`pr_generator.py` — fixed (pass 30).** Two badges ("Status: Verified
+  (100%)", "Security: Audit Passed") were hardcoded green unconditionally;
+  now read `team_res.success` and the security stage's real verdict
+  (Approved/Warnings/Vulnerable, parsed the same way the pipeline's own
+  security gate already parses it). An empty `execution_output` also
+  silently became the literal "All unit tests passed successfully." — now
+  distinguishes a genuine no-output success from a failure, surfacing the
+  real `execution_error` when there is one. Verified: `test_pr_generator.py`
+  4/4; a success case and a failure case (VULNERABLE security report, real
+  AssertionError) confirmed to render genuinely different badges and log
+  text, not just different in theory.
+- **`quadratic-vote` — fixed (pass 30).** The underlying
+  `QuadraticVotingEngine` was always real (correct `votes**2` cost formula,
+  real tally logic) — the bug was entirely in the CLI, which took no
+  arguments and replayed one hardcoded scenario every run. Now takes a real
+  `TITLE` argument and repeatable `--vote agent:count` options; two
+  different invocations produce genuinely different Net Votes /
+  APPROVED-REJECTED output. Verified: 5/5 tests (1 existing engine test +
+  4 new CLI tests), including malformed-input rejection and negative
+  (opposition) votes computing correctly.
+- **`merkle-audit` — fixed (pass 30).** `merkle_provenance.py`'s SHA-256
+  hashing and tamper-detection were always real — the bug was that nothing
+  in production ever called `record_event()`, so the ledger was always
+  empty and the command's "Ledger is empty and untampered." was honest but
+  useless as an audit trail. Wired `record_event()` into
+  `swarm_pipeline_engine.py`: every completed stage now records one real
+  leaf. Running `execute_swarm` took a fresh ledger from 0 to one leaf per
+  stage, with genuine cryptographic verification (a real root hash) instead
+  of the empty-ledger message. Verified with a new test asserting the leaf
+  count delta equals `len(result.stages)` exactly.
+- **Not fabrication, functionally broken, not yet fixed:** `saleha
+  snapshot`/`rollback` (`time_machine.py`) — in-memory only despite
+  docstring claiming disk persistence; `rollback` in a separate process
+  always reports "No snapshots available." Fails honestly, just doesn't
+  work as documented.
 
+All six fabrication findings from the 139-command triage are now fixed.
 Full detail and evidence for each: `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
 
 **Older candidates, still not examined:**
@@ -328,8 +354,8 @@ worth deciding whether they should exist before maintaining them.
 - `pip install -e ".[dev]"` alone does **not** give a passing test run: two SMT
   tests need `z3-solver`, which lives in the `[formal]` extra. A working test
   environment also wants `tree-sitter*` and `numpy`.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1686 passed, 14 skipped,
-  60 subtests, ~80s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1690 passed, 14 skipped,
+  60 subtests, ~80-125s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once
