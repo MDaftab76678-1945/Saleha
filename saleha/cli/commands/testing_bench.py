@@ -227,20 +227,6 @@ def benchmark_eval_cmd(model: str):
         summary = harness.run_suite()
     console.print(Markdown(harness.render_markdown(summary)))
 
-@cli.command(name='solve-issue')
-@click.argument('issue_title', required=True)
-@click.option('--desc', default='', help='Issue description / reproduction steps')
-def solve_issue_cmd(issue_title: str, desc: str):
-    """
-    Autonomous Issue-to-PR resolution engine (SWE-Bench workflow).
-    
-    Example: saleha solve-issue "Fix ZeroDivisionError in calculation"
-    """
-    from saleha.core.ticket_resolver import ticket_resolver
-    console.print(Panel(f'[bold yellow]🎫 Autonomous Issue Resolver: {issue_title}[/bold yellow]', border_style='yellow'))
-    res = ticket_resolver.solve_issue(issue_title, desc)
-    console.print(Markdown(res.pull_request_markdown))
-
 @cli.command(name='test-ui')
 @click.argument('path', required=True)
 def test_ui_cmd(path: str):
@@ -264,23 +250,6 @@ def swebench_eval_cmd():
     from saleha.core.swebench_runner import swebench_runner
     rep = swebench_runner.run_benchmark_suite()
     console.print(Panel(f'[bold cyan]📊 SWE-Bench Benchmark Scorecard[/bold cyan]\n{rep.summary}', border_style='cyan'))
-
-@cli.command(name='leaderboard')
-@click.option('--out', default='', help='Optional HTML output file path')
-def leaderboard_cmd(out: str):
-    """
-    Generate the SWE-Bench Public Leaderboard comparing Saleha vs Devin vs Claude Code.
-    
-    Example: saleha leaderboard
-    """
-    from saleha.core.leaderboard_generator import leaderboard_generator
-    md = leaderboard_generator.generate_markdown()
-    console.print(Markdown(md))
-    if out:
-        html = leaderboard_generator.generate_html()
-        with open(out, 'w', encoding='utf-8') as f:
-            f.write(html)
-        console.print(f"[bold green]✅ Interactive HTML leaderboard saved to '{out}'[/bold green]")
 
 @cli.command('solve-issue')
 @click.argument('issue_description')

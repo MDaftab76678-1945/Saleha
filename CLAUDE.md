@@ -155,48 +155,248 @@ UnifiedDiffResult` on every real invocation, and behind that crash reported
 `requires-python` said 3.12 and the venv ran 3.11. `setup.py` deleted (it
 duplicated `pyproject.toml` and had drifted).
 
+**The full test suite had never once completed — fixed** (pass 30). Fixing
+`swarm_pipeline_engine.py` (above) required a full-suite run to check for
+side effects; it hung indefinitely. Investigation found no `conftest.py`
+existed anywhere in the project, so `SALEHA_TEST_MODE` — which three modules
+already checked to route around real model calls — was never actually set
+for a normal `pytest saleha/tests/` run, only when someone remembered to
+export it by hand. Added `saleha/tests/conftest.py` to set it session-wide,
+then found and fixed three separate modules that each independently hung
+the suite for 15+ minutes on an unguarded real Ollama call:
+`ttc_solver.py` (the REPL's `model="mock"` never reached its module-level
+singleton), `demo_cli.py`'s `dogfood_cmd` (which also turned out to
+fabricate "ALL 9 ENGINEERING PILLARS VALIDATED" while checking only 6, all
+hardcoded PASS — fixed alongside the hang, see NOTEBOOK_IMPORT.md), and
+`BaseAgent.__init__` (the root fix, since any future module built on
+`BaseAgent` would have hit the same gap). Fixing the third one broke 7 tests
+that were relying on real fallback behavior the mock now short-circuited —
+both breaks were genuine test-intent conflicts, not fixed by reverting;
+resolved by narrowing both guards (`self.inference is None`,
+`model != "mock"`). Full multi-stage writeup in `NOTEBOOK_IMPORT.md`,
+"Thirtieth pass".
+
+**Design UI synthesis commands — fixed (pass 32).** Both were pass-30
+template findings; the fix was to make them input-driven, not to delete
+them (no production caller for either, but the instruction was to fix).
+
+- **`design-model`** — `neural_designer.py` was always real (parameter
+  count, FP16 size, FLOPs/token, VRAM all computed from the spec; generated
+  PyTorch source uses the real dims). The CLI took only `name`, so every
+  other field defaulted. Now takes `--d-model`, `--layers`, `--heads`,
+  `--vocab`, `--seq-len`, `--show-code`. Probe: `--d-model 256 --layers 4` →
+  20.5M params / 39 MB; `--d-model 4096 --layers 32` → 8.85B params / 16.9 GB.
+- **`design-vision`** — was a genuine template: hardcoded component list,
+  one palette, literal CSS, `total_tokens_generated = 420`, no model call
+  despite extending `BaseAgent`. Rewritten: six layout families (auth,
+  dashboard, pricing, article, settings, landing) chosen by keyword match,
+  each with its own components and palette; JSX/CSS from a real
+  `self.think()` call parsed for `jsx`/`css` fenced blocks. If the model is
+  unavailable, a layout-specific template is returned and labelled
+  `used_model=False`, tokens `0` — the CLI/REPL print which path ran.
+  Docstring corrected: no image parsing. Probe: four different prompts →
+  four different layout types, components and palettes.
+
 **`swe_repo_fixer.py` and `extreme_contrastive_trainer.py` — deleted, not
 fixed** (commit `f9814b6`, 2026-09-07). Both confirmed pure templates (see
 git history for the probes); no production caller for either, so the fix was
 removal rather than a rebuild. `apex_97_validator.py`'s hardcoded per-domain
-scores were fixed properly in the same commit (real benchmarking, not
-deleted — it had a caller). Verify these are still gone before citing them as
-open work; this file said "not yet fixed" about them for a stale audit pass.
+scores were fixed in the same commit (it had a caller).
 
-**Next candidates, not yet examined**: `docs_generator.py` (187),
-`swarm_self_play_arena.py`, `code_executor.py` (the unused import there is
-likely harmless — it is a real, working sandbox).
+**`docs_generator.py`, `swarm_self_play_arena.py`, `code_executor.py`** —
+the unused `import ast` in each was removed in pass 32. `swarm_self_play_arena.py`
+went further in pass 33 (its `fight_battle` was a hardcoded template with
+`6/6` "attacks neutralized" — now calls `CoderAgent.generate_code()` and the
+real `ASTSecurityScanner`).
 
-**`quality_guard.py` — all three design issues fixed** (2026-09-08, commits
-in this session). `SOV-001` removed entirely (naming a model you call is not
-a defect). `raw_score` added, uncapped, alongside the clamped
-`quality_score`, so 25 and 400 untyped functions are distinguishable for
-ranking. `check_workspace` now returns `files_found`, `files_analyzed`,
-`truncated`, and `scan_is_complete` instead of a silent partial scan. Also
-found and fixed while auditing further: `ScopeVisitor` had no `visit_Lambda`,
-so any lambda parameter scored a false CRITICAL `UNDEF-001` (caught auditing
-`saleha/tools/base.py`'s `lambda params: self.execute(**params)`). 20 tests
-in `test_quality_guard.py`, full suite 1750 passed / 14 skipped.
+**`quality_guard.py` — all three design issues fixed** (commits `2d5915a`,
+`ade661b`, follow-ups `d0e237b`/`121c55b`). `SOV-001` removed entirely
+(naming a model you call is not a defect). `raw_score` added, uncapped,
+alongside the clamped `quality_score`, so 25 and 400 untyped functions are
+distinguishable for ranking. `check_workspace` now returns `files_found`,
+`files_analyzed`, `truncated`, and `scan_is_complete` instead of a silent
+partial scan. Also: `ScopeVisitor` had no `visit_Lambda`, so any lambda
+parameter scored a false CRITICAL `UNDEF-001` — fixed. 20 tests in
+`test_quality_guard.py`.
 
-**`saleha/sandbox/` does not import on this machine** (found in pass 23's
-scan, not yet fixed). `NOTEBOOK_IMPORT.md` line 13 calls it "**Real sandbox**":
+Detail: `NOTEBOOK_IMPORT.md`, "Thirty-second pass."
 
-```text
-BREAK  saleha.sandbox.sandbox_jail      : No module named 'resource'
-BREAK  saleha.sandbox.v5_production_core: No module named 'local_llm_driver'
-OK     saleha.sandbox.ast_security_verifier
-```
+**Full 139-command triage is done** (pass 30). Roughly 100 commands are real,
+19 were already covered by earlier passes, and six new fabrications were
+found. One fixed:
 
-`sandbox_jail.py:5` has an unguarded `import resource`, which is POSIX-only —
-this is a Windows machine. `v5_production_core.py` uses flat imports
-(`from local_llm_driver import ...`) for files inside a package.
+- **`leaderboard` — fixed (pass 30).** Deleted entirely, not rewritten:
+  `saleha/core/leaderboard_generator.py`, the CLI command in
+  `testing_bench.py`, and `test_leaderboard_generator.py` (which asserted the
+  fabricated numbers were present — pinning the bug, same trap as always).
+  This project has no real SWE-Bench Lite measurement for itself, let alone
+  for Devin/Claude Code/Cursor, so there was no honest version of "compare
+  Saleha to named competitors" to fall back to — the command should not
+  exist until real cross-tool measurement exists (that belongs in
+  `ROADMAP.md`, not shipped as a live command). Note: `saleha harness
+  leaderboard` is a different, unrelated command (`harness_group.py` ->
+  `saleha/harness/reporter.py`) that ranks models from real stored run
+  history and correctly says "No records found" when empty — left alone,
+  it was never fabricating anything. Verified: `cli.commands` still
+  registers 154 commands post-deletion, `pytest -k "leaderboard or
+  testing_bench or cli_commands"` 20/20 pass.
 
-**Unrelated, still open:** the repo carries both `package-lock.json` and
-`pnpm-lock.yaml`, which is what the IDE's "multiple lockfiles" warning is
-about. Nobody has decided which package manager this project uses; that is the
-user's call, not a defect to fix silently. `templates/` holds three scaffolds
-(`nodejs_express`, `go_service`, `python_fastapi`) that **no code reads** —
-worth deciding whether they should exist before maintaining them.
+- **`swarm_pipeline_engine.py:222` — fixed (pass 30).** `tests_passed = True`
+  was hardcoded in the QALead stage regardless of whether a test ran; the
+  overall `success` flag was also hardcoded True, ignoring both this and
+  SecurityGuard's result. Now runs the generated source + test code for real
+  through `CodeExecutor` (same sandboxed runner `orchestrator.py` uses) and
+  sets `success = is_secure and tests_passed`. Fixing this immediately
+  exposed a second, previously-invisible bug: `qa_lead.py`'s fallback test
+  template built function names directly from the task string, so a goal
+  containing a hyphen (`"thread-safe rate limiter"`) produced an invalid
+  Python identifier (`def test_thread-sa_happy_path():`) — a SyntaxError
+  that could never be caught while `tests_passed=True` meant nothing ever
+  ran the code. Fixed with a `re.sub(r"\W+", "_", ...)` slug sanitizer.
+  Verified: `test_swarm_pipeline_and_bus.py` 10/10,
+  `test_enterprise_architecture.py` 9/9, `test_issue_resolver*.py` 23/23 —
+  the only three test files that import either module.
+
+- **`solve-issue` — fixed (pass 30).** Was two commands in the same file
+  (`testing_bench.py`), both defined `@cli.command(name='solve-issue')`;
+  Click kept only the second, so the first (wired to
+  `saleha/core/ticket_resolver.py`) was dead code, unreachable from the CLI,
+  that also hardcoded `reproduction_test_written=True` with nothing ever
+  written. Deleted the dead code (the module, its test, and the first command
+  definition) rather than fixing something nothing can call. The live command
+  (`agents/issue_resolver.py`) had two separate fabrications: `test_code` was
+  a hardcoded literal (`"def test_regression(): assert True\n"`) for every
+  issue regardless of what the swarm pipeline generated — now pulls the real
+  test code the QALead stage actually produced (see the
+  `swarm_pipeline_engine.py` fix above); and the PR markdown unconditionally
+  printed `"AST Syntax Verification: Clean (0 Syntax Errors)"` with no `ast`
+  call anywhere in the class — added a real `ast.parse()` check, and all
+  three verification-gate lines (AST/security/tests) now render an unchecked
+  box with the actual reason when a check did not pass. Verified: 42/42
+  tests across the four related test files, plus a manual CLI invocation
+  confirming genuinely generated test code in the output.
+- **`pr_generator.py` — fixed (pass 30).** Two badges ("Status: Verified
+  (100%)", "Security: Audit Passed") were hardcoded green unconditionally;
+  now read `team_res.success` and the security stage's real verdict
+  (Approved/Warnings/Vulnerable, parsed the same way the pipeline's own
+  security gate already parses it). An empty `execution_output` also
+  silently became the literal "All unit tests passed successfully." — now
+  distinguishes a genuine no-output success from a failure, surfacing the
+  real `execution_error` when there is one. Verified: `test_pr_generator.py`
+  4/4; a success case and a failure case (VULNERABLE security report, real
+  AssertionError) confirmed to render genuinely different badges and log
+  text, not just different in theory.
+- **`quadratic-vote` — fixed (pass 30).** The underlying
+  `QuadraticVotingEngine` was always real (correct `votes**2` cost formula,
+  real tally logic) — the bug was entirely in the CLI, which took no
+  arguments and replayed one hardcoded scenario every run. Now takes a real
+  `TITLE` argument and repeatable `--vote agent:count` options; two
+  different invocations produce genuinely different Net Votes /
+  APPROVED-REJECTED output. Verified: 5/5 tests (1 existing engine test +
+  4 new CLI tests), including malformed-input rejection and negative
+  (opposition) votes computing correctly.
+- **`merkle-audit` — fixed (pass 30).** `merkle_provenance.py`'s SHA-256
+  hashing and tamper-detection were always real — the bug was that nothing
+  in production ever called `record_event()`, so the ledger was always
+  empty and the command's "Ledger is empty and untampered." was honest but
+  useless as an audit trail. Wired `record_event()` into
+  `swarm_pipeline_engine.py`: every completed stage now records one real
+  leaf. Running `execute_swarm` took a fresh ledger from 0 to one leaf per
+  stage, with genuine cryptographic verification (a real root hash) instead
+  of the empty-ledger message. Verified with a new test asserting the leaf
+  count delta equals `len(result.stages)` exactly. Follow-up: `saleha
+  merkle-leaves` (new command) lists the individual leaves — `merkle-audit`
+  only ever reported pass/fail on the whole chain, not what is in it.
+  Remember the ledger is an in-memory singleton: a swarm run in one process
+  and `merkle-leaves` in another will show empty, which the command's own
+  empty-state message says explicitly.
+- **`snapshot`/`rollback` — fixed (pass 31).** `time_machine.py`'s docstring
+  promised "In-memory and disk persistence"; there was no disk anything (the
+  `json` import was unused) and `time_machine` was a module-level singleton,
+  so `saleha snapshot` and `saleha rollback` — two separate processes — never
+  saw each other's state and `rollback` always printed "No snapshots
+  available." Each snapshot is now written to `.saleha/snapshots/<id>.json`
+  (already gitignored); `rollback`/`list_snapshots`/pruning all read the
+  directory, so there is no in-process state to diverge. Corrupt JSON is
+  skipped on load. Probe: a snapshot taken in one process is now rolled back
+  from a second. Verified: `test_time_machine.py` 5/5 (new
+  `test_snapshot_persists_across_instances` fails against the old version),
+  full suite `1697 passed`. Detail: `NOTEBOOK_IMPORT.md`, "Thirty-first pass."
+
+All six fabrication findings from the 139-command triage are now fixed.
+Full detail and evidence for each: `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
+
+**Older candidates:**
+
+- `swe_repo_fixer.py` — **deleted (commit `f9814b6`, pass 30-adjacent).**
+  Was a pure template: two unrelated issues gave identical
+  `root_cause_analysis`, `tests_passing=True` with nothing run, target files
+  chosen by `if "auth" in desc`. The chat REPL's `/swe-fix` handler now
+  points at the real `saleha resolve-issue`. `extreme_contrastive_trainer.py`
+  and `apex_97_validator` deleted in the same commit for the same reason
+  (constant `final_loss 0.12` regardless of input; eight hand-typed "Rank #1"
+  scores).
+- `docs_generator.py`, `swarm_self_play_arena.py`, `code_executor.py` — the
+  unused `import ast` in each was removed in pass 32 (plus other dead
+  imports).
+
+**The two REPL turn handlers are fixed (pass 33).**
+`chat_session.py:_generate_turn_response` now builds a
+`BaseAgent(model="auto")` and calls `think()` with the recent conversation
+turns, printing an honest "No answer generated" (with the provider error)
+on failure instead of the old hardcoded "I have analyzed your
+requirement..." reply. `swarm_self_play_arena.py:fight_battle` now calls
+`CoderAgent.generate_code()` for a real candidate and runs the real
+`ASTSecurityScanner` over it; `red_attacks = 6 / neutralized = 6` and
+`hard_negative_mined=True` (both unconditional) are gone, and
+`StochasticWeightAverager` (which had a `+1.8` magic "ensemble boost" and
+an `adapter_weights_mock` despite claiming to fuse adapter checkpoints) is
+now `RewardAggregator` — a plain top-K mean of the round rewards, with a
+docstring that says it trains nothing. Old tests that pinned the
+fabrication (`6 == 6`, `reward >= 0.8`) replaced. Detail:
+`NOTEBOOK_IMPORT.md`, "Thirty-third pass."
+
+**`quality_guard.py` — three design issues fixed (commits `2d5915a`,
+`ade661b`, plus follow-ups `d0e237b`/`121c55b`).** The `SOV-001` "brand leak"
+rule that failed a file for naming a model it calls is removed entirely; the
+score still clamps at 0.0 but keeps `raw_score` uncapped so 25 and 400
+untyped functions are distinguishable for ranking; `check_workspace` now
+returns explicit `files_found`/`files_analyzed`/`truncated`/`scan_is_complete`
+keys instead of a silent 50-file sample. 17 tests pass.
+
+**`saleha/sandbox/` — Windows import fixed (commit `4d248a6`).** The
+unguarded POSIX-only `import resource` in `sandbox_jail.py` is now guarded;
+the module imports on Windows and exposes `is_available()` /
+`unavailable_reason()`, and `run_isolated()` raises `SandboxUnavailableError`
+rather than executing code with none of its limits applied.
+`NOTEBOOK_IMPORT.md`'s old "Real sandbox" row (line 13) predates this and is
+stale — the jail is real but does not run here.
+
+**Lockfiles — resolved (commit `2d5915a`).** `package-lock.json` was
+deleted; only `pnpm-lock.yaml` remains. `package.json` declares
+`"packageManager": "pnpm@9.15.0"`, `.npmrc` carries the pnpm-only
+`link-workspace-packages=true` (with a comment explaining the `@saleha/*`
+workspace-range resolution), and `.gitignore` now lists `package-lock.json`
+and `yarn.lock` so they cannot come back silently. The two
+`package-lock.json` under `.claude/worktrees/` are other agents' isolated
+worktrees, not this repo.
+
+**`templates/` — now used by `saleha new` (pass 34).** The three scaffolds
+(`python_fastapi`, `nodejs_express`, `go_service`) each got
+`{{PROJECT_NAME}}` / `{{PROJECT_SLUG}}` placeholders and are copied by
+`saleha/core/project_scaffolder.py` into a new project directory with the
+name substituted -- deterministic file copy, no model call, byte-identical
+for the same inputs. After copying, the stack's own build/test is run
+(`pytest` for fastapi via the template's `test_main.py`, `tsc --noEmit` for
+express, `go build` for go); a toolchain that is absent is reported
+`verify_ran=False` ("skipped"), never a pass. With go, node/npm, and `fastapi`+`httpx` installed on this box, all three
+stacks report `Verification passed` on a real run. A missing toolchain is
+`verify_ran=False` / "skipped", never a fake pass. This is the honest fast
+path for the health/root boilerplate that never changes; `saleha build`
+remains the LLM path for bespoke multi-file projects. CLI: `saleha new
+<stack> <name>` in `saleha/cli/commands/scaffold.py`. The express template
+gained a `tsconfig.json` (needed for `tsc --noEmit` to have something to
+check).
 
 **Branch state:** work happens on `test-issue-101`. It is many commits ahead of
 `origin/test-issue-101` and has not been pushed. `main` is behind.
@@ -217,15 +417,28 @@ worth deciding whether they should exist before maintaining them.
   Normalise both when talking to Ollama directly.
 - **Python: use `.venv` (3.14.7), not `.venv_train`.** `.venv_train` is the old
   3.11.16 environment — a version `requires-python = ">=3.12"` forbids and CI
-  never tests. It is kept only because it holds `torch` (4.27 GB of its 5.3 GB)
-  for the LoRA/training path that ten modules import. Everyday work belongs in
-  `.venv`.
+  never tests. It was kept for `torch` (the LoRA/training path), but as of
+  pass 35 its `Scripts/` has no `python.exe` any more (only the
+  `accelerate`/`torch` console shims), so it is not a usable interpreter —
+  recreate it if training is actually needed. `.vscode/settings.json`
+  (gitignored) now points `defaultInterpreterPath` at `.venv`. The GPU
+  training tests are backend-aware since pass 35: with no `torch` they
+  assert the honest `success=False`, not a skip or a crash.
 - `pip install -e ".[dev]"` alone does **not** give a passing test run: two SMT
   tests need `z3-solver`, which lives in the `[formal]` extra. A working test
-  environment also wants `tree-sitter*` and `numpy`.
-- Test suite: `python -m pytest saleha/tests/ -q` — ~1661 tests, takes ~5 min.
-  Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and emoji in output will
-  otherwise crash the run.
+  environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
+  the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
+  `test_repo_graph.py` skip.
+- Test suite: `python -m pytest saleha/tests/ -q` — 1714 passed, 7 skipped,
+  60 subtests, ~80-130s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+  emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
+  sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
+  export needed as of pass 30. Before that fix the suite had never once
+  completed: three separate modules (`ttc_solver.py`, `demo_cli.py`,
+  `base_agent.py`, see "Known open work" below) made unguarded real Ollama
+  calls and could hang 15+ minutes each. If a test hangs again, it is very
+  likely the same shape of bug — a module reaching a real model call it
+  should have mocked under `SALEHA_TEST_MODE`.
 - TypeScript: `npx turbo run typecheck` must stay at 8/8. It was 0/6 and
   failing until pass 22.
 - `radon` is a dev dependency; `test_mech_interp.py` cross-checks our own
@@ -454,6 +667,87 @@ Not instructions — this is what they are building toward. Keep it in view.
 
 The honesty work in this file serves that vision — a system that fabricates its
 own results cannot improve itself, because it cannot tell what actually worked.
+
+---
+
+## Quality pipeline: design-level checks for new commands
+
+Every new CLI command or agent must pass a design audit before shipping:
+
+1. **Probe inputs across the range.** Two different calls with meaningfully
+   different inputs must produce meaningfully different outputs. If
+   `design-model SmallNet` and `design-model MassiveNet` return architectures
+   differing only in the name string (same layer counts, dims, etc.), the
+   command is a template.
+
+2. **Check for missing model calls.** If a command claims to reason, generate
+   code, analyze a file, or use ML, count calls to the model in production code.
+   If the count is zero and there are no comments explaining why, it is
+   fabricated.
+
+3. **Trace the data flow.** Follow input → processing → output in the code.
+   If processing is hardcoded or deterministic regardless of input, say so
+   explicitly in ARCHITECTURE.md or ROADMAP.md.
+
+4. **Run, don't just read.** Import the module, call it with test data, inspect
+   the return value. Never declare a feature done from a grep alone.
+
+5. **Document in NOTEBOOK_IMPORT.md.** When a command is confirmed real or
+   template, record the probe that proved it: "called with X and Y, got
+   identical output" or "called 1 model invocation with input Z."
+
+Current checklist for existing commands — **all 139 CLI commands triaged as
+of pass 30** (see NOTEBOOK_IMPORT.md "Thirtieth pass" for full detail):
+
+- [x] `design-vision` — **fixed pass 32.** Was a template; now infers one of
+  six layout families from the prompt and calls the model for JSX/CSS,
+  labelling a template fallback when the model is unreachable.
+- [x] `design-model` — **fixed pass 32.** Engine was always real; CLI now
+  takes `--d-model`/`--layers`/`--heads`/`--vocab` so the architecture
+  actually varies.
+- [x] `vision` (`vision_coder.py`) — **real, not a template.** Probed:
+  no vision model installed on this machine (`find_vision_model()` returned
+  `None`), so `used_vision=False` for both test calls — correctly reported,
+  not faked. But the two different specs ("simple login form" vs "complex
+  dashboard with charts") produced **different code** (338 vs 350 chars,
+  `layout_spec[:40]` actually varies the output), and the orchestrator's
+  Planner/Coder stages genuinely ran (visible `[Planner] Complexity Analysis`,
+  `[Coder] Generating code...` logs) before falling back to template because
+  the local LLM call did not complete. `vision_backend.py`'s image path calls
+  a real Ollama `/api/generate` endpoint with `images: [b64]` — no template
+  there either.
+- [x] Remaining ~100 commands — genuine (real AST/subprocess/git/LLM calls,
+  output varies with input). 6 confirmed template/fabrication findings, none
+  fixed yet — see "Next candidates" above. All findings and their evidence
+  are in `NOTEBOOK_IMPORT.md`, "Thirtieth pass."
+
+---
+
+## Claude Code capabilities used in this repo
+
+These are real, working tools that Saleha will be integrated with:
+
+- **Agent tool** — spawn subagents to parallelize work (Explore, Coder,
+  Researcher types). Used by `refactor-orchestrator` pass 29 to audit 40 files.
+- **Artifact system** — publish HTML/React pages with live state and databases.
+  Saleha's `/design-vision` should ship results here instead of plaintext.
+- **Skill system** — invoke pre-built workflows (init, run, design, dataviz).
+  Saleha's agents could call `/skill run` to start the project and probe
+  runtime behavior in real time.
+- **Code Review** — `/code-review ultra` launches multi-agent cloud review of a
+  branch or PR.
+- **Git/GitHub** — full `gh` CLI access, branch management, PR creation/reading.
+- **Memory system** — persistent JSON files across sessions, auto-loaded at
+  start. Saleha's own task history would fit here.
+- **MCP servers** — Anthropic context (docs lookup), Supabase (database), etc.
+  Orchestrator could query live service state via these.
+- **Bash/PowerShell** — native shell; Saleha already uses this for git.
+- **Web search / fetch** — browse external documentation on demand.
+
+**Integration point:** Saleha's orchestrator could use Claude Code as a
+backend — when Claude Code tasks are triggered from Saleha's CLI, their
+results flow back to inform Saleha's own decision-making. This is the
+"self-building" vision from line 447–448 of this file.
 
 ---
 

@@ -116,6 +116,13 @@ class SwarmPipelineRouterTests(unittest.TestCase):
 
 class SwarmPipelineEngineTests(unittest.TestCase):
     def test_end_to_end_swarm_execution(self):
+        # tests_passed and success are no longer hardcoded True by the
+        # engine -- this now asserts a QALead stage that actually executed
+        # the generated test code in a subprocess (CodeExecutor) against the
+        # generated source, and a task string with a hyphen ("thread-safe")
+        # deliberately kept in the goal since that once produced an invalid
+        # Python identifier in the fallback test template and silently never
+        # ran, because nothing ran the tests before this fix.
         engine = SwarmPipelineEngine()
         res = engine.execute_swarm("Synthesize thread-safe token bucket rate limiter in Python")
 

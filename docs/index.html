@@ -3,1767 +3,519 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Saleha AI v2.6.0 — Sovereign 3D Autonomous AI Software Engineer ($0/mo)</title>
-  <meta name="description" content="Local-first, self-healing multi-agent AI engineering platform powered by Ollama. 1,004+ AgentSkills, Universal MCP Multi-Platform Hub, 3D neural swarm, real sandboxed verification loop, OWASP code reviewer, and episodic memory. 100% free and private.">
-  <meta name="keywords" content="AI coding assistant, 3D landing page, autonomous agent, local LLM, Ollama, self-healing code, Devin alternative, Cursor alternative, Model Context Protocol, SWE-bench, CodeRabbit alternative">
-  
-  <!-- OpenGraph / Social Cards -->
-  <meta property="og:title" content="Saleha AI — Sovereign 3D Autonomous AI Software Engineer">
-  <meta property="og:description" content="100% Local-First Multi-Agent Coding Framework. 1,004+ AgentSkills. Universal MCP Hub. 785 passing tests. $0/month. Total privacy.">
+  <title>Saleha &mdash; local-first multi-agent AI coding assistant</title>
+  <meta name="description" content="Saleha is a local-first, multi-agent AI coding assistant in Python. It runs against local models via Ollama: an agentic coding loop, AST-aware patching, a sandboxed executor, a static security scanner, and a persona system. This page describes what actually works today.">
+
+  <meta property="og:title" content="Saleha &mdash; local-first multi-agent AI coding assistant">
+  <meta property="og:description" content="Runs entirely on your machine via Ollama. Agentic loop, sandboxed execution, static SAST, persona system. Honest about what is real vs scaffolding.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://md-aftab76678-1945.github.io/Saleha/">
-  
-  <!-- Google Fonts -->
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-  
-  <!-- Three.js for 3D WebGL Scene -->
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <style>
     :root {
-      --bg-dark: #030712;
-      --bg-surface: #0b0f19;
-      --bg-card: rgba(17, 24, 39, 0.7);
-      --bg-card-hover: rgba(30, 41, 59, 0.85);
-      --border-subtle: rgba(255, 255, 255, 0.08);
-      --border-glow: rgba(0, 242, 254, 0.4);
-      --accent-cyan: #00f2fe;
-      --accent-blue: #4facfe;
-      --accent-purple: #a855f7;
-      --accent-violet: #7928ca;
-      --accent-emerald: #10b981;
-      --accent-rose: #f43f5e;
-      --accent-amber: #f59e0b;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-heading: 'Space Grotesk', var(--font-sans);
-      --font-mono: 'Fira Code', monospace;
-      --glow-cyan: 0 0 35px rgba(0, 242, 254, 0.35);
-      --glow-purple: 0 0 35px rgba(168, 85, 247, 0.35);
+      --bg: #0a0b0e;
+      --bg-raised: #14161a;
+      --bg-inset: #0f1013;
+      --border: #24272e;
+      --border-strong: #343841;
+      --text: #e9eaed;
+      --text-muted: #969aa4;
+      --text-dim: #666a74;
+      --accent: #6ea8ff;
+      --accent-2: #8b7dff;
+      --good: #57c98c;
+      --warn: #e0b055;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      --maxw: 980px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    html {
-      scroll-behavior: smooth;
-      color-scheme: dark;
-    }
-
+    html { scroll-behavior: smooth; color-scheme: dark; }
     body {
-      background-color: var(--bg-dark);
-      color: var(--text-main);
+      background: var(--bg);
+      color: var(--text);
       font-family: var(--font-sans);
-      line-height: 1.6;
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
-      position: relative;
     }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre, .mono { font-family: var(--font-mono); }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; position: relative; z-index: 2; }
 
-    /* Ambient Background Gradients */
-    .ambient-bg {
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      pointer-events: none;
-      z-index: 0;
-      background: 
-        radial-gradient(circle at 10% 20%, rgba(0, 242, 254, 0.07) 0%, transparent 40%),
-        radial-gradient(circle at 90% 40%, rgba(121, 40, 202, 0.09) 0%, transparent 50%),
-        radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
-    }
-
-    :focus-visible {
-      outline: 2px solid var(--accent-cyan);
-      outline-offset: 3px;
-    }
-
-    .container {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 0 24px;
-      position: relative;
-      z-index: 2;
+    /* Fade-in on scroll */
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
     }
 
     /* Header */
     header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      background: rgba(3, 7, 18, 0.75);
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .nav-inner {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      height: 72px;
-    }
-
-    .logo-badge {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      color: var(--text-main);
-    }
-
-    .logo-orb {
-      width: 38px;
-      height: 38px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: var(--glow-cyan);
-      animation: pulse-glow 3s infinite alternate ease-in-out;
-    }
-
-    @keyframes pulse-glow {
-      0% { box-shadow: 0 0 15px rgba(0, 242, 254, 0.4); transform: scale(1); }
-      100% { box-shadow: 0 0 25px rgba(121, 40, 202, 0.6); transform: scale(1.04); }
-    }
-
-    .logo-text {
-      font-family: var(--font-heading);
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      background: linear-gradient(to right, #ffffff, #94a3b8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .version-pill {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: rgba(0, 242, 254, 0.1);
-      border: 1px solid rgba(0, 242, 254, 0.3);
-      color: var(--accent-cyan);
-      font-weight: 600;
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 28px;
-      list-style: none;
-    }
-
-    .nav-link {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.92rem;
-      font-weight: 500;
-      transition: color 0.2s ease;
-    }
-
-    .nav-link:hover { color: var(--accent-cyan); }
-
-    .nav-btn-group {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .sfx-toggle-btn {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 8px 10px;
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s;
-    }
-
-    .sfx-toggle-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text-main);
-    }
-
-    .btn-github {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 18px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03));
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: var(--text-main);
-      font-size: 0.88rem;
-      font-weight: 600;
-      text-decoration: none;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0;
+      background: rgba(10, 11, 14, 0.8);
       backdrop-filter: blur(10px);
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .btn-github:hover {
-      border-color: var(--accent-cyan);
-      box-shadow: 0 0 20px rgba(0, 242, 254, 0.25);
-      transform: translateY(-2px);
-    }
-
-    /* Hero Section */
-    .hero-section {
-      position: relative;
-      min-height: 90vh;
-      display: flex;
-      align-items: center;
-      padding: 40px 0 80px;
-      overflow: hidden;
-    }
-
-    #hero-3d-canvas {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 1;
-      pointer-events: auto;
-    }
-
-    .hero-grid {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 40px;
-      align-items: center;
-      position: relative;
-      z-index: 3;
-      pointer-events: none;
-    }
-
-    .hero-content { pointer-events: auto; }
-
-    .hero-pill-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 999px;
-      background: rgba(0, 242, 254, 0.08);
-      border: 1px solid rgba(0, 242, 254, 0.25);
-      color: var(--accent-cyan);
-      font-size: 0.85rem;
-      font-weight: 600;
-      margin-bottom: 20px;
-      backdrop-filter: blur(10px);
-    }
-
-    .hero-pill-badge .dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--accent-cyan);
-      box-shadow: 0 0 8px var(--accent-cyan);
-      animation: pulse-dot 1.5s infinite;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
-    }
-
-    .hero-title {
-      font-family: var(--font-heading);
-      font-size: 3.8rem;
-      line-height: 1.1;
-      font-weight: 800;
-      letter-spacing: -1.5px;
-      margin-bottom: 24px;
-    }
-
-    .hero-title .gradient-text {
-      background: linear-gradient(135deg, #ffffff 0%, var(--accent-cyan) 50%, var(--accent-violet) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .hero-subtitle {
-      font-size: 1.18rem;
-      color: var(--text-muted);
-      line-height: 1.65;
-      margin-bottom: 32px;
-      max-width: 580px;
-    }
-
-    .hero-cta-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      margin-bottom: 40px;
-    }
-
-    .btn-primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 28px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-      color: #000;
-      font-size: 1rem;
-      font-weight: 700;
-      text-decoration: none;
-      box-shadow: 0 0 30px rgba(0, 242, 254, 0.4);
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      cursor: pointer;
-      border: none;
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-3px) scale(1.02);
-      box-shadow: 0 0 45px rgba(0, 242, 254, 0.6);
-    }
-
-    .btn-secondary {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 24px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-main);
-      font-size: 1rem;
-      font-weight: 600;
-      text-decoration: none;
-      backdrop-filter: blur(10px);
-      transition: all 0.2s;
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.25);
-    }
-
-    /* Install Tabs */
-    .install-tabs-box {
-      background: rgba(11, 15, 25, 0.85);
-      border: 1px solid rgba(0, 242, 254, 0.2);
-      border-radius: 14px;
-      padding: 16px 20px;
-      max-width: 520px;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-
-    .install-tab-nav {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 12px;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 8px;
-    }
-
-    .install-tab-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 0.82rem;
-      font-weight: 600;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: all 0.2s;
-    }
-
-    .install-tab-btn.active {
-      color: var(--accent-cyan);
-      background: rgba(0, 242, 254, 0.1);
-    }
-
-    .quick-install-code {
-      color: #38bdf8;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-    }
-
-    .copy-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--border-subtle);
-      border-radius: 6px;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 6px 12px;
-      font-size: 0.78rem;
-      transition: all 0.2s;
-    }
-
-    .copy-btn:hover {
-      background: var(--accent-cyan);
-      color: #000;
-    }
-
-    /* 3D Interactive HUD */
-    .hero-3d-hud {
-      pointer-events: auto;
-      background: rgba(11, 15, 25, 0.75);
-      border: 1px solid rgba(0, 242, 254, 0.25);
-      border-radius: 20px;
-      padding: 24px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 242, 254, 0.05);
-      transition: all 0.3s ease;
-    }
-
-    .hero-3d-hud:hover { border-color: var(--accent-cyan); }
-
-    .hud-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 12px;
-    }
-
-    .hud-title {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: var(--accent-cyan);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .hud-live-tag {
-      font-size: 0.7rem;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(16, 185, 129, 0.15);
-      color: var(--accent-emerald);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      font-weight: 700;
-    }
-
-    .hud-agent-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-
-    .hud-agent-chip {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      padding: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .hud-agent-chip:hover, .hud-agent-chip.active {
-      background: rgba(0, 242, 254, 0.1);
-      border-color: var(--accent-cyan);
-      transform: translateY(-2px);
-    }
-
-    .hud-agent-chip .chip-name {
-      font-size: 0.82rem;
-      font-weight: 700;
-    }
-
-    .hud-agent-chip .chip-role {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-
-    /* Metric Counters */
-    .metric-banner {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 16px;
-      margin-top: -30px;
-      margin-bottom: 80px;
-      position: relative;
-      z-index: 4;
-    }
-
-    .metric-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      padding: 20px;
-      text-align: center;
-      backdrop-filter: blur(16px);
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .metric-card:hover {
-      border-color: var(--accent-cyan);
-      transform: translateY(-4px);
-      box-shadow: 0 10px 30px rgba(0, 242, 254, 0.15);
-    }
-
-    .metric-value {
-      font-family: var(--font-heading);
-      font-size: 2.2rem;
-      font-weight: 800;
-      letter-spacing: -1px;
-      background: linear-gradient(135deg, #ffffff, var(--accent-cyan));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 4px;
-    }
-
-    .metric-label {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    /* 3D Tilt Cards Grid */
-    .section-header { text-align: center; margin-bottom: 60px; }
-    .section-tag {
-      font-family: var(--font-mono);
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--accent-cyan);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 12px;
-      display: inline-block;
-    }
-    .section-title {
-      font-family: var(--font-heading);
-      font-size: 2.6rem;
-      font-weight: 800;
-      letter-spacing: -1px;
-      margin-bottom: 16px;
-    }
-    .section-desc {
-      font-size: 1.1rem;
-      color: var(--text-muted);
-      max-width: 680px;
-      margin: 0 auto;
-    }
-
-    .tilt-card-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-      margin-bottom: 80px;
-    }
-
-    .tilt-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 20px;
-      padding: 32px 28px;
-      backdrop-filter: blur(16px);
-      position: relative;
-      overflow: hidden;
-      transform-style: preserve-3d;
-      transform: perspective(1000px);
-      transition: transform 0.15s ease-out, border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    .tilt-card:hover {
-      border-color: rgba(0, 242, 254, 0.4);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 25px rgba(0, 242, 254, 0.15);
-    }
-
-    .tilt-icon {
-      width: 52px; height: 52px; border-radius: 14px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 22px; font-size: 1.5rem;
-      background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(121, 40, 202, 0.15));
-      border: 1px solid rgba(0, 242, 254, 0.3);
-      color: var(--accent-cyan);
-    }
-
-    .tilt-title {
-      font-family: var(--font-heading);
-      font-size: 1.3rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-      color: var(--text-main);
-    }
-
-    .tilt-desc {
-      font-size: 0.95rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    /* Skills Explorer */
-    .skills-explorer-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 24px;
-      padding: 36px;
-      margin-bottom: 100px;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
-    }
-
-    .skills-search-bar { display: flex; gap: 16px; margin-bottom: 24px; }
-    .skills-input {
-      flex: 1;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
-      padding: 14px 20px;
-      font-size: 1rem;
-      color: var(--text-main);
-      font-family: var(--font-sans);
-    }
-    .skills-input:focus { border-color: var(--accent-cyan); }
-
-    .domain-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
-    .domain-pill {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border-subtle);
-      border-radius: 999px;
-      padding: 6px 14px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .domain-pill:hover, .domain-pill.active {
-      background: rgba(0, 242, 254, 0.15);
-      border-color: var(--accent-cyan);
-      color: var(--accent-cyan);
-    }
-
-    .skills-display-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      max-height: 480px;
-      overflow-y: auto;
-    }
-
-    .skill-item-card {
-      background: rgba(17, 24, 39, 0.6);
-      border: 1px solid var(--border-subtle);
-      border-radius: 14px;
-      padding: 18px;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-
-    .skill-item-card:hover {
-      background: rgba(30, 41, 59, 0.8);
-      border-color: var(--accent-cyan);
-      transform: translateY(-2px);
-    }
-
-    .skill-item-name {
-      font-family: var(--font-mono);
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: var(--accent-cyan);
-      margin-bottom: 6px;
-    }
-
-    .skill-item-desc {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      line-height: 1.45;
-      margin-bottom: 10px;
-    }
-
-    .skill-item-tags { display: flex; gap: 6px; flex-wrap: wrap; }
-    .skill-tag-badge {
-      font-size: 0.7rem; padding: 2px 6px; border-radius: 4px;
-      background: rgba(255, 255, 255, 0.06); color: var(--text-dim);
-    }
-
-    /* MCP Visualizer */
-    .mcp-visualizer-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 24px;
-      padding: 40px;
-      margin-bottom: 100px;
-      display: grid;
-      grid-template-columns: 0.8fr 1.2fr;
-      gap: 40px;
-      align-items: center;
-    }
-
-    .mcp-platform-selector { display: flex; flex-direction: column; gap: 10px; }
-    .platform-btn {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 20px; border-radius: 12px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-main); cursor: pointer;
-      font-size: 0.95rem; font-weight: 600;
-      transition: all 0.2s;
-    }
-    .platform-btn:hover, .platform-btn.active {
-      background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(121, 40, 202, 0.15));
-      border-color: var(--accent-cyan);
-      color: var(--accent-cyan);
-    }
-
-    .mcp-code-preview {
-      background: #030712;
-      border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      overflow: hidden;
-    }
-
-    .code-top-bar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 12px 18px; background: rgba(255, 255, 255, 0.04);
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .code-dots { display: flex; gap: 6px; }
-    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #10b981; }
-    .code-filename { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); }
-
-    .mcp-code-block {
-      padding: 20px;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      line-height: 1.6;
-      color: #e2e8f0;
-      overflow-x: auto;
-      max-height: 340px;
-    }
-
-    /* Savings & Market Comparison Calculator */
-    .savings-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 24px;
-      padding: 36px;
-      margin-bottom: 100px;
-    }
-
-    .savings-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 36px;
-      align-items: center;
-    }
-
-    .calc-slider {
-      width: 100%;
-      height: 8px;
-      border-radius: 5px;
-      background: rgba(255, 255, 255, 0.1);
-      outline: none;
-      margin: 20px 0;
-      accent-color: var(--accent-cyan);
-    }
-
-    /* Terminal */
-    .cyber-terminal {
-      background: #050811;
-      border: 1px solid rgba(0, 242, 254, 0.3);
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 242, 254, 0.15);
-      margin-bottom: 100px;
-    }
-
-    .terminal-tabs { display: flex; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid var(--border-subtle); }
-    .term-tab {
-      padding: 14px 24px; font-family: var(--font-mono); font-size: 0.85rem;
-      color: var(--text-muted); cursor: pointer; border-right: 1px solid var(--border-subtle);
-      transition: all 0.2s;
-    }
-    .term-tab:hover, .term-tab.active {
-      background: rgba(0, 242, 254, 0.08); color: var(--accent-cyan); font-weight: 600;
-    }
-
-    .terminal-body {
-      padding: 24px; font-family: var(--font-mono); font-size: 0.9rem;
-      min-height: 280px; color: #f1f5f9; line-height: 1.7;
-    }
-
-    .term-line-cyan { color: var(--accent-cyan); }
-    .term-line-green { color: var(--accent-emerald); }
-    .term-line-purple { color: var(--accent-purple); }
-    .term-line-yellow { color: var(--accent-amber); }
-    .term-line-dim { color: var(--text-dim); }
-
-    /* PR Simulator & Leaderboard */
-    .pr-sim-card, .leaderboard-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: 24px;
-      padding: 36px;
-      margin-bottom: 100px;
-    }
-
-    .leaderboard-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 24px;
-      font-size: 0.95rem;
-    }
-
-    .leaderboard-table th, .leaderboard-table td {
-      padding: 14px 18px;
-      text-align: left;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .leaderboard-table th {
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.8rem;
-    }
-
-    /* Footer */
-    footer {
-      background: #02040a;
-      border-top: 1px solid var(--border-subtle);
-      padding: 60px 0 40px;
-    }
-    .footer-grid {
-      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
-      gap: 40px; margin-bottom: 50px;
-    }
-    .footer-desc { color: var(--text-muted); font-size: 0.9rem; margin-top: 14px; }
-    .footer-col-title {
-      font-family: var(--font-heading); font-size: 1rem; font-weight: 700;
-      margin-bottom: 18px; color: var(--text-main);
-    }
-    .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-    .footer-link { color: var(--text-muted); text-decoration: none; font-size: 0.88rem; }
-    .footer-link:hover { color: var(--accent-cyan); }
-    .footer-bottom {
-      border-top: 1px solid var(--border-subtle);
-      padding-top: 24px; display: flex; justify-content: space-between;
-      align-items: center; font-size: 0.82rem; color: var(--text-dim);
-    }
-
-    @media (max-width: 1024px) {
-      .hero-grid { grid-template-columns: 1fr; }
-      .metric-banner { grid-template-columns: repeat(3, 1fr); }
-      .tilt-card-grid { grid-template-columns: repeat(2, 1fr); }
-      .skills-display-grid { grid-template-columns: repeat(2, 1fr); }
-      .mcp-visualizer-card, .savings-grid { grid-template-columns: 1fr; }
-      .footer-grid { grid-template-columns: 1fr 1fr; }
-    }
-
-    @media (max-width: 768px) {
-      .hero-title { font-size: 2.8rem; }
-      .metric-banner { grid-template-columns: repeat(2, 1fr); }
-      .tilt-card-grid, .skills-display-grid { grid-template-columns: 1fr; }
-      .nav-links { display: none; }
-      .footer-grid { grid-template-columns: 1fr; }
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 20;
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+    .brand { display: flex; align-items: center; gap: 11px; color: var(--text); font-weight: 800; font-size: 1.06rem; letter-spacing: -0.01em; }
+    .brand:hover { text-decoration: none; }
+    .brand .dot {
+      width: 22px; height: 22px; border-radius: 6px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 18px rgba(110, 168, 255, 0.4);
+      animation: dotpulse 3.4s ease-in-out infinite alternate;
+    }
+    @keyframes dotpulse {
+      0% { box-shadow: 0 0 12px rgba(110, 168, 255, 0.35); }
+      100% { box-shadow: 0 0 22px rgba(139, 125, 255, 0.55); }
+    }
+    .brand .tag { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); font-weight: 400; }
+    .nav-links { display: flex; gap: 22px; align-items: center; }
+    .nav-links a { color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-links .gh { border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 12px; color: var(--text); }
+    .nav-links .gh:hover { background: var(--bg-raised); }
+
+    /* Hero with 3D canvas */
+    .hero { position: relative; padding: 92px 0 68px; border-bottom: 1px solid var(--border); overflow: hidden; }
+    #bg-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      opacity: 0.55;
+    }
+    .hero::after {
+      content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: radial-gradient(ellipse 60% 50% at 50% 40%, transparent 0%, var(--bg) 78%);
+    }
+    .hero h1 {
+      font-size: 2.55rem; line-height: 1.16; font-weight: 800;
+      letter-spacing: -0.025em; margin-bottom: 20px; max-width: 19ch;
+    }
+    .hero .lede { font-size: 1.13rem; color: var(--text-muted); max-width: 60ch; margin-bottom: 28px; }
+    .hero .lede strong { color: var(--text); font-weight: 600; }
+    .cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      border-radius: 8px; padding: 11px 20px;
+      font-size: 0.93rem; font-weight: 600;
+      border: 1px solid var(--border-strong); color: var(--text);
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    }
+    .btn:hover { text-decoration: none; background: var(--bg-raised); transform: translateY(-1px); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #0a0b0e; }
+    .btn.primary:hover { background: #85b6ff; border-color: #85b6ff; }
+    .install {
+      background: var(--bg-inset); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px;
+      font-family: var(--font-mono); font-size: 0.86rem;
+      color: var(--text-muted); overflow-x: auto; max-width: 580px;
+    }
+    .install .line { white-space: pre; display: block; }
+    .install .prompt { color: var(--text-dim); user-select: none; }
+    .install .cmd { color: var(--text); }
+
+    section { padding: 58px 0; border-bottom: 1px solid var(--border); }
+    section > .wrap > h2 { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.015em; margin-bottom: 8px; }
+    section > .wrap > .sub { color: var(--text-muted); margin-bottom: 32px; max-width: 64ch; }
+
+    /* Stat strip */
+    .stats {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    }
+    .stat { background: var(--bg-raised); padding: 22px; }
+    .stat .n { font-family: var(--font-mono); font-size: 1.75rem; font-weight: 600; color: var(--text); }
+    .stat .l { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* Feature grid */
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(286px, 1fr));
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    }
+    .cell { background: var(--bg-raised); padding: 22px; transition: background 0.15s ease; }
+    .cell:hover { background: var(--bg-card-hover, #1a1d23); }
+    .cell h3 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+    .cell p { font-size: 0.9rem; color: var(--text-muted); }
+    .cell .path { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-dim); display: block; margin-top: 12px; }
+
+    /* Measurement */
+    .measure { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px; padding: 26px; }
+    .measure table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.87rem; margin-bottom: 16px; }
+    .measure th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--border); }
+    .measure td { padding: 9px 14px 9px 0; color: var(--text); border-bottom: 1px solid var(--border); }
+    .measure td.pass { color: var(--good); }
+    .measure .note { font-size: 0.86rem; color: var(--text-muted); font-family: var(--font-sans); }
+    .measure .note strong { color: var(--warn); font-weight: 600; }
+
+    /* Callout */
+    .callout { background: var(--bg-inset); border: 1px solid var(--border); border-left: 3px solid var(--warn); border-radius: 8px; padding: 22px 24px; }
+    .callout h3 { font-size: 1rem; margin-bottom: 12px; }
+    .callout ul { margin: 0 0 0 18px; }
+    .callout li { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px; }
+    .callout li code { font-size: 0.82rem; background: var(--bg-raised); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+    .callout li em { color: var(--text); font-style: normal; }
+
+    /* Personas */
+    .souls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .soul {
+      font-family: var(--font-mono); font-size: 0.79rem;
+      background: var(--bg-raised); border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 12px; color: var(--text-muted);
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .soul:hover { color: var(--text); border-color: var(--border-strong); }
+
+    /* Flow diagram */
+    .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-family: var(--font-mono); font-size: 0.82rem; }
+    .flow .node { background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: 7px; padding: 9px 14px; color: var(--text); }
+    .flow .arrow { color: var(--text-dim); }
+    .flow .loop { color: var(--warn); }
+
+    footer { padding: 42px 0 64px; color: var(--text-dim); font-size: 0.85rem; }
+    footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    footer a { color: var(--text-muted); }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2rem; }
+      .nav-links a:not(.gh) { display: none; }
+      section { padding: 44px 0; }
     }
   </style>
 </head>
 <body>
-
-  <div class="ambient-bg"></div>
-
-  <!-- HEADER -->
   <header>
-    <div class="container nav-inner">
-      <a href="index.html" class="logo-badge">
-        <div class="logo-orb">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-            <polyline points="2 17 12 22 22 17"></polyline>
-            <polyline points="2 12 12 17 22 12"></polyline>
-          </svg>
-        </div>
-        <span class="logo-text">Saleha AI</span>
-        <span class="version-pill">v2.6.0</span>
-      </a>
-
-      <ul class="nav-links">
-        <li><a href="#hero" class="nav-link">3D Swarm</a></li>
-        <li><a href="#skills" class="nav-link">1,004+ Skills</a></li>
-        <li><a href="#mcp" class="nav-link">Universal MCP</a></li>
-        <li><a href="#pr-simulator" class="nav-link">PR Reviewer</a></li>
-        <li><a href="#leaderboard" class="nav-link">Leaderboard</a></li>
-      </ul>
-
-      <div class="nav-btn-group">
-        <button id="sfx-btn" class="sfx-toggle-btn" title="Toggle 3D Audio SFX">
-          <span>🔊 Sound: <strong id="sfx-status">ON</strong></span>
-        </button>
-        <a href="https://github.com/MDaftab76678-1945/Saleha" target="_blank" rel="noopener" class="btn-github">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          GitHub (⭐ Star)
-        </a>
-      </div>
+    <div class="wrap nav">
+      <a href="#" class="brand"><span class="dot"></span>Saleha <span class="tag">local-first &middot; Python &middot; Ollama</span></a>
+      <nav class="nav-links">
+        <a href="#what">What's real</a>
+        <a href="#flow">How it runs</a>
+        <a href="#measured">Measured</a>
+        <a href="#scaffolding">Scaffolding</a>
+        <a class="gh" href="https://github.com/MDaftab76678-1945/Saleha">GitHub</a>
+      </nav>
     </div>
   </header>
 
-  <!-- HERO SECTION WITH 3D CANVAS -->
-  <section id="hero" class="hero-section">
-    <canvas id="hero-3d-canvas"></canvas>
+  <div class="hero">
+    <canvas id="bg-canvas"></canvas>
+    <div class="wrap">
+      <h1>A multi-agent coding assistant that runs on your machine.</h1>
+      <p class="lede">
+        Saleha is a local-first, multi-agent AI coding assistant in Python. It talks to
+        local models through <strong>Ollama</strong> (or a cloud provider, if you configure
+        one) and ships a CLI, an interactive TUI, and a REST/SSE server. This page
+        describes <strong>what actually works today</strong> &mdash; speculative features
+        live in <a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/ROADMAP.md">ROADMAP.md</a>.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://github.com/MDaftab76678-1945/Saleha">View on GitHub</a>
+        <a class="btn" href="https://github.com/MDaftab76678-1945/Saleha/blob/main/README.md">Read the README</a>
+      </div>
+      <div class="install">
+<span class="line"><span class="prompt">$ </span><span class="cmd">git clone https://github.com/MDaftab76678-1945/Saleha.git</span></span>
+<span class="line"><span class="prompt">$ </span><span class="cmd">cd Saleha &amp;&amp; pip install -e .</span></span>
+<span class="line"><span class="prompt">$ </span><span class="cmd">ollama run qwen2.5-coder:7b</span></span>
+<span class="line"><span class="prompt">$ </span><span class="cmd">saleha run "add input validation to the login handler"</span></span>
+      </div>
+    </div>
+  </div>
 
-    <div class="container hero-grid">
-      <div class="hero-content">
-        <div class="hero-pill-badge">
-          <span class="dot"></span>
-          <span>Sovereign Local-First AI Multi-Agent Swarm</span>
+  <section id="numbers">
+    <div class="wrap reveal">
+      <div class="stats">
+        <div class="stat"><div class="n">248</div><div class="l">modules under <span class="mono">saleha/core/</span></div></div>
+        <div class="stat"><div class="n">156</div><div class="l">registered CLI subcommands</div></div>
+        <div class="stat"><div class="n">1,714</div><div class="l">passing tests (7 opt-in skips)</div></div>
+        <div class="stat"><div class="n">10</div><div class="l">named agent personas</div></div>
+        <div class="stat"><div class="n">3.12+</div><div class="l">Python, all-local runtime</div></div>
+        <div class="stat"><div class="n">$0</div><div class="l">per month &mdash; no API keys</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="what">
+    <div class="wrap reveal">
+      <h2>What's actually here</h2>
+      <p class="sub">Every item maps to real code and real tests. Paths are given so you can check them yourself.</p>
+      <div class="grid">
+        <div class="cell">
+          <h3>Agentic coding loop</h3>
+          <p>Plans a task, edits files, runs the test command, and iterates on failures &mdash; a real ReAct-style loop, not a single prompt.</p>
+          <span class="path">saleha/core/agentic_loop.py &middot; saleha run</span>
         </div>
-        
-        <h1 class="hero-title">
-          The Autonomous <br>
-          <span class="gradient-text">3D AI Engineer</span>
-        </h1>
-        
-        <p class="hero-subtitle">
-          Saleha delivers complete software end-to-end entirely on your local machine. 
-          Zero cloud fees ($0/mo), 1,004+ AgentSkills, Universal MCP Multi-Platform Hub, and 100% data sovereignty.
+        <div class="cell">
+          <h3>Multi-agent roles</h3>
+          <p>Planner, Coder, Tester, Debugger agents, orchestrated for multi-step or multi-role tasks.</p>
+          <span class="path">saleha/agents/ &middot; saleha team</span>
+        </div>
+        <div class="cell">
+          <h3>AST-aware indexing &amp; patching</h3>
+          <p>Symbol scanning and unified-diff patch generation &mdash; edits parse-checked, not string-spliced.</p>
+          <span class="path">saleha/core/codebase_indexer.py &middot; saleha scan</span>
+        </div>
+        <div class="cell">
+          <h3>Sandboxed execution</h3>
+          <p>Generated or untrusted code runs in a subprocess or Docker container with resource limits and an audit log.</p>
+          <span class="path">saleha/core/code_executor.py &middot; saleha exec</span>
+        </div>
+        <div class="cell">
+          <h3>Static security scanning</h3>
+          <p>AST-based SAST for <span class="mono">shell=True</span>, bare <span class="mono">except</span>, hardcoded secrets, SQL string formatting, and more.</p>
+          <span class="path">saleha/core/security_scanner.py &middot; saleha sast</span>
+        </div>
+        <div class="cell">
+          <h3>Retrieval &amp; memory</h3>
+          <p>A persistent solution-memory store, a lightweight RAG / graph layer, and fast local code search.</p>
+          <span class="path">saleha/core/memory_store.py &middot; graph_rag.py</span>
+        </div>
+        <div class="cell">
+          <h3>Model routing</h3>
+          <p>Routes requests across configured local (Ollama) and remote backends, with a runtime-probing smart router.</p>
+          <span class="path">saleha/core/model_provider.py &middot; smart_router.py</span>
+        </div>
+        <div class="cell">
+          <h3>Project scaffolder</h3>
+          <p><span class="mono">saleha new fastapi|express|go &lt;name&gt;</span> copies a starter service from a template and verifies it builds &mdash; deterministic, no model call.</p>
+          <span class="path">saleha/core/project_scaffolder.py</span>
+        </div>
+        <div class="cell">
+          <h3>Souls persona system</h3>
+          <p>Ten JSON-configured personas (temperature, allowed tools) plus a prompt bundle. A real prompt layer &mdash; not a claim about model cognition.</p>
+          <span class="path">souls/ &middot; saleha/core/soul_engine.py</span>
+        </div>
+      </div>
+      <div class="souls">
+        <span class="soul">architect</span><span class="soul">artisan</span><span class="soul">auditor</span>
+        <span class="soul">sage</span><span class="soul">sentinel</span><span class="soul">sovereign</span>
+        <span class="soul">speedrunner</span><span class="soul">sre</span><span class="soul">alchemist</span>
+        <span class="soul">minimalist</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="flow">
+    <div class="wrap reveal">
+      <h2>How a task runs</h2>
+      <p class="sub">
+        <span class="mono">saleha run "&lt;goal&gt;"</span> is a plan &rarr; act &rarr; observe cycle.
+        Each iteration edits files, runs the project's own test command, and feeds
+        failures back in &mdash; it does not stop at "looks done".
+      </p>
+      <div class="flow">
+        <span class="node">Planner</span><span class="arrow">&rarr;</span>
+        <span class="node">Coder (AST patch)</span><span class="arrow">&rarr;</span>
+        <span class="node">Run tests in sandbox</span><span class="arrow">&rarr;</span>
+        <span class="node">pass?</span>
+        <span class="loop">&#8617; no &rarr; Debugger &rarr; Reflexion</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">Verify (SAST + real output)</span><span class="arrow">&rarr;</span>
+        <span class="node">Report</span>
+      </div>
+      <p class="sub" style="margin-top:22px;">
+        Two rules the loop enforces, learned from this project's own audit history:
+        <strong style="color:var(--text)">a step that cannot run says so</strong> (no
+        component returns a reassuring default it did not earn), and
+        <strong style="color:var(--text)">the verifier is real</strong> (&ldquo;tests
+        passed&rdquo; comes from executing the code, not a hardcoded flag).
+      </p>
+    </div>
+  </section>
+
+  <section id="measured">
+    <div class="wrap reveal">
+      <h2>The one measured number</h2>
+      <p class="sub">
+        Twelve real programming tasks, each with a test suite verified to fail on wrong
+        code first. Two local models, run end-to-end through the agent. This is not
+        SWE-bench and not a leaderboard &mdash; it is a local measurement on one machine.
+      </p>
+      <div class="measure">
+        <table>
+          <thead><tr><th>model</th><th>pass</th><th>time</th></tr></thead>
+          <tbody>
+            <tr><td>deepseek-coder:6.7b</td><td class="pass">11 / 12</td><td>368s</td></tr>
+            <tr><td>qwen2.5-coder:3b</td><td class="pass">10 / 12</td><td>115s</td></tr>
+          </tbody>
+        </table>
+        <p class="note">
+          Both models missed the same task (an LRU cache &mdash; the one problem that needs
+          state held across calls). The 3B model is ~3&times; faster for one fewer task
+          solved; for a tool meant to run locally all day, that trade favours the smaller
+          model. <strong>An earlier version of this measurement was itself wrong</strong>
+          &mdash; the harness was executing the model's own test code and mis-scoring two
+          passes as failures. That was found and fixed; the number above is post-fix.
+          Script: <span class="mono">scripts/measure_real_pass_rate.py</span>.
         </p>
-
-        <div class="hero-cta-group">
-          <a href="#quickstart" class="btn-primary">
-            <span>⚡ Launch Saleha Studio</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <a href="#skills" class="btn-secondary">
-            <span>🧠 Explore 1,000+ Skills</span>
-          </a>
-        </div>
-
-        <!-- 1-Click Install Command Box -->
-        <div class="install-tabs-box" id="quickstart">
-          <div class="install-tab-nav">
-            <button class="install-tab-btn active" onclick="switchInstall('unix')">macOS / Linux</button>
-            <button class="install-tab-btn" onclick="switchInstall('win')">Windows (PowerShell)</button>
-            <button class="install-tab-btn" onclick="switchInstall('pip')">PyPI</button>
-          </div>
-          <div class="quick-install-code">
-            <span id="install-cmd-text">curl -sSL https://raw.githubusercontent.com/MDaftab76678-1945/Saleha/main/scripts/install.sh | bash</span>
-            <button class="copy-btn" id="install-copy-btn" onclick="copyInstall()">Copy</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3D Interactive HUD Card -->
-      <div class="hero-3d-hud" id="hero-hud">
-        <div class="hud-header">
-          <div class="hud-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/></svg>
-            <span>3D Neural Swarm Telemetry</span>
-          </div>
-          <span class="hud-live-tag">785 PASSING TESTS</span>
-        </div>
-
-        <div class="hud-agent-grid">
-          <div class="hud-agent-chip active" data-agent="sde">
-            <div class="chip-name">🟢 SDE Lead</div>
-            <div class="chip-role">Polyglot Code & AST Engine</div>
-          </div>
-          <div class="hud-agent-chip" data-agent="architect">
-            <div class="chip-name">🔵 Solution Architect</div>
-            <div class="chip-role">System Design & ADRs</div>
-          </div>
-          <div class="hud-agent-chip" data-agent="security">
-            <div class="chip-name">🔴 Security Guard</div>
-            <div class="chip-role">AST SAST & OWASP Scan</div>
-          </div>
-          <div class="hud-agent-chip" data-agent="qa">
-            <div class="chip-name">🟡 QA Engineer</div>
-            <div class="chip-role">Sandboxed Self-Healing</div>
-          </div>
-        </div>
-
-        <div id="hud-details" style="font-family: var(--font-mono); font-size: 0.8rem; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle);">
-          <span style="color: var(--accent-cyan);">> Agent Status:</span> Active & Synced<br>
-          <span style="color: var(--accent-emerald);">> Memory Store:</span> Episodic Merkle Tree (0ms)<br>
-          <span style="color: var(--accent-purple);">> Verification Loop:</span> 100% Self-Healing Sandbox
-        </div>
       </div>
     </div>
   </section>
 
-  <!-- METRIC COUNTERS BANNER -->
-  <section class="container">
-    <div class="metric-banner">
-      <div class="metric-card">
-        <div class="metric-value">785+</div>
-        <div class="metric-label">Automated Tests (100%)</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">1,004+</div>
-        <div class="metric-label">Domain AgentSkills</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">30+</div>
-        <div class="metric-label">Universal MCP Servers</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">34.2%</div>
-        <div class="metric-label">SWE-Bench Resolution</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value">$0/mo</div>
-        <div class="metric-label">100% Local & Private</div>
+  <section id="scaffolding">
+    <div class="wrap reveal">
+      <h2>What is scaffolding, not a finished feature</h2>
+      <p class="sub">
+        Earlier copy for this project claimed more than the code did. Being precise about
+        the gaps is the point &mdash; a contributor can build on honest scaffolding; they
+        cannot build on a fabricated result.
+      </p>
+      <div class="callout">
+        <h3>Named but not what the name implies</h3>
+        <ul>
+          <li><code>swarm_consensus.py</code> is a three-phase (propose/prepare/commit) voting protocol among agent roles <em>inside one process</em>. It does not run across machines or tolerate partitions &mdash; read it as "structured agent voting," not distributed consensus.</li>
+          <li><code>formal_verifier.py</code> / <code>formal_smt_verifier.py</code> generate Lean4- and SMT-shaped text as templates. They do not invoke Lean or Z3 &mdash; scaffolding for a feature that is not implemented.</li>
+          <li><code>hyperbolic_engine.py</code> is real 16-dimensional Poincar&eacute;-ball vector math used as a deterministic task-routing heuristic &mdash; not emergent swarm cognition.</li>
+          <li><code>design-vision</code> infers a layout family and calls the model for JSX/CSS; with no model reachable it returns a labelled template. It does <em>not</em> parse images or Figma files.</li>
+        </ul>
       </div>
     </div>
   </section>
 
-  <!-- 3D TILT CARDS & CORE SUPERPOWERS -->
-  <section class="container" style="padding: 60px 0;">
-    <div class="section-header">
-      <span class="section-tag">Core Superpowers</span>
-      <h2 class="section-title">Built for Sovereign Fullstack Engineering</h2>
-      <p class="section-desc">Experience an enterprise-grade autonomous software engineering team running directly on your machine.</p>
-    </div>
-
-    <div class="tilt-card-grid">
-      <div class="tilt-card">
-        <div class="tilt-icon">⚡</div>
-        <h3 class="tilt-title">Autonomous Self-Healing Loop</h3>
-        <p class="tilt-desc">Runs code in isolated Docker & subprocess sandboxes, captures runtime stack traces, and automatically repairs broken code until all tests pass.</p>
-      </div>
-
-      <div class="tilt-card">
-        <div class="tilt-icon">🛡️</div>
-        <h3 class="tilt-title">AI Deep Code Reviewer</h3>
-        <p class="tilt-desc">Deep AST semantic analysis detects OWASP Top 10 vulnerabilities, leaked API secrets, and dangerous system calls in real time before deployment.</p>
-      </div>
-
-      <div class="tilt-card">
-        <div class="tilt-icon">🧬</div>
-        <h3 class="tilt-title">Per-Project Episodic Memory</h3>
-        <p class="tilt-desc">Sub-millisecond hybrid vector retrieval (BM25 + Cosine similarity) indexes your entire monorepo and preserves lifelong architectural context.</p>
-      </div>
-
-      <div class="tilt-card">
-        <div class="tilt-icon">🧠</div>
-        <h3 class="tilt-title">Local LoRA Fine-Tuning</h3>
-        <p class="tilt-desc">Fine-tunes lightweight domain adapters directly on your private code commits using Ollama and local GPU runtimes.</p>
-      </div>
-
-      <div class="tilt-card">
-        <div class="tilt-icon">🎯</div>
-        <h3 class="tilt-title">Surgical Diff &amp; Blast Radius</h3>
-        <p class="tilt-desc">Calculates AST dependency impact graphs before applying multi-file code modifications across your entire project.</p>
-      </div>
-
-      <div class="tilt-card">
-        <div class="tilt-icon">👁️</div>
-        <h3 class="tilt-title">Real-Time Watch-AI Suggester</h3>
-        <p class="tilt-desc">Monitors filesystem file changes in the background and streams instant auto-fix suggestions directly to your terminal or editor.</p>
-      </div>
+  <section id="honesty">
+    <div class="wrap reveal">
+      <h2>Why this page reads the way it does</h2>
+      <p class="sub" style="max-width:66ch;">
+        Much of this project's recent history is an audit: finding places where a
+        component claimed work it had not done &mdash; a hardcoded "tests passed", a
+        benchmark scoreboard with invented numbers, an orchestrator that reported success
+        without calling a model &mdash; and replacing the fabricated half with something
+        measured. Thirty-five passes of that are recorded in
+        <a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/NOTEBOOK_IMPORT.md">NOTEBOOK_IMPORT.md</a>,
+        each finding paired with the probe that proved it. A tool that cannot report what
+        it actually did cannot be trusted or improved; that is the whole reason for the work.
+      </p>
     </div>
   </section>
 
-  <!-- 1,004+ AGENTSKILLS LIVE INTERACTIVE EXPLORER -->
-  <section id="skills" class="container" style="padding: 40px 0;">
-    <div class="section-header">
-      <span class="section-tag">AgentSkills Catalog</span>
-      <h2 class="section-title">1,004+ Domain-Expert AgentSkills</h2>
-      <p class="section-desc">Search and execute specialized skills across 25 engineering domains with sub-millisecond keyword lookup.</p>
-    </div>
-
-    <div class="skills-explorer-card">
-      <div class="skills-search-bar">
-        <input type="text" id="skills-search-input" class="skills-input" placeholder="🔍 Search 1,000+ skills (e.g. kubernetes, fastapi, react, rag, terraform, security)...">
-      </div>
-
-      <div class="domain-pills" id="domain-pills">
-        <button class="domain-pill active" data-domain="all">All Domains (1,004)</button>
-        <button class="domain-pill" data-domain="frontend_web">Frontend & Web (42)</button>
-        <button class="domain-pill" data-domain="backend_microservices">Backend & APIs (41)</button>
-        <button class="domain-pill" data-domain="cloud_iac">Cloud & IaC (41)</button>
-        <button class="domain-pill" data-domain="containers_orchestration">Kubernetes & Docker (40)</button>
-        <button class="domain-pill" data-domain="databases_storage">Databases & Storage (40)</button>
-        <button class="domain-pill" data-domain="vector_rag">Vector Search & RAG (40)</button>
-        <button class="domain-pill" data-domain="ai_ml_llm">AI / ML & LLMs (40)</button>
-        <button class="domain-pill" data-domain="security_devsecops">Security & DevSecOps (40)</button>
-      </div>
-
-      <div class="skills-display-grid" id="skills-grid"></div>
-    </div>
-  </section>
-
-  <!-- UNIVERSAL MCP MULTI-PLATFORM 3D BRIDGE VISUALIZER -->
-  <section id="mcp" class="container" style="padding: 40px 0;">
-    <div class="section-header">
-      <span class="section-tag">Universal Connectivity</span>
-      <h2 class="section-title">Connect to Any AI Editor in 1-Click</h2>
-      <p class="section-desc">Export tailored Model Context Protocol (MCP) configuration profiles instantly for your favorite IDE.</p>
-    </div>
-
-    <div class="mcp-visualizer-card">
-      <div class="mcp-platform-selector">
-        <button class="platform-btn active" data-platform="cursor">
-          <span>🎯 Cursor IDE</span>
-          <span style="font-size: 0.75rem; color: var(--accent-cyan);">.cursor/mcp.json</span>
-        </button>
-        <button class="platform-btn" data-platform="claude">
-          <span>🤖 Claude Desktop</span>
-          <span style="font-size: 0.75rem; color: var(--accent-cyan);">claude_desktop_config.json</span>
-        </button>
-        <button class="platform-btn" data-platform="vscode">
-          <span>💻 VS Code (Claude / Roo / Cline)</span>
-          <span style="font-size: 0.75rem; color: var(--accent-cyan);">.vscode/mcp.json</span>
-        </button>
-        <button class="platform-btn" data-platform="windsurf">
-          <span>🏄 Windsurf Editor</span>
-          <span style="font-size: 0.75rem; color: var(--accent-cyan);">mcp_config.json</span>
-        </button>
-        <button class="platform-btn" data-platform="zed">
-          <span>⚡ Zed Editor</span>
-          <span style="font-size: 0.75rem; color: var(--accent-cyan);">settings.json</span>
-        </button>
-      </div>
-
-      <div class="mcp-code-preview">
-        <div class="code-top-bar">
-          <div class="code-dots">
-            <span class="code-dot dot-red"></span>
-            <span class="code-dot dot-yellow"></span>
-            <span class="code-dot dot-green"></span>
-          </div>
-          <span class="code-filename" id="mcp-filename">.cursor/mcp.json</span>
-          <button class="copy-btn" id="mcp-copy-btn">Copy Config</button>
-        </div>
-        <pre class="mcp-code-block"><code id="mcp-code-content">// Select a platform on the left to view configuration...</code></pre>
-      </div>
-    </div>
-  </section>
-
-  <!-- MARKET COMPARISON & SAVINGS CALCULATOR -->
-  <section class="container">
-    <div class="savings-card">
-      <div class="section-header" style="margin-bottom: 30px;">
-        <span class="section-tag">Market Comparison</span>
-        <h2 class="section-title">Save Thousands Compared to Cloud SaaS</h2>
-        <p class="section-desc">Devin ($500/mo), Cursor ($20/mo), and CodeRabbit ($12/mo) drain budgets and send your proprietary source code to third-party cloud servers.</p>
-      </div>
-
-      <div class="savings-grid">
-        <div>
-          <label style="font-weight: 600; font-size: 0.95rem;">Number of Developers in Team: <strong id="dev-count-label" style="color: var(--accent-cyan);">5</strong></label>
-          <input type="range" min="1" max="50" value="5" class="calc-slider" id="dev-slider" oninput="updateSavings(this.value)">
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 10px;">
-            Saleha runs 100% locally on your own workstations or private server — zero recurring seat costs.
-          </p>
-        </div>
-
-        <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 24px; text-align: center;">
-          <div style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Estimated Annual Savings</div>
-          <div style="font-family: var(--font-heading); font-size: 2.8rem; font-weight: 800; color: var(--accent-emerald); margin: 8px 0;" id="savings-amount">$31,920 / year</div>
-          <div style="font-size: 0.8rem; color: var(--text-dim);">Replaces Devin ($500/mo) + Cursor ($20/mo) + CodeRabbit ($12/mo)</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PR SIMULATOR -->
-  <section id="pr-simulator" class="container">
-    <div class="pr-sim-card">
-      <div class="section-header" style="margin-bottom: 30px;">
-        <span class="section-tag">Autonomous Code Review</span>
-        <h2 class="section-title">Interactive PR Reviewer Simulator</h2>
-        <p class="section-desc">Test how Saleha's AST SAST scanner audits Pull Requests, flags vulnerabilities, and proposes 1-click fixes.</p>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-        <div style="background: #030712; border: 1px solid var(--border-subtle); border-radius: 14px; padding: 18px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted);">
-            <span>auth_controller.py (Diff View)</span>
-            <button onclick="switchPrFile()" class="copy-btn">Switch File</button>
-          </div>
-          <pre style="font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.5; color: #f87171;" id="pr-diff-content">
-- query = f"SELECT * FROM users WHERE user='{username}'"
-+ query = "SELECT * FROM users WHERE user = :username"
-          </pre>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 20px;">
-          <h4 style="color: var(--accent-rose); font-size: 0.95rem; margin-bottom: 8px;">🚨 Security Vulnerability Detected (CWE-89 SQLi)</h4>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-            Unparameterized user input concatenated directly into SQL statement.
-          </p>
-          <button class="btn-primary" style="padding: 8px 16px; font-size: 0.85rem;" onclick="applyPrFix()">
-            ✨ Apply Automated AST Fix
-          </button>
-          <div id="pr-fix-status" style="margin-top: 12px; font-size: 0.8rem; color: var(--accent-emerald); display: none;">
-            ✅ Fix applied and validated against AST schema!
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- LEADERBOARD SHOWCASE -->
-  <section id="leaderboard" class="container" style="padding: 40px 0;">
-    <div class="leaderboard-card">
-      <div class="section-header" style="margin-bottom: 24px;">
-        <span class="section-tag">Benchmark Performance</span>
-        <h2 class="section-title">SWE-Bench Verified Leaderboard</h2>
-        <p class="section-desc">Saleha autonomous execution benchmarked against industry standards with local LLM backends.</p>
-      </div>
-
-      <table class="leaderboard-table">
-        <thead>
-          <tr>
-            <th>Model / Engine</th>
-            <th>SWE-Bench Score</th>
-            <th>Hosting Mode</th>
-            <th>Monthly Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="background: rgba(0, 242, 254, 0.08); font-weight: 700; color: var(--accent-cyan);">
-            <td>⚡ Saleha Swarm (Qwen 2.5 Coder 32B)</td>
-            <td>34.2% Verified</td>
-            <td>100% Local / Self-Hosted</td>
-            <td>$0 / mo</td>
-          </tr>
-          <tr>
-            <td>DeepSeek Coder V2 16B (Saleha Sandbox)</td>
-            <td>28.6% Verified</td>
-            <td>100% Local</td>
-            <td>$0 / mo</td>
-          </tr>
-          <tr>
-            <td>Llama 3.3 70B (Saleha Swarm)</td>
-            <td>32.8% Verified</td>
-            <td>Local / Private Cloud</td>
-            <td>$0 / mo</td>
-          </tr>
-          <tr>
-            <td>Devin (Cognition AI)</td>
-            <td>13.8% Verified</td>
-            <td>Proprietary Cloud</td>
-            <td>$500 / mo</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div style="text-align: center; margin-top: 24px;">
-        <a href="leaderboard.html" class="btn-secondary">View Complete Interactive Leaderboard →</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- CYBER TERMINAL SIMULATOR -->
-  <section id="terminal" class="container terminal-section">
-    <div class="section-header">
-      <span class="section-tag">Interactive Terminal</span>
-      <h2 class="section-title">See Saleha in Action</h2>
-      <p class="section-desc">Experience sovereign autonomous execution right from your CLI.</p>
-    </div>
-
-    <div class="cyber-terminal">
-      <div class="terminal-tabs">
-        <div class="term-tab active" onclick="switchCliTab('swarm')">🚀 Swarm Delivery</div>
-        <div class="term-tab" onclick="switchCliTab('skills')">🧠 Skill Search</div>
-        <div class="term-tab" onclick="switchCliTab('mcp')">🔌 MCP Server</div>
-        <div class="term-tab" onclick="switchCliTab('security')">🛡️ AST Security Scan</div>
-      </div>
-
-      <div class="terminal-body" id="term-output">
-        <p><span class="term-line-cyan">$ saleha doom "Build a real-time e-commerce order processing API with FastAPI and Redis"</span></p>
-        <p><span class="term-line-dim">[0.12s]</span> <span class="term-line-purple">🧠 PM Agent:</span> Synthesizing PRD and user story criteria...</p>
-        <p><span class="term-line-dim">[0.45s]</span> <span class="term-line-cyan">🔵 Architect Agent:</span> Generated ADR.md (Hexagonal Ports & Adapters, Redis Streams CDC)...</p>
-        <p><span class="term-line-dim">[1.20s]</span> <span class="term-line-green">🟢 SDE Lead:</span> Scaffolded 8 source files with async SQLAlchemy 2.0 models...</p>
-        <p><span class="term-line-dim">[1.85s]</span> <span class="term-line-purple">🛡️ Security Guard:</span> AST SAST audit passed (0 OWASP vulnerabilities, 0 hardcoded secrets)...</p>
-        <p><span class="term-line-dim">[2.30s]</span> <span class="term-line-yellow">🟡 QA Engineer:</span> Executed 14 unit & integration tests in Docker sandbox -> <strong>14/14 PASSED (100%)</strong></p>
-        <p><span class="term-line-green">✨ Delivery Complete! Total time: 2.30s | Cost: $0.00 (Local Ollama) | Status: 100% Verified</span></p>
-      </div>
-    </div>
-  </section>
-
-  <!-- FOOTER -->
   <footer>
-    <div class="container footer-grid">
-      <div>
-        <a href="index.html" class="logo-badge" style="margin-bottom: 12px; display: inline-flex;">
-          <div class="logo-orb">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
-          </div>
-          <span class="logo-text">Saleha AI</span>
-        </a>
-        <p class="footer-desc">
-          Sovereign, local-first multi-agent AI engineering framework. Powered by Ollama, DeepSeek & Model Context Protocol.
-        </p>
-      </div>
-
-      <div>
-        <h4 class="footer-col-title">Ecosystem</h4>
-        <ul class="footer-links">
-          <li><a href="#hero" class="footer-link">3D Swarm Core</a></li>
-          <li><a href="#skills" class="footer-link">1,004+ AgentSkills</a></li>
-          <li><a href="#mcp" class="footer-link">Universal MCP Hub</a></li>
-          <li><a href="leaderboard.html" class="footer-link">SWE-Bench Leaderboard</a></li>
-        </ul>
-      </div>
-
-      <div>
-        <h4 class="footer-col-title">Documentation</h4>
-        <ul class="footer-links">
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha#readme" target="_blank" class="footer-link">Quickstart Guide</a></li>
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/ARCHITECTURE.md" target="_blank" class="footer-link">Architecture Spec</a></li>
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/ROADMAP.md" target="_blank" class="footer-link">Product Roadmap</a></li>
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/CHANGELOG.md" target="_blank" class="footer-link">Release Notes</a></li>
-        </ul>
-      </div>
-
-      <div>
-        <h4 class="footer-col-title">Community</h4>
-        <ul class="footer-links">
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha" target="_blank" class="footer-link">GitHub Repository</a></li>
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha/issues" target="_blank" class="footer-link">Issue Tracker</a></li>
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha/discussions" target="_blank" class="footer-link">Discussions</a></li>
-          <li><a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/LICENSE" target="_blank" class="footer-link">MIT License</a></li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="container footer-bottom">
-      <span>© 2026 Saleha AI. Released under the MIT License. 100% Free & Open Source.</span>
-      <span>785 Passing Tests | SWE-Bench Verified (34.2%)</span>
+    <div class="wrap">
+      <span>Saleha &mdash; local-first multi-agent AI coding assistant. MIT licensed.</span>
+      <span>
+        <a href="https://github.com/MDaftab76678-1945/Saleha">Source</a> &middot;
+        <a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/ARCHITECTURE.md">Architecture</a> &middot;
+        <a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/ROADMAP.md">Roadmap</a>
+      </span>
     </div>
   </footer>
 
-  <!-- ==========================================================================
-       JAVASCRIPT: 3D THREE.JS CANVAS, SFX AUDIO, TILT, SKILLS, MCP & TERMINAL
-       ========================================================================== -->
   <script>
-    // --------------------------------------------------------------------------
-    // 1. WEB AUDIO API SYNTHETIC CYBERNETIC SFX
-    // --------------------------------------------------------------------------
-    let audioCtx = null;
-    let sfxEnabled = true;
+    // Scroll reveal
+    (function () {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+      }, { threshold: 0.12 });
+      document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+    })();
 
-    function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-    }
+    // 3D particle field in the hero
+    (function () {
+      var canvas = document.getElementById('bg-canvas');
+      if (!canvas || typeof THREE === 'undefined') return;
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    function playCyberClick(freq = 600, duration = 0.04) {
-      if (!sfxEnabled) return;
-      try {
-        initAudio();
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + duration);
-        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
-      } catch (e) {}
-    }
-
-    document.getElementById('sfx-btn').addEventListener('click', () => {
-      sfxEnabled = !sfxEnabled;
-      document.getElementById('sfx-status').innerText = sfxEnabled ? 'ON' : 'OFF';
-      if (sfxEnabled) playCyberClick(800, 0.06);
-    });
-
-    // --------------------------------------------------------------------------
-    // 2. REAL-TIME 3D WEBGL HERO CANVAS (THREE.JS)
-    // --------------------------------------------------------------------------
-    const canvas = document.getElementById('hero-3d-canvas');
-    let scene, camera, renderer, coreMesh, particleSystem, agentOrbs = [];
-    let mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
-
-    function init3D() {
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      var scene = new THREE.Scene();
+      var camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
       camera.position.z = 24;
 
-      renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      var renderer;
+      try {
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+      } catch (err) { return; }
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-      // Central Geodesic Hologram Core
-      const coreGeo = new THREE.IcosahedronGeometry(4.5, 2);
-      const coreMat = new THREE.MeshBasicMaterial({
-        color: 0x00f2fe,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.45
-      });
-      coreMesh = new THREE.Mesh(coreGeo, coreMat);
-      scene.add(coreMesh);
-
-      // Inner Glowing Core
-      const innerGeo = new THREE.SphereGeometry(2.8, 16, 16);
-      const innerMat = new THREE.MeshBasicMaterial({
-        color: 0x7928ca,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.3
-      });
-      const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-      coreMesh.add(innerMesh);
-
-      // Particle Constellation (800 Neural Particles)
-      const particleCount = 800;
-      const particleGeo = new THREE.BufferGeometry();
-      const posArray = new Float32Array(particleCount * 3);
-
-      for (let i = 0; i < particleCount * 3; i += 3) {
-        posArray[i] = (Math.random() - 0.5) * 45;
-        posArray[i + 1] = (Math.random() - 0.5) * 35;
-        posArray[i + 2] = (Math.random() - 0.5) * 35;
+      function resize() {
+        var w = canvas.clientWidth, h = canvas.clientHeight;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
       }
+      resize();
+      window.addEventListener('resize', resize);
 
-      particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-      const particleMat = new THREE.PointsMaterial({
-        size: 0.12,
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.8
-      });
-      particleSystem = new THREE.Points(particleGeo, particleMat);
-      scene.add(particleSystem);
-
-      // 5 Orbiting 3D Agent Satellites
-      const agentColors = [0x10b981, 0x00f2fe, 0xf43f5e, 0xf59e0b, 0xa855f7];
-      for (let i = 0; i < 5; i++) {
-        const orbGeo = new THREE.SphereGeometry(0.7, 16, 16);
-        const orbMat = new THREE.MeshBasicMaterial({ color: agentColors[i] });
-        const orb = new THREE.Mesh(orbGeo, orbMat);
-        orb.userData = { angle: (i * Math.PI * 2) / 5, radius: 8 + (i % 2) * 2, speed: 0.008 + i * 0.002 };
-        agentOrbs.push(orb);
-        scene.add(orb);
+      // Node cloud + connecting lines: an abstract "agent mesh"
+      var COUNT = 90;
+      var positions = [];
+      var geo = new THREE.BufferGeometry();
+      var pos = new Float32Array(COUNT * 3);
+      for (var i = 0; i < COUNT; i++) {
+        var v = new THREE.Vector3(
+          (Math.random() - 0.5) * 40,
+          (Math.random() - 0.5) * 24,
+          (Math.random() - 0.5) * 24
+        );
+        positions.push(v);
+        pos[i * 3] = v.x; pos[i * 3 + 1] = v.y; pos[i * 3 + 2] = v.z;
       }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      var pointsMat = new THREE.PointsMaterial({ color: 0x6ea8ff, size: 0.5, transparent: true, opacity: 0.85 });
+      var points = new THREE.Points(geo, pointsMat);
+      scene.add(points);
 
-      window.addEventListener('resize', onWindowResize);
-      document.addEventListener('mousemove', onMouseMove);
-      animate3D();
-    }
+      var lineGeo = new THREE.BufferGeometry();
+      var linePositions = new Float32Array(COUNT * COUNT * 6);
+      var lineMat = new THREE.LineBasicMaterial({ color: 0x8b7dff, transparent: true, opacity: 0.14 });
+      var lines = new THREE.LineSegments(lineGeo, lineMat);
+      scene.add(lines);
 
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function onMouseMove(e) {
-      mouseX = (e.clientX - window.innerWidth / 2) * 0.001;
-      mouseY = (e.clientY - window.innerHeight / 2) * 0.001;
-    }
-
-    function animate3D() {
-      requestAnimationFrame(animate3D);
-
-      targetX += (mouseX - targetX) * 0.05;
-      targetY += (mouseY - targetY) * 0.05;
-
-      if (coreMesh) {
-        coreMesh.rotation.x += 0.003;
-        coreMesh.rotation.y += 0.005;
-        coreMesh.position.x = targetX * 12;
-        coreMesh.position.y = -targetY * 12;
-      }
-
-      if (particleSystem) {
-        particleSystem.rotation.y += 0.0008;
-      }
-
-      // Update orbiting agents
-      agentOrbs.forEach((orb) => {
-        orb.userData.angle += orb.userData.speed;
-        orb.position.x = Math.cos(orb.userData.angle) * orb.userData.radius + (coreMesh ? coreMesh.position.x : 0);
-        orb.position.y = Math.sin(orb.userData.angle * 1.5) * 3 + (coreMesh ? coreMesh.position.y : 0);
-        orb.position.z = Math.sin(orb.userData.angle) * orb.userData.radius;
+      var mouse = { x: 0, y: 0 };
+      window.addEventListener('mousemove', function (e) {
+        mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+        mouse.y = (e.clientY / window.innerHeight - 0.5) * 2;
       });
 
-      renderer.render(scene, camera);
-    }
+      var t = 0;
+      function frame() {
+        t += 0.0025;
+        // drift nodes
+        var p = geo.attributes.position.array;
+        for (var i = 0; i < COUNT; i++) {
+          var base = positions[i];
+          p[i * 3]     = base.x + Math.sin(t + i) * 1.2;
+          p[i * 3 + 1] = base.y + Math.cos(t * 1.3 + i) * 1.0;
+          p[i * 3 + 2] = base.z + Math.sin(t * 0.7 + i * 0.5) * 1.0;
+        }
+        geo.attributes.position.needsUpdate = true;
 
-    init3D();
-
-    // --------------------------------------------------------------------------
-    // 3. 3D TILT CARDS PHYSICS (VANILLA JS)
-    // --------------------------------------------------------------------------
-    const tiltCards = document.querySelectorAll('.tilt-card');
-    tiltCards.forEach(card => {
-      card.addEventListener('mousemove', (e) => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-        const rotateX = ((y - centerY) / centerY) * -10;
-        const rotateY = ((x - centerX) / centerX) * 10;
-
-        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
-        card.style.setProperty('--mouse-x', `${x}px`);
-        card.style.setProperty('--mouse-y', `${y}px`);
-      });
-
-      card.addEventListener('mouseleave', () => {
-        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
-      });
-    });
-
-    // --------------------------------------------------------------------------
-    // 4. 1,004+ AGENTSKILLS LIVE EXPLORER
-    // --------------------------------------------------------------------------
-    const sampleSkills = [
-      { name: "react-component-scaffold", domain: "frontend_web", desc: "Generates production React 19 functional components with TypeScript and strict props.", tags: ["react", "component", "tsx"] },
-      { name: "nextjs-app-router-page", domain: "frontend_web", desc: "Creates Next.js 15 App Router server and client pages with metadata exports.", tags: ["nextjs", "app-router", "page"] },
-      { name: "tailwind-v4-theme-config", domain: "frontend_web", desc: "Generates modern CSS variables and Tailwind v4 theme configurations.", tags: ["tailwind", "css", "theme"] },
-      { name: "fastapi-crud-router", domain: "backend_microservices", desc: "Generates async FastAPI REST API endpoints with Pydantic v2 schemas.", tags: ["fastapi", "python", "crud"] },
-      { name: "django-ninja-api", domain: "backend_microservices", desc: "Creates high-performance Django Ninja REST APIs with async ORM queries.", tags: ["django", "ninja", "orm"] },
-      { name: "rust-axum-service", domain: "backend_microservices", desc: "Creates blazingly fast Rust Axum web services with SQLx compile-time queries.", tags: ["rust", "axum", "sqlx"] },
-      { name: "terraform-aws-vpc", domain: "cloud_iac", desc: "Provisions multi-AZ AWS VPC with public/private subnets and NAT gateways.", tags: ["terraform", "aws", "vpc"] },
-      { name: "cloudflare-worker-hono", domain: "cloud_iac", desc: "Deploys edge microservices on Cloudflare Workers using Hono framework.", tags: ["cloudflare", "workers", "edge"] },
-      { name: "k8s-deployment-manifest", domain: "containers_orchestration", desc: "Generates production Kubernetes Deployment manifests with resource limits.", tags: ["k8s", "deployment", "manifest"] },
-      { name: "dockerfile-multi-stage-python", domain: "containers_orchestration", desc: "Generates optimized multi-stage distroless Dockerfiles for Python apps.", tags: ["docker", "python", "multi-stage"] },
-      { name: "qdrant-collection-setup", domain: "vector_rag", desc: "Configures Qdrant vector collections with HNSW graph index and payload filtering.", tags: ["qdrant", "vector-db", "hnsw"] },
-      { name: "pgvector-hybrid-search", domain: "vector_rag", desc: "Combines PostgreSQL pgvector cosine similarity with full-text search tsvector.", tags: ["pgvector", "postgres", "hybrid-search"] },
-      { name: "dense-sparse-hybrid-rerank", domain: "vector_rag", desc: "Implements hybrid sparse (BM25) and dense vector retrieval with Cohere reranking.", tags: ["hybrid-search", "bm25", "rerank"] },
-      { name: "ollama-local-model-runner", domain: "ai_ml_llm", desc: "Executes specialized Ollama local model runner operations adhering to AgentSkills standard.", tags: ["ollama", "llm", "local"] },
-      { name: "sast-ast-vulnerability-scanner", domain: "security_devsecops", desc: "Scans Python/JS AST for security flaws, hardcoded credentials, and injection vectors.", tags: ["sast", "security", "ast"] },
-      { name: "owasp-top10-injection-detector", domain: "security_devsecops", desc: "Detects SQLi, XSS, SSRF, command injection, and CSRF vulnerabilities across source code.", tags: ["owasp", "security", "injection"] },
-      { name: "postgres-schema-migration", domain: "databases_storage", desc: "Generates reversible SQL DDL migration scripts with non-blocking index creation.", tags: ["postgres", "migration", "ddl"] },
-      { name: "redis-caching-layer", domain: "databases_storage", desc: "Implements cache-aside and write-through Redis caching with TTL eviction.", tags: ["redis", "cache", "ttl"] }
-    ];
-
-    const skillsGrid = document.getElementById('skills-grid');
-    const searchInput = document.getElementById('skills-search-input');
-    const domainPills = document.querySelectorAll('.domain-pill');
-    let currentDomain = 'all';
-
-    function renderSkills(filterText = '', domain = 'all') {
-      skillsGrid.innerHTML = '';
-      const filtered = sampleSkills.filter(s => {
-        const matchesDomain = (domain === 'all' || s.domain === domain);
-        const matchesText = (!filterText || s.name.toLowerCase().includes(filterText.toLowerCase()) || s.desc.toLowerCase().includes(filterText.toLowerCase()) || s.tags.some(t => t.toLowerCase().includes(filterText.toLowerCase())));
-        return matchesDomain && matchesText;
-      });
-
-      if (filtered.length === 0) {
-        skillsGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-dim); padding: 40px;">No skills matching your search. Try "kubernetes", "react", "fastapi", or "rag".</div>`;
-        return;
-      }
-
-      filtered.forEach(s => {
-        const card = document.createElement('div');
-        card.className = 'skill-item-card';
-        card.innerHTML = `
-          <div class="skill-item-name">${s.name}</div>
-          <div class="skill-item-desc">${s.desc}</div>
-          <div class="skill-item-tags">
-            ${s.tags.map(t => `<span class="skill-tag-badge">#${t}</span>`).join('')}
-          </div>
-        `;
-        card.addEventListener('click', () => {
-          playCyberClick(700, 0.05);
-          alert(`⚡ Executing AgentSkill: ${s.name}\n\nTask Schema: {"task": "string", "context": "object"}\nStatus: Ready in Saleha v2.6.0!`);
-        });
-        skillsGrid.appendChild(card);
-      });
-    }
-
-    renderSkills();
-
-    searchInput.addEventListener('input', (e) => {
-      renderSkills(e.target.value, currentDomain);
-    });
-
-    domainPills.forEach(pill => {
-      pill.addEventListener('click', () => {
-        playCyberClick(500, 0.03);
-        domainPills.forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        currentDomain = pill.getAttribute('data-domain');
-        renderSkills(searchInput.value, currentDomain);
-      });
-    });
-
-    // --------------------------------------------------------------------------
-    // 5. UNIVERSAL MCP MULTI-PLATFORM CONFIG GENERATOR
-    // --------------------------------------------------------------------------
-    const mcpConfigs = {
-      cursor: {
-        filename: ".cursor/mcp.json",
-        json: {
-          "mcpServers": {
-            "saleha": { "command": "saleha", "args": ["mcp", "serve"] },
-            "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."] },
-            "github": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }
+        // rebuild near-neighbour links
+        var li = 0;
+        for (var a = 0; a < COUNT; a++) {
+          for (var b = a + 1; b < COUNT; b++) {
+            var dx = p[a*3]-p[b*3], dy = p[a*3+1]-p[b*3+1], dz = p[a*3+2]-p[b*3+2];
+            var d2 = dx*dx + dy*dy + dz*dz;
+            if (d2 < 40) {
+              linePositions[li++] = p[a*3];   linePositions[li++] = p[a*3+1]; linePositions[li++] = p[a*3+2];
+              linePositions[li++] = p[b*3];   linePositions[li++] = p[b*3+1]; linePositions[li++] = p[b*3+2];
+            }
           }
         }
-      },
-      claude: {
-        filename: "claude_desktop_config.json",
-        json: {
-          "mcpServers": {
-            "saleha": { "command": "saleha", "args": ["mcp", "serve"] },
-            "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."] }
-          }
-        }
-      },
-      vscode: {
-        filename: ".vscode/mcp.json",
-        json: {
-          "mcp.servers": {
-            "saleha": { "command": "saleha", "args": ["mcp", "serve"] },
-            "git": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-git"] }
-          }
-        }
-      },
-      windsurf: {
-        filename: "~/.codeium/windsurf/mcp_config.json",
-        json: {
-          "mcpServers": {
-            "saleha": { "command": "saleha", "args": ["mcp", "serve"] },
-            "brave-search": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-brave-search"] }
-          }
-        }
-      },
-      zed: {
-        filename: "~/.config/zed/settings.json",
-        json: {
-          "context_servers": {
-            "saleha": { "command": { "path": "saleha", "args": ["mcp", "serve"] } }
-          }
-        }
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions.subarray(0, li), 3));
+        lineGeo.attributes.position.needsUpdate = true;
+        lineGeo.setDrawRange(0, li / 3);
+
+        var targetRotY = mouse.x * 0.3;
+        var targetRotX = mouse.y * 0.2;
+        points.rotation.y += (targetRotY - points.rotation.y) * 0.03 + 0.0009;
+        points.rotation.x += (targetRotX - points.rotation.x) * 0.03;
+        lines.rotation.copy(points.rotation);
+
+        renderer.render(scene, camera);
+        if (!reduce) requestAnimationFrame(frame);
       }
-    };
-
-    const platformBtns = document.querySelectorAll('.platform-btn');
-    const mcpFilename = document.getElementById('mcp-filename');
-    const mcpCodeContent = document.getElementById('mcp-code-content');
-    const mcpCopyBtn = document.getElementById('mcp-copy-btn');
-
-    function updateMCPView(platform) {
-      const data = mcpConfigs[platform];
-      if (!data) return;
-      mcpFilename.innerText = data.filename;
-      mcpCodeContent.innerText = JSON.stringify(data.json, null, 2);
-    }
-
-    platformBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        playCyberClick(600, 0.04);
-        platformBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        updateMCPView(btn.getAttribute('data-platform'));
-      });
-    });
-
-    updateMCPView('cursor');
-
-    mcpCopyBtn.addEventListener('click', () => {
-      playCyberClick(900, 0.06);
-      navigator.clipboard.writeText(mcpCodeContent.innerText);
-      mcpCopyBtn.innerText = 'Copied!';
-      setTimeout(() => mcpCopyBtn.innerText = 'Copy Config', 2000);
-    });
-
-    // --------------------------------------------------------------------------
-    // 6. INSTALL TABS & INTERACTIVE FUNCTIONS REQUIRED BY TEST SUITE
-    // --------------------------------------------------------------------------
-    const installCommands = {
-      unix: "curl -sSL https://raw.githubusercontent.com/MDaftab76678-1945/Saleha/main/scripts/install.sh | bash",
-      win: "irm https://raw.githubusercontent.com/MDaftab76678-1945/Saleha/main/scripts/install.ps1 | iex",
-      pip: "pip install saleha && saleha start"
-    };
-
-    function switchInstall(platform) {
-      playCyberClick(500, 0.03);
-      const btns = document.querySelectorAll('.install-tab-btn');
-      btns.forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById('install-cmd-text').innerText = installCommands[platform] || installCommands.unix;
-    }
-
-    function copyInstall() {
-      playCyberClick(800, 0.05);
-      const text = document.getElementById('install-cmd-text').innerText;
-      navigator.clipboard.writeText(text);
-      const btn = document.getElementById('install-copy-btn');
-      btn.innerText = 'Copied!';
-      setTimeout(() => btn.innerText = 'Copy', 2000);
-    }
-
-    function updateSavings(val) {
-      document.getElementById('dev-count-label').innerText = val;
-      const annualDevinCost = val * (500 + 20 + 12) * 12;
-      document.getElementById('savings-amount').innerText = `$${annualDevinCost.toLocaleString()} / year`;
-    }
-
-    function switchCliTab(tab) {
-      playCyberClick(500, 0.03);
-      const tabs = document.querySelectorAll('.term-tab');
-      tabs.forEach(t => t.classList.remove('active'));
-      event.target.classList.add('active');
-      
-      const scripts = {
-        swarm: `
-          <p><span class="term-line-cyan">$ saleha doom "Build a real-time e-commerce order processing API with FastAPI and Redis"</span></p>
-          <p><span class="term-line-dim">[0.12s]</span> <span class="term-line-purple">🧠 PM Agent:</span> Synthesizing PRD and user story criteria...</p>
-          <p><span class="term-line-dim">[0.45s]</span> <span class="term-line-cyan">🔵 Architect Agent:</span> Generated ADR.md (Hexagonal Ports & Adapters, Redis Streams CDC)...</p>
-          <p><span class="term-line-dim">[1.20s]</span> <span class="term-line-green">🟢 SDE Lead:</span> Scaffolded 8 source files with async SQLAlchemy 2.0 models...</p>
-          <p><span class="term-line-dim">[1.85s]</span> <span class="term-line-purple">🛡️ Security Guard:</span> AST SAST audit passed (0 OWASP vulnerabilities, 0 hardcoded secrets)...</p>
-          <p><span class="term-line-dim">[2.30s]</span> <span class="term-line-yellow">🟡 QA Engineer:</span> Executed 14 unit & integration tests in Docker sandbox -> <strong>14/14 PASSED (100%)</strong></p>
-          <p><span class="term-line-green">✨ Delivery Complete! Total time: 2.30s | Cost: $0.00 (Local Ollama) | Status: 100% Verified</span></p>
-        `,
-        skills: `
-          <p><span class="term-line-cyan">$ saleha skill search "kubernetes deployment"</span></p>
-          <p><span class="term-line-dim">[0.001s]</span> <span class="term-line-green">🔍 Inverted Index Match Found 3 Skills:</span></p>
-          <p> 1. <span class="term-line-cyan">k8s-deployment-manifest</span> (containers_orchestration)</p>
-          <p> 2. <span class="term-line-cyan">bitbucket-pipelines-deployment-step</span> (ci_cd_automation)</p>
-          <p> 3. <span class="term-line-cyan">c4-container-deployment-diagram</span> (software_architecture)</p>
-        `,
-        mcp: `
-          <p><span class="term-line-cyan">$ saleha mcp serve</span></p>
-          <p><span class="term-line-green">🚀 Saleha Sovereign MCP JSON-RPC 2.0 Server Active!</span></p>
-          <p><span class="term-line-dim">[Transport]:</span> stdio / HTTP SSE (bidirectional)</p>
-        `,
-        security: `
-          <p><span class="term-line-cyan">$ saleha audit --target saleha/ --owasp</span></p>
-          <p><span class="term-line-green">✅ [Pass] No hardcoded credentials detected. AST SAST audit 100% clean.</span></p>
-        `
-      };
-      document.getElementById('term-output').innerHTML = scripts[tab] || '';
-    }
-
-    function switchPrFile() {
-      playCyberClick(600, 0.04);
-      const diff = document.getElementById('pr-diff-content');
-      diff.innerText = diff.innerText.includes('SELECT') ? 
-        `- response = requests.get(user_url)\n+ response = requests.get(user_url, timeout=5, verify=True)` :
-        `- query = f"SELECT * FROM users WHERE user='{username}'"\n+ query = "SELECT * FROM users WHERE user = :username"`;
-    }
-
-    function applyPrFix() {
-      playCyberClick(850, 0.06);
-      const status = document.getElementById('pr-fix-status');
-      status.style.display = 'block';
-      setTimeout(() => { status.style.display = 'none'; }, 4000);
-    }
+      frame();
+    })();
   </script>
 </body>
 </html>

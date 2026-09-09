@@ -452,6 +452,7 @@ from saleha.cli.commands import misc_tools  # noqa: F401
 from saleha.cli.commands import quality_security  # noqa: F401
 from saleha.cli.commands import research_experimental  # noqa: F401
 from saleha.cli.commands import sandbox_exec  # noqa: F401
+from saleha.cli.commands import scaffold  # noqa: F401
 from saleha.cli.commands import scheduler  # noqa: F401
 from saleha.cli.commands import self_improve  # noqa: F401
 from saleha.cli.commands import skill_group  # noqa: F401

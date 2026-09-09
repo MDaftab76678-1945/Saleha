@@ -15,6 +15,7 @@ import threading
 import unittest
 import urllib.request
 from http.server import HTTPServer
+from typing import Any, Dict
 
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
@@ -31,7 +32,7 @@ from saleha.core.native_compiler import native_compiler
 class FutureEnginesTests(unittest.TestCase):
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         web_server.set_auth_token("future-test-token")
         cls.token = "future-test-token"
         cls.server = HTTPServer(("127.0.0.1", 0), SalehaAPIHandler)
@@ -39,29 +40,34 @@ class FutureEnginesTests(unittest.TestCase):
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         cls.server.shutdown()
         cls.server.server_close()
 
-    def _post(self, path: str, payload: dict):
+    # Some routes (e.g. /api/native/compile) invoke a subprocess with its own
+    # 10s internal timeout server-side; the client timeout must exceed that
+    # or a genuinely-still-running compile reads as a client-side failure.
+    _HTTP_TIMEOUT = 15
+
+    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         req = urllib.request.Request(
             self.base + path,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json", "X-Saleha-Token": self.token},
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=self._HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
-    def _get(self, path: str):
+    def _get(self, path: str) -> Dict[str, Any]:
         req = urllib.request.Request(
             self.base + path,
             headers={"X-Saleha-Token": self.token},
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=self._HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     # --- Phase 1: Wasm & Visual Diff ---
-    def test_wasm_runner_manifest_and_worker(self):
+    def test_wasm_runner_manifest_and_worker(self) -> None:
         manifest = wasm_engine.generate_manifest(runtime="pyodide", packages=["numpy"])
         self.assertEqual(manifest.runtime, "pyodide")
         self.assertIn("numpy", manifest.packages)
@@ -72,7 +78,7 @@ class FutureEnginesTests(unittest.TestCase):
         data = self._post("/api/wasm/manifest", {"runtime": "pyodide"})
         self.assertEqual(data["runtime"], "pyodide")
 
-    def test_visual_diff_engine_comparison(self):
+    def test_visual_diff_engine_comparison(self) -> None:
         base = "<html><body><h1>Title</h1><button>Click</button></body></html>"
         curr = "<html><body><h1>Title</h1><button>Click</button></body></html>"
         res = visual_diff_engine.compare_layouts(base, curr)
@@ -83,7 +89,7 @@ class FutureEnginesTests(unittest.TestCase):
         self.assertTrue(data["is_match"])
 
     # --- Phase 2: P2P Swarm & WebGPU ---
-    def test_p2p_swarm_distributed_fuzzing(self):
+    def test_p2p_swarm_distributed_fuzzing(self) -> None:
         res = p2p_engine.distribute_mutation_fuzzing("def safe(): return 1", total_mutations=200)
         self.assertTrue(res.consensus_achieved)
         self.assertGreaterEqual(res.nodes_participating, 1)
@@ -91,7 +97,7 @@ class FutureEnginesTests(unittest.TestCase):
         data = self._post("/api/p2p/fuzz", {"code": "def run(): pass", "mutations": 100})
         self.assertTrue(data["consensus_achieved"])
 
-    def test_webgpu_hardware_acceleration(self):
+    def test_webgpu_hardware_acceleration(self) -> None:
         rep = webgpu_accelerator.detect_hardware()
         self.assertTrue(rep.webgpu_supported)
         self.assertGreaterEqual(rep.estimated_tokens_per_sec, 50)
@@ -103,7 +109,7 @@ class FutureEnginesTests(unittest.TestCase):
         self.assertTrue(data["webgpu_supported"])
 
     # --- Phase 3: Formal Verification & Spatial UI ---
-    def test_formal_lean4_verifier(self):
+    def test_formal_lean4_verifier(self) -> None:
         # This is an unverified Lean 4 scaffold, not a checked proof: no Lean
         # toolchain runs, so lean_verified must stay False and the guarantee
         # text must say so rather than claiming correctness.
@@ -118,7 +124,7 @@ class FutureEnginesTests(unittest.TestCase):
         self.assertFalse(data["lean_scaffold"]["lean_verified"])
         self.assertIn("smt_division_check", data)
 
-    def test_spatial_3d_coder(self):
+    def test_spatial_3d_coder(self) -> None:
         res = spatial_coder.synthesize_spatial_ui("3D Crypto Dashboard")
         self.assertTrue(res.webxr_ready)
         self.assertIn("Canvas", res.code)
@@ -127,7 +133,7 @@ class FutureEnginesTests(unittest.TestCase):
         self.assertTrue(data["webxr_ready"])
 
     # --- Phase 4: Post-Quantum Cryptography & Native Compiler ---
-    def test_post_quantum_cryptography_kyber(self):
+    def test_post_quantum_cryptography_kyber(self) -> None:
         kp = pqc_guard.generate_kyber_keypair()
         self.assertEqual(kp.algorithm, "CRYSTALS-Kyber-1024")
 
@@ -138,7 +144,7 @@ class FutureEnginesTests(unittest.TestCase):
         data = self._post("/api/pqc/encrypt", {"plaintext": "QuantumSafePassword"})
         self.assertIn("Kyber", data["algorithm"])
 
-    def test_native_binary_compiler(self):
+    def test_native_binary_compiler(self) -> None:
         c_code = "#include <stdio.h>\nint main() { printf(\"Saleha Native\"); return 0; }\n"
         res = native_compiler.compile_c_standalone(c_code, binary_name="test_native_app")
         self.assertTrue(res.success)

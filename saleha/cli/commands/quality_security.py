@@ -376,7 +376,7 @@ def emergence_check_cmd(clear):
 def merkle_audit_cmd():
     """
     Verify tamper-proof cryptographic Merkle tree audit provenance.
-    
+
     Example: saleha merkle-audit
     """
     from saleha.core.merkle_provenance import merkle_provenance_ledger
@@ -384,18 +384,134 @@ def merkle_audit_cmd():
     col = 'green' if ok else 'red'
     console.print(Panel(f'[bold {col}]🌳 Cryptographic Merkle Audit Trail[/bold {col}]\n{msg}', border_style=col))
 
+@cli.command(name='merkle-leaves')
+@click.option('--limit', default=20, type=int, help='Max leaves to show, most recent first (default: 20, 0 = all)')
+@click.option('--json', 'as_json', is_flag=True, help='Output as JSON instead of a table')
+def merkle_leaves_cmd(limit: int, as_json: bool):
+    """
+    List the individual audit leaves recorded in the Merkle provenance ledger.
+
+    `saleha merkle-audit` only reports whether the chain is valid; this shows
+    what is actually in it -- one row per stage swarm_pipeline_engine.py
+    recorded (agent, action type, timestamp, and the leaf's own hash).
+
+    IMPORTANT: the ledger is an in-memory singleton, not persisted to disk.
+    It only has leaves from swarm runs executed in THIS process. Running
+    `saleha team "..."` or `saleha solve-issue "..."` in one terminal and
+    then `saleha merkle-leaves` in another will show an empty ledger --
+    that is not a bug, it is what "in-memory" means. To see leaves, run a
+    swarm command and this command in the same process (e.g. via the REPL,
+    `saleha chat`, where state persists across commands within one session)
+    or add a caller that pipes both into one script.
+
+    Example: saleha merkle-leaves --limit 5
+    """
+    import json as json_mod
+    from datetime import datetime, timezone
+    from saleha.core.merkle_provenance import merkle_provenance_ledger
+
+    leaves = merkle_provenance_ledger.leaves
+    if not leaves:
+        if as_json:
+            click.echo(json_mod.dumps({'leaf_count': 0, 'leaves': []}))
+        else:
+            console.print(Panel(
+                '[yellow]Ledger is empty in this process.[/yellow]\n'
+                '[dim]No swarm stage has been recorded here yet -- this is a fresh '
+                'process, or nothing has called execute_swarm() since it started. '
+                'Run a swarm command (e.g. `saleha team "..."`) first, in the same '
+                'process if you want this command to see it.[/dim]',
+                title='[bold]Merkle Audit Leaves[/bold]', border_style='yellow'
+            ))
+        return
+
+    shown = leaves if limit <= 0 else leaves[-limit:]
+    root = merkle_provenance_ledger.get_merkle_root()
+
+    if as_json:
+        click.echo(json_mod.dumps({
+            'leaf_count': len(leaves),
+            'shown_count': len(shown),
+            'root_hash': root,
+            'leaves': [
+                {
+                    'leaf_index': l.leaf_index,
+                    'action_type': l.action_type,
+                    'agent_id': l.agent_id,
+                    'timestamp': l.timestamp,
+                    'payload_hash': l.payload_hash,
+                    'leaf_hash': l.leaf_hash,
+                }
+                for l in shown
+            ],
+        }, ensure_ascii=True))
+        return
+
+    table = Table(title=f'🌳 Merkle Audit Leaves ({len(shown)} of {len(leaves)} shown, most recent last)',
+                  border_style='cyan')
+    table.add_column('#', justify='right', style='dim')
+    table.add_column('Time', style='dim')
+    table.add_column('Agent', style='bold cyan')
+    table.add_column('Action', style='yellow')
+    table.add_column('Leaf Hash', style='green')
+    for l in shown:
+        ts = datetime.fromtimestamp(l.timestamp, tz=timezone.utc).strftime('%H:%M:%S')
+        table.add_row(str(l.leaf_index), ts, l.agent_id, l.action_type, l.leaf_hash[:16] + '...')
+    console.print(table)
+    console.print(f'[dim]Root hash: {root[:32]}...[/dim]')
+    if limit > 0 and len(leaves) > limit:
+        console.print(f'[dim]{len(leaves) - limit} older leaf(ves) not shown -- raise --limit or pass --limit 0 for all.[/dim]')
+
 @cli.command(name='quadratic-vote')
-def quadratic_vote_cmd():
+@click.argument('title', required=True)
+@click.option('--proposer', default='cli-user', help='Who is proposing this (agent name or your own)')
+@click.option('--threshold', default=5, type=int, help='Net votes required to approve (default: 5)')
+@click.option('--vote', 'votes', multiple=True, required=True,
+              help='One voter and their vote count as agent:count, e.g. --vote CoderAgent:3. '
+                   'Repeat --vote for each voter. Negative counts (e.g. SecurityAgent:-2) oppose.')
+def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple):
     """
-    Quadratic Voting & VCG Swarm Consensus Status.
-    
-    Example: saleha quadratic-vote
+    Quadratic Voting & VCG consensus on a real proposal you supply.
+
+    This used to replay one fixed hardcoded scenario (same proposal, same
+    two votes) on every run -- the underlying engine's math is real, but
+    nothing fed it a real proposal or real votes. Now takes both from the
+    command line: this is a standalone voting calculator, not something
+    wired to observe an actual swarm's internal deliberation (no code in
+    this project generates proposals or casts votes on its own).
+
+    Example: saleha quadratic-vote "Adopt async event sourcing" \\
+        --vote CoderAgent:3 --vote SecurityAgent:2 --vote ReviewerAgent:-1
     """
-    from saleha.core.quadratic_voting import quadratic_voting_engine
-    p = quadratic_voting_engine.create_proposal('ARCH_V2', 'Enable Asynchronous Event Sourcing', 'ArchitectAgent')
-    quadratic_voting_engine.cast_vote('CoderAgent', 'ARCH_V2', 3)
-    quadratic_voting_engine.cast_vote('SecurityAgent', 'ARCH_V2', 2)
-    rep = quadratic_voting_engine.tally_proposal('ARCH_V2')
+    from saleha.core.quadratic_voting import QuadraticVotingEngine
+
+    parsed: list[tuple[str, int]] = []
+    for raw in votes:
+        agent, _, count_str = raw.partition(':')
+        if not _ or not agent.strip():
+            console.print(f"[bold red]Invalid --vote '{raw}' -- expected agent:count, e.g. CoderAgent:3[/bold red]")
+            raise click.exceptions.Exit(1)
+        try:
+            count = int(count_str)
+        except ValueError:
+            console.print(f"[bold red]Invalid vote count in '{raw}' -- '{count_str}' is not an integer[/bold red]")
+            raise click.exceptions.Exit(1)
+        parsed.append((agent.strip(), count))
+
+    engine = QuadraticVotingEngine(approval_threshold=threshold)
+    proposal_id = 'CLI_PROPOSAL'
+    engine.create_proposal(proposal_id, title, proposer)
+    for agent, count in parsed:
+        engine.cast_vote(agent, proposal_id, count)
+    rep = engine.tally_proposal(proposal_id)
+
+    table = Table(title='Ballots Cast', border_style='magenta')
+    table.add_column('Agent', style='bold cyan')
+    table.add_column('Votes', justify='right')
+    table.add_column('Credit Cost', justify='right', style='dim')
+    for agent, count in parsed:
+        table.add_row(agent, str(count), str(count ** 2))
+    console.print(table)
     console.print(Panel(f'[bold magenta]🗳️ Quadratic Voting & VCG Allocation[/bold magenta]\n{rep.summary}', border_style='magenta'))
 
 

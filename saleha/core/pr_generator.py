@@ -56,11 +56,29 @@ class PRGenerator:
 
     def _generate_pr_markdown(self, goal: str, branch_name: str,
                               commit_title: str, team_res: TeamResult) -> str:
+        # Both badges used to be hardcoded "Verified (100%)" / "Security Audit
+        # Passed" regardless of team_res.success or what the security stage
+        # actually found -- a PR whose tests failed, or whose code was
+        # blocked at the security gate, still displayed a green "100%
+        # verified" badge at the top. Both now read the real result.
+        status_badge = (
+            "[![Status: Verified](https://img.shields.io/badge/Status-Verified-brightgreen.svg)]()"
+            if team_res.success else
+            "[![Status: Needs Review](https://img.shields.io/badge/Status-Needs%20Review-red.svg)]()"
+        )
+        security_upper = (team_res.security_report or "")[:400].upper()
+        if "VULNERABLE" in security_upper:
+            security_badge = "[![Security: Vulnerable](https://img.shields.io/badge/Security-Vulnerable-red.svg)]()"
+        elif "WARNINGS" in security_upper:
+            security_badge = "[![Security: Warnings](https://img.shields.io/badge/Security-Warnings-yellow.svg)]()"
+        else:
+            security_badge = "[![Security: Approved](https://img.shields.io/badge/Security-Audit%20Passed-green.svg)]()"
+
         return f"""# 🚀 Pull Request: {goal}
 
 [![Type: Feature](https://img.shields.io/badge/Type-Feature-blue.svg)]()
-[![Status: Verified](https://img.shields.io/badge/Status-Verified%20(100%25)-brightgreen.svg)]()
-[![Security: Approved](https://img.shields.io/badge/Security-Audit%20Passed-green.svg)]()
+{status_badge}
+{security_badge}
 [![Agent: Saleha Swarm](https://img.shields.io/badge/Orchestrator-Saleha%20AI-purple.svg)]()
 
 ## 📌 Executive Summary
@@ -99,7 +117,11 @@ This Pull Request autonomously implements and verifies **{goal}** using Saleha's
 - **Healing Cycles**: `{team_res.attempts}`
 - **Execution Log**:
 ```text
-{team_res.execution_output or 'All unit tests passed successfully.'}
+{team_res.execution_output or (
+    '(no stdout captured -- tests produced no output; '
+    'see Status above for pass/fail)' if team_res.success else
+    (team_res.execution_error or '(no output and no error captured)')
+)}
 ```
 
 ---

@@ -103,14 +103,27 @@ def voice_live_cmd(speak):
 
 @cli.command('design-vision')
 @click.argument('prompt_or_path')
-def design_vision_cli_cmd(prompt_or_path: str):
-    """Synthesize Vanilla CSS and React JSX from UI wireframes and visual prompts."""
+def design_vision_cli_cmd(prompt_or_path: str) -> None:
+    """Generate React JSX and vanilla CSS from a textual UI description.
+
+    The layout family (auth form, dashboard, pricing, article, settings,
+    landing) is inferred from the prompt and drives the component set and
+    palette. JSX/CSS come from the model when it is reachable; otherwise a
+    layout-specific template is returned and labelled as a fallback. There
+    is no image parsing -- a path is used as its filename text only.
+    """
     from saleha.agents.vision_designer import vision_designer
-    console.print(f'\n[bold cyan]🎨 Vision Designer Agent — Synthesizing:[/] [yellow]"{prompt_or_path}"[/]\n')
+    console.print(f'\n[bold cyan]Vision Designer -- synthesizing:[/] [yellow]"{prompt_or_path}"[/]\n')
     spec = vision_designer.synthesize_from_wireframe(prompt_or_path)
-    console.print(f'[bold green]✨ Synthesized {spec.layout_type} in {spec.generation_time_ms}ms![/bold green]')
-    console.print(f"  • Components Generated : {', '.join(spec.components)}")
-    console.print(f"  • Color Palette Tokens : {', '.join(spec.color_palette[:4])}\n")
-    console.print(Panel(spec.jsx_component, title='[bold cyan]⚡ Generated React JSX[/]', border_style='cyan'))
-    console.print(Panel(spec.css_styles, title='[bold magenta]🎨 Generated Vanilla CSS[/]', border_style='magenta'))
+    source = 'model' if spec.used_model else 'template fallback (model unavailable)'
+    console.print(f'[bold green]Synthesized {spec.layout_type} in {spec.generation_time_ms}ms[/bold green] '
+                  f'[dim]via {source}[/dim]')
+    console.print(f"  Components   : {', '.join(spec.components)}")
+    console.print(f"  Palette      : {', '.join(spec.color_palette[:4])}")
+    if spec.used_model:
+        console.print(f"  Model tokens : {spec.total_tokens_generated}\n")
+    else:
+        console.print()
+    console.print(Panel(spec.jsx_component, title='[bold cyan]React JSX[/]', border_style='cyan'))
+    console.print(Panel(spec.css_styles, title='[bold magenta]Vanilla CSS[/]', border_style='magenta'))
 

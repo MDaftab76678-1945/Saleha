@@ -31,7 +31,11 @@ class PolyglotOrchestratorIntegrationTests(unittest.TestCase):
         self.assertEqual(res.backend, "polyglot")
 
         if shutil.which("node"):
-            self.assertTrue(res.success)
+            self.assertTrue(
+                res.success,
+                f"node execution failed: exit_code={res.exit_code!r} "
+                f"error={res.error!r} output={res.output!r}",
+            )
             self.assertIn("polyglot-js-ok", res.output)
             self.assertEqual(res.exit_code, 0)
         else:

@@ -56,7 +56,10 @@ dev = [
     "pytest-asyncio>=0.21.0",
     # Reference implementation for cyclomatic complexity. test_mech_interp.py
     # cross-checks our own counter against it; without radon that test skips.
-    "radon>=6.0.0"
+    "radon>=6.0.0",
+    # Cross-file repo graph. Without it, the 8 real-graph tests in
+    # test_repo_graph.py skip (the discovery tests still run).
+    "graphifyy>=0.9.55"
 ]
 all = [
     "playwright>=1.35.0",

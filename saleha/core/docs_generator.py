@@ -1,17 +1,17 @@
 """
-Saleha Core: Automated Static Documentation Site Generator
+Saleha Core: Static Documentation Site Generator
 
-Scans core architecture modules, agent personas, and CLI commands to synthesize
-a responsive, searchable, dark-mode static HTML documentation portal.
+Renders a single dark-mode HTML page: a fixed Quick Start section plus one
+card per registered agent persona (read live from the profile registry).
+It does not scan modules or CLI commands -- the Quick Start cards are a
+curated list.
 """
 
 from __future__ import annotations
 
 import os
-import ast
-import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry

@@ -30,13 +30,13 @@ from saleha import __version__
 
 @cli.command(name='jarvis')
 @click.pass_context
-def jarvis_cmd(ctx):
+def jarvis_cmd(ctx) -> None:
     """Alias for 'saleha voice' assistant mode."""
     ctx.forward(voice_cmd)
 
 @cli.command(name='cognitive')
 @click.argument('path', required=True)
-def cognitive_cmd(path: str):
+def cognitive_cmd(path: str) -> None:
     """
     4D Cognitive State & Ethics Analysis (Temporal, Spatial, Ethical, Reasoning).
     
@@ -62,7 +62,7 @@ def cognitive_cmd(path: str):
     console.print(table)
 
 @cli.command(name='ledger')
-def ledger_cmd():
+def ledger_cmd() -> None:
     """
     Inspect the Double-Entry Token Economics & ROI Ledger.
     
@@ -84,7 +84,7 @@ def ledger_cmd():
 
 @cli.command(name='optimize-prompts')
 @click.option('--role', default='CoderAgent', help='Agent role to optimize')
-def optimize_prompts_cmd(role: str):
+def optimize_prompts_cmd(role: str) -> None:
     """
     Auto-Curriculum & Prompt Self-Optimizer (DSPy/OPRO style).
     
@@ -112,22 +112,52 @@ def optimize_prompts_cmd(role: str):
 
 @cli.command(name='design-model')
 @click.argument('name', default='SalehaTransformer')
-def design_model_cmd(name: str):
+@click.option('--d-model', 'd_model', default=512, show_default=True, help='Hidden dimension')
+@click.option('--layers', 'n_layers', default=6, show_default=True, help='Number of transformer blocks')
+@click.option('--heads', 'n_heads', default=8, show_default=True, help='Number of attention heads')
+@click.option('--vocab', 'vocab_size', default=32000, show_default=True, help='Vocabulary size')
+@click.option('--seq-len', 'max_seq_len', default=2048, show_default=True, help='Max sequence length')
+@click.option('--show-code', is_flag=True, help='Also print the generated PyTorch module')
+def design_model_cmd(name: str, d_model: int, n_layers: int, n_heads: int,
+                     vocab_size: int, max_seq_len: int, show_code: bool) -> None:
     """
-    Synthesize custom PyTorch / ONNX Neural Transformer architectures.
-    
-    Example: saleha design-model SalehaLLM
+    Synthesize a PyTorch Transformer architecture and report its real
+    parameter count, FP16 size, per-token FLOPs and inference VRAM.
+
+    The metrics are computed from the dimensions you pass, not templated:
+      saleha design-model Small --d-model 256 --layers 4
+      saleha design-model Large --d-model 4096 --layers 32 --heads 32
     """
+    if d_model % n_heads != 0:
+        console.print(f'[red]--d-model ({d_model}) must be divisible by --heads ({n_heads}).[/red]')
+        raise SystemExit(1)
+
     from saleha.core.neural_designer import neural_designer, NeuralArchitectureSpec
-    spec = NeuralArchitectureSpec(model_name=name)
+    spec = NeuralArchitectureSpec(
+        model_name=name,
+        d_model=d_model,
+        n_heads=n_heads,
+        n_layers=n_layers,
+        vocab_size=vocab_size,
+        max_seq_len=max_seq_len,
+    )
     rep = neural_designer.design_transformer(spec)
-    console.print(Panel(f'[bold cyan]🧠 Neural Architecture Designer: {name}[/bold cyan]\n{rep.summary}', border_style='cyan'))
+    body = (
+        f'{rep.summary}\n'
+        f'Parameters      : {rep.total_parameters:,}\n'
+        f'Size (FP16)     : {rep.param_size_mb} MB\n'
+        f'FLOPs / token   : {rep.estimated_flops_per_token:,}\n'
+        f'VRAM (inference): {rep.estimated_vram_fp16_mb} MB'
+    )
+    console.print(Panel(f'[bold cyan]Neural Architecture Designer: {name}[/bold cyan]\n{body}', border_style='cyan'))
+    if show_code:
+        console.print(Panel(rep.pytorch_code, title='[bold cyan]Generated PyTorch module[/]', border_style='cyan'))
 
 @cli.command(name='generate-app')
 @click.argument('name', default='SalehaApp')
 @click.option('--desc', default='Dynamic HTMX Application', help='App description')
 @click.option('--out', default='apps/generated_app', help='Output directory')
-def generate_app_cmd(name: str, desc: str, out: str):
+def generate_app_cmd(name: str, desc: str, out: str) -> None:
     """
     Synthesize Zero-JS HTMX + Python dynamic web application.
     
@@ -140,7 +170,7 @@ def generate_app_cmd(name: str, desc: str, out: str):
 
 @cli.command(name='quantum-sim')
 @click.option('--gates', default='H,X,H', help='Comma-separated quantum gates (e.g. H,X,H)')
-def quantum_sim_cmd(gates: str):
+def quantum_sim_cmd(gates: str) -> None:
     """
     Simulate a single-qubit circuit: apply gates to |0>, measure under the
     Born rule, report the outcome distribution and entropy.
@@ -162,7 +192,7 @@ def quantum_sim_cmd(gates: str):
 @cli.command(name='search-code')
 @click.argument('query', required=True)
 @click.option('--path', default='saleha', help='Path to search (default: saleha)')
-def search_code_cmd(query: str, path: str):
+def search_code_cmd(query: str, path: str) -> None:
     """
     Sub-millisecond Zero-Latency Local Code Search.
     
@@ -177,7 +207,7 @@ def search_code_cmd(query: str, path: str):
 
 @cli.command(name='causal-eval')
 @click.option('--target', default='latency_ms', help='Target outcome metric (e.g. latency_ms, defect_rate, throughput_rps)')
-def causal_eval_cmd(target: str):
+def causal_eval_cmd(target: str) -> None:
     """
     Query a small structural causal model of software-engineering variables.
 
@@ -197,7 +227,7 @@ def causal_eval_cmd(target: str):
 
 @cli.command(name='explain-code')
 @click.argument('path', required=True)
-def explain_code_cmd(path: str):
+def explain_code_cmd(path: str) -> None:
     """
     Explain the structure of a Python file: error handling, type contracts,
     control flow, resource management, and per-function complexity.

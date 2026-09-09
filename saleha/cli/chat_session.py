@@ -21,7 +21,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-from saleha.core.smart_router import smart_router
+from saleha.agents.base_agent import BaseAgent
 from saleha.core.swarm_pipeline_engine import swarm_engine
 from saleha.agents.issue_resolver import issue_resolver
 from saleha.agents.vision_designer import vision_designer
@@ -53,12 +53,21 @@ from saleha.tools.release_manager import release_manager
 class SwarmChatSession:
     """Terminal interactive chat playground for Saleha AI."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None) -> None:
         self.console = console or Console()
         self.history: List[Dict[str, str]] = []
         self.active_role: str = "Assistant"
+        self._chat_agent: Optional[BaseAgent] = None
 
-    def render_welcome(self):
+    def _get_chat_agent(self) -> BaseAgent:
+        """Lazily builds the conversational agent used for plain chat turns."""
+        if self._chat_agent is None:
+            self._chat_agent = BaseAgent(
+                role="Saleha pair-programming assistant", model="auto"
+            )
+        return self._chat_agent
+
+    def render_welcome(self) -> None:
         """Renders welcome banner and slash command cheat-sheet."""
         self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v3.2.0 Frontier[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
@@ -267,7 +276,7 @@ class SwarmChatSession:
         self._generate_turn_response(cmd)
         return True
 
-    def _render_agents_list(self):
+    def _render_agents_list(self) -> None:
         table = Table(title="🤖 Saleha 19 First-Class Python Agents", border_style="cyan")
         table.add_column("Icon", width=4)
         table.add_column("Agent Name", style="bold cyan")
@@ -301,7 +310,7 @@ class SwarmChatSession:
         self.console.print(table)
         self.console.print()
 
-    def _execute_swarm_command(self, goal: str):
+    def _execute_swarm_command(self, goal: str) -> None:
         self.console.print(f"\n[bold cyan]🚀 Triggering Autonomous Swarm DAG:[/] [yellow]\"{goal}\"[/]")
         res = swarm_engine.execute_swarm(goal)
         self.console.print(f"[bold green]✨ Swarm Completed in {res.total_duration_ms}ms ({len(res.stages)} stages)![/bold green]")
@@ -309,20 +318,25 @@ class SwarmChatSession:
             self.console.print(Syntax(res.final_code[:500], "python", theme="monokai", line_numbers=True))
         self.console.print()
 
-    def _execute_solve_command(self, issue_desc: str):
+    def _execute_solve_command(self, issue_desc: str) -> None:
         self.console.print(f"\n[bold cyan]🐙 Resolving Issue:[/] [yellow]\"{issue_desc}\"[/]")
         plan = issue_resolver.resolve_issue(issue_desc)
         self.console.print(Panel(plan.pr_body_markdown, title="[bold green]📦 Generated GitHub PR[/]", border_style="green"))
         self.console.print()
 
-    def _execute_vision_command(self, prompt: str):
-        self.console.print(f"\n[bold cyan]🎨 Synthesizing UI Wireframe:[/] [yellow]\"{prompt}\"[/]")
+    def _execute_vision_command(self, prompt: str) -> None:
+        self.console.print(f"\n[bold cyan]Synthesizing UI:[/] [yellow]\"{prompt}\"[/]")
         spec = vision_designer.synthesize_layout(prompt)
-        self.console.print(f"[bold green]✨ Synthesized in {spec.generation_time_ms}ms ({spec.total_tokens_generated} tokens)![/bold green]\n")
+        source = "model" if spec.used_model else "template fallback (model unavailable)"
+        detail = f" ({spec.total_tokens_generated} tokens)" if spec.used_model else ""
+        self.console.print(
+            f"[bold green]{spec.layout_type} synthesized in {spec.generation_time_ms}ms[/bold green] "
+            f"[dim]via {source}{detail}[/dim]\n"
+        )
         self.console.print(Panel(spec.react_jsx[:700] + "\n...", title="[bold cyan]React JSX Component[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_container_command(self, code: str):
+    def _execute_container_command(self, code: str) -> None:
         self.console.print(f"\n[bold cyan]🐳 Ephemeral Container Sandbox Executing...[/bold cyan]")
         res = container_runner.run_code(code)
         color = "green" if res.success else "red"
@@ -333,7 +347,7 @@ class SwarmChatSession:
             self.console.print(Panel(res.error, title="[bold red]Stderr Diagnostic[/]", border_style="red"))
         self.console.print()
 
-    def _execute_notebook_command(self, topic: str):
+    def _execute_notebook_command(self, topic: str) -> None:
         self.console.print(f"\n[bold cyan]📓 Autonomous Notebook Engine — Structuring:[/] [yellow]\"{topic}\"[/]")
         result = notebook_architect.synthesize_notebook(topic)
         self.console.print(f"[bold green]✨ Synthesized {result.cell_count} Reactive Cells in {result.generation_time_ms}ms (Jupyter .ipynb v4.5)![/bold green]\n")
@@ -347,18 +361,18 @@ class SwarmChatSession:
                 self.console.print(Markdown(cell.source))
         self.console.print()
 
-    def _execute_dataset_command(self, path: str):
+    def _execute_dataset_command(self, path: str) -> None:
         self.console.print(f"\n[bold cyan]📊 Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
         count = dataset_synthesizer.synthesize_dataset(output_path=path, sample_count=50)
         self.console.print(f"[bold green]✨ Successfully Synthesized {count} Verified Samples -> [yellow]{path}[/yellow]![/bold green]\n")
 
-    def _execute_lora_config_command(self):
+    def _execute_lora_config_command(self) -> None:
         self.console.print(f"\n[bold cyan]⚙️ Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
         model_distillation_pipeline.generate_lora_training_yaml("configs/lora_training_config.yaml")
         model_distillation_pipeline.generate_training_script("scripts/train_lora_slm.py")
         self.console.print("[bold green]✨ Exported `configs/lora_training_config.yaml` & `scripts/train_lora_slm.py`![/bold green]\n")
 
-    def _execute_score_code_command(self, code: str):
+    def _execute_score_code_command(self, code: str) -> None:
         self.console.print(f"\n[bold cyan]🧬 Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
         score = neuro_symbolic_engine.score_code(code)
         color = "green" if score.composite_score >= 0.8 else "yellow" if score.composite_score >= 0.5 else "red"
@@ -370,7 +384,7 @@ class SwarmChatSession:
         self.console.print(Panel("\n".join(f"- {n}" for n in score.feedback_notes), title="[bold cyan]RLIF Diagnostic Feedback[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_mcp_command(self, sub: str):
+    def _execute_mcp_command(self, sub: str) -> None:
         tools = saleha_mcp_server.list_tools()
         self.console.print(f"\n[bold cyan]🔌 Universal Model Context Protocol (MCP) Server Active v{saleha_mcp_server.version}[/bold cyan]")
         self.console.print(f"[bold green]✨ Exposing {len(tools)} Standard MCP Tools to Cursor, VS Code & Claude Desktop:[/bold green]\n")
@@ -378,7 +392,7 @@ class SwarmChatSession:
             self.console.print(f"- [cyan]{t['name']}[/cyan]: [white]{t['description']}[/white]")
         self.console.print()
 
-    def _execute_screen_inspect_command(self, ui_desc: str):
+    def _execute_screen_inspect_command(self, ui_desc: str) -> None:
         self.console.print(f"\n[bold cyan]👁️ Screen Copilot Inspecting Visual Layout for:[/] [yellow]\"{ui_desc}\"[/]")
         result = screen_copilot.inspect_screen_and_fix(ui_desc)
         self.console.print(f"[bold green]✨ Visual Inspection Complete in {result.inspection_time_ms}ms (WCAG AA: PASS)![/bold green]\n")
@@ -387,7 +401,7 @@ class SwarmChatSession:
         self.console.print(Panel(result.remediation_code_diff, title="[bold cyan]Remediated React JSX & Responsive CSS[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_cluster_command(self, sub: str):
+    def _execute_cluster_command(self, sub: str) -> None:
         status = swarm_cluster.get_cluster_status()
         self.console.print(f"\n[bold cyan]🐝 Decentralized P2P Swarm Cluster Status[/bold cyan]")
         self.console.print(f"- Local Node ID : [cyan]{status['local_node_id']}[/cyan]")
@@ -397,7 +411,7 @@ class SwarmChatSession:
             self.console.print(f"  ● [cyan]{p['node_id']}[/cyan] ({p['ip']}) - [green]{p['status'].upper()}[/green] ({p['cores']} cores, {p['ram']})")
         self.console.print()
 
-    def _execute_chaos_command(self, target: str):
+    def _execute_chaos_command(self, target: str) -> None:
         self.console.print(f"\n[bold cyan]💥 Chaos Resilience Fault Injection Running on:[/] [yellow]\"{target}\"[/]")
         result = chaos_resilience.run_chaos_test(target)
         self.console.print(f"[bold green]✨ Chaos Experiment Complete in {result.experiment_duration_ms}ms (Resilience Score: {result.resilience_score_pct}%)![/bold green]\n")
@@ -406,7 +420,7 @@ class SwarmChatSession:
         self.console.print(Panel(result.circuit_breaker_patch, title="[bold cyan]Synthesized Autonomous Circuit Breaker[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_autopr_command(self, task: str):
+    def _execute_autopr_command(self, task: str) -> None:
         self.console.print(f"\n[bold cyan]🤖 Preparing PR from repository state: [yellow]\"{task}\"[/yellow][/bold cyan]")
         result = repo_orchestrator.execute_auto_pr(task)
 
@@ -431,32 +445,32 @@ class SwarmChatSession:
         self.console.print(Panel(result.pr_markdown_body[:1000] + "\n...", title="[bold cyan]Prepared Pull Request[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_voice_command(self, topic: str):
+    def _execute_voice_command(self, topic: str) -> None:
         self.console.print(f"\n[bold cyan]🎙️ Voice Architect Synthesizing Real-Time Spoken Audio Commentary for: [yellow]\"{topic}\"[/yellow][/bold cyan]")
         result = voice_architect.synthesize_voice_commentary(topic)
         self.console.print(f"[bold green]✨ Spoken Audio Commentary Synthesized ({result.audio_duration_estimate_sec}s spoken duration, {result.generation_time_ms}ms)![/bold green]")
         self.console.print(Panel(f"🗣️ [italic]\"{result.transcript}\"[/italic]", title="[bold magenta]Spoken Pair-Programming Transcript[/]", border_style="magenta"))
         self.console.print()
 
-    def _execute_local_model_command(self, model_name: str):
+    def _execute_local_model_command(self, model_name: str) -> None:
         local_inference_engine.set_active_model(model_name)
         self.console.print(f"\n[bold green]⚡ Active Local GGUF / Ollama Model switched to: [yellow]{model_name}[/yellow][/bold green]\n")
 
-    def _execute_research_command(self, topic: str):
+    def _execute_research_command(self, topic: str) -> None:
         self.console.print(f"\n[bold cyan]🔬 Autonomous Deep Research — Scanning Sources for:[/] [yellow]\"{topic}\"[/]")
         report = deep_researcher.conduct_research(topic)
         self.console.print(f"[bold green]✨ Research Synthesized in {report.generation_time_ms}ms ({len(report.citations)} citations, {len(report.key_findings)} findings)![/bold green]\n")
         self.console.print(Panel(report.full_markdown_report[:1200] + "\n...", title="[bold cyan]Deep Research Whitepaper[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_slides_command(self, topic: str):
+    def _execute_slides_command(self, topic: str) -> None:
         self.console.print(f"\n[bold cyan]📊 Synthesizing Presentation Deck:[/] [yellow]\"{topic}\"[/]")
         deck = slides_architect.synthesize_deck(topic)
         self.console.print(f"[bold green]✨ Synthesized {len(deck.slides)} Slides in {deck.generation_time_ms}ms![/bold green]\n")
         self.console.print(Panel(deck.marp_markdown[:900] + "\n...", title="[bold cyan]Marp Markdown Slides[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_sheet_command(self, query: str):
+    def _execute_sheet_command(self, query: str) -> None:
         self.console.print(f"\n[bold cyan]📈 Tabular Columnar Analytics — Processing:[/] [yellow]\"{query}\"[/]")
         res = sheets_analyst.analyze_tabular_query(query)
         self.console.print(f"[bold green]✨ Processed {res.total_rows} Rows ({len(res.columns)} Columns, {len(res.anomalies)} Anomalies) in {res.execution_time_ms}ms![/bold green]\n")
@@ -465,19 +479,19 @@ class SwarmChatSession:
             self.console.print(Panel(f"🚨 [bold red]Detected {len(res.anomalies)} Anomaly Outliers:[/bold red]\n" + "\n".join(f"- {a.column} (Row {a.row_index}): {a.reason}" for a in res.anomalies), title="[bold red]Anomaly Alert[/]", border_style="red"))
         self.console.print()
 
-    def _execute_claw_command(self, target: str):
+    def _execute_claw_command(self, target: str) -> None:
         self.console.print(f"\n[bold cyan]🦅 Sovereign Claw Web Agent Navigating:[/] [yellow]\"{target}\"[/]")
         res = browser_claw.crawl_and_extract(target)
         self.console.print(f"[bold green]✨ Crawled {res.dom_elements_scanned} DOM Nodes in {res.execution_time_ms}ms (HTTP {res.http_status})![/bold green]\n")
         self.console.print(Panel(str(res.extracted_data), title="[bold cyan]Extracted Structured JSON[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_schedule_command(self, cron: str, goal: str):
+    def _execute_schedule_command(self, cron: str, goal: str) -> None:
         self.console.print(f"\n[bold cyan]⏰ Registering Background Cron Task:[/] [yellow]\"{cron}\"[/] -> [green]\"{goal}\"[/]")
         task = task_scheduler.register_task(cron, goal)
         self.console.print(f"[bold green]✨ Task Registered Successfully (Task ID: {task.task_id})![/bold green]\n")
 
-    def _execute_tasks_command(self):
+    def _execute_tasks_command(self) -> None:
         self.console.print(f"\n[bold cyan]⏰ Registered Background Cron Tasks:[/bold cyan]\n")
         tasks = task_scheduler.list_tasks()
         table = Table(title="Scheduled Background Tasks", border_style="cyan")
@@ -491,14 +505,14 @@ class SwarmChatSession:
         self.console.print(table)
         self.console.print()
 
-    def _execute_docgen_command(self, target_dir: str):
+    def _execute_docgen_command(self, target_dir: str) -> None:
         self.console.print(f"\n[bold cyan]📚 Autonomous Doc Generator — Scanning:[/] [yellow]{target_dir}[/]")
         spec = doc_generator.scan_and_generate_docs(target_dir)
         self.console.print(f"[bold green]✨ Synthesized in {spec.generation_time_ms}ms ({len(spec.modules_found)} modules, {spec.total_classes} classes)![/bold green]\n")
         self.console.print(Panel(spec.full_doc_markdown[:1000] + "\n...", title="[bold cyan]Architecture Reference[/]", border_style="cyan"))
         self.console.print()
 
-    def _execute_release_command(self):
+    def _execute_release_command(self) -> None:
         self.console.print(f"\n[bold cyan]📦 Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n")
         report = release_manager.check_release_readiness()
         table = Table(title=f"Release Pre-Flight Report (v{report.version})", border_style="green" if report.success else "red")
@@ -510,12 +524,12 @@ class SwarmChatSession:
         self.console.print(table)
         self.console.print()
 
-    def _execute_resume_command(self, exec_id: str):
+    def _execute_resume_command(self, exec_id: str) -> None:
         self.console.print(f"\n[bold cyan]🔄 Resuming Execution ID:[/] [yellow]{exec_id}[/]")
         res = swarm_engine.resume_swarm(exec_id)
         self.console.print(f"[bold green]✨ Resumed successfully ({len(res.stages)} stages, {res.total_duration_ms}ms)![/bold green]\n")
 
-    def _execute_mcts_command(self, prompt: str):
+    def _execute_mcts_command(self, prompt: str) -> None:
         self.console.print(f"\n[bold cyan]🌲 Test-Time MCTS Reasoning Search:[/] [yellow]{prompt}[/]")
         res = mcts_search_engine.search(prompt)
         status_color = "green" if res.verified_clean else "yellow"
@@ -523,14 +537,14 @@ class SwarmChatSession:
         self.console.print(Syntax(res.winner_code, "python", theme="monokai", line_numbers=True))
         self.console.print()
 
-    def _execute_speculative_command(self, prompt: str):
+    def _execute_speculative_command(self, prompt: str) -> None:
         self.console.print(f"\n[bold cyan]⚡ Dual-Engine Speculative Accelerator:[/] [yellow]{prompt}[/]")
         code, metrics = speculative_accelerator.generate(prompt)
         self.console.print(f"[bold green]✨ Accelerated at {metrics.effective_tokens_per_sec} tok/s ({metrics.dual_engine_speedup}x Speedup, {metrics.acceptance_rate_pct}% Acceptance)![/bold green]\n")
         self.console.print(Syntax(code, "python", theme="monokai", line_numbers=True))
         self.console.print()
 
-    def _execute_swe_fix_command(self, issue: str):
+    def _execute_swe_fix_command(self, issue: str) -> None:
         """
         `swe_repo_fixer` was deleted: it returned constants. Two unrelated
         issues produced the identical root_cause_analysis, target files were
@@ -550,7 +564,7 @@ class SwarmChatSession:
             f'  [cyan]saleha resolve-issue {issue} --test-command "pytest -q"[/]\n'
         )
 
-    def _execute_evolving_status_command(self):
+    def _execute_evolving_status_command(self) -> None:
         stats = self_evolving_loop.get_stats()
         table = Table(title="🔄 Saleha Continuous Learning & Self-Evolving Telemetry", border_style="cyan")
         table.add_column("Metric", style="white")
@@ -563,22 +577,53 @@ class SwarmChatSession:
         self.console.print(table)
         self.console.print()
 
-    def _generate_turn_response(self, user_msg: str):
-        self.console.print("\n[bold magenta]Saleha AI[/bold magenta] [dim](Ollama / DeepSeek Failover)[/dim]:")
+    def _build_conversation_prompt(self, user_msg: str, max_turns: int = 8) -> str:
+        """Renders recent history plus the new message into a single prompt.
 
-        # Route through SmartRouter
-        model = smart_router.route_task(user_msg, complexity=0.4)
-        response_text = f"I have analyzed your requirement: **\"{user_msg}\"** using the `{model}` failover tier.\n\n"
-        if "code" in user_msg.lower() or "python" in user_msg.lower() or "function" in user_msg.lower():
-            response_text += "```python\n# Synthesized Python Solution\ndef process_data(items: list[str]) -> dict[str, int]:\n    return {item: len(item) for item in items}\n```"
-        else:
-            response_text += "Ready to assist! You can use `/swarm <goal>` for full autonomous DAG synthesis, `/solve <bug>` for instant PR creation, `/vision <prompt>` for UI generation, or `/container <code>` to run sandboxed code."
+        Only the last `max_turns` entries are included so a long session does
+        not blow the context budget; BaseAgent trims further if needed.
+        """
+        recent = self.history[-max_turns:] if len(self.history) > max_turns else self.history
+        lines = [
+            "You are Saleha, a local-first pair-programming assistant. Answer "
+            "the last user message directly and concisely. Use fenced code "
+            "blocks for code.",
+            "",
+        ]
+        for turn in recent:
+            speaker = "User" if turn["role"] == "user" else "Assistant"
+            lines.append(f"{speaker}: {turn['content']}")
+        lines.append(f"User: {user_msg}")
+        lines.append("Assistant:")
+        return "\n".join(lines)
 
+    def _generate_turn_response(self, user_msg: str) -> None:
+        self.console.print("\n[bold magenta]Saleha AI[/bold magenta]:")
+
+        agent = self._get_chat_agent()
+        prompt = self._build_conversation_prompt(user_msg)
+        result = agent.think(prompt)
+
+        if not result.success or not result.content.strip():
+            reason = result.error_message or "the model returned an empty response"
+            self.console.print(
+                f"[bold red]No answer generated.[/bold red] [dim]{reason}[/dim]\n"
+                "[dim]Check that Ollama is running and a model is installed "
+                "(`ollama list`).[/dim]"
+            )
+            return
+
+        response_text = result.content.strip()
         self.console.print(Markdown(response_text))
+        if result.context_trimmed_chars:
+            self.console.print(
+                f"[dim](prompt was trimmed by {result.context_trimmed_chars} "
+                f"chars to fit the context window)[/dim]"
+            )
         self.history.append({"role": "assistant", "content": response_text})
         self.console.print()
 
-    def start_repl(self):
+    def start_repl(self) -> None:
         """Starts the interactive CLI loop."""
         self.render_welcome()
         while True:

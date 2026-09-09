@@ -1,4 +1,4 @@
-module saleha-go-service
+module {{PROJECT_SLUG}}
 
 go 1.20
 

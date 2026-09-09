@@ -6,11 +6,11 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 app.get('/health', (req: Request, res: Response) => {
-    res.json({ status: 'healthy', service: 'express-service', version: '1.0.0' });
+    res.json({ status: 'healthy', service: '{{PROJECT_SLUG}}', version: '1.0.0' });
 });
 
 app.get('/', (req: Request, res: Response) => {
-    res.json({ message: 'Welcome to Saleha Express Service' });
+    res.json({ message: 'Welcome to {{PROJECT_NAME}}' });
 });
 
 if (process.env.NODE_ENV !== 'test') {

@@ -1,8 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import Dict, Any
 
-app = FastAPI(title="Saleha Enterprise FastAPI Service", version="1.0.0")
+app = FastAPI(title="{{PROJECT_NAME}}", version="1.0.0")
 
 class HealthResponse(BaseModel):
     status: str
@@ -11,9 +10,9 @@ class HealthResponse(BaseModel):
 
 @app.get("/health", response_model=HealthResponse)
 def health_check():
-    return {"status": "healthy", "service": "fastapi-service", "version": "1.0.0"}
+    return {"status": "healthy", "service": "{{PROJECT_SLUG}}", "version": "1.0.0"}
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Saleha AI Microservice"}
+    return {"message": "Welcome to {{PROJECT_NAME}}"}
 
