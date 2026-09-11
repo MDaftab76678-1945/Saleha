@@ -417,8 +417,26 @@ remains the LLM path for bespoke multi-file projects. CLI: `saleha new
 gained a `tsconfig.json` (needed for `tsc --noEmit` to have something to
 check).
 
-**Branch state:** work happens on `test-issue-101`. It is many commits ahead of
-`origin/test-issue-101` and has not been pushed. `main` is behind.
+**`forge-tool` / `ToolForge` — fixed (pass 37).** Validation staged the
+generated tool in a temp dir on `PYTHONPATH`, so a model-written test
+using a top-level import (`from word_counter import ...`) passed
+validation and then would have failed collection once the file moved to
+its real home `saleha/tools/<name>.py`. Now validated at that real path,
+with the test prompt requiring the real import
+(`from saleha.tools.<name> import ...`). Added two deterministic repair
+steps (no extra model call): `_heal_tool_source` injects
+`BaseTool`/`ToolResult`/stdlib imports the model referenced but forgot,
+and a failing-test pruner keeps the tests that pass instead of discarding
+the whole suite over one unmet assertion. `model_provider.py`'s
+`OllamaProvider` no longer collapses a slow-but-working generation and a
+genuinely unreachable server into the same "server not running" message
+(distinguishes `requests.exceptions.Timeout` from `ConnectionError`;
+timeout is now `SALEHA_MODEL_TIMEOUT`, default 300s, was hardcoded 60).
+`word_counter` is the first tool the fixed pipeline produced end-to-end.
+Detail: `NOTEBOOK_IMPORT.md`, "Thirty-seventh pass."
+
+**Branch state:** work happens on `test-issue-101`, pushed and in sync with
+`origin/test-issue-101` as of pass 37. `main` is behind.
 
 ---
 

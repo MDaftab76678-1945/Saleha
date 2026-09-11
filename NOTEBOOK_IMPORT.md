@@ -2758,3 +2758,52 @@ SALEHA_LIVE_MODEL_TESTS=1 pytest test_agent_council.py::LiveModelTests -q
 ```
 
 Zero failures.
+
+## Thirty-seventh pass -- `forge-tool`'s validation ran from a path the tool would not live at (2026-09-11)
+
+`ToolForge.validate_and_repair` staged the generated tool in a temp dir
+added to `PYTHONPATH` for the pytest run, so a model-written test doing
+`from word_counter import WordCounterTool` (top-level import) passed
+validation there and then would have failed collection once the file
+moved to its real home at `saleha/tools/word_counter.py` -- the temp dir
+is gone by then. Fixed by staging the tool at its real repo path
+(`saleha/tools/<name>.py`) during validation and requiring the model's
+test to import it the same way production code does
+(`from saleha.tools.<name> import <Class>`); the prompt now says so
+explicitly. The staged file is removed again if validation fails and it
+was not already present in the repo.
+
+Two related additions, both deterministic (no extra model round-trip):
+`_heal_tool_source` injects imports for `BaseTool`/`ToolResult`/common
+stdlib names the model referenced but forgot to import (observed
+repeatedly with the 3b default model); `_prune_failing_tests` drops only
+the test functions that actually failed and re-runs, for the case where
+the tool is correct but the model's own test asserted a behaviour it
+never implemented -- previously a single bad assertion in a 6-test file
+sent the whole tool to a repair round-trip.
+
+`model_provider.py`'s `OllamaProvider.generate` collapsed every failure
+into `"Ollama server not running"`, including a genuine timeout on a slow
+3b generation -- sending the caller to restart a server that was working.
+Split into a distinguished `requests.exceptions.Timeout` case (server
+answered, took too long -- message names the model, prompt length, and
+`SALEHA_MODEL_TIMEOUT` as the escape hatch) versus
+`requests.exceptions.ConnectionError` (server unreachable). Generate
+timeout, hardcoded at 60s, is now `SALEHA_MODEL_TIMEOUT` (default 300).
+
+`saleha/tests/test_model_provider.py::test_generate_handles_connection_failure`
+was pinning the old collapsed message: it raised a builtin `ConnectionError`
+(not `requests.exceptions.ConnectionError`) and asserted the removed
+string. Fixed to raise the real exception type Ollama's client actually
+raises, and added a companion `test_generate_handles_timeout`.
+
+`word_counter` (`saleha/tools/word_counter.py` + its test) is the first
+tool `forge-tool` produced end-to-end with the fixed pipeline -- real
+model generation, real `saleha.tools.base` import, staged and validated
+at its real path, registered via the CLI wiring
+(`saleha/cli/commands/tool_forge_cmd.py` added to
+`saleha/cli/commands/__init__.py`).
+
+Verified: `saleha/tests/test_model_provider.py`,
+`test_tool_forge.py`, `test_tool_word_counter.py` all green; full suite
+`1794 passed, 7 skipped` (was 1714 -- new tests, no regressions).
