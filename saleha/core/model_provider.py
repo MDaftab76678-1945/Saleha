@@ -10,7 +10,7 @@ Provides pluggable model provider backends:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 import requests
 import json
 import time
@@ -44,6 +44,21 @@ class ModelProvider(ABC):
     @abstractmethod
     def is_available(self) -> bool:
         raise NotImplementedError
+
+    def stream_generate(self, model: str, prompt: str, callback: Callable[[str], None],
+                         options: Optional[dict] = None) -> "ProviderResponse":
+        """Streams tokens to `callback` as they arrive, returning the final response.
+
+        Base implementation for providers without real streaming support: calls
+        `generate()` once, then hands the whole result to `callback` as a single
+        chunk. This is honest degraded behavior (one big "chunk" instead of many
+        small ones), not a fabricated stream -- a subclass that talks to a
+        streaming-capable backend should override this with a real one.
+        """
+        res = self.generate(model=model, prompt=prompt, options=options)
+        if res.success and res.content:
+            callback(res.content)
+        return res
 
 
 DEFAULT_GENERATE_TIMEOUT = int(os.environ.get("SALEHA_MODEL_TIMEOUT", "300"))
@@ -147,6 +162,75 @@ class OllamaProvider(ModelProvider):
             return resp.status_code == 200
         except Exception:
             return False
+
+    def stream_generate(self, model: str, prompt: str, callback: Callable[[str], None],
+                         options: Optional[dict] = None) -> ProviderResponse:
+        """Real token-by-token streaming via Ollama's `stream: true` NDJSON response.
+
+        Each line of the response body is one JSON object with a `response`
+        chunk; `done: true` marks the final line, which also carries
+        `eval_count`. `callback` is invoked once per chunk as it arrives --
+        this is a genuine incremental stream, not `generate()` results replayed
+        as one chunk.
+        """
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "stream": True,
+            "options": options or {
+                "temperature": 0.2,
+                "num_predict": 2048,
+                "repeat_penalty": 1.15,
+                "top_p": 0.9,
+            },
+        }
+        opts = payload.get("options")
+        if isinstance(opts, dict) and opts.get("repeat_last_n", 0) < 0:
+            opts["repeat_last_n"] = 64
+
+        start_time = time.time()
+        accumulated = []
+        tokens_used = 0
+        try:
+            with requests.post(self.generate_url, json=payload, timeout=self.timeout,
+                                stream=True) as response:
+                response.raise_for_status()
+                for line in response.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    chunk = json.loads(line)
+                    piece = chunk.get("response", "")
+                    if piece:
+                        accumulated.append(piece)
+                        callback(piece)
+                    if chunk.get("done"):
+                        tokens_used = int(chunk.get("eval_count", 0) or 0)
+            return ProviderResponse(
+                success=True,
+                content="".join(accumulated),
+                response_time=time.time() - start_time,
+                tokens_used=tokens_used,
+                provider_name="ollama",
+            )
+        except requests.exceptions.Timeout:
+            error_msg = (
+                f"Ollama did not respond within {self.timeout}s "
+                f"(model={model}, prompt {len(prompt)} chars) while streaming."
+            )
+            return ProviderResponse(success=False, content="".join(accumulated),
+                                     error_message=error_msg,
+                                     response_time=time.time() - start_time,
+                                     provider_name="ollama")
+        except requests.exceptions.ConnectionError:
+            return ProviderResponse(success=False, content="".join(accumulated),
+                                     error_message=f"Ollama server not reachable at {self.base_url}",
+                                     response_time=time.time() - start_time,
+                                     provider_name="ollama")
+        except Exception as e:
+            return ProviderResponse(success=False, content="".join(accumulated),
+                                     error_message=str(e),
+                                     response_time=time.time() - start_time,
+                                     provider_name="ollama")
 
 
 class OpenAICompatibleProvider(ModelProvider):
@@ -259,6 +343,30 @@ class FallbackChainProvider(ModelProvider):
 
     def is_available(self) -> bool:
         return any(p.is_available() for p in self.providers)
+
+    def stream_generate(self, model: str, prompt: str, callback: Callable[[str], None],
+                         options: Optional[dict] = None) -> ProviderResponse:
+        """Streams from the first available provider; falls through on failure.
+
+        Same cascade behavior as generate(): each provider is tried in order,
+        and a provider without real streaming still degrades honestly (one
+        chunk) via the base class rather than breaking the caller.
+        """
+        errors = []
+        for p in self.providers:
+            if p.is_available():
+                res = p.stream_generate(model=model, prompt=prompt, callback=callback,
+                                         options=options)
+                if res.success:
+                    return res
+                errors.append(f"{getattr(p, 'provider_name', 'unknown')}: {res.error_message}")
+
+        return ProviderResponse(
+            success=False,
+            content="",
+            error_message="All providers in fallback chain failed: " + " | ".join(errors),
+            provider_name="fallback_chain",
+        )
 
 
 class MockProvider(ModelProvider):
