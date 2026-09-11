@@ -135,7 +135,7 @@ async fn check_local_ollama(endpoint: String) -> Result<LocalOllamaStatus, Strin
 }
 
 #[tauri::command]
-fn verify_ast_offline(code: String, language: String) -> Result<ASTVerificationResult, String> {
+fn verify_ast_offline(code: String, _language: String) -> Result<ASTVerificationResult, String> {
     // Fast-path local AST parsing & safety gate
     let is_div_zero = code.contains("/ 0") || code.contains("/0");
     let mut errors = Vec::new();
