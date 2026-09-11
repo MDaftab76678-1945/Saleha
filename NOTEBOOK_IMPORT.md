@@ -3082,3 +3082,86 @@ python -m pytest saleha/tests/ -q
 Three new tests cover `_find_reference_tool_source` directly (shortest-file
 selection, excluding the tool being built even when its stub is shorter,
 and the empty-`tools_dir` fallback) with a temp directory and no model call.
+
+## Forty-first pass -- closed the remaining test-coverage gaps, found an English/emoji violation in the process (2026-09-11)
+
+Pass 38 found 7 `saleha/core/` modules with zero test coverage across
+`saleha/tests/`. One (`streaming_ui.py`) was actually broken and got fixed
+that pass. The other six -- `audit_log`, `inference_router_bridge`,
+`mukti_chain_bridge`, `path_utils`, `project_builder`, `stats_tracker` --
+were confirmed honest at the time (each probed directly, not just read) but
+left with no tests. This pass closes that gap for all six.
+
+Re-reading `project_builder.py` in full before writing tests against it --
+required, not optional, per this file's own audit rule -- found two
+`CLAUDE.md` violations that had survived every prior pass: the
+module-level docstring, the file-planning prompt sent to the model, one
+in-task instruction string, and several log messages were written in
+Hindi (Devanagari script), and log messages used decorative emoji
+(🏗️ ❌ ✅ ⚠️ 📝). Confirmed the emoji rule's own stated reason directly
+rather than taking it on faith:
+
+```text
+>>> import re
+>>> text = open('saleha/core/project_builder.py', encoding='utf-8').read()
+>>> emoji = re.findall(r'[\U0001F300-\U0001FAFF☀-➿]', text)
+>>> print(emoji)
+UnicodeEncodeError: 'charmap' codec can't encode character '❌' ...
+```
+
+Printing the file's own emoji list crashed on this machine's cp1252
+console -- the exact failure mode the rule exists to prevent, reproduced
+by the audit itself. Translated all Hindi to English, replaced emoji with
+plain-text status markers (`OK`/`FAILED`/`WARN`). The one live CLI command
+that calls this class (`saleha project`, in
+`cli/commands/git_release.py`) had the identical issues in its own console
+output plus one Hindi docstring line -- fixed the same way. The other
+~20 emoji elsewhere in `git_release.py` (unrelated commands) were left
+alone; fixing them was out of scope for this pass.
+
+### New tests, no real model or network calls
+
+- `test_project_builder.py` (13 tests) -- `_slugify`, `_isolate_file_code`
+  (including the multi-file-dump-detection and mislabeled-header cases),
+  `_find_entry_point`, `_identify_buggy_file`, `_verify_entry_point`
+  (real subprocess execution against real throwaway scripts, not mocked).
+- `test_path_utils.py` (5 tests) -- `safe_relpath`, `posix_basename`.
+- `test_stats_tracker.py` (8 tests) -- persistence across separate
+  `StatsTracker` instances (the exact gap the module's own docstring says
+  it fixes), per-task-type isolation, the `min_uses` threshold, corrupt-file
+  recovery.
+- `test_mukti_chain_bridge.py` (5 tests) -- `status()` reflects the real
+  environment (not a hardcoded value), and every write path honestly
+  raises `ChainUnavailableError` instead of fabricating a receipt -- the
+  module's own "No silent success" design goal, checked rather than
+  assumed.
+- `test_inference_router_bridge.py` (6 tests) -- the not-built Rust
+  extension path raises `RustInferenceRouterUnavailable` rather than
+  returning a fabricated routing decision, or a bare `0` node count (which
+  would be indistinguishable from a real, empty router -- silently wrong
+  in a way a human reviewing output would never catch).
+- `test_audit_log.py` (7 tests) -- one caught a wrong assumption in the
+  test itself, not the module: `AuditLog` stores a plaintext `code_preview`
+  by design, alongside the hash, for a human reviewing what ran (this is a
+  local execution log, not a secrets store). Fixed the test rather than
+  "fixing" correct behavior to match a bad assumption.
+
+### Verified
+
+```text
+python -m pytest saleha/tests/test_project_builder.py saleha/tests/test_path_utils.py saleha/tests/test_stats_tracker.py saleha/tests/test_mukti_chain_bridge.py saleha/tests/test_inference_router_bridge.py saleha/tests/test_audit_log.py -q
+44 passed, 1 skipped
+
+python -m pytest saleha/tests/ -q
+1856 passed, 8 skipped, 60 subtests passed in 149.72s   (was 1812 passed, 7 skipped)
+```
+
+The one new skip is `mukti_chain_bridge`'s reachability test, which needs
+`web3` installed to reach the code path it targets -- the same honest
+skip-with-reason pattern the rest of this suite already uses, not a
+silently-vanishing check.
+
+All 7 modules pass 38 found with zero test coverage now have it. The
+"widen test coverage" roadmap item is not fully closed (~220 modules total,
+this pass covered 6), but the specific gap this ledger tracked from pass 38
+is closed.

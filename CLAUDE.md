@@ -498,8 +498,25 @@ prior tools. Verified end-to-end against a live Ollama instance.
 Full suite: 1812 passed, 7 skipped (was 1809). Detail:
 `NOTEBOOK_IMPORT.md`, "Fortieth pass."
 
+**Remaining test-coverage gaps from pass 38 closed (pass 41).** All 6
+modules pass 38 left honest-but-untested now have tests:
+`audit_log`, `inference_router_bridge`, `mukti_chain_bridge`,
+`path_utils`, `project_builder`, `stats_tracker`. Re-reading
+`project_builder.py` in full before writing tests against it (this
+file's own audit rule) found two rule violations that had survived
+every prior pass: Hindi text in its docstring/prompts/log messages,
+and decorative emoji in log output -- confirmed the emoji rule's own
+stated failure mode directly (`re.findall` over the file's emoji then
+printing them crashed with `UnicodeEncodeError` on this machine's
+cp1252 console, the exact bug the rule exists to prevent). Fixed both
+in `project_builder.py` and its one live CLI caller (`saleha project`
+in `cli/commands/git_release.py`); left ~20 unrelated emoji elsewhere
+in that same file alone (other commands, out of scope). Full suite:
+1856 passed, 8 skipped (was 1812 passed, 7 skipped). Detail:
+`NOTEBOOK_IMPORT.md`, "Forty-first pass."
+
 **Branch state:** work happens on `test-issue-101`, pushed and in sync with
-`origin/test-issue-101` as of pass 40. `main` is behind.
+`origin/test-issue-101` as of pass 41. `main` is behind.
 
 ---
 
