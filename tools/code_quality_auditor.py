@@ -1,12 +1,12 @@
-"""Saleha Enterprise Code Quality & Security SAST Auditor."""
+"""Saleha code quality and security SAST auditor."""
 
 import ast
 import glob
-import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -52,21 +52,61 @@ def audit_repository() -> Dict[str, Any]:
         "ast_errors": ast_errors,
         "security_clean": len(security_issues) == 0,
         "security_issues": security_issues,
-        "test_coverage_pass_rate": 100.0,
+    }
+
+
+def run_test_suite() -> Dict[str, Any]:
+    """Runs the real pytest suite and reports what actually happened.
+
+    Never returns a pass/fail claim without having executed pytest.
+    """
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "saleha/tests/", "-q"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=900,
+        )
+    except FileNotFoundError as e:
+        return {"ran": False, "reason": f"pytest not available: {e}"}
+    except subprocess.TimeoutExpired:
+        return {"ran": False, "reason": "pytest timed out after 900s"}
+
+    return {
+        "ran": True,
+        "returncode": proc.returncode,
+        "passed": proc.returncode == 0,
+        "summary_tail": proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else "",
+        "stderr_tail": proc.stderr.strip().splitlines()[-1] if proc.stderr.strip() else "",
     }
 
 
 if __name__ == "__main__":
     res = audit_repository()
     print("=" * 60)
-    print("📊 SALEHA AI ENTERPRISE CODE QUALITY REPORT")
+    print("SALEHA CODE QUALITY REPORT")
     print("=" * 60)
-    print(f"📁 Python Modules Scanned      : {res['files_scanned']}")
-    print(f"📝 Total Lines of Code (LOC)   : {res['lines_of_code']:,}")
-    print(f"🛡️ AST Syntax Correctness      : {'✅ 100% CLEAN (0 Errors)' if res['ast_clean'] else '❌ Errors Found'}")
-    print(f"🔒 OWASP & SAST Security Gate   : {'✅ 100% PASS (0 Vulnerabilities)' if res['security_clean'] else '⚠️ Issues to review'}")
-    if res['security_issues']:
-        for f, iss in res['security_issues']:
+    print(f"Python Modules Scanned    : {res['files_scanned']}")
+    print(f"Total Lines of Code (LOC) : {res['lines_of_code']:,}")
+    ast_status = "CLEAN (0 errors)" if res["ast_clean"] else f"{len(res['ast_errors'])} error(s) found"
+    print(f"AST Syntax Correctness    : {ast_status}")
+    if res["ast_errors"]:
+        for f, err in res["ast_errors"]:
+            print(f"    - [{err}] {f}")
+    sec_status = "CLEAN (0 findings)" if res["security_clean"] else f"{len(res['security_issues'])} finding(s)"
+    print(f"SAST Security Scan        : {sec_status}")
+    if res["security_issues"]:
+        for f, iss in res["security_issues"]:
             print(f"    - [{iss}] {f}")
-    print(f"🧪 Test Suite Pass Rate        : ✅ 100.0% (870/870 Tests Passed)")
+
+    test_res = run_test_suite()
+    if not test_res["ran"]:
+        print(f"Test Suite                : NOT RUN ({test_res['reason']})")
+    elif test_res["passed"]:
+        print(f"Test Suite                : PASSED ({test_res['summary_tail']})")
+    else:
+        print(f"Test Suite                : FAILED ({test_res['summary_tail']})")
+        if test_res["stderr_tail"]:
+            print(f"    stderr: {test_res['stderr_tail']}")
     print("=" * 60)
