@@ -3165,3 +3165,127 @@ All 7 modules pass 38 found with zero test coverage now have it. The
 "widen test coverage" roadmap item is not fully closed (~220 modules total,
 this pass covered 6), but the specific gap this ledger tracked from pass 38
 is closed.
+
+## Forty-second pass -- the desktop app could not be built at all, and its UI showed a fabricated reasoning trace (2026-09-11)
+
+`ROADMAP.md`: "Harden the desktop (`apps/desktop`) sidecar integration ...
+more end-to-end testing of startup, shutdown, and error states would be
+valuable before calling it stable." `ARCHITECTURE.md` separately warned to
+"expect rougher edges than the CLI or web app." Read all of `apps/desktop`
+in full (16 source files), then ran the actual build rather than stopping
+at reading it -- which is what found the two real defects.
+
+### What was already good
+
+`src-tauri/src/main.rs` (345 lines, read end to end) turned out to be the
+most carefully-written file in this part of the repo, and needed no
+behavioural change. It picks a free port instead of assuming 8000; it kills
+the *whole process tree* on window close, with a comment explaining exactly
+why (the sidecar is a PyInstaller one-file binary, so the handle Tauri holds
+is a bootloader whose real Python child would otherwise survive and keep
+holding the port); it serialises spawn/respawn behind a `start_lock` mutex,
+with a comment recording that React StrictMode's double-mount in development
+had actually reproduced two live Python servers; and it respawns with capped
+backoff, emitting a `backend-crashed` event the frontend listens for. The
+only issue was one `cargo check` warning (unused `language` parameter on a
+registered-but-uncalled command) -- prefixed with `_` rather than deleting
+the command.
+
+### Finding 1: a fabricated reasoning trace in the UI
+
+`App.tsx` rendered a "Chain-of-Thought Reasoning" accordion from a hardcoded
+array:
+
+```text
+"Parsing AST invariants and code dependencies"
+"Querying 16D Poincare Hyperbolic manifold topology"
+"Running Confidence-Weighted PBFT consensus (CP-WBFT)"
+"Executing pre-commit Gamma AST static safety pass"
+```
+
+plus a literal, unconditional line in the panel body: `PBFT Quorum: 16/19
+agents reached 98.1% consensus.` None of it came from the backend. It
+rendered identically before any run, during a run, and after a failed run,
+next to a badge reading `4/4 Verified`.
+
+This is the same naming problem `ARCHITECTURE.md` already documents for the
+swarm/consensus modules (`swarm_consensus.py` is real in-process voting, not
+networked PBFT) -- but here it had reached the UI as content a user would
+reasonably read as a live trace of work actually done.
+
+The fix was available without inventing anything: `/api/v2/swarm/execute`
+already returns real per-stage data (`stage_id`, `agent_role`, `status`,
+`duration_ms`, `output_summary`) that nothing in the frontend consumed.
+The panel now renders that, is hidden entirely until a run has returned
+stages, and says "Waiting for the backend to report pipeline stages..."
+while a run is in flight rather than showing a finished-looking trace.
+
+Also deleted `src/core-test.ts` -- a `runCoreHeartbeat` helper nothing
+imported (grepped the whole app), whose console output had already been
+mangled to `? SUCCESS` / `? FAILED` by an encoding round-trip.
+
+### Finding 2: the build did not work, in two separate ways
+
+**(a) PyInstaller was never declared.** `pnpm build` shells out to
+`scripts/build_desktop_sidecar.py` to bundle the Python backend into the
+sidecar binary. PyInstaller appeared nowhere in `pyproject.toml` -- not in
+`[dev]`, not in `[all]`. A clean `pip install -e ".[dev]"` could never build
+this app:
+
+```text
+C:\Users\alama\saleha-0.1\.venv\Scripts\python.exe: No module named PyInstaller
+Compilation failed with exit code 1
+```
+
+Added a `[desktop]` extra (and to `[all]`). Verified by installing it and
+running the script directly: it completed end to end, compiling the ~2.5GB
+sidecar in about 70 seconds and copying it to
+`apps/desktop/src-tauri/binaries/` under the Rust target-triple name Tauri's
+`externalBin` loader expects.
+
+**(b) The build then recursed infinitely.** With PyInstaller present, the
+build got further and never finished. `package.json`'s `build` ran
+`build:sidecar && tauri build`; `tauri build` read `tauri.conf.json`'s
+`beforeBuildCommand: "pnpm build"` and ran `pnpm build` again -- rebuilding
+the 2.5GB sidecar each pass -- until Windows rejected the command line
+after `NODE_PATH` had been appended roughly seventy times:
+
+```text
+@saleha/desktop:build: The syntax of the command is incorrect.
+@saleha/desktop:build:  @SET "NODE_PATH=...\@tauri-apps\cli\node_modules;...;%NODE_PATH%"
+   (beforeBuildCommand `pnpm build` failed -- repeated ~35 times)
+Failed:    @saleha/desktop#build
+```
+
+The identical loop existed on the dev path (`beforeDevCommand: "pnpm dev"`,
+where `dev` ran `tauri dev`). Each file assumed the other was the outer
+step. Fixed by splitting ownership: `package.json`'s scripts are now just
+`tauri build` / `tauri dev`, and the before-commands do the pre-work
+(`pnpm build:sidecar && vite build`, and `pnpm build:sidecar && vite` for
+dev, where bare `vite` serves the `devUrl` the config already points at).
+
+### Verified
+
+```text
+cargo check           (apps/desktop/src-tauri)   0 warnings (was 1)
+npx turbo run typecheck --filter=@saleha/desktop  1 successful
+npx turbo run typecheck                           8 successful, 8 total
+
+npx turbo run build --filter=@saleha/desktop --force
+  Finished `release` profile [optimized] target(s) in 2m 35s
+  Built application at: ...\target\release\saleha-desktop.exe
+  Tasks: 1 successful, 1 total    (was: 0 successful, failed after ~70 recursions)
+
+ls target/release/saleha-desktop.exe   14,791,680 bytes
+ls apps/desktop/dist/                  index.html + assets/
+```
+
+The build produces a raw `.exe`, not an installer -- no
+`bundle.active`/`bundle.targets` is configured, which looks deliberate given
+the sidecar's size. Left alone rather than changing packaging behaviour
+nobody asked for.
+
+Not done, and stated rather than glossed: the app was never *launched*. The
+build is verified; runtime startup/shutdown against a live window is not,
+because that needs a human at the machine to see it. The sidecar lifecycle
+code was read and reasoned about in full, which is not the same thing.

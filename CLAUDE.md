@@ -515,8 +515,33 @@ in that same file alone (other commands, out of scope). Full suite:
 1856 passed, 8 skipped (was 1812 passed, 7 skipped). Detail:
 `NOTEBOOK_IMPORT.md`, "Forty-first pass."
 
+**Desktop app -- read in full, actually built, two real defects fixed
+(pass 42).** `src-tauri/src/main.rs`'s sidecar lifecycle management
+was already solid (free-port picking, full process-tree kill, a
+`start_lock` mutex specifically guarding against React StrictMode's
+double-mount spawning two Python servers, capped respawn backoff) --
+0 changes needed there beyond one `cargo check` warning. `App.tsx` had
+a fabricated "Chain-of-Thought Reasoning" panel: hardcoded fake
+reasoning steps and a literal, unconditional "PBFT Quorum: 16/19
+agents reached 98.1% consensus" string, never from the backend. Fixed
+to render the real per-stage data `/api/v2/swarm/execute` already
+returns (`agent_role`, `status`, `duration_ms`, `output_summary`),
+hidden until a run actually has stages. Separately, running the real
+build (not just reading config) found it could not complete at all:
+PyInstaller was never declared as a dependency anywhere in
+`pyproject.toml` (fixed: new `[desktop]` extra), and once that was
+fixed the build recursed infinitely -- `package.json`'s `build` ran
+`tauri build`, which read `tauri.conf.json`'s
+`beforeBuildCommand: "pnpm build"` and called `pnpm build` again,
+looping until Windows rejected the command line after ~70 passes.
+Fixed by splitting the two files' responsibilities so neither calls
+the other back. Verified end-to-end: a full release build now
+completes in 2m35s and produces a real 14.8MB `saleha-desktop.exe`.
+Not verified: actually launching the built app (needs a human at the
+machine). Detail: `NOTEBOOK_IMPORT.md`, "Forty-second pass."
+
 **Branch state:** work happens on `test-issue-101`, pushed and in sync with
-`origin/test-issue-101` as of pass 41. `main` is behind.
+`origin/test-issue-101` as of pass 42. `main` is behind.
 
 ---
 
