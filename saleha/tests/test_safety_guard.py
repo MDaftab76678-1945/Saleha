@@ -36,6 +36,25 @@ class SafetyGuardTests(unittest.TestCase):
         self.assertEqual(result.level, "SAFE")
         self.assertLess(result.risk_score, 5.0)
 
+    def test_chest_pain_with_intensifier_is_blocked(self):
+        # The chest-pain pattern required "tez" (sharp) to sit immediately
+        # after "mein" with nothing between, so a real sentence with an
+        # intensifier word in between ("bahut" / "very") failed to match
+        # while the simpler phrasing did -- a real gap in this
+        # safety-critical health-emergency detector, found while fixing
+        # this file's Hindi-language code/comments to English.
+        result = self.guard.evaluate("मेरे सीने में बहुत तेज दर्द है")
+
+        self.assertFalse(result.is_safe)
+        self.assertEqual(result.level, "BLOCK")
+        self.assertGreaterEqual(result.risk_score, 8.0)
+
+    def test_chest_pain_without_intensifier_still_blocked(self):
+        result = self.guard.evaluate("सीने में दर्द है")
+
+        self.assertFalse(result.is_safe)
+        self.assertEqual(result.level, "BLOCK")
+
 
 if __name__ == "__main__":
     unittest.main()

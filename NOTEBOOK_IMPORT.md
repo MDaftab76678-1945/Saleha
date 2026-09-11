@@ -4208,4 +4208,77 @@ five touched core files: all `passed=True`. `test_frontier_suite.py`
 also failed the strict-mode gate before this pass's changes (verified via
 `git stash`, score 60/100, all pre-existing missing-type-annotation MINOR
 issues) -- brought to 100/100 rather than working around the gate, same
-approach as pass 47. Full suite run pending at time of writing this entry.
+approach as pass 47. Full suite: `1861 passed, 8 skipped, 60 subtests
+passed in 101.07s`. Committed as `0d205f1`, pushed to `origin/main`.
+
+## Forty-ninth pass
+
+Continued the `saleha/core/` sweep. Read three more high-risk-named
+modules in full: `red_team_engine.py`, `safety_guard.py`,
+`hardened_sandbox.py`. Two are genuinely real (`red_team_engine.py` --
+real model-generated adversarial test suite, real sandboxed execution via
+`CodeExecutor`; `hardened_sandbox.py` -- real Docker/subprocess execution
+tiers with real timeout handling and fallback). One,
+`safety_guard.py`, was entirely in Devanagari Hindi -- variable names
+were English but every docstring, section-header comment, and all four
+user-facing messages (`SAFE`/`WARN`/`BLOCK` text) were Hindi. This is the
+exact violation `CLAUDE.md`'s English-only rule names `orchestrator.py`
+for, found in a second file.
+
+### `safety_guard.py` -- language violation with a real user-facing consequence
+
+Confirmed this is not cosmetic: `tool_calling.py`'s `shell_exec` tool
+returns `SafetyGuard`'s `message` field directly as the tool's output
+string whenever a command is blocked (`f"Execution Blocked by Safety
+Guard: {safety.message}"`) -- so a Devanagari message was reaching a real
+production code path, not just internal logs. `safety_guard.py` has three
+live production callers (`math_logic.py`, `tool_calling.py`,
+`verification/__init__.py`) plus an existing `test_safety_guard.py`.
+
+Rewrote all code, comments, docstrings, and the four log/message strings
+to English. Kept the Hindi/Hinglish *regex patterns themselves* and the
+`SAFE_KEYWORDS` Hindi words unchanged -- these are language-specific
+content this safety-critical detector genuinely needs to match real
+Hindi/Hinglish user input against (CLAUDE.md's rule targets code/comments
+/log strings, not the input-language data a Hindi-speaking product
+necessarily handles), with an English translation added as an inline
+comment next to each pattern so a non-Hindi-reading maintainer can still
+audit what each one catches.
+
+### A real bug found while translating, not introduced by it
+
+Verifying the rewrite line-by-line (per the project's "read the whole
+surrounding area" rule) turned up a genuine pre-existing bug: the
+chest-pain pattern `(छाती|सीने)\s+में\s+(तेज\s+)?दर्द` required the
+optional intensifier "तेज" (sharp) to sit immediately after "में" (in)
+with nothing else between it and "में" -- so "सीने में बहुत तेज दर्द है"
+(very sharp chest pain -- with "बहुत"/"very" inserted) failed to match,
+while "सीने में तेज दर्द" (without the intensifier) matched fine.
+Ironically, the file's own `if __name__` smoke-test block already used
+the failing exact phrasing with a comment claiming "yeh ab pakda jaana
+chahiye" (this should now be caught) -- that block is never run under
+pytest (no assertions, just prints), so the gap was never caught. This
+is a real, safety-relevant miss in a health-emergency detector: a user
+describing chest pain with any qualifying word in between could have
+silently fallen through undetected. Fixed by allowing 0-2 intervening
+words between the anchor words in both the chest-pain and
+difficulty-breathing patterns (`(\S*\s+){0,2}?`), verified the fix
+catches the intensifier case, still catches the simple case, and does
+not false-positive on safe input. Confirmed with `git show HEAD:...` that
+the original (broken) pattern was byte-for-byte what was already in the
+repository before this pass touched it -- not something introduced while
+rewriting.
+
+Added two new tests to `test_safety_guard.py` covering both the
+intensifier and non-intensifier phrasing (the existing four tests
+asserted no Hindi text directly, so the rewrite did not need to touch
+them, and all four still pass unchanged).
+
+### Verified
+
+`test_safety_guard.py`: 6/6 pass (2 new). `test_2026_disciplines_suite.py`
+(the other file importing `safety_guard`): all pass. Live check:
+`guard.evaluate("मेरे सीने में बहुत तेज दर्द है")` scores `9.0`/`BLOCK`
+after the fix (was `0.0`/`SAFE` before). `QualityGuard(strict_mode=True)`
+on both touched files: `passed=True`. Full suite run pending at time of
+writing this entry.

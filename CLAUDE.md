@@ -785,6 +785,33 @@ this pass's changes (verified via `git stash`) — brought to 100/100
 rather than worked around, same approach as pass 47.
 Detail: `NOTEBOOK_IMPORT.md`, "Forty-eighth pass."
 
+**`safety_guard.py` — entirely in Hindi, fixed to English (pass 49).**
+`red_team_engine.py` and `hardened_sandbox.py` (also read this pass) were
+genuinely real, no fabrication. `safety_guard.py` was entirely Devanagari
+Hindi — every docstring, comment, and all four user-facing
+`SAFE`/`WARN`/`BLOCK` messages — the same violation `CLAUDE.md`'s
+English-only rule names `orchestrator.py` for, found in a second file.
+Confirmed this was not cosmetic: `tool_calling.py`'s `shell_exec` tool
+returns the Hindi message directly as a real production tool-output
+string whenever a command is blocked. Rewrote all code/comments/
+docstrings/messages to English; kept the Hindi regex *patterns* and
+`SAFE_KEYWORDS` Hindi words themselves unchanged (language-specific
+content a Hindi/Hinglish safety detector genuinely needs), with an
+English translation comment next to each. Translating it line-by-line
+surfaced a real pre-existing bug: the chest-pain pattern required its
+intensifier word to sit immediately adjacent with nothing between, so
+"सीने में बहुत तेज दर्द है" (chest pain, with "बहुत"/"very" inserted)
+failed to match while the simpler phrasing did — a real miss in a
+health-emergency detector, silently present since before this pass (the
+file's own untested `if __name__` smoke block used this exact failing
+phrasing already, claiming "this should now be caught"). Fixed by
+allowing 0-2 intervening words in both the chest-pain and
+difficulty-breathing patterns; verified the fix catches the intensifier
+case, still catches the simple case, and does not false-positive on safe
+input. Two new tests added; existing four (already Hindi-agnostic) pass
+unchanged. Full suite run pending at time of writing this entry.
+Detail: `NOTEBOOK_IMPORT.md`, "Forty-ninth pass."
+
 ---
 
 ## Environment facts worth knowing
