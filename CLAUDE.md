@@ -97,6 +97,25 @@ The user has had to repeat this. Do not make them repeat it again.
    `PYTHONIOENCODING=utf-8`. Plain text says the same thing and always renders.
 4. **A variable assigned only inside branches must be initialised first.**
    That was the exact cause of the ten errors above.
+5. **Before touching a file, read the whole surrounding area — not just the
+   line you are fixing.** A one-line patch to `polyglot_executor.py`'s
+   `subprocess.run()` call (pass 36: missing `encoding="utf-8"`, silently
+   falling back to this machine's cp1252 default and risking a swallowed
+   decode crash on non-ASCII subprocess output) is only safe once you have
+   also checked every other `subprocess.run`/`text=True` call in the file for
+   the same gap, and checked whether the test that would have caught it
+   actually asserts on the failure reason (`res.error`) or just a bare
+   boolean (`res.success`) — a bare-boolean assert is a test that cannot tell
+   you why it failed, which is how this one first reached CI as an
+   unexplained red job on two different Windows/Python versions before the
+   real cause was found.
+6. **A CI failure without a fix in hand is not the same as a proven fix.**
+   Don't report a bug as fixed until it has been reproduced locally (or the
+   report explicitly says it could not be, and why) and the fix has been
+   re-run against that reproduction. Guessing at a plausible cause and
+   shipping it as "fixed" — without ever seeing it fail the same way
+   locally — is exactly the kind of confident-but-unverified claim this
+   whole file exists to stop making.
 
 ---
 
@@ -398,8 +417,131 @@ remains the LLM path for bespoke multi-file projects. CLI: `saleha new
 gained a `tsconfig.json` (needed for `tsc --noEmit` to have something to
 check).
 
-**Branch state:** work happens on `test-issue-101`. It is many commits ahead of
-`origin/test-issue-101` and has not been pushed. `main` is behind.
+**`forge-tool` / `ToolForge` — fixed (pass 37).** Validation staged the
+generated tool in a temp dir on `PYTHONPATH`, so a model-written test
+using a top-level import (`from word_counter import ...`) passed
+validation and then would have failed collection once the file moved to
+its real home `saleha/tools/<name>.py`. Now validated at that real path,
+with the test prompt requiring the real import
+(`from saleha.tools.<name> import ...`). Added two deterministic repair
+steps (no extra model call): `_heal_tool_source` injects
+`BaseTool`/`ToolResult`/stdlib imports the model referenced but forgot,
+and a failing-test pruner keeps the tests that pass instead of discarding
+the whole suite over one unmet assertion. `model_provider.py`'s
+`OllamaProvider` no longer collapses a slow-but-working generation and a
+genuinely unreachable server into the same "server not running" message
+(distinguishes `requests.exceptions.Timeout` from `ConnectionError`;
+timeout is now `SALEHA_MODEL_TIMEOUT`, default 300s, was hardcoded 60).
+`word_counter` is the first tool the fixed pipeline produced end-to-end.
+Detail: `NOTEBOOK_IMPORT.md`, "Thirty-seventh pass."
+
+**`saleha stream` — fixed (pass 38).** A test-coverage sweep of
+`saleha/core/` found 7 of 239 modules with no test importing them.
+`streaming_ui.py` was not just untested -- it crashed on every real
+invocation (`AttributeError`: no `ModelProvider` subclass ever defined
+`stream_generate`), which is exactly why no test existed: any real test
+would have hit the same crash. Fixed by adding real `stream_generate()`
+across the provider hierarchy (`OllamaProvider` does genuine
+`stream: true` NDJSON streaming, verified against a live Ollama
+instance: 115 real incremental chunks for a multi-line generation).
+Fixing it also exposed a bug in the quality gate itself:
+`quality_guard.py`'s module-level scope walker silently skipped every
+`except ... as name:` handler (`ast.ExceptHandler` is not an
+`ast.stmt`), falsely flagging a pre-existing, correct exception binding
+in `inference_router_bridge.py` as CRITICAL -- fixed, same shape of gap
+as the earlier `visit_Lambda` issue. Two other untested modules
+(`mukti_chain_bridge.py`, `inference_router_bridge.py`) were probed
+directly and confirmed to fail honestly rather than fabricate; the
+latter's docstring claimed a build "verified in this environment" that
+no longer holds against this project's actual `.venv` (Python 3.14.7
+vs. pyo3's 3.12 ceiling) -- docstring corrected rather than left stale.
+Detail: `NOTEBOOK_IMPORT.md`, "Thirty-eighth pass."
+
+**Formal verification -- widened, and a false negative fixed (pass
+39).** `formal_verifier.py`/`formal_smt_verifier.py` were already
+honestly labelled (an earlier pass, not this one): the Lean 4 output
+is marked `lean_verified=False` / "UNVERIFIED SCAFFOLD", and the SMT
+verifier genuinely calls Z3 for division-by-zero safety. Real Lean
+verification needs `elan`/`lake`/Mathlib (several GB, not installed
+here) -- disproportionate for one sitting, so the chosen direction was
+to widen the one real proof this project already has instead. Added a
+second genuine Z3 obligation: `seq[i]` is proven in-bounds when `i` is
+guarded by `assert`/early-exit statements implying
+`0 <= i < len(seq)`. Reused the existing guard-detection machinery,
+extended for chained comparisons and `len(name)` terms. Hand-testing
+the new code surfaced a real bug in the *existing* division checker:
+a comparison with the guarded variable on the right (`5 < b`, i.e.
+`b > 5`) was translated by swapping operands without flipping the
+operator, silently becoming `b < 5` -- a real, provable safety fact
+(`5 < b` rules out zero) was reported `not_proven`. Confirmed with
+`git stash`: `not_proven` before the fix, `proven_safe` after. Full
+suite: 1809 passed, 7 skipped (was 1800). Detail:
+`NOTEBOOK_IMPORT.md`, "Thirty-ninth pass."
+
+**Retrieval-augmented tool generation -- measured, then wired in (pass
+40).** Direction: this project's local models will not out-generate a
+cloud-scale assistant on raw capability, so the honest angle is
+closing part of that gap for $0 -- not claiming parity. Measured
+before building: generating the same kind of tool with
+`qwen2.5-coder:3b`, bare prompt vs. prompt + an existing tool file as
+a "match this convention" example (two tasks, two trials). The bare
+prompt consistently omitted the `name`/`description`/`parameters`
+class attributes entirely (undiscoverable by the registry even after
+`_heal_tool_source` patches the missing `ToolResult` import) and
+forgot to import `ToolResult` while constructing one. The
+example-augmented prompt got all three attributes and the correct
+import every time. Wired into
+`ToolForge._find_reference_tool_source()` /`generate_tool_code()`:
+appends the shortest existing tool in `saleha/tools/` as an example
+when one exists; falls through unchanged on a clean install with zero
+prior tools. Verified end-to-end against a live Ollama instance.
+Full suite: 1812 passed, 7 skipped (was 1809). Detail:
+`NOTEBOOK_IMPORT.md`, "Fortieth pass."
+
+**Remaining test-coverage gaps from pass 38 closed (pass 41).** All 6
+modules pass 38 left honest-but-untested now have tests:
+`audit_log`, `inference_router_bridge`, `mukti_chain_bridge`,
+`path_utils`, `project_builder`, `stats_tracker`. Re-reading
+`project_builder.py` in full before writing tests against it (this
+file's own audit rule) found two rule violations that had survived
+every prior pass: Hindi text in its docstring/prompts/log messages,
+and decorative emoji in log output -- confirmed the emoji rule's own
+stated failure mode directly (`re.findall` over the file's emoji then
+printing them crashed with `UnicodeEncodeError` on this machine's
+cp1252 console, the exact bug the rule exists to prevent). Fixed both
+in `project_builder.py` and its one live CLI caller (`saleha project`
+in `cli/commands/git_release.py`); left ~20 unrelated emoji elsewhere
+in that same file alone (other commands, out of scope). Full suite:
+1856 passed, 8 skipped (was 1812 passed, 7 skipped). Detail:
+`NOTEBOOK_IMPORT.md`, "Forty-first pass."
+
+**Desktop app -- read in full, actually built, two real defects fixed
+(pass 42).** `src-tauri/src/main.rs`'s sidecar lifecycle management
+was already solid (free-port picking, full process-tree kill, a
+`start_lock` mutex specifically guarding against React StrictMode's
+double-mount spawning two Python servers, capped respawn backoff) --
+0 changes needed there beyond one `cargo check` warning. `App.tsx` had
+a fabricated "Chain-of-Thought Reasoning" panel: hardcoded fake
+reasoning steps and a literal, unconditional "PBFT Quorum: 16/19
+agents reached 98.1% consensus" string, never from the backend. Fixed
+to render the real per-stage data `/api/v2/swarm/execute` already
+returns (`agent_role`, `status`, `duration_ms`, `output_summary`),
+hidden until a run actually has stages. Separately, running the real
+build (not just reading config) found it could not complete at all:
+PyInstaller was never declared as a dependency anywhere in
+`pyproject.toml` (fixed: new `[desktop]` extra), and once that was
+fixed the build recursed infinitely -- `package.json`'s `build` ran
+`tauri build`, which read `tauri.conf.json`'s
+`beforeBuildCommand: "pnpm build"` and called `pnpm build` again,
+looping until Windows rejected the command line after ~70 passes.
+Fixed by splitting the two files' responsibilities so neither calls
+the other back. Verified end-to-end: a full release build now
+completes in 2m35s and produces a real 14.8MB `saleha-desktop.exe`.
+Not verified: actually launching the built app (needs a human at the
+machine). Detail: `NOTEBOOK_IMPORT.md`, "Forty-second pass."
+
+**Branch state:** work happens on `test-issue-101`, pushed and in sync with
+`origin/test-issue-101` as of pass 42. `main` is behind.
 
 ---
 

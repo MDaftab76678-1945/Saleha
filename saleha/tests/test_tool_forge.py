@@ -68,6 +68,55 @@ def test_tool_forge_result_dataclass() -> None:
     assert res.commit_sha == "1234567"
 
 
+def test_find_reference_tool_source_returns_shortest_other_tool() -> None:
+    forge = ToolForge()
+    tmp_dir = tempfile.mkdtemp()
+    forge.tools_dir = tmp_dir
+    try:
+        with open(os.path.join(tmp_dir, "base.py"), "w", encoding="utf-8") as f:
+            f.write("# base, must be excluded\n")
+        with open(os.path.join(tmp_dir, "_private.py"), "w", encoding="utf-8") as f:
+            f.write("# underscore-prefixed, must be excluded\n")
+        with open(os.path.join(tmp_dir, "long_tool.py"), "w", encoding="utf-8") as f:
+            f.write("# a longer existing tool\n" * 20)
+        with open(os.path.join(tmp_dir, "short_tool.py"), "w", encoding="utf-8") as f:
+            f.write("# short existing tool\n")
+
+        ref = forge._find_reference_tool_source(exclude_name="new_tool")
+        assert ref == "# short existing tool\n"
+    finally:
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def test_find_reference_tool_source_excludes_the_tool_being_built() -> None:
+    forge = ToolForge()
+    tmp_dir = tempfile.mkdtemp()
+    forge.tools_dir = tmp_dir
+    try:
+        with open(os.path.join(tmp_dir, "existing.py"), "w", encoding="utf-8") as f:
+            f.write("# existing tool\n")
+        with open(os.path.join(tmp_dir, "being_built.py"), "w", encoding="utf-8") as f:
+            f.write("x\n")  # shorter, but must not reference itself as its own example
+
+        ref = forge._find_reference_tool_source(exclude_name="being_built")
+        assert ref == "# existing tool\n"
+    finally:
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def test_find_reference_tool_source_returns_none_when_no_tools_exist() -> None:
+    forge = ToolForge()
+    tmp_dir = tempfile.mkdtemp()
+    forge.tools_dir = tmp_dir
+    try:
+        assert forge._find_reference_tool_source(exclude_name="anything") is None
+    finally:
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def test_validate_tool_and_test_success() -> None:
     forge = ToolForge()
     valid_tool_code = """
@@ -89,7 +138,7 @@ class MathAddTool(BaseTool):
 """
 
     valid_test_code = """
-from math_add import MathAddTool
+from saleha.tools.math_add import MathAddTool
 
 def test_math_add_execution():
     tool = MathAddTool()
@@ -103,7 +152,7 @@ def test_math_add_execution():
         tool_code=valid_tool_code,
         test_code=valid_test_code,
     )
-    assert passed is True
+    assert passed is True, f"validate_tool_and_test failed, detail: {detail}"
     assert "passed" in detail.lower()
 
 
@@ -121,7 +170,7 @@ class BrokenTool(BaseTool):
 """
 
     failing_test_code = """
-from broken import BrokenTool
+from saleha.tools.broken import BrokenTool
 
 def test_broken():
     tool = BrokenTool()

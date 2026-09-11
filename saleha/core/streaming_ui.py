@@ -30,7 +30,7 @@ class StreamRenderer:
         with Live(
             Panel(
                 Markdown("*(Thinking...)*"),
-                title=f"[bold green]🌊 {title} ({model})[/]",
+                title=f"[bold green]{title} ({model})[/]",
                 border_style="green"
             ),
             console=self.console,
@@ -42,7 +42,7 @@ class StreamRenderer:
                 clean_display = accumulated_text or "*(Streaming...)*"
                 live.update(Panel(
                     Markdown(clean_display),
-                    title=f"[bold green]🌊 {title} ({model})[/]",
+                    title=f"[bold green]{title} ({model})[/]",
                     border_style="green"
                 ))
 

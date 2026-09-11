@@ -69,7 +69,7 @@ def _collect_module_level_bindings(stmts: Sequence[ast.stmt], names_set: Set[str
     name it assigned as a false CRITICAL UNDEF-001, because the caller only
     ever scanned direct top-level statements.
     """
-    stack: List[ast.stmt] = list(stmts)
+    stack: List[ast.AST] = list(stmts)
     while stack:
         node = stack.pop()
 
@@ -98,9 +98,13 @@ def _collect_module_level_bindings(stmts: Sequence[ast.stmt], names_set: Set[str
             for item in node.items:
                 if item.optional_vars:
                     _collect_target_names(item.optional_vars, names_set)
-
         for child in ast.iter_child_nodes(node):
-            if isinstance(child, ast.stmt):
+            # ast.ExceptHandler is not an ast.stmt, so a plain `isinstance(child,
+            # ast.stmt)` filter here silently drops every "except X as name:"
+            # handler -- a module-level `name` binding inside one was never
+            # visited, and any use of it inside the handler body scored a
+            # false CRITICAL UNDEF-001.
+            if isinstance(child, (ast.stmt, ast.ExceptHandler)):
                 stack.append(child)
 
 

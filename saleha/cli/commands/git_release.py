@@ -37,9 +37,9 @@ def project(goal, model, as_json, output_dir):
     """
     Build a multi-file project (breaks goal into files, generates each)
 
-    Single-file 'run' command ke bajaye ye bade goals ke liye hai jinme
-    ek se zyada files chahiye. Har file alag se generate hoti hai aur
-    project folder me save hoti hai (~/saleha_projects/<name>/).
+    For larger goals that need more than one file, unlike the single-file
+    'run' command. Each file is generated separately and saved into a
+    project folder (~/saleha_projects/<name>/).
 
     Example: saleha project "A simple command-line calculator"
     """
@@ -48,7 +48,7 @@ def project(goal, model, as_json, output_dir):
         with contextlib.redirect_stdout(io.StringIO()):
             result = builder.build(goal)
     else:
-        console.print(Panel.fit(f'[bold cyan]🏗️ Project Goal:[/] {goal}\n[bold cyan]🤖 Model:[/] {model}', title='[bold green]Saleha Project Builder[/]', border_style='green'))
+        console.print(Panel.fit(f'[bold cyan]Project Goal:[/] {goal}\n[bold cyan]Model:[/] {model}', title='[bold green]Saleha Project Builder[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Building project...', total=None)
             result = builder.build(goal)
@@ -59,16 +59,16 @@ def project(goal, model, as_json, output_dir):
         return
     console.print()
     if result.success:
-        console.print(Panel(f'[bold green]✅ SUCCESS[/] -- {len(result.files)} files created', border_style='green'))
+        console.print(Panel(f'[bold green]SUCCESS[/] -- {len(result.files)} files created', border_style='green'))
     else:
-        console.print(Panel('[bold yellow]⚠️ Partial/Failed[/] -- kuch files me problem hai, neeche dekho', border_style='yellow'))
-    console.print(f'\n[bold cyan]📁 Project location:[/] {result.project_dir}\n')
+        console.print(Panel('[bold yellow]Partial/Failed[/] -- some files have problems, see below', border_style='yellow'))
+    console.print(f'\n[bold cyan]Project location:[/] {result.project_dir}\n')
     table = Table(show_header=True, header_style='bold magenta')
     table.add_column('File', style='cyan')
     table.add_column('Status', justify='center')
     table.add_column('Note', style='yellow')
     for f in result.files:
-        status = '[green]✅[/]' if f.tested_ok else '[red]❌[/]'
+        status = '[green]OK[/]' if f.tested_ok else '[red]FAIL[/]'
         table.add_row(f.filename, status, f.test_error or '-')
     console.print(table)
 

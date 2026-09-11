@@ -90,7 +90,7 @@ class GraphRAGEngine:
 
         resp = self.agent.think(prompt, complexity_score=0.2)
         answer_text = resp.content if resp.success else (
-            f"### 🧠 Codebase Graph Analysis\n\n"
+            f"### Codebase Graph Analysis\n\n"
             f"Based on the symbol dependency graph, the relevant components are:\n"
             f"- **Key Symbols:** {', '.join(matched_symbols[:5]) or 'General'}\n"
             f"- **Files Involved:** {', '.join(list(relevant_files)[:5]) or 'Root Workspace'}\n\n"

@@ -272,6 +272,26 @@ def outer_clean() -> None:
     assert "outer_clean" not in complex_issues[0].message
 
 
+def test_module_level_except_name_not_falsely_undefined() -> None:
+    """`except X as name:` at module scope must not score `name` as undefined.
+
+    ast.ExceptHandler is not an ast.stmt, so a plain `isinstance(child,
+    ast.stmt)` filter over a Try node's children silently skipped every
+    handler -- found via saleha/core/inference_router_bridge.py, a real
+    file in this codebase, being scored CRITICAL for `str(exc)` inside
+    `except ImportError as exc:` at module level.
+    """
+    guard = QualityGuard()
+    code = '''
+try:
+    import foo
+except ImportError as exc:
+    err = str(exc)
+'''
+    report = guard.check_code(code)
+    assert not any(i.rule_id == "UNDEF-001" for i in report.issues)
+
+
 def test_varargs_untyped_counted_in_coverage() -> None:
     """Functions with untyped *args or **kwargs must NOT be marked fully typed."""
     guard = QualityGuard()

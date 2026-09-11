@@ -44,13 +44,13 @@ def main():
     is_windows = "windows" in triple
     src = os.path.join(ROOT_DIR, "dist", "saleha.exe" if is_windows else "saleha")
     if not os.path.exists(src):
-        print(f"⚠️ Expected built binary at {src} but it was not found.")
+        print(f"Expected built binary at {src} but it was not found.")
         sys.exit(1)
 
     os.makedirs(BINARIES_DIR, exist_ok=True)
     dest = os.path.join(BINARIES_DIR, f"saleha-{triple}{'.exe' if is_windows else ''}")
     shutil.copyfile(src, dest)
-    print(f"✅ Sidecar binary ready at {dest}")
+    print(f"Sidecar binary ready at {dest}")
 
 
 if __name__ == "__main__":

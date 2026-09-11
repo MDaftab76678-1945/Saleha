@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
         print("Recent entries:")
         for e in log.recent():
-            status = "✅ allowed" if e["allowed"] else "🚫 blocked"
+            status = "allowed" if e["allowed"] else "blocked"
         print(f"\nBlocked count: {len(log.blocked_entries())}")
 
 

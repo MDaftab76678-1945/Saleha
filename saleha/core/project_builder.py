@@ -1,26 +1,26 @@
 """
-Saleha Core: Project Builder (New -- multi-file project support)
+Saleha Core: Project Builder (multi-file project support)
 
-Abhi tak Saleha sirf ek chhota function/script bana sakta tha (single file).
-Ye module bade goals ko multiple files me todta hai -- jaise "ek chhota
-Flask app banao" ko `app.py`, `models.py`, `requirements.txt` me todna.
+Saleha previously could only produce a single file/function at a time. This
+module splits a larger goal into multiple files -- e.g. "build a small Flask
+app" into `app.py`, `models.py`, `requirements.txt`.
 
-Kaam kaise karta hai:
-1. Planner LLM se poochta hai: "is goal ke liye kaunsi files chahiye?"
-   (JSON list ke roop me: filename + kya us file me hona chahiye)
-2. Har file ke liye alag se CoderAgent call hota hai (context ke saath ki
-   baaki files me kya hai, taaki imports/naming match ho)
-3. Har file Tester se guzarti hai (syntax/security check)
-4. Sab files ek project folder me save hoti hain
+How it works:
+1. Asks the planner LLM: "which files does this goal need?"
+   (as a JSON list of filename + what that file should contain)
+2. Calls CoderAgent separately for each file (with a summary of the other
+   files as context, so imports/naming stay consistent)
+3. Each file goes through the Tester (syntax/security check)
+4. All files are saved into one project folder
 
 Limitations (honest scope):
-- Har file independently generate hoti hai -- cross-file logic errors
-  (jaise ek file dusri file ka function galat naam se import kare) pura
-  pakde nahi ja sakte, kyunki files ek dusre ko run-time pe verify nahi
-  karti (sirf saath wali files ka summary context me diya jaata hai).
-- Self-healing loop (jo single-file mode me hai) yahan nahi hai -- agar
-  koi file fail ho, wo sirf log hoti hai, poora project nahi rukta.
-- Sirf Python files ke liye bana hai abhi (jaisa baaki Saleha).
+- Each file is generated independently -- cross-file logic errors (e.g. one
+  file importing a function from another under the wrong name) cannot be
+  fully caught, because files are not verified against each other at
+  runtime (only a summary of the sibling files is given as context).
+- The self-healing loop present in single-file mode does not run here -- if
+  a file fails, it is only logged, the whole project does not halt.
+- Python files only, for now (same as the rest of Saleha).
 """
 
 from __future__ import annotations
@@ -83,13 +83,13 @@ class ProjectBuilder:
 
     def _plan_files(self, goal: str) -> List[FileSpec]:
         """Plans the required modular file structure for the given project goal."""
-        prompt = f"""आप एक Python प्रोजेक्ट आर्किटेक्ट हैं।
-लक्ष्य: {goal}
+        prompt = f"""You are a Python project architect.
+Goal: {goal}
 
-इस लक्ष्य को पूरा करने के लिए ज़रूरी Python files की सूची बनाएं (2-5 files, ज़रूरत से ज़्यादा नहीं)।
-केवल इस JSON फॉर्मेट में जवाब दें, कुछ और टेक्स्ट नहीं:
+List the Python files needed to accomplish this goal (2-5 files, no more than necessary).
+Respond ONLY in this JSON format, no other text:
 [
-  {{"filename": "app.py", "description": "क्या इस file में होना चाहिए"}},
+  {{"filename": "app.py", "description": "what should be in this file"}},
   {{"filename": "utils.py", "description": "..."}}
 ]
 """
@@ -109,26 +109,27 @@ class ProjectBuilder:
 
     def _isolate_file_code(self, code: str, target_filename: str, all_specs: List[FileSpec]) -> str:
         """
-        Chhote models kabhi-kabhi ek hi response me multiple files ka code
-        de dete hain (jaise "# main.py\n...\n# calculator.py\n...") chahe
-        humne sirf ek file manga ho. Ye method check karta hai ki agar
-        code me kisi doosri file ka naam header-comment ki tarah mila,
-        to sirf target file wala section rakhta hai.
+        Small models sometimes return code for multiple files in one
+        response (e.g. "# main.py\n...\n# calculator.py\n...") even when
+        only one file was requested. This method checks whether another
+        file's name appears in the code as a header comment, and if so,
+        keeps only the section belonging to the target file.
         """
         other_filenames = [f.filename for f in all_specs if f.filename != target_filename]
         if not other_filenames:
             return code
 
         lines = code.split("\n")
-        # Har line dekho -- agar wo "# <koi doosri file>.py" jaisi lagti hai,
-        # to wahan se break maan lo (agar target file ka section pehle mil chuka hai)
+        # Scan each line -- if it looks like "# <some other file>.py",
+        # treat that as a section break (once the target file's section has
+        # already started).
         marker_pattern = re.compile(
             r"^\s*#+\s*(" + "|".join(re.escape(f) for f in [target_filename] + other_filenames) + r")\s*$"
         )
 
         sections = {}  # filename -> list of lines
         current_file = None
-        preamble = []  # marker milne se pehle ka code (agar target file pehla section hai)
+        preamble = []  # code before any marker is found (if the target file is the first section)
 
         for line in lines:
             m = marker_pattern.match(line)
@@ -144,39 +145,41 @@ class ProjectBuilder:
         if target_filename in sections and sections[target_filename]:
             return "\n".join(sections[target_filename]).strip()
 
-        # Koi marker nahi mila (normal case) -- poora code hi is file ka hai
+        # No marker found (the normal case) -- the whole response belongs to
+        # this file.
         if not sections:
             return code
 
         non_empty_sections = {k: v for k, v in sections.items() if v}
 
-        # Sirf EK section mila aur wo target file ka nahi -- ye asal me
-        # multi-file dump nahi hai, model ne bas galat filename header laga
-        # diya apne hi generated code par. Poora content isi file ka hai,
-        # sirf header galat hai -- to us content ko hi use karo.
+        # Exactly one section was found and it is not the target file's --
+        # this is not actually a multi-file dump, the model just labelled
+        # its own generated code with the wrong filename header. The whole
+        # content still belongs to this file; only the header was wrong.
         if len(non_empty_sections) == 1 and not preamble:
             only_section = next(iter(non_empty_sections.values()))
             return "\n".join(only_section).strip()
 
-        # Genuinely multiple files mix hui hain aur target ka section nahi
-        # mila -- best-effort: preamble return karo (agar khaali hai to
-        # pura code hi return kar do, kam se kam kuch to milega)
+        # Genuinely multiple files are mixed together and none of the
+        # sections matches the target -- best-effort: return the preamble
+        # (or the whole code if the preamble is empty, so something is
+        # returned rather than nothing).
         return "\n".join(preamble).strip() or code
 
     def _generate_single_file(self, spec: FileSpec, all_specs: List[FileSpec], project_summary: str, project_dir: str) -> Tuple[FileResult, str]:
         """Generates, isolates, and tests an individual project file."""
         task = (
-            f"Is file ({spec.filename}) me ye hona chahiye: {spec.description}\n\n"
-            f"ज़रूरी: सिर्फ '{spec.filename}' का कोड लिखें। किसी और file का कोड "
-            f"बिल्कुल शामिल मत करें, भले ही project में और files हों।\n"
-            f"Import हमेशा absolute रखें (जैसे 'from calculator import add'), "
-            f"relative imports (जैसे '.calculator' या '..module') मत लिखें।"
+            f"This file ({spec.filename}) should contain: {spec.description}\n\n"
+            f"IMPORTANT: write ONLY the code for '{spec.filename}'. Do not include "
+            f"any other file's code, even if the project has other files.\n"
+            f"Always use absolute imports (e.g. 'from calculator import add'), "
+            f"never relative imports (e.g. '.calculator' or '..module')."
         )
-        plan_context = f"Poora project structure:\n{project_summary}"
+        plan_context = f"Full project structure:\n{project_summary}"
         code_result = self.coder.generate_code(task, plan=plan_context, attempt=1)
 
         if not code_result.success:
-            return FileResult(filename=spec.filename, code="", tested_ok=False, test_error=code_result.error), f"  ❌ Generation failed: {code_result.error}"
+            return FileResult(filename=spec.filename, code="", tested_ok=False, test_error=code_result.error), f"  FAILED: Generation failed: {code_result.error}"
 
         file_code = self._isolate_file_code(code_result.code, spec.filename, all_specs)
         test_result = self.tester.test_code(file_code)
@@ -185,7 +188,7 @@ class ProjectBuilder:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(file_code)
 
-        status = "✅" if test_result.passed else "⚠️"
+        status = "OK" if test_result.passed else "WARN"
         res = FileResult(
             filename=spec.filename,
             code=file_code,
@@ -197,26 +200,26 @@ class ProjectBuilder:
     def build(self, goal: str) -> ProjectResult:
         """Executes end-to-end multi-file project planning and generation."""
         logs: List[str] = [
-            f"🏗️ Project Goal: {goal}",
+            f"Project Goal: {goal}",
             "-" * 60,
-            "\n[1/3] Files ki list plan ki ja rahi hai...",
+            "\n[1/3] Planning the file list...",
         ]
 
         file_specs = self._plan_files(goal)
         if not file_specs:
-            logs.append("❌ Failed: model se valid file-list nahi mili.")
+            logs.append("FAILED: no valid file list returned by the model.")
             return ProjectResult(success=False, project_dir="", log="\n".join(logs))
 
-        logs.append(f"✅ {len(file_specs)} files planned: {[f.filename for f in file_specs]}")
+        logs.append(f"OK: {len(file_specs)} files planned: {[f.filename for f in file_specs]}")
         project_summary = "\n".join(f"- {f.filename}: {f.description}" for f in file_specs)
         project_slug = self._slugify(goal)
         project_dir = os.path.join(self.projects_dir, project_slug)
         os.makedirs(project_dir, exist_ok=True)
 
         results: List[FileResult] = []
-        logs.append("\n[2/3] Har file generate ki ja rahi hai...")
+        logs.append("\n[2/3] Generating each file...")
         for spec in file_specs:
-            logs.append(f"\n  📝 {spec.filename}: {spec.description}")
+            logs.append(f"\n  {spec.filename}: {spec.description}")
             file_res, msg = self._generate_single_file(spec, file_specs, project_summary, project_dir)
             results.append(file_res)
             logs.append(msg)
@@ -228,14 +231,14 @@ class ProjectBuilder:
         entry_error = ""
 
         if entry_spec:
-            logs.append(f"\n[4/4] Entry point '{entry_spec.filename}' ko verify kiya ja raha hai...")
+            logs.append(f"\n[4/4] Verifying entry point '{entry_spec.filename}'...")
             entry_ok, entry_error = self._verify_entry_point(project_dir, entry_spec.filename)
             if entry_ok:
-                logs.append(f"  ✅ '{entry_spec.filename}' bina crash ke chala.")
+                logs.append(f"  OK: '{entry_spec.filename}' ran without crashing.")
             else:
-                logs.append(f"  ❌ Crash on run: {entry_error[:300]}")
+                logs.append(f"  FAILED: crash on run: {entry_error[:300]}")
         else:
-            logs.append("\n[4/4] Koi clear entry point nahi mila, verification skip.")
+            logs.append("\n[4/4] No clear entry point found, skipping verification.")
 
         all_ok = all(r.tested_ok for r in results) and (entry_ok is not False)
         return ProjectResult(

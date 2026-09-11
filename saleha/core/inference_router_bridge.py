@@ -47,7 +47,18 @@ agent-inference-router/Cargo.toml and src/lib.rs):
 After those three fixes, `maturin develop` (run from
 rust/crates/agent-inference-router/) actually builds and installs the extension,
 and `import inference_router; inference_router.InferenceRouter()` genuinely
-works -- this was verified in this environment (see PR notes), not assumed.
+works -- this was verified against an earlier Python/pyo3 combination, not assumed.
+
+Re-checked 2026-09-11 against this project's current `.venv` (Python 3.14.7):
+`cargo check --lib` in that crate directory now fails outright --
+`pyo3 0.20.3`'s build script rejects Python 3.14 as newer than its supported
+maximum (3.12). The crate itself did not regress; the interpreter it is
+checked against did. Either pin pyo3 to a release that supports 3.14+, or set
+`PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` and confirm the stable-ABI build
+actually produces a loadable extension, before trusting this module's
+"verified" claim again. Until then, treat is_available() == False on this
+machine as the honest, current state -- not evidence the bridge itself is
+broken.
 
 Usage (once the extension is built -- see build_instructions() below):
 

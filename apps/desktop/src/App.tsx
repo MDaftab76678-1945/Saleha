@@ -28,6 +28,14 @@ interface MemoryEntry {
   timestamp: string;
 }
 
+interface SwarmStage {
+  stage_id: string;
+  agent_role: string;
+  status: string;
+  duration_ms: number;
+  output_summary: string;
+}
+
 interface VaultSecretMeta {
   key: string;
   created_at?: string;
@@ -112,12 +120,10 @@ export function DesktopApp() {
   const [isSpotlightOpen, setIsSpotlightOpen] = useState<boolean>(false);
   const [spotlightQuery, setSpotlightQuery] = useState<string>("");
   const [isThinkingExpanded, setIsThinkingExpanded] = useState<boolean>(true);
-  const [thinkingSteps, setThinkingSteps] = useState<string[]>([
-    "Parsing AST invariants and code dependencies",
-    "Querying 16D Poincaré Hyperbolic manifold topology",
-    "Running Confidence-Weighted PBFT consensus (CP-WBFT)",
-    "Executing pre-commit Gamma AST static safety pass"
-  ]);
+  // Populated from the real swarm pipeline stages returned by
+  // /api/v2/swarm/execute once a run completes -- empty until then, never a
+  // fabricated placeholder pretending a run is already in progress.
+  const [swarmStages, setSwarmStages] = useState<SwarmStage[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -440,6 +446,7 @@ export function DesktopApp() {
 
     setIsExecuting(true);
     setGeneratedCode("// Initializing Swarm Pipeline...\n");
+    setSwarmStages([]);
     setAgents((prev) => prev.map((a) => (a.id === "arch" || a.id === "planner" ? { ...a, status: "active" } : a)));
 
     try {
@@ -451,10 +458,11 @@ export function DesktopApp() {
       if (!resp.ok) throw new Error(`backend responded ${resp.status}`);
       const data = await resp.json();
       setGeneratedCode(data.final_code || "// Swarm pipeline completed with no code output");
+      setSwarmStages(data.stages || []);
       setAgents((prev) => prev.map((a) => ({ ...a, status: "success" })));
     } catch (err) {
       setGeneratedCode(
-        (prev) => `${prev}\n// ⚠️ Could not reach saleha backend at ${backendBaseUrl}: ${(err as Error).message}\n`
+        (prev) => `${prev}\n// Could not reach saleha backend at ${backendBaseUrl}: ${(err as Error).message}\n`
       );
       setAgents((prev) => prev.map((a) => ({ ...a, status: "idle" })));
     } finally {
@@ -1042,106 +1050,103 @@ export function DesktopApp() {
             ))}
           </div>
 
-          {/* Collapsible Sovereign Thinking Accordion */}
-          <div
-            style={{
-              width: "100%",
-              maxWidth: "760px",
-              marginTop: "1.25rem",
-              background: theme.bgSurface,
-              border: `1px solid ${isExecuting ? theme.accent : theme.borderSubtle}`,
-              borderRadius: "12px",
-              overflow: "hidden",
-              transition: "border-color 0.2s, box-shadow 0.2s",
-              boxShadow: isExecuting ? `0 0 15px ${theme.accentGlow}` : "none",
-            }}
-          >
+          {/* Swarm Pipeline Stages -- shows the real stage list returned by
+              /api/v2/swarm/execute after a run, not a simulated progress
+              display. Empty (and hidden) until a run has actually returned
+              stage data. */}
+          {(isExecuting || swarmStages.length > 0) && (
             <div
-              onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
               style={{
-                padding: "0.7rem 1rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                cursor: "pointer",
-                background: "rgba(255, 255, 255, 0.02)",
-                userSelect: "none",
+                width: "100%",
+                maxWidth: "760px",
+                marginTop: "1.25rem",
+                background: theme.bgSurface,
+                border: `1px solid ${isExecuting ? theme.accent : theme.borderSubtle}`,
+                borderRadius: "12px",
+                overflow: "hidden",
+                transition: "border-color 0.2s, box-shadow 0.2s",
+                boxShadow: isExecuting ? `0 0 15px ${theme.accentGlow}` : "none",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                <span style={{ fontSize: "1rem" }}>{isExecuting ? "🧠" : "✨"}</span>
-                <span style={{ fontSize: "0.82rem", fontWeight: 700, color: theme.textBright }}>
-                  Chain-of-Thought Reasoning {isExecuting ? "(Thinking...)" : "(Saleha Sovereign Engine)"}
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.68rem",
-                    padding: "0.15rem 0.5rem",
-                    borderRadius: "999px",
-                    background: isExecuting ? "rgba(56, 189, 248, 0.15)" : "rgba(16, 185, 129, 0.15)",
-                    color: isExecuting ? theme.accent : theme.accentGreen,
-                    fontWeight: 700,
-                  }}
-                >
-                  {isExecuting ? "⚡ CP-WBFT Active" : "✓ 4/4 Verified"}
-                </span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "0.72rem", color: theme.textDim }}>
-                  {thinkingSteps.length} reasoning steps
-                </span>
-                <span style={{ fontSize: "0.75rem", color: theme.textDim, transform: isThinkingExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                  ▼
-                </span>
-              </div>
-            </div>
-
-            {isThinkingExpanded && (
               <div
+                onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
                 style={{
-                  padding: "0.85rem 1rem",
-                  borderTop: `1px solid ${theme.borderSubtle}`,
+                  padding: "0.7rem 1rem",
                   display: "flex",
-                  flexDirection: "column",
-                  gap: "0.5rem",
-                  background: "rgba(0, 0, 0, 0.25)",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
+                  background: "rgba(255, 255, 255, 0.02)",
+                  userSelect: "none",
                 }}
               >
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  {thinkingSteps.map((step, idx) => (
-                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.78rem" }}>
-                      <span style={{ color: theme.accentGreen, fontSize: "0.75rem" }}>●</span>
-                      <span style={{ color: theme.textDim }}>[Step {idx + 1}]</span>
-                      <span style={{ color: theme.textBright, fontWeight: 500 }}>{step}</span>
-                    </div>
-                  ))}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: theme.textBright }}>
+                    Swarm Pipeline {isExecuting ? "(Running...)" : "(Completed)"}
+                  </span>
+                  {!isExecuting && swarmStages.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "999px",
+                        background: "rgba(16, 185, 129, 0.15)",
+                        color: theme.accentGreen,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {swarmStages.filter((s) => s.status === "success" || s.status === "completed").length}/{swarmStages.length} stages OK
+                    </span>
+                  )}
                 </div>
-
-                <div
-                  style={{
-                    marginTop: "0.5rem",
-                    background: theme.bgBase,
-                    border: `1px solid ${theme.borderSubtle}`,
-                    borderRadius: "8px",
-                    padding: "0.6rem 0.8rem",
-                    fontFamily: "monospace",
-                    fontSize: "0.72rem",
-                    color: theme.accent,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <div style={{ color: theme.textDim, marginBottom: "0.2rem" }}>// Live Cognitive &lt;THINKING&gt; stream tokens:</div>
-                  <div>&lt;THINKING&gt;</div>
-                  <div style={{ paddingLeft: "0.8rem", color: theme.textMain }}>
-                    • Native Tauri IPC state synchronizer active.<br />
-                    • PBFT Quorum: 16/19 agents reached 98.1% consensus.<br />
-                    • Zero AST regressions detected across local workspace.
-                  </div>
-                  <div>&lt;/THINKING&gt;</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.72rem", color: theme.textDim }}>
+                    {isExecuting ? "waiting for stage results..." : `${swarmStages.length} stages`}
+                  </span>
+                  <span style={{ fontSize: "0.75rem", color: theme.textDim, transform: isThinkingExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                    ▼
+                  </span>
                 </div>
               </div>
-            )}
-          </div>
+
+              {isThinkingExpanded && (
+                <div
+                  style={{
+                    padding: "0.85rem 1rem",
+                    borderTop: `1px solid ${theme.borderSubtle}`,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                    background: "rgba(0, 0, 0, 0.25)",
+                  }}
+                >
+                  {swarmStages.length === 0 ? (
+                    <div style={{ fontSize: "0.78rem", color: theme.textDim }}>
+                      Waiting for the backend to report pipeline stages...
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                      {swarmStages.map((stage) => (
+                        <div key={stage.stage_id} style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.78rem" }}>
+                          <span
+                            style={{
+                              color: stage.status === "success" || stage.status === "completed" ? theme.accentGreen : theme.accentRed,
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            ●
+                          </span>
+                          <span style={{ color: theme.textDim }}>[{stage.agent_role}]</span>
+                          <span style={{ color: theme.textBright, fontWeight: 500, flex: 1 }}>{stage.output_summary}</span>
+                          <span style={{ color: theme.textDim, fontSize: "0.7rem" }}>{stage.duration_ms}ms</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Interactive Workspace Views */}
           <div style={{ width: "100%", maxWidth: "980px", marginTop: "2rem" }}>

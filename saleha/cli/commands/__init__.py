@@ -458,6 +458,7 @@ from saleha.cli.commands import self_improve  # noqa: F401
 from saleha.cli.commands import skill_group  # noqa: F401
 from saleha.cli.commands import swarm_team  # noqa: F401
 from saleha.cli.commands import testing_bench  # noqa: F401
+from saleha.cli.commands import tool_forge_cmd  # noqa: F401
 from saleha.cli.commands import user  # noqa: F401
 from saleha.cli.commands import vault_group  # noqa: F401
 from saleha.cli.commands import voice_vision  # noqa: F401
