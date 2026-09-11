@@ -172,7 +172,13 @@ A Next.js (App Router) application. Confirmed working integration: it calls the 
 
 ### Desktop app (`apps/desktop`)
 
-A Tauri v2 application. It launches the Python backend as a bundled sidecar process on startup and polls until it's ready, then talks to it over the same HTTP API used by the web app (`src/App.tsx`). This wiring was completed recently as part of ongoing integration work; expect rougher edges than the CLI or web app.
+A Tauri v2 application. It launches the Python backend as a bundled sidecar process on startup and polls until it's ready, then talks to it over the same HTTP API used by the web app (`src/App.tsx`). This wiring was completed recently as part of ongoing integration work.
+
+The Rust side (`src-tauri/src/main.rs`) was read and audited in full: it manages the sidecar's whole lifecycle for real -- picks a free port to avoid clashing with anything already bound to 8000, kills the entire PyInstaller-bootloader process tree (not just the handle it holds) on window close, guards spawn/respawn behind a `start_lock` mutex specifically because React StrictMode's double-mount in development reproduced two live Python servers, and respawns with capped backoff on an unexpected exit. `cargo check` is clean (0 warnings).
+
+To build the desktop app locally, `pip install -e ".[desktop]"` (or `.[dev]`, which also includes it) is required first -- `pnpm build`/`pnpm dev` in `apps/desktop` shells out to `scripts/build_desktop_sidecar.py`, which needs PyInstaller to bundle the Python backend into the sidecar binary Tauri launches. Without it, the build fails immediately with "No module named PyInstaller"; this was undocumented and untested until it was found and fixed here.
+
+The frontend previously rendered a "Chain-of-Thought Reasoning" panel with hardcoded text (fixed pipeline stage names, a literal "PBFT Quorum: 16/19 agents reached 98.1% consensus" string) that never reflected an actual run -- fixed to render the real per-stage data (`agent_role`, `status`, `duration_ms`, `output_summary`) `/api/v2/swarm/execute` already returns.
 
 ### rust/ and contracts/
 

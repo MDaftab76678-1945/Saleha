@@ -51,6 +51,15 @@ formal = [
 repograph = [
     "graphifyy>=0.9.55"
 ]
+# Bundles saleha/cli into the standalone sidecar binary apps/desktop's Tauri
+# build launches (scripts/build_desktop_sidecar.py). Without this, running
+# `pnpm build` in apps/desktop fails outright at the first step with
+# "No module named PyInstaller" -- found while hardening the desktop
+# integration, since the desktop app's own README/package.json never state
+# this as a prerequisite.
+desktop = [
+    "pyinstaller>=6.0"
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -71,7 +80,8 @@ all = [
     "tree-sitter-typescript>=0.21",
     "web3>=6.0.0",
     "z3-solver>=4.12",
-    "graphifyy>=0.9.55"
+    "graphifyy>=0.9.55",
+    "pyinstaller>=6.0"
 ]
 
 [project.scripts]
