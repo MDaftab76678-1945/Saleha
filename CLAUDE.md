@@ -651,7 +651,31 @@ the comment swallowed the statement's own semicolon), caught by running
 comment after the terminator; and `evaluate_real_trained_model.py` labelled
 an actual regression (base model passed, LoRA failed) as "MAINTAINED",
 same as a true no-change case — split into four explicit outcomes.
+Full suite after pass 45: 1859 passed, 8 skipped (unchanged baseline).
+Committed `9da562c`, pushed to `origin/main`.
 Detail: `NOTEBOOK_IMPORT.md`, "Forty-fifth pass."
+
+**`datasets/synthesize_*.py` lineage — cleanup claims verified, then a new
+gap closed (pass 46).** Pass 44 had flagged this lineage's "already
+partially remediated by an earlier, unlogged cleanup" note as unconfirmed.
+Independently re-measured every specific claim in all six scripts'
+"PARTIALLY BROKEN"/"BROKEN, DO NOT RUN" docstrings against the real output
+files — all checked out (`saleha_sovereign_train.json` 31/31 unique rows,
+`tourist_gemini_grandmaster.json` 7 rows with HLD genuinely dropped,
+`saleha_omni_grandmaster_train.json`/`saleha_dsa_livecodebench_train.json`
+7/7 unique each, the three purged files genuinely `[]`). Found a real,
+previously-unflagged gap: the "do not re-run" warning was docstring-only —
+nothing in the code stopped a re-run from silently overwriting the
+hand-deduplicated files with the fabricated versions again. Confirmed live
+by actually running `synthesize_sovereign_ultra_dataset.py`: it built the
+full 1600-row fabricated dataset in memory before an unrelated path issue
+stopped it short of writing. Fixed with a new shared
+`datasets/_synth_guard.py` — `guard_output_path()` refuses to overwrite an
+existing output file unless `--force` is passed — wired into all six
+scripts at their write entry point. Verified: all six now exit 1 with the
+target file byte-for-byte unchanged when run without `--force`, and
+`--force` correctly bypasses the guard when tested directly.
+Detail: `NOTEBOOK_IMPORT.md`, "Forty-sixth pass."
 
 ---
 

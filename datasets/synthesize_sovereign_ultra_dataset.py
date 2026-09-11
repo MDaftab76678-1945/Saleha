@@ -34,6 +34,9 @@ import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _synth_guard import guard_output_path
+
 # ==============================================================================
 # 1. SOVEREIGN STRUCTURED TOOL CALLING & SYSTEM AUTOMATION (600 Samples)
 # ==============================================================================
@@ -249,31 +252,34 @@ def generate_debugging_samples(count=400):
 # 4. MASTER CONSOLIDATION
 # ==============================================================================
 def main():
-    print("🚀 Synthesizing Saleha Sovereign Ultra Agentic Dataset...")
-    
+    output_file = "datasets/saleha_sovereign_train.json"
+    guard_output_path(output_file, "synthesize_sovereign_ultra_dataset.py")
+
+    print("Synthesizing Saleha Sovereign Ultra Agentic Dataset...")
+
     # 1. New Agentic & Persona Data
     tool_samples = generate_tool_samples(600)
     hindi_samples = generate_hindi_persona_samples(600)
     debug_samples = generate_debugging_samples(400)
     new_agentic_data = tool_samples + hindi_samples + debug_samples
-    print(f"✨ Synthesized {len(new_agentic_data)} new high-density Agentic & Persona pairs.")
-    
+    print(f"Synthesized {len(new_agentic_data)} new high-density Agentic & Persona pairs.")
+
     # 2. Existing Grandmaster Anchors (2,250 samples)
     anchor_path = "datasets/saleha_omni_grandmaster_train.json"
     if os.path.exists(anchor_path):
         with open(anchor_path, "r", encoding="utf-8") as f:
             grandmaster_anchors = json.load(f)
-        print(f"⚓ Loaded {len(grandmaster_anchors)} existing Grandmaster anchor samples to preserve 100% benchmarks.")
+        print(f"Loaded {len(grandmaster_anchors)} existing Grandmaster anchor samples to preserve 100% benchmarks.")
     else:
         grandmaster_anchors = []
-        print("⚠️ Grandmaster anchor file not found, proceeding with new data.")
+        print("Grandmaster anchor file not found, proceeding with new data.")
 
     # 3. Load 1,000 Tourist Grandmaster Samples
     tourist_path = "datasets/tourist_gemini_grandmaster.json"
     if os.path.exists(tourist_path):
         with open(tourist_path, "r", encoding="utf-8") as f:
             tourist_data = json.load(f)
-        print(f"🏆 Loaded {len(tourist_data)} Gennady Korotkevich ('Tourist') Grandmaster samples!")
+        print(f"Loaded {len(tourist_data)} Gennady Korotkevich ('Tourist') Grandmaster samples!")
     else:
         tourist_data = []
 
@@ -281,15 +287,14 @@ def main():
     consolidated = grandmaster_anchors + new_agentic_data + tourist_data
     random.seed(42)
     random.shuffle(consolidated)
-    
-    output_file = "datasets/saleha_sovereign_train.json"
+
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(consolidated, f, indent=2, ensure_ascii=False)
-        
-    print(f"\n🎉 Total Master Samples in Dataset: {len(consolidated)}")
-    print(f"💾 Saved to: {os.path.abspath(output_file)}")
+
+    print(f"\nTotal Master Samples in Dataset: {len(consolidated)}")
+    print(f"Saved to: {os.path.abspath(output_file)}")
     size_mb = os.path.getsize(output_file) / (1024 * 1024)
-    print(f"📦 Dataset Size: {size_mb:.2f} MB")
+    print(f"Dataset Size: {size_mb:.2f} MB")
 
 if __name__ == "__main__":
     main()

@@ -20,9 +20,14 @@ Dataset Synthesizer for Artificial Analysis 5-Domain Leaderboards:
 
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _synth_guard import guard_output_path
 
 
 def generate_omni_leaderboard_dataset(output_path: str = "datasets/saleha_artificial_analysis_omni_train.json"):
+    guard_output_path(output_path, "synthesize_omni_leaderboard_data.py")
     samples = []
 
     # 1. TTS Arena & Audio Synthesis (50 Samples)

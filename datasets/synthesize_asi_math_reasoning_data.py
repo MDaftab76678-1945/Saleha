@@ -23,9 +23,14 @@ Generates 1,000 high-density, rigorous samples covering:
 
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _synth_guard import guard_output_path
 
 
 def generate_asi_dataset(output_path: str = "datasets/saleha_asi_math_reasoning_train.json"):
+    guard_output_path(output_path, "synthesize_asi_math_reasoning_data.py")
     samples = []
 
     # 1. Advanced Mathematics & Number Theory (250 Samples)

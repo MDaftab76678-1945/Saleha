@@ -3820,5 +3820,89 @@ scripts confirmed to run end-to-end without crashing (three ran live under
 `SALEHA_TEST_MODE=1`; two -- `evaluate_real_trained_model.py`,
 `evaluate_artificial_analysis_suite.py` -- confirmed by `py_compile` only,
 since they need `torch`/`peft`/a real GPU adapter checkpoint this machine
-does not have loaded). Full suite run pending at time of writing this entry;
-see the commit for the final count.
+does not have loaded). Full suite: `1859 passed, 8 skipped, 60 subtests
+passed in 142.87s` -- unchanged from the pass-44 baseline. Committed as
+`9da562c` and pushed to `origin/main`.
+
+## Forty-sixth pass
+
+Followed up pass-44's other open item: the `datasets/synthesize_*.py`
+lineage's "already partially remediated by an earlier, unlogged cleanup"
+note. Read `synthesize_sovereign_ultra_dataset.py` in full plus the four
+sibling generators it and pass-44 pointed at
+(`synthesize_tourist_gemini_dataset.py`, `synthesize_omni_leaderboard_data.py`,
+`synthesize_hardcore_data.py`, `synthesize_asi_math_reasoning_data.py`,
+`synthesize_dsa_livecodebench_data.py` -- six total once dsa is included).
+
+### Verified: the 2026-09-06 cleanup itself was accurate
+
+Every specific claim in each script's own "PARTIALLY BROKEN"/"BROKEN, DO
+NOT RUN" docstring was independently re-measured against the real output
+files, not just trusted:
+
+- `saleha_sovereign_train.json`: 31 rows, verified 31/31 unique
+  `(instruction, output)` pairs (matches the docstring's "23 own + 8
+  tourist, now 7" claim).
+- `tourist_gemini_grandmaster.json`: 7 rows, verified all 7 titles present
+  and zero Heavy-Light Decomposition mentions (matches "HLD dropped").
+- `saleha_omni_grandmaster_train.json`: 7 rows, verified 7/7 unique.
+- `saleha_dsa_livecodebench_train.json`: 7 rows, verified 7/7 unique.
+- `saleha_artificial_analysis_omni_train.json`,
+  `saleha_omni_hardcore_train.json`, `saleha_asi_math_reasoning_train.json`:
+  all three confirmed genuinely `[]` (purged), not just claimed to be.
+
+Also confirmed `saleha_sovereign_train.json` is orphaned exactly as
+`CLAUDE.md` already states: its only consumer anywhere in the repo is
+`scripts/train_sovereign_ultra_gpu.py`, which itself has zero callers under
+`saleha/core`/`saleha/cli` -- the earlier "not consumed in production"
+claim checked out.
+
+### New finding: the "do not re-run" warning was docstring-only, not enforced
+
+All six scripts' `main()`/generator functions still unconditionally ran the
+exact counter-cloning code the docstring warns against, then opened their
+real output path in `"w"` mode with no existence check. Running any one of
+them (e.g. someone following the module docstring's own usage instructions,
+or a future automated pipeline pass) would have silently destroyed the
+hand-deduplicated files and regenerated the fabricated versions -- the same
+"warning comment describes the danger, code does not prevent it" gap this
+project has hit before. Confirmed the risk was live, not theoretical, by
+actually running `synthesize_sovereign_ultra_dataset.py` before adding the
+guard: it got partway through (synthesized 1600 fabricated rows in memory)
+before an unrelated pre-existing relative-path issue stopped it -- had that
+path issue not existed, the real file would have been overwritten.
+
+Fixed with a new shared `datasets/_synth_guard.py`: `guard_output_path()`
+checks whether the target output file already exists and, if so, exits
+with a clear explanation instead of writing, unless `--force` is passed on
+the command line. Wired into all six scripts at their actual write path
+(`main()`/generator entry point, before any generation work happens).
+Measured before/after: before, `synthesize_sovereign_ultra_dataset.py`
+proceeded to build the full fabricated dataset in memory; after, all six
+scripts exit 1 immediately with the file untouched (`saleha_sovereign_train.json`
+still 39461 bytes / 31 rows post-test, confirmed by direct re-read). Also
+confirmed `--force` correctly bypasses the guard when explicitly requested.
+
+Minor cleanup alongside: removed decorative emoji from
+`synthesize_sovereign_ultra_dataset.py`'s and `synthesize_tourist_gemini_dataset.py`'s
+log/print statements (not from the training-sample content strings
+themselves, which are data, not code/log output, and out of scope for this
+rule). `QualityGuard` reports all seven touched files (`_synth_guard.py`
+plus the six synthesizers) passing, no CRITICAL/MAJOR issues.
+
+### What was found but deliberately not acted on this pass
+
+The docstring-documented content bug in `synthesize_tourist_gemini_dataset.py`
+(the dropped Heavy-Light Decomposition problem's solution never implements
+`update`/`query`) was already fixed by dropping that problem entirely from
+the real output file during the 2026-09-06 cleanup -- nothing further
+needed. `saleha/core/`'s 249 files and `saleha/tests/`'s 250 files remain
+the largest still-open item in `ORCHESTRATOR.md` section 8.
+
+### Verified
+
+`python -m py_compile` on all seven touched files: clean.
+`saleha.core.quality_guard.QualityGuard(strict_mode=True)` on all seven:
+all `passed=True`, zero CRITICAL/MAJOR issues. All six synthesizer scripts
+run end-to-end and confirmed to refuse overwriting their real output paths
+(exit code 1, file byte-size unchanged before/after for all six).

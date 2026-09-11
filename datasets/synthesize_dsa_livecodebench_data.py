@@ -26,6 +26,10 @@ import json
 import os
 import random
 import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _synth_guard import guard_output_path
 
 
 def clean_prompt_merging(prefix: str, base_prompt: str) -> str:
@@ -47,6 +51,8 @@ def clean_prompt_merging(prefix: str, base_prompt: str) -> str:
 
 
 def generate_dsa_dataset(num_samples: int = 500):
+    guard_output_path("datasets/saleha_dsa_livecodebench_train.json", "synthesize_dsa_livecodebench_data.py")
+
     # 1. LRU Cache (Doubly Linked List + Hash Map, O(1))
     lru_template = {
         "prompt": "Implement an LRU Cache in Python with O(1) get and put operations using a doubly linked list.",

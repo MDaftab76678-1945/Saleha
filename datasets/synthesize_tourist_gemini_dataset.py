@@ -27,6 +27,9 @@ import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _synth_guard import guard_output_path
+
 TOURIST_PROBLEMS = [
     {
         "title": "Dynamic Programming with Convex Hull Trick (CHT)",
@@ -636,9 +639,12 @@ class SuffixAutomaton:
 ]
 
 def main():
-    print("🏆 Generating 1,000 Gennady Korotkevich ('Tourist') + Gemini Grandmaster Pairs...")
+    output_path = "datasets/tourist_gemini_grandmaster.json"
+    guard_output_path(output_path, "synthesize_tourist_gemini_dataset.py")
+
+    print("Generating Gennady Korotkevich ('Tourist') + Gemini Grandmaster Pairs...")
     samples = []
-    
+
     for item in TOURIST_PROBLEMS:
         # 8 distinct problems * 125 variations = 1,000 samples
         for i in range(125):
@@ -650,12 +656,11 @@ def main():
                 "output": response
             })
 
-    output_path = "datasets/tourist_gemini_grandmaster.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(samples, f, indent=2, ensure_ascii=False)
-        
-    print(f"✨ Successfully generated {len(samples)} Grandmaster ICPC/Codeforces problem pairs!")
-    print(f"💾 Saved to: {os.path.abspath(output_path)}")
+
+    print(f"Successfully generated {len(samples)} Grandmaster ICPC/Codeforces problem pairs!")
+    print(f"Saved to: {os.path.abspath(output_path)}")
 
 if __name__ == "__main__":
     main()

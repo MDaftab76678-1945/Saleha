@@ -22,9 +22,14 @@ Reinforces exact schema formatting for:
 
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _synth_guard import guard_output_path
 
 
 def generate_hardcore_dataset(output_path: str = "datasets/saleha_omni_hardcore_train.json"):
+    guard_output_path(output_path, "synthesize_hardcore_data.py")
     samples = []
 
     # 1. TTS Arena (100 Samples)
