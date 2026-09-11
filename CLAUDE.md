@@ -457,8 +457,29 @@ no longer holds against this project's actual `.venv` (Python 3.14.7
 vs. pyo3's 3.12 ceiling) -- docstring corrected rather than left stale.
 Detail: `NOTEBOOK_IMPORT.md`, "Thirty-eighth pass."
 
+**Formal verification -- widened, and a false negative fixed (pass
+39).** `formal_verifier.py`/`formal_smt_verifier.py` were already
+honestly labelled (an earlier pass, not this one): the Lean 4 output
+is marked `lean_verified=False` / "UNVERIFIED SCAFFOLD", and the SMT
+verifier genuinely calls Z3 for division-by-zero safety. Real Lean
+verification needs `elan`/`lake`/Mathlib (several GB, not installed
+here) -- disproportionate for one sitting, so the chosen direction was
+to widen the one real proof this project already has instead. Added a
+second genuine Z3 obligation: `seq[i]` is proven in-bounds when `i` is
+guarded by `assert`/early-exit statements implying
+`0 <= i < len(seq)`. Reused the existing guard-detection machinery,
+extended for chained comparisons and `len(name)` terms. Hand-testing
+the new code surfaced a real bug in the *existing* division checker:
+a comparison with the guarded variable on the right (`5 < b`, i.e.
+`b > 5`) was translated by swapping operands without flipping the
+operator, silently becoming `b < 5` -- a real, provable safety fact
+(`5 < b` rules out zero) was reported `not_proven`. Confirmed with
+`git stash`: `not_proven` before the fix, `proven_safe` after. Full
+suite: 1809 passed, 7 skipped (was 1800). Detail:
+`NOTEBOOK_IMPORT.md`, "Thirty-ninth pass."
+
 **Branch state:** work happens on `test-issue-101`, pushed and in sync with
-`origin/test-issue-101` as of pass 38. `main` is behind.
+`origin/test-issue-101` as of pass 39. `main` is behind.
 
 ---
 

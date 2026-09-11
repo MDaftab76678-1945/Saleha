@@ -2917,3 +2917,97 @@ python -m pytest saleha/tests/ -q
 ```
 
 `test_streaming_ui.py` did not exist before this pass.
+
+## Thirty-ninth pass -- widening the one real formal proof this project has, and a false negative found inside it (2026-09-11)
+
+`ROADMAP.md` carried an item to "decide the fate of the formal verification
+modules." Reading both in full first: `formal_verifier.py` and
+`formal_smt_verifier.py` were already honestly labelled by an earlier pass
+(not this one) -- `synthesize_proof_for_function`'s Lean 4 output is marked
+`lean_verified=False` with an explicit "UNVERIFIED SCAFFOLD" string, and
+`FormalSMTVerifier.verify_function_contract` genuinely calls Z3 for a narrow
+division-by-zero proof. Neither is a fabrication as things stand. The
+question was what to do next.
+
+Real Lean verification needs an `elan`/`lake`/Mathlib install -- several GB,
+not present on this machine (`shutil.which("lean")` is `None` here) --
+disproportionate for what this pass could responsibly attempt in one sitting.
+Chose instead to widen the one real Z3 proof this project already has:
+`formal_smt_verifier.py` proved only division safety. Added a second genuine
+proof obligation for `seq[i]` subscripts -- given a bare-variable index `i`
+guarded by `assert`/early-exit statements mentioning `len(seq)`, Z3 is asked
+whether those guards imply `0 <= i < len(seq)`.
+
+This reused the existing guard-collection and guard-to-Z3 translation code
+rather than duplicating it, which required two real extensions: chained
+comparisons (`0 <= i < len(seq)`, which Python evaluates as
+`0 <= i and i < len(seq)`, split into pairwise `Compare` nodes and `And`-ed
+together for Z3), and recognizing a literal `len(name)` call as a symbolic
+term rather than only integer/float constants.
+
+### Hand-testing the new code exposed a real bug in the old code
+
+Writing cases to probe the new index-bounds proof (chained-compare guard, two
+separate asserts, lower-bound-only guard, unguarded access) surfaced a bug in
+`_guard_to_z3` that had been there since the division checker was written:
+when the guarded variable appears on the *right* of a comparison (`5 < b`,
+which means `b > 5`), the code swapped the operands (`left, right = right,
+left`) so it could reuse the "variable on the left" branch below -- but never
+flipped the comparison operator to match. `5 < b` was silently translated as
+`b < 5`.
+
+This is not cosmetic. `5 < b` genuinely proves `b` cannot be zero (b is
+strictly greater than 5). The inverted `b < 5` does not -- b could be
+anywhere from 0 to 5 -- so Z3, asked the wrong question, correctly reported
+that the (wrong) guard does not rule out zero. The checker was reporting a
+real, provable safety fact as unproven:
+
+```text
+git stash   # revert to the pre-fix code
+python -c "
+from saleha.core.formal_smt_verifier import FormalSMTVerifier
+v = FormalSMTVerifier()
+code = 'def safe_div(a, b):\n    assert 5 < b\n    return a / b\n'
+print(v.verify_function_contract(code, function_name='safe_div').checks)
+"
+# [DivisionCheck(..., status='not_proven', detail="...does not rule out zero (result: sat)...")]
+git stash pop   # restore the fix
+
+# same call after the fix:
+# [DivisionCheck(..., status='proven_safe', detail="...UNSAT for guard AND b=0...")]
+```
+
+This is a false negative, not a false positive -- the checker was too
+conservative, not dangerously permissive, so nothing downstream was ever told
+something unsafe was safe. But it is exactly the shape of bug this project's
+audit method exists to catch: a claim ("Z3 proved/did not prove X") that was
+not actually testing X. Fixed by flipping the operator (`ast.Lt`<->`ast.Gt`,
+`ast.LtE`<->`ast.GtE`, `Eq`/`NotEq` unchanged) whenever the operands are
+swapped.
+
+### Verified
+
+Direct probes (not just via the test suite):
+
+```text
+0 <= i < len(seq), one assert           -> proven_safe
+i >= 0 and i < len(seq), two asserts    -> proven_safe
+i >= 0 only                             -> not_proven (correctly: doesn't rule out i>=len(seq))
+no guard at all                         -> not_proven
+seq[i + 1] (expression index)           -> not_analyzed
+self.items[i] (attribute sequence)      -> not counted (documented scope limit, not silently wrong)
+assert 5 < b; return a / b              -> proven_safe (was not_proven before the flip fix)
+assert 5 < b  vs  assert b > 5          -> identical result (proven_safe), confirming the flip is now correct
+```
+
+```text
+python -m pytest saleha/tests/test_formal_smt_verifier.py saleha/tests/test_formal_verifier.py saleha/tests/test_apex_97_frontier_suite.py saleha/tests/test_2026_disciplines_suite.py saleha/tests/test_verify_live_proofs_script.py -q
+35 passed in 10.42s
+
+python -m pytest saleha/tests/ -q
+1809 passed, 7 skipped, 60 subtests passed in 106.09s   (was 1800 passed, 7 skipped)
+```
+
+`test_formal_smt_verifier.py` (9 tests) is new; it did not exist before this
+pass, so neither the index-bounds proof nor the operator-flip regression had
+any test coverage previously.
