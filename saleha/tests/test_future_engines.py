@@ -2,7 +2,7 @@
 Unit & Integration tests for Saleha Multi-Horizon Future Engines (Phases 1-4):
 1. In-Browser Wasm Runner (Pyodide & QuickJS)
 2. Visual Pixel-Diff & Screenshot Regression Verifier
-3. P2P Mesh Swarm & Distributed Fuzzing Cluster
+3. Batched Mutation Fuzzing (single-process, NOT distributed P2P -- see saleha/core/p2p_swarm.py docstring)
 4. WebGPU & NPU Local Hardware Accelerators
 5. Lean 4 Formal Mathematical Proof Synthesizer
 6. Spatial 3D Neural Scene & WebXR Coder
@@ -21,7 +21,7 @@ from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
 from saleha.core.wasm_runner import wasm_engine
 from saleha.core.visual_diff import visual_diff_engine
-from saleha.core.p2p_swarm import p2p_engine
+from saleha.core.p2p_swarm import batched_fuzzing_engine as p2p_engine
 from saleha.core.webgpu_accelerator import webgpu_accelerator
 from saleha.core.formal_verifier import formal_verifier
 from saleha.core.spatial_coder import spatial_coder
@@ -88,14 +88,20 @@ class FutureEnginesTests(unittest.TestCase):
         data = self._post("/api/vision/diff", {"base_html": base, "current_html": curr})
         self.assertTrue(data["is_match"])
 
-    # --- Phase 2: P2P Swarm & WebGPU ---
-    def test_p2p_swarm_distributed_fuzzing(self) -> None:
-        res = p2p_engine.distribute_mutation_fuzzing("def safe(): return 1", total_mutations=200)
-        self.assertTrue(res.consensus_achieved)
-        self.assertGreaterEqual(res.nodes_participating, 1)
+    # --- Phase 2: Batched Fuzzing & WebGPU ---
+    def test_batched_mutation_fuzzing(self) -> None:
+        # p2p_swarm.py does not do distributed peer-to-peer computation
+        # (a prior version claimed fake network peers at hardcoded IPs and
+        # an unconditional consensus_achieved=True) -- this verifies the
+        # real batched-fuzzing behavior instead.
+        res = p2p_engine.distribute_mutation_fuzzing("def safe(x): return x", total_mutations=200)
+        self.assertGreater(res.total_trials_run, 0)
+        self.assertEqual(res.batches_run, 4)
+        self.assertEqual(res.trials_passed + res.trials_failed, res.total_trials_run)
 
-        data = self._post("/api/p2p/fuzz", {"code": "def run(): pass", "mutations": 100})
-        self.assertTrue(data["consensus_achieved"])
+        data = self._post("/api/p2p/fuzz", {"code": "def run(x): return x", "mutations": 100})
+        self.assertGreater(data["total_trials_run"], 0)
+        self.assertIn("not distributed", data["note"])
 
     def test_webgpu_hardware_acceleration(self) -> None:
         # detect_hardware() cannot actually probe NPU/WebGPU capability from

@@ -4115,3 +4115,97 @@ those files means they were audited in full. ~20 of the ~30 never-before-
 named `saleha/core/` modules from the priority list remain unread; next
 candidates include `change_impact.py`, `p2p_swarm.py`, `hypergraph_indexer.py`,
 `multi_file_editor.py`, `review_reporter.py`, `mcp_server.py`.
+
+## Forty-eighth pass
+
+Read the six modules pass 47 named as next candidates, in full. Two were
+fabrications (`p2p_swarm.py`, `mcp_server.py`), fixed. Four were genuinely
+real (`change_impact.py`, `hypergraph_indexer.py`, `review_reporter.py`,
+`multi_file_editor.py`) -- one of them, `multi_file_editor.py`, had a
+Hindi/Hinglish docstring and five Hindi-word inline comments, fixed for
+the English-only rule (not a fabrication issue, a language-rule issue).
+
+### `saleha/core/p2p_swarm.py` -- fake distributed peer-to-peer claims
+
+Docstring claimed "Libp2p-inspired Peer Discovery & DHT Node Routing",
+"Work-Stealing Distributed Mutation Fuzzing", and "Consensus Aggregation
+over Asynchronous Gossip." None of that exists: `_init_local_mesh`
+created four `PeerNode` objects with hardcoded fake IPs
+(`192.168.1.11`-`14`) that are never contacted over any network --
+there is no socket, no libp2p dependency, no gossip protocol anywhere in
+the file. `distribute_mutation_fuzzing` "detected crashes" via a naive
+substring check (`"eval(" in code or "/ 0" in code`) that never actually
+executes the code, and returned `consensus_achieved=True`
+unconditionally. Its one production caller,
+`web_server.py`'s `/api/p2p/fuzz` endpoint, forwarded all of this
+straight into the JSON response.
+
+Rewrote as `BatchedFuzzingEngine`: splits a fuzz budget into batches and
+runs the real `SPICSFuzzEngine.fuzz_test_code` (the same real
+property-based fuzzer `swarm_self_play_arena.py` and
+`grpo_reasoning_trainer.py` already use) against each batch, aggregating
+genuine pass/fail counts -- no fake peer nodes, no fake IPs, no
+unconditional consensus claim. Module docstring states plainly this is
+single-process, not distributed. Updated the `/api/p2p/fuzz` endpoint to
+return the real aggregated fields plus an explicit
+`"note": "single-process batched fuzzing, not distributed peer-to-peer"`.
+`test_future_engines.py`'s `test_p2p_swarm_distributed_fuzzing` had
+asserted `res.consensus_achieved` (the hardcoded `True`) directly --
+renamed and rewritten to assert on real trial counts instead. Measured:
+`distribute_mutation_fuzzing("def safe(x): return x", total_mutations=200)`
+now runs 200 genuine fuzz trials across 4 batches via the real sandboxed
+fuzzer, not a substring check.
+
+### `saleha/core/mcp_server.py` -- fabricated tool-call result on the default branch
+
+`call_tool`'s three named-tool branches (`validate_ast_code`/
+`score_code_rlif`, `run_container_sandbox`, `synthesize_notebook`) are
+genuinely real -- they call `neuro_symbolic_engine`, `container_runner`,
+and `notebook_engine` for real. The unconditional fallback branch
+(reached whenever `tool_name == "execute_swarm_dag"`, the server's own
+first-listed and most prominently described tool) returned a hardcoded
+`"[Saleha Swarm DAG] Executed 27-Agent Pipeline for goal: '{goal}'.
+Status: 100% Invariants Verified."` regardless of input, invoking zero
+agents. This is a real MCP server the module docstring says is exposed to
+"Cursor, VS Code, and Claude Desktop" -- a real IDE client calling this
+tool would receive a fabricated success claim with no agent pipeline
+behind it, structurally identical to `/autopr`'s pre-pass-13 fabrication.
+
+The real orchestrator this would need to call
+(`SalehaOrchestrator.execute_task`) is a long-running, model-calling
+pipeline with no bounded-time or cancellation contract suitable for a
+synchronous MCP tool response -- wiring it in directly risks blocking an
+IDE's request indefinitely. Rather than either fabricate a result or ship
+an unbounded blocking call, `execute_swarm_dag` now honestly returns
+`isError: True` with a message explaining it is not implemented as a
+synchronous call and pointing at the real CLI path (`saleha build`).
+Added `test_call_tool_execute_swarm_dag_does_not_fabricate_success` to
+`test_frontier_suite.py` asserting neither "100%" nor "Invariants
+Verified" appear in the response.
+
+### Genuine, no action needed
+
+`change_impact.py` -- real AST-diffing blast-radius analyzer (string-match
+caller/test detection is naive but genuinely input-dependent, not
+fabricated). `hypergraph_indexer.py` -- real AST-based cross-file symbol
+indexer; initially looked like dead code (no direct caller in
+`saleha/cli`/`saleha/agents`/`saleha/server`) but is genuinely wired
+through `saleha/core/graph/__init__.py`, which does have live CLI callers
+(`indexing_graph.py`). `review_reporter.py` -- real HTML report generator
+from real `CodeReviewReport` data, no fabrication (decorative emoji in
+the file are inside generated HTML template content, not code/log
+output, so out of scope for the emoji rule). `multi_file_editor.py` --
+genuinely real atomic multi-file edit engine (real model call, real
+path-traversal guards, real atomic apply + rollback); fixed only its
+Hindi/Hinglish docstring and five Hindi-word inline comments to English,
+per the English-only rule -- not a fabrication finding.
+
+### Verified
+
+`saleha/tests/test_future_engines.py`, `test_frontier_suite.py`,
+`test_tier_c.py`: 31/31 pass. `QualityGuard(strict_mode=True)` on all
+five touched core files: all `passed=True`. `test_frontier_suite.py`
+also failed the strict-mode gate before this pass's changes (verified via
+`git stash`, score 60/100, all pre-existing missing-type-annotation MINOR
+issues) -- brought to 100/100 rather than working around the gate, same
+approach as pass 47. Full suite run pending at time of writing this entry.

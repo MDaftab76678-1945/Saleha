@@ -1,21 +1,22 @@
 """
 Saleha Core: Multi-File Editor Agent (C1)
 
-Pehle Saleha sirf single-file refactor (SmartPatcher) aur naye project
-generation kar pata tha -- EXISTING repo ke kai files ko ek goal ke under
-surgically badalna possible nahi tha. Ye agent Aider/Cline ke core workflow
-ka local-first version hai:
+Saleha previously could only refactor a single file (SmartPatcher) or
+generate a brand-new project -- surgically editing multiple files across
+an EXISTING repo under one goal was not possible. This agent is a
+local-first version of the Aider/Cline core workflow:
 
-1. RepoContextPacker se task-relevant context pack
-2. Coder se structured JSON edit-plan maango:
+1. Pack task-relevant context via RepoContextPacker.
+2. Ask the coder for a structured JSON edit plan:
      {"edits": [{"path": "src/x.py", "action": "create|edit",
                  "content": "<FULL final file>"}]}
-3. Validate: path-traversal block, size caps, action whitelist
-4. ATOMIC apply: saare writes memory me taiyaar -> ek bhi fail ho to poori
-   transaction ROLLBACK (originals restore / created files delete)
-5. Python files par static gate (syntax+safety) apply se PEHLE
+3. Validate: path-traversal block, size caps, action whitelist.
+4. ATOMIC apply: every write is prepared in memory first -- if any single
+   write fails, the whole transaction rolls back (originals restored,
+   newly created files deleted).
+5. Python files go through a static gate (syntax + safety) before apply.
 
-Default DRY-RUN hai -- disk kuch nahi badalta jab tak apply=True na ho.
+Defaults to a dry run -- nothing on disk changes unless apply=True.
 """
 
 import json
@@ -34,7 +35,7 @@ class PlannedEdit:
     path: str
     action: str            # create | edit
     content: str
-    original_content: Optional[str] = None   # None => file pehle se nahi thi
+    original_content: Optional[str] = None   # None => file did not exist before
     lines_changed: int = 0
     diff: str = ""         # unified diff (edit actions ke liye, C-polish)
 
@@ -149,7 +150,7 @@ Format:
             except json.JSONDecodeError as err:
                 return [], f"invalid JSON in code fence: {err}"
         else:
-            # Pura output hi JSON ho sakta hai (fence bhool gaya model)
+            # The whole output may itself be JSON (model forgot the fence)
             try:
                 payload = json.loads(raw)
             except (json.JSONDecodeError, TypeError):
@@ -239,7 +240,7 @@ Format:
                 errs.append(f"create but exists: {e.path}")
             if e.action == "edit" and not exists:
                 errs.append(f"edit but missing: {e.path}")
-            # Static gate for python content (syntax + safety), apply se pehle
+            # Static gate for python content (syntax + safety), before apply
             if e.path.endswith(".py"):
                 tr = self.tester.test_code(e.content)
                 if not tr.passed and tr.error_type in ("SyntaxError", "SecurityViolation", "EmptyCode"):
@@ -284,10 +285,10 @@ Format:
                 try:
                     orig = originals.get(wpath)
                     if orig is None:
-                        os.remove(wpath)          # nayi file -> delete
+                        os.remove(wpath)          # new file -> delete
                     else:
                         with open(wpath, "w", encoding="utf-8") as f:
-                            f.write(orig)          # purani file -> restore
+                            f.write(orig)          # existing file -> restore
                 except OSError as rb:
                     rb_errs.append(str(rb))
             if rb_errs:

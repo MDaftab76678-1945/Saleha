@@ -2585,17 +2585,23 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/p2p/fuzz":
+            # NOTE: this is a single-process batched fuzz run, not
+            # distributed peer-to-peer computation -- see
+            # saleha/core/p2p_swarm.py docstring.
             code = payload.get("code", "def fn(): pass")
             mutations = int(payload.get("mutations", 100))
-            from saleha.core.p2p_swarm import p2p_engine
-            res = p2p_engine.distribute_mutation_fuzzing(code=code, total_mutations=mutations)
+            from saleha.core.p2p_swarm import batched_fuzzing_engine
+            res = batched_fuzzing_engine.distribute_mutation_fuzzing(code=code, total_mutations=mutations)
             self._send_json(200, {
                 "task_id": res.task_id,
-                "total_mutations": res.total_mutations,
-                "nodes_participating": res.nodes_participating,
-                "crashes_discovered": res.crashes_discovered,
+                "total_trials_requested": res.total_trials_requested,
+                "total_trials_run": res.total_trials_run,
+                "batches_run": res.batches_run,
+                "trials_passed": res.trials_passed,
+                "trials_failed": res.trials_failed,
+                "resilience_pct": res.resilience_pct,
                 "duration_ms": res.duration_ms,
-                "consensus_achieved": res.consensus_achieved,
+                "note": "single-process batched fuzzing, not distributed peer-to-peer",
             })
             return
 

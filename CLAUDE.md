@@ -745,6 +745,46 @@ remain unread — next candidates: `change_impact.py`, `p2p_swarm.py`,
 `hypergraph_indexer.py`, `multi_file_editor.py`, `review_reporter.py`,
 `mcp_server.py`. Detail: `NOTEBOOK_IMPORT.md`, "Forty-seventh pass."
 
+**Six next-candidate modules read — two fabrications fixed, four genuine
+(pass 48).**
+
+- **`p2p_swarm.py`** — claimed "Libp2p-inspired Peer Discovery", real
+  network peers at hardcoded fake IPs (`192.168.1.11`-`14`), and
+  "Consensus Aggregation over Asynchronous Gossip" — none of it real, no
+  socket/network code anywhere in the file. "Crash detection" was a naive
+  substring check (`"eval(" in code`) that never ran the code, and
+  `consensus_achieved=True` was unconditional. Rewritten as
+  `BatchedFuzzingEngine`: real batched runs of the existing
+  `SPICSFuzzEngine` (the same real fuzzer `swarm_self_play_arena.py`
+  already uses), honestly labelled single-process, not distributed. The
+  `/api/p2p/fuzz` endpoint now returns real aggregated trial counts.
+- **`mcp_server.py`** — three of four tool-call branches are genuinely
+  real (call the real AST scorer, sandbox, notebook engine). The fourth
+  and most prominent, `execute_swarm_dag`, returned a hardcoded
+  `"Executed 27-Agent Pipeline ... Status: 100% Invariants Verified"`
+  regardless of input, invoking zero agents — this is a real MCP server
+  the docstring says is exposed to Cursor/VS Code/Claude Desktop, so a
+  real IDE client calling this tool would get a fabricated success claim.
+  The real orchestrator it would need is a long-running, model-calling
+  pipeline with no bounded-time contract suitable for a synchronous MCP
+  response, so rather than fabricate a result or risk blocking an IDE
+  indefinitely, the tool now honestly returns `isError: True` pointing at
+  the real CLI path (`saleha build`).
+- Genuine, no action needed: `change_impact.py` (real AST blast-radius
+  analyzer), `hypergraph_indexer.py` (real cross-file symbol indexer —
+  initially looked like dead code, confirmed wired through
+  `saleha/core/graph/__init__.py`, which has live CLI callers),
+  `review_reporter.py` (real HTML report generator). `multi_file_editor.py`
+  is also genuinely real (atomic multi-file edits with real rollback) —
+  fixed a Hindi/Hinglish docstring and five Hindi-word comments to
+  English per the language rule, not a fabrication finding.
+
+31/31 tests pass across the three affected test files.
+`test_frontier_suite.py` also failed the strict-mode quality gate before
+this pass's changes (verified via `git stash`) — brought to 100/100
+rather than worked around, same approach as pass 47.
+Detail: `NOTEBOOK_IMPORT.md`, "Forty-eighth pass."
+
 ---
 
 ## Environment facts worth knowing

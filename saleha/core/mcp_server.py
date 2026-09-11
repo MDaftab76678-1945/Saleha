@@ -121,16 +121,35 @@ class SalehaMCPServer:
                 "content": [{"type": "text", "text": f"Synthesized {len(doc.cells)} cells.\nJupyter JSON:\n{ipynb_json[:400]}..."}],
             }
 
-        # execute_swarm_dag default
-        goal = arguments.get("goal", "Generic Task")
+        if tool_name == "execute_swarm_dag":
+            # The real orchestrator (saleha/orchestrator.py::SalehaOrchestrator.execute_task)
+            # is a heavyweight, potentially long-running, model-calling entry
+            # point with no timeout/cancellation contract suitable for a
+            # synchronous MCP tool call. Rather than either block an IDE's
+            # request for an unbounded time or fabricate a "100% Invariants
+            # Verified" result with zero agents actually run (the previous
+            # behavior of this branch), this tool honestly reports that it
+            # is not wired up yet instead of inventing a result.
+            goal = arguments.get("goal", "Generic Task")
+            return {
+                "isError": True,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            f"execute_swarm_dag is not implemented as a synchronous MCP "
+                            f"tool call -- the real orchestrator "
+                            f"(SalehaOrchestrator.execute_task) is a long-running, "
+                            f"model-calling pipeline with no bounded-time contract. "
+                            f"Run 'saleha build \"{goal}\"' from the CLI instead."
+                        ),
+                    }
+                ],
+            }
+
         return {
-            "isError": False,
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"[Saleha Swarm DAG] Executed 27-Agent Pipeline for goal: '{goal}'. Status: 100% Invariants Verified.",
-                }
-            ],
+            "isError": True,
+            "content": [{"type": "text", "text": f"Tool '{tool_name}' has no implementation."}],
         }
 
     def handle_jsonrpc_request(self, req: Dict[str, Any]) -> Dict[str, Any]:
