@@ -1,77 +1,92 @@
 """
-Saleha NIST Post-Quantum Cryptographic (PQC) Guard Engine.
-Provides quantum-safe key encapsulation and digital signatures:
-- CRYSTALS-Kyber Key Encapsulation Mechanism (KEM)
-- CRYSTALS-Dilithium Digital Signatures
-- Quantum-Resistant Vault Encryption for API Keys & Passwords
+Saleha SHA3-Based Symmetric Vault Guard.
+
+Despite the module's prior docstring and class/field names, nothing here
+implements CRYSTALS-Kyber, CRYSTALS-Dilithium, or any NIST-standardized
+post-quantum algorithm -- there is no lattice-based math, no key
+encapsulation mechanism, and no digital signature scheme anywhere in this
+file. What actually happens: a random seed hashed with SHA3-512 to produce
+two byte strings (labelled "public"/"secret" but with no asymmetric
+relationship between them -- knowing one does not let you derive it from
+the other via any published KEM), and a SHAKE-256-derived keystream XORed
+against the plaintext (a one-time-pad-style stream cipher, not AES-GCM
+despite the old return value's name).
+
+This is symmetric-key-strength SHA3/SHAKE-256 hashing, not quantum-safe
+asymmetric cryptography. It does not implement Kyber-1024 or Dilithium-5,
+is not NIST PQC compliant, and callers must not treat its output as if it
+provides the security properties those real algorithms provide (e.g. an
+actual KEM's public key cannot be used to derive the same shared secret an
+attacker holding only the public key could not also derive; this XOR
+stream cipher's "public key" is not used asymmetrically in that sense at
+all -- see encrypt_symmetric() below, which takes the caller's own secret
+directly rather than pretending to encapsulate one).
 """
 
 from __future__ import annotations
 
 import base64
 import hashlib
-import os
 import secrets
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 
 @dataclass
-class PQCKeyPair:
-    algorithm: str  # 'CRYSTALS-Kyber-1024' or 'CRYSTALS-Dilithium-5'
-    public_key_b64: str
-    secret_key_b64: str
-    security_level: int = 5  # NIST Security Level 5 (AES-256 equivalent)
+class SymmetricKeyMaterial:
+    algorithm: str = "SHA3-512-derived (NOT a NIST PQC algorithm)"
+    public_key_b64: str = ""
+    secret_key_b64: str = ""
 
 
 @dataclass
-class PQCEncryptedPayload:
+class SymmetricEncryptedPayload:
     algorithm: str
     ciphertext_b64: str
-    kem_shared_secret_hash: str
+    key_hash: str
     nonce_b64: str
 
 
-class PQCGuardEngine:
+class Sha3VaultGuard:
     """
-    Implements NIST-compliant Post-Quantum Cryptographic operations.
+    SHA3/SHAKE-256-based symmetric encryption helper. Not post-quantum
+    cryptography -- see module docstring.
     """
 
-    def generate_kyber_keypair(self) -> PQCKeyPair:
+    def generate_key_material(self) -> SymmetricKeyMaterial:
         seed = secrets.token_bytes(64)
-        pk = hashlib.sha3_512(seed + b"KYBER_PK").digest()
-        sk = hashlib.sha3_512(seed + b"KYBER_SK").digest()
+        pk = hashlib.sha3_512(seed + b"PK").digest()
+        sk = hashlib.sha3_512(seed + b"SK").digest()
 
-        return PQCKeyPair(
-            algorithm="CRYSTALS-Kyber-1024",
+        return SymmetricKeyMaterial(
             public_key_b64=base64.b64encode(pk).decode("utf-8"),
             secret_key_b64=base64.b64encode(sk).decode("utf-8"),
-            security_level=5,
         )
 
-    def encrypt_quantum_safe(self, plaintext: str, public_key_b64: str) -> PQCEncryptedPayload:
+    def encrypt_symmetric(self, plaintext: str, key_b64: str) -> SymmetricEncryptedPayload:
+        """Encrypts with a SHAKE-256-derived keystream XOR, using the
+        caller-supplied key directly (there is no separate KEM step)."""
         raw_data = plaintext.encode("utf-8")
-        shared_secret = hashlib.sha3_256(base64.b64decode(public_key_b64) + secrets.token_bytes(32)).digest()
+        key_bytes = base64.b64decode(key_b64)
         nonce = secrets.token_bytes(16)
 
-        # XOR stream cipher with SHA3 derived key
-        keystream = hashlib.shake_256(shared_secret + nonce).digest(len(raw_data))
+        keystream = hashlib.shake_256(key_bytes + nonce).digest(len(raw_data))
         ciphertext = bytes(a ^ b for a, b in zip(raw_data, keystream))
 
-        return PQCEncryptedPayload(
-            algorithm="CRYSTALS-Kyber-1024 + AES-256-GCM",
+        return SymmetricEncryptedPayload(
+            algorithm="SHA3/SHAKE-256 XOR stream cipher (NOT AES-GCM, NOT post-quantum)",
             ciphertext_b64=base64.b64encode(ciphertext).decode("utf-8"),
-            kem_shared_secret_hash=hashlib.sha256(shared_secret).hexdigest()[:16],
+            key_hash=hashlib.sha256(key_bytes).hexdigest()[:16],
             nonce_b64=base64.b64encode(nonce).decode("utf-8"),
         )
 
-    def decrypt_quantum_safe(self, payload: PQCEncryptedPayload, secret_key_b64: str, shared_secret_seed: bytes) -> str:
+    def decrypt_symmetric(self, payload: SymmetricEncryptedPayload, key_b64: str) -> str:
         ciphertext = base64.b64decode(payload.ciphertext_b64)
         nonce = base64.b64decode(payload.nonce_b64)
-        keystream = hashlib.shake_256(shared_secret_seed + nonce).digest(len(ciphertext))
+        key_bytes = base64.b64decode(key_b64)
+        keystream = hashlib.shake_256(key_bytes + nonce).digest(len(ciphertext))
         decrypted = bytes(a ^ b for a, b in zip(ciphertext, keystream))
         return decrypted.decode("utf-8")
 
 
-pqc_guard = PQCGuardEngine()
+sha3_vault_guard = Sha3VaultGuard()
 

@@ -1,9 +1,23 @@
 """
-Saleha Core: Test-Time MCTS (Monte Carlo Tree Search) Engine
+Saleha Core: Test-Time MCTS-Style Candidate Scoring Engine
 
-Explores multiple candidate reasoning and code implementation paths at inference time,
-validating each branch against the Ephemeral Container Sandbox and Neuro-Symbolic Invariants
-to guarantee zero-hallucination, 100% test-passing code generation.
+What is real: each candidate is genuinely scored via real AST parsing,
+the real neuro-symbolic invariant scorer, and a real sandboxed execution
+in ephemeral_container_runner -- the winner selection and reward
+computation are not fabricated.
+
+What is NOT real, despite the name: candidate generation. This is not a
+model call and does not explore "reasoning paths" -- _generate_candidate_variations
+returns a small fixed set of hand-written template functions (an
+"idiomatic" one, a "defensive" one, a "memoized" one, then near-identical
+filler variants), chosen by loop index, not synthesized for the specific
+task_prompt. Calling this "MCTS" is also an overstatement: there is no
+tree expansion, no UCB1-guided branch selection driving further search,
+and tree_depth is hardcoded to 1 -- MCTSNode.ucb1() exists but is never
+called anywhere in search(). This is single-level candidate scoring, not
+Monte Carlo Tree Search. No claim of "zero-hallucination" or "100%
+test-passing" is warranted; verified_clean reflects only whether the
+single winning template happened to pass its own generic smoke assertion.
 """
 
 from __future__ import annotations
@@ -12,10 +26,10 @@ import ast
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import List, Optional
 
 from saleha.core.ephemeral_container_runner import container_runner, ContainerExecutionResult
-from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine, CodeInvariantScore
+from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
 
 
 @dataclass
@@ -64,8 +78,9 @@ class MCTSSearchEngine:
         self.max_branches = max(2, max_branches)
 
     def _generate_candidate_variations(self, prompt: str, num_branches: int) -> List[str]:
-        """Synthesizes num_branches diverse algorithmic candidate implementations."""
-        clean_slug = "".join(c if c.isalnum() else "_" for c in prompt[:30]).strip("_")
+        """Returns num_branches fixed template implementations (see module
+        docstring: these are hand-written templates, not model-generated
+        candidates -- only `prompt` text is interpolated into docstrings/comments)."""
         candidates = []
 
         # Candidate 1: Standard idiomatic implementation

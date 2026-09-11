@@ -2645,14 +2645,15 @@ still required before merging -- neither ran here."""
 
         if path == "/api/pqc/encrypt":
             plaintext = payload.get("plaintext", "Secret Data")
-            from saleha.core.pqc_guard import pqc_guard
-            kp = pqc_guard.generate_kyber_keypair()
-            enc = pqc_guard.encrypt_quantum_safe(plaintext, kp.public_key_b64)
+            from saleha.core.pqc_guard import sha3_vault_guard
+            km = sha3_vault_guard.generate_key_material()
+            enc = sha3_vault_guard.encrypt_symmetric(plaintext, km.public_key_b64)
             self._send_json(200, {
                 "algorithm": enc.algorithm,
                 "ciphertext_b64": enc.ciphertext_b64,
-                "kem_shared_secret_hash": enc.kem_shared_secret_hash,
-                "public_key_b64": kp.public_key_b64,
+                "key_hash": enc.key_hash,
+                "public_key_b64": km.public_key_b64,
+                "note": "SHA3/SHAKE-256 symmetric cipher, not post-quantum cryptography",
             })
             return
 
@@ -2666,6 +2667,8 @@ still required before merging -- neither ran here."""
                 "target_triple": res.target_triple,
                 "binary_size_bytes": res.binary_size_bytes,
                 "compilation_time_ms": res.compilation_time_ms,
+                "compiler_used": res.compiler_used,
+                "error_message": res.error_message,
             })
             return
 

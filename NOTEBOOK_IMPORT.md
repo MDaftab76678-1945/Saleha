@@ -3906,3 +3906,212 @@ the largest still-open item in `ORCHESTRATOR.md` section 8.
 all `passed=True`, zero CRITICAL/MAJOR issues. All six synthesizer scripts
 run end-to-end and confirmed to refuse overwriting their real output paths
 (exit code 1, file byte-size unchanged before/after for all six).
+
+## Forty-seventh pass
+
+Started the `saleha/core/` bulk sweep flagged as the largest remaining
+open item in `ORCHESTRATOR.md` section 8 (249 files, most individually
+unaudited). Prioritized by naming risk (modules whose names match this
+project's established fabrication pattern -- "engine"/"orchestrator"/
+"accelerator"/security-branded names) among the ~30 core modules never
+named in any prior pass. Read ten modules in full:
+`self_evolving_loop.py`, `mcts_search_engine.py`, `doom_vault.py`,
+`native_compiler.py`, `sentinel_rs.py`, `saleha_wasm_runtime.py`,
+`saleha_watchdog.py`, `pqc_guard.py`, `sheaf_consensus.py`,
+`speculative_accelerator.py`. Two (`doom_vault.py`, `sentinel_rs.py`,
+`saleha_watchdog.py` -- three, not two) were genuinely real or already
+honestly labelled; the other seven were fabrications, all fixed.
+
+### `pqc_guard.py` -- the most serious finding: security-naming fabrication
+
+Claimed CRYSTALS-Kyber Key Encapsulation and CRYSTALS-Dilithium Digital
+Signatures. Implemented neither -- no lattice-based math, no KEM, no
+signature scheme anywhere in the file. What actually ran: a random seed
+hashed with SHA3-512 into two byte strings labelled "public"/"secret"
+with no real asymmetric relationship, and a SHAKE-256-derived keystream
+XORed against plaintext (a stream cipher, not the claimed AES-256-GCM).
+Worse: the old `decrypt_quantum_safe` API required a `shared_secret_seed`
+parameter no caller anywhere in the repo ever supplied or could supply
+(it was never returned by encrypt) -- decryption was structurally
+impossible through the real API surface, not just mislabelled.
+
+This module has two production callers, both fixed:
+- `saleha/cli/release_cli.py` (`saleha release` command) -- pulling this
+  thread exposed a second, larger fabrication in the same file: the
+  command printed a hardcoded `"test_suite_status": "696/696 PASSED (100%
+  GREEN)"` without ever running a test, claimed `"pqc_signature_algorithm":
+  "CRYSTALS-Dilithium-5 + Kyber-1024"` for a release nothing ever signed,
+  and rendered a table of four release artifacts (.msi, Docker/K8s bundle,
+  .whl, manifest) all hardcoded `"READY"`/`"SIGNED"` with no build step
+  anywhere that produces any of them. Same "fake green" pattern as
+  `/autopr` before its pass-13 fix. Rewritten: the command now runs the
+  real test suite via subprocess (or honestly records `ran: False` with
+  `--skip-tests`), writes a manifest with the real pass/fail result and a
+  SHA3 content fingerprint labelled for what it is (not a signature, not
+  post-quantum), and makes no artifact-packaging claims it cannot back --
+  it does not build any of those four artifacts and no longer says it did.
+- `saleha/server/web_server.py`'s `/api/pqc/encrypt` endpoint -- updated
+  to the new API and now returns an honest `algorithm` string plus an
+  explicit `note` field.
+
+Renamed to `Sha3VaultGuard`/`sha3_vault_guard` with a docstring stating
+plainly what it is and is not. Fixed the decrypt-impossibility bug as a
+side effect of the rewrite: `encrypt_symmetric`/`decrypt_symmetric` now
+take the same key material directly, so a real round-trip is possible
+through the public API (verified: `decrypt_symmetric(encrypt_symmetric(x))
+== x`, which the old API could never achieve for any real caller).
+`saleha/tests/test_future_engines.py`'s `test_post_quantum_cryptography_kyber`
+had asserted `kp.algorithm == "CRYSTALS-Kyber-1024"` and
+`"Kyber" in enc.algorithm` -- pinning the fabrication exactly like every
+prior instance in this ledger. Rewritten to assert the real, honest
+properties instead (algorithm string does NOT claim Kyber/Dilithium, and
+a genuine round-trip succeeds).
+
+### `saleha/core/native_compiler.py` -- unconditional `success=True`
+
+`compile_c_standalone` called `subprocess.run([cc, ...])` for real, but
+when no compiler was found on PATH, it wrote a 4-byte fake ELF/MZ header
+to the output path and still returned `success=True` with a hardcoded
+`compilation_time_ms=12.4` (never measured). Confirmed live on this
+machine (no clang/gcc on PATH): before the fix this returned
+`success=True` with a placeholder binary; after, `success=False` with
+`error_message="gcc not found on PATH"` and zero binary bytes written.
+Also now reports which compiler actually ran (`compiler_used`) and a
+real measured `compilation_time_ms`. `saleha/tests/test_future_engines.py`'s
+`test_native_binary_compiler` had asserted `res.success is True`
+unconditionally -- rewritten to assert on whichever real outcome the
+subprocess call produced, matching the pattern this project's own rules
+require ("assert on the failure reason, not a bare boolean").
+
+### `saleha/core/self_evolving_loop.py` -- hardcoded average
+
+`get_stats().avg_quality_score` returned the literal `0.94` whenever any
+sample had been qualified, regardless of what the actual buffered scores
+were. Fixed to compute the real mean of `buffered_samples[*]["score"]`.
+Measured: two ingested samples with real scores 0.90/0.94 now report
+`avg_quality_score = 0.92` (the genuine mean), not `0.94`.
+
+### `saleha/core/sheaf_consensus.py` -- tautological consensus check
+
+`verify_mesh_consensus(node_states)` derived a fixed symmetric pattern
+internally (`c_ij = s, c_ik = 2*s, c_jk = s`) from a single scalar per
+triplet -- this satisfies the Cech coboundary identity by algebraic
+construction for any `s`, so the function could never detect a real
+desynchronization no matter what `node_states` contained. The
+`saleha doom sheaf` CLI command made this concrete by calling it with a
+fixed literal `[1000, 2000, 1000, 2000, 1000]` every run. Fixed by
+changing the signature to take independently-reported `(c_ij, c_ik,
+c_jk)` triplets directly (as real distributed nodes would each report
+their own view of an overlap), which can genuinely disagree. Verified
+both directions: a consistent-reports case returns
+`synchronized=True`, and `[(1000, 2000, 1000), (500, 2500, 1000)]` (second
+triplet deliberately inconsistent) returns `synchronized=False` with
+the anomalous index correctly identified -- the old code could not
+produce this outcome for any input. The CLI command now derives its
+reports from real per-agent mailbox occupancy in `SalehaSwarmTopology`
+instead of a hardcoded literal. Two new tests added to
+`test_phase4_non_euclidean_math.py` covering both outcomes (the file had
+only ever tested the always-passes case before).
+
+### `saleha/core/saleha_wasm_runtime.py` -- simulated execution labelled as real
+
+`invoke_plugin`'s "Simulated Safe Sandboxed Execution" step (the method's
+own comment already said "simulated") returned a hardcoded output dict
+selected by string-matching `func_name`, including a literal fake digest
+`"0x8a92fbc741a6b0c2e..."` for `rust_sha3_digest` regardless of the real
+input payload, and one of two hardcoded `gas_used` constants. Docstring
+claimed a general multi-language Wasm plugin host; there is no Wasm
+runtime dependency anywhere in the file. Rather than delete the
+simulation (there is no real Wasm engine to replace it with in this
+codebase), made the two functions that map onto real, cheap standard-
+library operations actually real: `rust_sha3_digest` now computes a
+genuine `hashlib.sha3_256` digest of the input payload (verified:
+different inputs produce different real digests matching direct
+`hashlib` output), and `python_ast_validator` now runs a real `ast.parse`
+(verified: valid vs. invalid Python syntax produce genuinely different
+`valid`/`syntax_errors` results, where before both were hardcoded
+`True`/`0`). The remaining unmatched-function fallback now honestly
+returns `"NOT_IMPLEMENTED"` instead of a generic invented "EXECUTED"
+status. Module docstring rewritten to state plainly that no Wasm
+bytecode ever runs here.
+
+### `saleha/core/speculative_accelerator.py` -- fake timing dressed as acceleration
+
+`_generate_draft_chunk` was one fixed f-string template, not a draft-model
+call. `generate_accelerated_stream` slept `0.005`s per chunk purely to
+manufacture a "180+ tok/s" appearance, then divided the resulting rate by
+a hardcoded, never-measured `45.0` "baseline" to report a
+`dual_engine_speedup` that is an artifact of the sleep constant, not a
+real comparison. No draft/target model pair exists anywhere in the file
+despite `__init__` accepting `draft_model`/`target_model` parameters.
+Kept as a labelled demo (real speculative decoding needs two models
+resident simultaneously, which `CLAUDE.md`'s hardware-constraint section
+already explains this project's one-GPU setup cannot do) rather than
+deleted, since it has a live CLI caller (`/speculative` in
+`chat_session.py`) that still needs something to call; both the module
+docstring and the CLI's user-facing text now say plainly that the numbers
+are simulated, not measured. Fixing the docstring's now-unused imports
+exposed a real, independent bug while reading the file in full (this
+project's own audit rule 5): `generate()` only assigned `metrics` inside
+an `except StopIteration` block, so any path where the generator ended
+without raising that exception would have hit a `NameError` on an
+uninitialized variable -- the exact pattern from `CLAUDE.md`'s code-
+quality rule 4, found a second time. Fixed by initializing `metrics =
+None` before the loop and raising a clear `RuntimeError` if it is still
+`None` afterward, instead of leaving it to crash opaquely.
+
+### A self-inflicted bug found by actually running the full suite (not just the touched tests)
+
+The first full-suite run after this pass's fixes took 707.79s instead of
+the normal ~140s baseline, with 16 spawned python.exe processes visible
+in the OS process list, some running 10+ minutes. Root cause: the
+`saleha release` rewrite (see the `pqc_guard.py`/`release_cli.py` section
+above) made the command genuinely run `pytest saleha/tests/` via
+`subprocess.run` instead of printing a fake result -- but
+`saleha/tests/test_release_cli.py` (a pre-existing test this pass had not
+touched, and had not thought to grep for since the `pqc_guard` search
+only found `test_future_engines.py`) invoked `release_cmd` with no
+`--skip-tests` flag. Running the full suite therefore ran
+`test_release_cli.py`, which ran the whole suite again as a subprocess of
+itself, recursively. This is the exact class of bug `CLAUDE.md` already
+documents happening three separate times before (`ttc_solver.py`,
+`demo_cli.py`, `base_agent.py` -- a module making a real, unguarded call
+it should have mocked or skipped under test) found for a fourth time,
+this time self-inflicted in the same pass that was fixing fabrications.
+Fixed two ways: `test_release_cli.py` now passes `--skip-tests`, and
+`release_cli.py` itself now checks `SALEHA_TEST_MODE` and skips the real
+pytest subprocess call when set, as defense in depth against this
+recurring the same way again from a different caller. Verified: full
+suite re-run completed in 112.16s, back in the normal range.
+
+### Verified
+
+`saleha/tests/test_future_engines.py`,
+`test_phase3_advanced_features.py`, `test_phase4_non_euclidean_math.py`,
+`test_ultimate_frontier_suite.py`: 33/33 pass (two new desync-detection
+tests added to the sheaf suite, two tests rewritten to stop pinning the
+pqc/native-compiler fabrications). `QualityGuard(strict_mode=True)` on
+all eight touched core/cli files: all `passed=True`, zero CRITICAL/MAJOR.
+Full suite: `1859 passed, 8 skipped, 60 subtests passed in 112.16s` (one
+unrelated failure, `test_tool_forge.py::test_validate_tool_and_test_success`,
+reproduced as the same pre-existing Windows tempdir-race flake
+`CLAUDE.md` already documents from PR #2/commit `b4889b4` -- confirmed by
+re-running it alone, which passed in 1.37s; not a regression from this
+pass, no code change needed).
+
+### What was found but deliberately not acted on this pass
+
+`mcts_search_engine.py`'s scoring pipeline (AST validation, invariant
+scoring, sandboxed test execution) is genuinely real and was left as-is;
+only its docstring and CLI-facing text were corrected to stop calling
+fixed-template candidate selection "MCTS" and stop claiming
+"zero-hallucination"/"100% test-passing" guarantees no single-level
+template scorer can make. `saleha/server/web_server.py` and
+`saleha/cli/chat_session.py` both carry pre-existing, unrelated
+diagnostics (unused imports, two real type errors around line 2132/2949
+in web_server.py) that predate this pass and were left alone as out of
+scope -- noted here so a future pass does not assume this pass's touch of
+those files means they were audited in full. ~20 of the ~30 never-before-
+named `saleha/core/` modules from the priority list remain unread; next
+candidates include `change_impact.py`, `p2p_swarm.py`, `hypergraph_indexer.py`,
+`multi_file_editor.py`, `review_reporter.py`, `mcp_server.py`.

@@ -677,6 +677,74 @@ target file byte-for-byte unchanged when run without `--force`, and
 `--force` correctly bypasses the guard when tested directly.
 Detail: `NOTEBOOK_IMPORT.md`, "Forty-sixth pass."
 
+**`saleha/core/` bulk sweep started — seven fabrications found and fixed
+in the first ten modules read (pass 47).** Prioritized by naming risk
+among the ~30 core modules never named in any prior pass; three
+(`doom_vault.py`, `sentinel_rs.py`, `saleha_watchdog.py`) were already
+genuinely real or honestly labelled.
+
+- **`pqc_guard.py` — the most serious finding.** Claimed CRYSTALS-Kyber/
+  Dilithium (real NIST post-quantum algorithms); implemented neither —
+  just SHA3-512 hashing and a SHAKE-256 XOR stream cipher. The old
+  decrypt API required a `shared_secret_seed` no caller could ever
+  supply, so decryption was structurally impossible, not just
+  mislabelled. Its CLI caller, `saleha release`, turned out to hide a
+  second fabrication in the same file: hardcoded `"696/696 PASSED (100%
+  GREEN)"` with no test ever run, and four release artifacts all marked
+  `"READY"`/`"SIGNED"` with no build step producing any of them — the
+  same "fake green" shape as `/autopr` before its pass-13 fix. Renamed to
+  `Sha3VaultGuard`, docstring states plainly what it is and isn't;
+  `saleha release` now runs the real test suite (or honestly records
+  `ran: False` with `--skip-tests`) and makes no artifact claims it can't
+  back. `test_future_engines.py` had asserted the fabricated algorithm
+  strings directly — rewritten to assert the honest ones plus a genuine
+  encrypt/decrypt round-trip (impossible under the old API).
+- **`native_compiler.py`** — `success=True` was unconditional; when no
+  compiler was on PATH it wrote a 4-byte fake ELF/MZ header and still
+  reported success with a hardcoded `compilation_time_ms=12.4`. Confirmed
+  live on this machine (no clang/gcc installed): now honestly reports
+  `success=False` with the real subprocess error.
+- **`self_evolving_loop.py`** — `avg_quality_score` returned the literal
+  `0.94` whenever any sample qualified, ignoring the real buffered
+  scores. Fixed to compute the genuine mean.
+- **`sheaf_consensus.py`** — `verify_mesh_consensus` derived a fixed
+  symmetric pattern internally that satisfied its own consistency check
+  by algebraic construction for any input — it could never detect a real
+  desync. The `saleha doom sheaf` CLI command made this concrete by
+  calling it with a hardcoded literal every run. Changed to take
+  independently-reported triplets directly; verified it now genuinely
+  distinguishes a consistent case from an inconsistent one (the old
+  version could not produce `synchronized=False` for any input).
+- **`saleha_wasm_runtime.py`** — "simulated execution" (the code's own
+  comment already said so) returned a hardcoded fake digest string
+  regardless of input. Made the two functions that map onto cheap real
+  stdlib operations actually real: `rust_sha3_digest` now computes a
+  genuine `hashlib.sha3_256` digest, `python_ast_validator` runs a real
+  `ast.parse`. Both now genuinely vary with input.
+- **`speculative_accelerator.py`** — fixed template code plus an
+  artificial `time.sleep()` divided by a never-measured "45 tok/s
+  baseline" to manufacture a speedup number. Kept as an explicitly
+  labelled demo (real speculative decoding needs two resident models,
+  which this project's one-GPU constraint rules out — see the
+  Engineering Principles section) rather than deleted, since it has a
+  live CLI caller. Reading it in full also surfaced an independent real
+  bug matching code-quality rule 4 exactly: `generate()`'s `metrics`
+  variable was only assigned inside an `except` branch, risking a bare
+  `NameError` on any path that didn't hit it — fixed with proper
+  initialization and an explicit error instead of a silent crash.
+- **`mcts_search_engine.py`** — left functionally as-is (its scoring
+  pipeline — AST validation, invariant scoring, sandboxed execution — is
+  genuinely real); only the docstring and CLI text were corrected to stop
+  calling fixed-template candidate selection "MCTS" and stop claiming
+  guarantees no single-level scorer can make.
+
+33/33 tests pass across the four affected test files (two new
+desync-detection tests added; two rewritten to stop pinning the
+pqc/native-compiler fabrications). ~20 of the ~30 priority-list modules
+remain unread — next candidates: `change_impact.py`, `p2p_swarm.py`,
+`hypergraph_indexer.py`, `multi_file_editor.py`, `review_reporter.py`,
+`mcp_server.py`. Detail: `NOTEBOOK_IMPORT.md`, "Forty-seventh pass."
+
 ---
 
 ## Environment facts worth knowing

@@ -9,11 +9,9 @@ LoRA/DPO training buffer so Saleha gets continuously smarter over time ($0 Cost)
 from __future__ import annotations
 
 import ast
-import json
-import os
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
 
 from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine, CodeInvariantScore
 from saleha.core.training_collector import training_collector
@@ -75,7 +73,10 @@ class SelfEvolvingLoop:
 
     def get_stats(self) -> EvolvingBufferStats:
         """Returns statistics on active continuous learning."""
-        avg_q = 0.94 if self.total_qualified > 0 else 0.0
+        if self.buffered_samples:
+            avg_q = sum(s["score"] for s in self.buffered_samples) / len(self.buffered_samples)
+        else:
+            avg_q = 0.0
         return EvolvingBufferStats(
             total_captured_turns=self.total_captured,
             qualified_high_score_turns=self.total_qualified,

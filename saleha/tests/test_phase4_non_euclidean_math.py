@@ -12,7 +12,7 @@ from saleha.core.latency_histogram import NanosecondLatencyHistogram
 
 
 class TestHyperbolicEngine:
-    def test_poincare_ball_boundary_enforcement(self):
+    def test_poincare_ball_boundary_enforcement(self) -> None:
         # Create a vector exceeding unit radius
         v = HyperbolicVector([2.0] * HYPERBOLIC_DIM)
         norm_sq = v.norm_squared()
@@ -20,24 +20,24 @@ class TestHyperbolicEngine:
         assert norm_sq < 1.0
         assert math.sqrt(norm_sq) < 1.0
 
-    def test_from_bytes_projection(self):
+    def test_from_bytes_projection(self) -> None:
         v = HyperbolicVector.from_bytes(b"HELLO_WORLD_12")
         assert len(v.coords) == HYPERBOLIC_DIM
         assert v.norm_squared() < 1.0
 
-    def test_mobius_gyrovector_addition(self):
+    def test_mobius_gyrovector_addition(self) -> None:
         u = HyperbolicVector([0.1] * HYPERBOLIC_DIM)
         v = HyperbolicVector([0.2] * HYPERBOLIC_DIM)
         sum_uv = u.mobius_addition(v)
         assert sum_uv.norm_squared() < 1.0
 
-    def test_hyperbolic_geodesic_distance(self):
+    def test_hyperbolic_geodesic_distance(self) -> None:
         u = HyperbolicVector.zero()
         v = HyperbolicVector([0.2] * HYPERBOLIC_DIM)
         dist = u.hyperbolic_distance(v)
         assert dist > 0.0
 
-    def test_samh_attractor_healing(self):
+    def test_samh_attractor_healing(self) -> None:
         controller = SAMHAttractorController(drift_threshold=0.5)
         # Highly drifted state
         drifted_state = HyperbolicVector([-0.8] * HYPERBOLIC_DIM)
@@ -50,20 +50,20 @@ class TestHyperbolicEngine:
 
 
 class TestPadicUltrametric:
-    def test_padic_valuation_function(self):
+    def test_padic_valuation_function(self) -> None:
         assert p_adic_valuation(25, prime=5) == 2  # 5^2 divides 25
         assert p_adic_valuation(125, prime=5) == 3 # 5^3 divides 125
         assert p_adic_valuation(7, prime=5) == 0   # 5^0 divides 7
         assert p_adic_valuation(0, prime=5) == 32  # Infinity
 
-    def test_strong_triangle_inequality(self):
+    def test_strong_triangle_inequality(self) -> None:
         node_x = PadicValuationNode.from_raw([25, 125, 5, 0, 10, 50, 0, 0])
         node_y = PadicValuationNode.from_raw([50, 250, 10, 0, 20, 100, 0, 0])
         node_z = PadicValuationNode.from_raw([75, 375, 15, 0, 30, 150, 0, 0])
 
         assert PadicValuationNode.verify_strong_triangle_inequality(node_x, node_y, node_z, prime=5) is True
 
-    def test_padic_isolation_validator(self):
+    def test_padic_isolation_validator(self) -> None:
         validator = PadicIsolationValidator(prime=5)
         node_a = PadicValuationNode.from_raw([25, 125, 5, 0, 10, 50, 0, 0])
         node_b = PadicValuationNode.from_raw([50, 250, 10, 0, 20, 100, 0, 0])
@@ -76,34 +76,51 @@ class TestPadicUltrametric:
 
 
 class TestSheafConsensus:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.sheaf = SheafCohomologyConsensus()
 
-    def test_vanishing_cech_differential(self):
+    def test_vanishing_cech_differential(self) -> None:
         # Symmetrical state: delta^1 c = 1000 - 2000 + 1000 = 0
         ok, diff, msg = self.sheaf.verify_cech_differential(1000, 2000, 1000)
         assert ok is True
         assert diff == 0
         assert "H^1 = 0" in msg
 
-    def test_desynchronized_cech_differential_detected(self):
+    def test_desynchronized_cech_differential_detected(self) -> None:
         # Desynchronized state: delta^1 c = 1000 - 2500 + 1000 = -500 != 0
         ok, diff, msg = self.sheaf.verify_cech_differential(1000, 2500, 1000)
         assert ok is False
         assert diff != 0
         assert "COHOMOLOGICAL_ANOMALY" in msg
 
-    def test_multi_node_mesh_consensus(self):
-        res = self.sheaf.verify_mesh_consensus([1000, 2000, 1000, 2000, 1000])
+    def test_multi_node_mesh_consensus_consistent_reports(self) -> None:
+        # Each triplet independently satisfies c_jk - c_ik + c_ij = 0.
+        reports = [(1000, 2000, 1000), (500, 1500, 1000), (0, 0, 0)]
+        res = self.sheaf.verify_mesh_consensus(reports)
         assert res["synchronized"] is True
         assert "H^1 = 0" in res["cohomology_group"]
+        assert res["anomalous_triplet_indices"] == []
+
+    def test_multi_node_mesh_consensus_detects_real_desync(self) -> None:
+        # verify_mesh_consensus previously took a flat list of node states
+        # and derived a fixed symmetric (c_ij, 2*c_ij, c_ij) pattern
+        # internally, which satisfied the coboundary identity by
+        # construction regardless of input -- it could never detect a
+        # real desynchronization. It now takes independently-reported
+        # (c_ij, c_ik, c_jk) triplets directly, so a genuinely
+        # inconsistent report is genuinely caught.
+        reports = [(1000, 2000, 1000), (500, 2500, 1000)]  # second triplet inconsistent
+        res = self.sheaf.verify_mesh_consensus(reports)
+        assert res["synchronized"] is False
+        assert res["anomalous_triplet_indices"] == [1]
+        assert "H^1 != 0" in res["cohomology_group"]
 
 
 class TestLatencyHistogram:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.hist = NanosecondLatencyHistogram()
 
-    def test_percentile_calculations(self):
+    def test_percentile_calculations(self) -> None:
         # Insert 100 samples from 10ns to 1000ns
         for i in range(1, 101):
             self.hist.record(i * 10)

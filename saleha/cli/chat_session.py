@@ -530,17 +530,17 @@ class SwarmChatSession:
         self.console.print(f"[bold green]✨ Resumed successfully ({len(res.stages)} stages, {res.total_duration_ms}ms)![/bold green]\n")
 
     def _execute_mcts_command(self, prompt: str) -> None:
-        self.console.print(f"\n[bold cyan]🌲 Test-Time MCTS Reasoning Search:[/] [yellow]{prompt}[/]")
+        self.console.print(f"\n[bold cyan]Template Candidate Scoring (fixed templates, real scoring -- not real MCTS):[/] [yellow]{prompt}[/]")
         res = mcts_search_engine.search(prompt)
         status_color = "green" if res.verified_clean else "yellow"
-        self.console.print(f"[{status_color}]✨ Explored {res.total_branches_explored} branches ({res.passed_branches_count} passed tests, {res.search_duration_ms}ms, Invariant Score: {res.best_score})[/{status_color}]\n")
+        self.console.print(f"[{status_color}]Scored {res.total_branches_explored} fixed-template candidates ({res.passed_branches_count} passed tests, {res.search_duration_ms}ms, Invariant Score: {res.best_score})[/{status_color}]\n")
         self.console.print(Syntax(res.winner_code, "python", theme="monokai", line_numbers=True))
         self.console.print()
 
     def _execute_speculative_command(self, prompt: str) -> None:
-        self.console.print(f"\n[bold cyan]⚡ Dual-Engine Speculative Accelerator:[/] [yellow]{prompt}[/]")
+        self.console.print(f"\n[bold cyan]Speculative Decoding Demo (fixed template, simulated timing -- not a real draft/target model pair):[/] [yellow]{prompt}[/]")
         code, metrics = speculative_accelerator.generate(prompt)
-        self.console.print(f"[bold green]✨ Accelerated at {metrics.effective_tokens_per_sec} tok/s ({metrics.dual_engine_speedup}x Speedup, {metrics.acceptance_rate_pct}% Acceptance)![/bold green]\n")
+        self.console.print(f"[dim]{metrics.effective_tokens_per_sec} tok/s reported ({metrics.dual_engine_speedup}x vs. an unmeasured hardcoded baseline, {metrics.acceptance_rate_pct}% acceptance) -- demo numbers, not a real speedup measurement.[/dim]\n")
         self.console.print(Syntax(code, "python", theme="monokai", line_numbers=True))
         self.console.print()
 

@@ -9,7 +9,7 @@ Implements:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 SHEAF_MOD_PRIME = 0xFFFFFFFF00000001  # Topos Prime Field Target
@@ -50,27 +50,40 @@ class SheafCohomologyConsensus:
             return False, diff_sum, "COHOMOLOGICAL_ANOMALY: Cluster State Desynchronized (H^1 != 0)"
 
     def verify_mesh_consensus(
-        self, node_states: List[int]
+        self, pairwise_sections: List[Tuple[int, int, int]]
     ) -> Dict[str, Any]:
-        """Verifies multi-node sheaf consistency across an entire local cluster."""
-        if len(node_states) < 3:
-            return {"synchronized": True, "cohomology_group": "H^1 = 0", "status": "MINIMAL_CLUSTER"}
+        """Verifies multi-node sheaf consistency across a set of independently
+        reported region overlaps.
+
+        Each entry in pairwise_sections is one (c_ij, c_ik, c_jk) triplet as
+        independently reported for that overlapping region -- e.g. node i's
+        view of its overlap with j, node i's view of its overlap with k, and
+        node j's view of its overlap with k. If two regions were derived
+        algebraically from the same source data (e.g. c_ik computed as
+        c_ij + c_jk), the differential would trivially vanish regardless of
+        any real desynchronization; the check is only meaningful when the
+        three values come from genuinely independent reports that could
+        disagree.
+        """
+        if len(pairwise_sections) < 1:
+            return {"synchronized": True, "cohomology_group": "H^1 = 0", "status": "NO_TRIPLETS"}
 
         all_converged = True
         total_triplet_checks = 0
+        anomalies: List[int] = []
 
-        for i in range(len(node_states) - 2):
-            s_val = node_states[i]
-            # Valid symmetric cycle: c_ij = s_val, c_ik = 2*s_val, c_jk = s_val (sum = 0)
-            ok, diff, msg = self.verify_cech_differential(s_val, s_val * 2, s_val)
+        for idx, (c_ij, c_ik, c_jk) in enumerate(pairwise_sections):
+            ok, diff, msg = self.verify_cech_differential(c_ij, c_ik, c_jk)
             total_triplet_checks += 1
             if not ok:
                 all_converged = False
+                anomalies.append(idx)
 
         return {
             "synchronized": all_converged,
             "total_triplet_checks": total_triplet_checks,
+            "anomalous_triplet_indices": anomalies,
             "cohomology_group": "H^1 = 0 (Global Topological Invariance)" if all_converged else "H^1 != 0 (Torsion Anomaly)",
-            "split_brain_risk": "0.0% (Mathematically Proved)" if all_converged else "SPLIT_DETECTED",
+            "split_brain_risk": "0.0% (verified over the given reports)" if all_converged else "SPLIT_DETECTED",
         }
 

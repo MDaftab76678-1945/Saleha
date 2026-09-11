@@ -1,16 +1,27 @@
 """
-Saleha WebAssembly (Wasm) Universal Micro-Plugin Runtime.
-Enables running multi-language plugins (Rust, Go, C++, Zig, Python)
-inside a strict 1MB linear memory sandbox with instruction gas metering.
+Saleha Wasm Plugin Host Simulator.
+
+This does not load, compile, or execute any actual WebAssembly bytecode --
+there is no Wasm runtime dependency anywhere in this file (no wasmtime,
+wasmer, or similar). `register_plugin`'s `bytecode` parameter is accepted
+and its length recorded, but never parsed or run. `invoke_plugin`'s
+"Simulated Safe Sandboxed Execution" step (see the comment in that method)
+returns a hardcoded output dict selected by matching `func_name` against a
+few known strings; `gas_used` is one of two hardcoded constants chosen the
+same way, not a measurement of anything the "plugin" did. Permission
+checks (WASIPermission) and the registered-plugin/exported-function
+existence checks are real control flow, so invoking an unregistered
+plugin or function, or a permission-gated function without the right
+flag, genuinely fails -- but any invocation that gets past those checks
+produces canned output, not the result of running anything.
 """
 
 from __future__ import annotations
 
 import enum
-import json
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
 class WASIPermission(enum.IntFlag):
@@ -123,24 +134,33 @@ class SalehaWasmRuntime:
                 execution_time_ms=elapsed,
             )
 
-        # 2. Simulated Safe Sandboxed Execution with Gas Deduction
-        gas_used = 12400 if "crypto" in func_name else 48200
+        # 2. No actual Wasm bytecode runs here (see module docstring). Where
+        # the "plugin" function name maps to something this process can do
+        # for real without a Wasm runtime, do it for real; otherwise report
+        # a plain pass-through rather than an invented result.
         output_data: Any = {}
 
         if func_name == "rust_sha3_digest":
+            import hashlib
+            digest = hashlib.sha3_256(input_payload.encode("utf-8")).hexdigest()
             output_data = {
-                "digest": "0x8a92fbc741a6b0c2e...",
+                "digest": f"0x{digest}",
                 "algorithm": "SHA3-256",
                 "status": "OK",
             }
+            gas_used = len(input_payload) * 4  # proportional to real work done
         elif func_name == "python_ast_validator":
-            output_data = {
-                "valid": True,
-                "nodes_checked": 142,
-                "syntax_errors": 0,
-            }
+            import ast as _ast
+            try:
+                tree = _ast.parse(input_payload)
+                node_count = sum(1 for _ in _ast.walk(tree))
+                output_data = {"valid": True, "nodes_checked": node_count, "syntax_errors": 0}
+            except SyntaxError as e:
+                output_data = {"valid": False, "nodes_checked": 0, "syntax_errors": 1, "error": str(e)}
+            gas_used = len(input_payload) * 2
         else:
-            output_data = {"status": "EXECUTED", "input_len": len(input_payload)}
+            output_data = {"status": "NOT_IMPLEMENTED", "input_len": len(input_payload)}
+            gas_used = len(input_payload)
 
         elapsed = (time.perf_counter() - start_time) * 1000.0
 
