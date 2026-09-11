@@ -269,6 +269,45 @@ class ToolForge:
             (m for m in sorted(installed) if "coder" in m), next(iter(sorted(installed)), None)
         )
 
+    def _find_reference_tool_source(self, exclude_name: str) -> Optional[str]:
+        """Returns the source of one existing tool, to show the model as a
+        real in-repo example of the conventions it's expected to follow.
+
+        Measured, not assumed: generating the same kind of tool with vs.
+        without this example (qwen2.5-coder:3b, two different tasks, two
+        trials each) showed the baseline prompt consistently omitting the
+        `name`/`description`/`parameters` class attributes entirely and
+        forgetting to import `ToolResult` while still constructing one --
+        both silent breakage `_heal_tool_source` cannot fully repair, since
+        a missing `name` makes a tool undiscoverable by the registry even
+        once execution-level imports are patched. The example-augmented
+        prompt included all three attributes and the correct import in
+        every trial. See NOTEBOOK_IMPORT.md, "Fortieth pass" for the
+        measurements.
+
+        Picks the shortest existing tool file (cheapest example, lowest
+        chance of exceeding useful context) other than the one being built.
+        Returns None if no other tool exists yet to serve as an example.
+        """
+        if not os.path.exists(self.tools_dir):
+            return None
+        candidates = [
+            f for f in os.listdir(self.tools_dir)
+            if f.endswith(".py") and not f.startswith("_") and f != "base.py"
+            and f[:-3] != exclude_name
+        ]
+        if not candidates:
+            return None
+        shortest = min(
+            candidates,
+            key=lambda f: os.path.getsize(os.path.join(self.tools_dir, f)),
+        )
+        try:
+            with open(os.path.join(self.tools_dir, shortest), "r", encoding="utf-8") as fh:
+                return fh.read()
+        except OSError:
+            return None
+
     def generate_tool_code(self, spec: ToolSpecification) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """Generates tool source and companion test source using local model provider."""
         from saleha.core.model_provider import default_provider
@@ -290,6 +329,15 @@ class ToolForge:
             f"4. Do NOT use `eval()`, `exec()`, or `subprocess` with `shell=True`.\n"
             f"5. Output ONLY valid Python code for `saleha/tools/{spec.name}.py`. No markdown fences, no explanation."
         )
+
+        reference_source = self._find_reference_tool_source(exclude_name=spec.name)
+        if reference_source:
+            prompt += (
+                f"\n\nHere is an existing tool in this codebase. Match its structure "
+                f"exactly -- imports, class attribute layout (`name`, `description`, "
+                f"`parameters`), and `execute()` signature -- for the new tool above:\n\n"
+                f"```python\n{reference_source}\n```"
+            )
 
         try:
             resp = default_provider.generate(model=model_name, prompt=prompt)
