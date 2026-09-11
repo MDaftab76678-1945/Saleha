@@ -3011,3 +3011,74 @@ python -m pytest saleha/tests/ -q
 `test_formal_smt_verifier.py` (9 tests) is new; it did not exist before this
 pass, so neither the index-bounds proof nor the operator-flip regression had
 any test coverage previously.
+
+## Fortieth pass -- measured whether an in-repo example improves what the 3b model generates (2026-09-11)
+
+Direction from the user: this project's local models will not out-generate
+a cloud-scale coding assistant on raw capability, so the honest angle is
+closing part of that gap with $0-cost, no-cloud-call techniques -- not
+pretending capability parity exists. First one tried: retrieval-augmented
+prompting, using machinery already in the repo (an existing generated tool
+file as a real few-shot example) rather than adding a new embeddings
+dependency.
+
+Checked first whether anything already did this. `graph_rag.py` is a
+Q&A engine over the call graph (architectural questions), not a code-
+generation aid, and is unrelated to `tool_forge.py`'s prompt. `tool_forge.py`
+itself (fixed pass 37) had zero retrieval: `generate_tool_code`'s prompt was
+task/class-name/parameters only, nothing about what tools already in this
+codebase look like.
+
+### Measured before building anything
+
+Ran the same tool-generation task against `qwen2.5-coder:3b` twice --
+once with the bare `generate_tool_code` prompt, once with
+`saleha/tools/word_counter.py` appended as a "match this convention"
+example -- for two different tasks (`char_counter`, `reverse_text`), two
+trials total:
+
+```text
+BASELINE (no example):    ToolResult imported=False, name attr=False, description attr=False
+RAG (with example):       ToolResult imported=True,  name attr=True,  description attr=True
+```
+
+Both baseline generations imported `BaseTool` but not `ToolResult` while
+still constructing one, and omitted the `name`/`description`/`parameters`
+class attributes entirely -- not a syntax defect `_heal_tool_source`
+(pass 37) can fully repair, since a missing `name` makes a tool
+undiscoverable by `tool_registry` even after the import is patched. Both
+example-augmented generations included all three attributes and the
+correct import, and in one case produced a more correct implementation
+(`char.isspace()` instead of a bare space-replace, correctly handling
+tabs/newlines the baseline's version did not).
+
+### Wired into production
+
+`ToolForge._find_reference_tool_source()`: looks in `self.tools_dir` for
+the shortest existing tool other than the one being built (cheapest
+example; excludes `base.py` and underscore-prefixed files), and
+`generate_tool_code()` appends it to the prompt when one exists. On a
+fresh install with zero prior tools this returns `None` and the prompt is
+unchanged -- the very first tool forged still gets the original bare
+prompt, honestly, rather than fabricating a reference that doesn't exist.
+
+### Verified
+
+End-to-end against a live Ollama instance (not just the isolated helper):
+
+```text
+generate_tool_code(spec=is_palindrome) -> correct name/description/parameters,
+correct execute() implementation, on the first call.
+```
+
+```text
+python -m pytest saleha/tests/test_tool_forge.py -q
+12 passed
+
+python -m pytest saleha/tests/ -q
+1812 passed, 7 skipped, 60 subtests passed in 102.29s   (was 1809 passed, 7 skipped)
+```
+
+Three new tests cover `_find_reference_tool_source` directly (shortest-file
+selection, excluding the tool being built even when its stub is shorter,
+and the empty-`tools_dir` fallback) with a temp directory and no model call.

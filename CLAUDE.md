@@ -478,8 +478,28 @@ operator, silently becoming `b < 5` -- a real, provable safety fact
 suite: 1809 passed, 7 skipped (was 1800). Detail:
 `NOTEBOOK_IMPORT.md`, "Thirty-ninth pass."
 
+**Retrieval-augmented tool generation -- measured, then wired in (pass
+40).** Direction: this project's local models will not out-generate a
+cloud-scale assistant on raw capability, so the honest angle is
+closing part of that gap for $0 -- not claiming parity. Measured
+before building: generating the same kind of tool with
+`qwen2.5-coder:3b`, bare prompt vs. prompt + an existing tool file as
+a "match this convention" example (two tasks, two trials). The bare
+prompt consistently omitted the `name`/`description`/`parameters`
+class attributes entirely (undiscoverable by the registry even after
+`_heal_tool_source` patches the missing `ToolResult` import) and
+forgot to import `ToolResult` while constructing one. The
+example-augmented prompt got all three attributes and the correct
+import every time. Wired into
+`ToolForge._find_reference_tool_source()` /`generate_tool_code()`:
+appends the shortest existing tool in `saleha/tools/` as an example
+when one exists; falls through unchanged on a clean install with zero
+prior tools. Verified end-to-end against a live Ollama instance.
+Full suite: 1812 passed, 7 skipped (was 1809). Detail:
+`NOTEBOOK_IMPORT.md`, "Fortieth pass."
+
 **Branch state:** work happens on `test-issue-101`, pushed and in sync with
-`origin/test-issue-101` as of pass 39. `main` is behind.
+`origin/test-issue-101` as of pass 40. `main` is behind.
 
 ---
 
