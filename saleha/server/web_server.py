@@ -1594,14 +1594,14 @@ HTML_PAGE = HTML_PAGE.replace("__SALEHA_VERSION__", __version__)
 
 class SalehaAPIHandler(BaseHTTPRequestHandler):
 
-    def _send_json(self, status_code: int, data: Any):
+    def _send_json(self, status_code: int, data: Any) -> None:
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self._send_cors_headers()
         self.end_headers()
         self.wfile.write(json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8'))
 
-    def _send_cors_headers(self):
+    def _send_cors_headers(self) -> None:
         # Lets the Next.js web app (different port) and the Tauri desktop webview
         # (different origin scheme) call this API, without ever emitting a wildcard:
         # the API is token-authenticated and a wildcard would let any site probe it.
@@ -1613,19 +1613,19 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Saleha-Token')
 
-    def do_OPTIONS(self):
+    def do_OPTIONS(self) -> None:
         self.send_response(204)
         self._send_cors_headers()
         self.end_headers()
 
-    def _presented_token(self, parsed) -> str:
+    def _presented_token(self, parsed: Optional[urllib.parse.ParseResult]) -> str:
         provided = self.headers.get('X-Saleha-Token', '') or ''
         if not provided and parsed is not None:
             query = urllib.parse.parse_qs(parsed.query)
             provided = (query.get('token') or [''])[0]
         return provided
 
-    def _current_user(self, parsed):
+    def _current_user(self, parsed: Optional[urllib.parse.ParseResult]) -> Any:
         """Resolves the caller to a user account, or None.
 
         The shared launch token predates user accounts and still works: it is
@@ -1651,20 +1651,22 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         except Exception:
             return None
 
-    def _is_authorized(self, parsed) -> bool:
+    def _is_authorized(self, parsed: Optional[urllib.parse.ParseResult]) -> bool:
         return self._current_user(parsed) is not None
 
-    def _is_admin(self, parsed) -> bool:
+    def _is_admin(self, parsed: Optional[urllib.parse.ParseResult]) -> bool:
         user = self._current_user(parsed)
         return bool(user and user.role == "admin")
 
-    def _reject_unauthorized(self):
+    def _reject_unauthorized(self) -> None:
         self._send_json(401, {"error": "Unauthorized: valid X-Saleha-Token header required"})
 
-    def _reject_forbidden(self):
+    def _reject_forbidden(self) -> None:
         self._send_json(403, {"error": "Forbidden: this endpoint requires an admin account"})
 
-    def _handle_auth_post(self, path: str, parsed, payload) -> bool:
+    def _handle_auth_post(
+        self, path: str, parsed: Optional[urllib.parse.ParseResult], payload: Dict[str, Any]
+    ) -> bool:
         """Authenticated /api/auth/* writes. Returns True if the path was handled.
 
         Login is not here: it has to run before the authorization check, so it
@@ -1727,11 +1729,11 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         return False
 
-    def _collab_error(self, err: CollabError):
+    def _collab_error(self, err: CollabError) -> None:
         code_map = {"not_found": 404, "conflict": 409, "not_joined": 409, "limit": 429, "too_large": 413}
         self._send_json(code_map.get(err.code, 400), {"error": str(err), "code": err.code})
 
-    def _handle_collab_get(self, path: str, parsed) -> bool:
+    def _handle_collab_get(self, path: str, parsed: urllib.parse.ParseResult) -> bool:
         if path == "/api/collab/list":
             self._send_json(200, {"rooms": collab_store.list_rooms()})
             return True
@@ -1785,7 +1787,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return True
         return False
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
@@ -1872,8 +1874,10 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/vault/ticker":
+            # Fixed mock prices for the paper-trading simulator, not a live
+            # feed -- see doom_vault.py's module docstring.
             prices = doom_vault_engine.get_ticker_prices()
-            self._send_json(200, {"prices": prices})
+            self._send_json(200, {"prices": prices, "is_live_feed": False})
             return
 
         if path == "/api/unimax/vcd":
@@ -1882,20 +1886,32 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/workflow/dag":
+            # Previously a fixed node/edge literal for every request, with
+            # hardcoded "completed"/"active"/"pending" statuses that never
+            # reflected a real run. swarm_pipeline_engine.SwarmRouter already
+            # computes a real, goal-dependent stage sequence
+            # (route_goal_to_dag) -- reused here instead of a second,
+            # divergent hardcoded pipeline description. No run has actually
+            # happened yet at this point, so every stage is honestly reported
+            # "not_started" rather than a fabricated "completed"/"active".
+            from saleha.core.swarm_pipeline_engine import swarm_engine
+
+            query = urllib.parse.parse_qs(parsed.query)
+            goal = (query.get("goal") or ["Build a Python microservice"])[0]
+            role_sequence = swarm_engine.router.route_goal_to_dag(goal)
+            nodes = [
+                {"id": f"stage_{i}_{role.lower()}", "name": role, "status": "not_started"}
+                for i, role in enumerate(role_sequence, start=1)
+            ]
+            edges = [
+                {"from": nodes[i]["id"], "to": nodes[i + 1]["id"]}
+                for i in range(len(nodes) - 1)
+            ]
             self._send_json(200, {
-                "nodes": [
-                    {"id": "planner", "name": "Planner & Architect", "role": "Deconstructs requirements", "status": "completed"},
-                    {"id": "coder", "name": "Polyglot Coder", "role": "Synthesizes type-safe code", "status": "active"},
-                    {"id": "tester", "name": "QA Reliability", "role": "Generates & runs test suites", "status": "pending"},
-                    {"id": "security", "name": "OWASP Security Auditor", "role": "Detects vulnerabilities", "status": "pending"},
-                    {"id": "verifier", "name": "Sandbox Verifier", "role": "Validates runtime & auto-commits", "status": "pending"}
-                ],
-                "edges": [
-                    {"from": "planner", "to": "coder"},
-                    {"from": "coder", "to": "tester"},
-                    {"from": "tester", "to": "security"},
-                    {"from": "security", "to": "verifier"}
-                ]
+                "goal": goal,
+                "note": "Projected stage sequence for this goal; no run has executed yet. POST /api/v2/swarm/execute for real per-stage status.",
+                "nodes": nodes,
+                "edges": edges,
             })
             return
 
@@ -1908,7 +1924,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self.send_header('Connection', 'keep-alive')
             self.end_headers()
 
-            def _sse_event(event: Dict[str, Any]):
+            def _sse_event(event: Dict[str, Any]) -> None:
                 payload = json.dumps({"stage": event.get("stage", ""), "content": event.get("content", "")})
                 self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
                 self.wfile.flush()
@@ -1954,15 +1970,21 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/hardware/accel":
+            # npu_detected/webgpu_supported/throughput are unmeasured (None):
+            # see webgpu_accelerator.py's module docstring for why a plain
+            # Python process cannot actually determine them.
             from saleha.core.webgpu_accelerator import webgpu_accelerator
             rep = webgpu_accelerator.detect_hardware()
             self._send_json(200, {
+                "os_name": rep.os_name,
+                "machine_arch": rep.machine_arch,
                 "npu_detected": rep.npu_detected,
                 "npu_type": rep.npu_type,
                 "webgpu_supported": rep.webgpu_supported,
                 "shader_pipeline": rep.shader_pipeline,
                 "estimated_tokens_per_sec": rep.estimated_tokens_per_sec,
                 "energy_efficiency_score": rep.energy_efficiency_score,
+                "detection_note": rep.detection_note,
             })
             return
 
@@ -2035,7 +2057,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "Endpoint not found"})
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
@@ -2278,14 +2300,21 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/voice/dispatch":
+            # This endpoint only classifies intent by keyword match -- it
+            # does not dispatch to any agent or trigger real work. success
+            # was previously hardcoded True and action_summary claimed
+            # "Auto-healing initiated" regardless of whether anything ran;
+            # neither was true for any input. Callers that want the FIX
+            # intent actually acted on should route it to /api/team or
+            # /api/v2/swarm/execute themselves.
             transcript = payload.get("transcript", "")
             speak = payload.get("speak", False)
             intent = "FIX" if any(w in transcript.lower() for w in ["fix", "error", "bug", "repair"]) else "GENERATE"
             self._send_json(200, {
                 "transcript": transcript,
                 "intent": intent,
-                "success": True,
-                "action_summary": f"Auto-healing initiated for: {transcript}",
+                "dispatched": False,
+                "note": "Intent classified only; no agent was dispatched by this endpoint.",
                 "speak_audio": speak,
             })
             return
@@ -2333,14 +2362,26 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/ast/merge":
+            # Previously plain string concatenation labelled a "3-Way AST
+            # Merge Engine", with ast_valid/conflicts_resolved hardcoded
+            # regardless of input. Routed through the real ConflictResolver
+            # (saleha/core/conflict_resolver.py): parses actual git conflict
+            # markers, applies AST-aware merge strategies for same-function
+            # edits, and verifies the result actually parses.
+            from saleha.core.conflict_resolver import conflict_resolver
+
             ours = payload.get("ours", "")
             theirs = payload.get("theirs", "")
-            merged = f"# Synthesized by Saleha 3-Way AST Merge Engine\n{ours}\n\n# Incoming additions:\n{theirs}"
+            file_path = payload.get("file_path", "merged.py")
+            conflict_text = f"<<<<<<< ours\n{ours}\n=======\n{theirs}\n>>>>>>> theirs\n"
+            result = conflict_resolver.resolve_content(conflict_text, file_path=file_path)
             self._send_json(200, {
-                "success": True,
-                "merged_code": merged,
-                "conflicts_resolved": 1,
-                "ast_valid": True,
+                "success": result.status == "RESOLVED",
+                "status": result.status,
+                "merged_code": result.resolved_content,
+                "conflicts_resolved": result.conflicts_found,
+                "ast_valid": result.is_valid_ast,
+                "summary": result.summary,
             })
             return
 
@@ -2384,33 +2425,79 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 conn.close()
                 self._send_json(200, {"success": True, "inserted_records": count, "table": table})
             except Exception as e:
-                self._send_json(200, {"success": True, "inserted_records": count, "table": table, "note": "Mock records synthesized"})
+                # Previously reported success=True here with "Mock records
+                # synthesized" tucked into an optional note field, so a
+                # caller checking only `success` saw a false positive for a
+                # seed that never happened. Report the real failure instead.
+                self._send_json(200, {
+                    "success": False,
+                    "inserted_records": 0,
+                    "table": table,
+                    "error": f"{type(e).__name__}: {e}",
+                })
             return
 
         if path == "/api/git/pr/generate":
+            # Previously every field below Files Touched was a hardcoded
+            # literal -- "0 Memory Leaks", "OWASP Top 10 Security Audit
+            # Clean", "10-Department Swarm Consensus Achieved" -- printed
+            # unconditionally with no check behind any of them, the same
+            # fabrication /autopr shipped before its pass-13 fix. Each line
+            # below now runs a real check (ast.parse for syntax,
+            # ASTSecurityScanner for the OWASP claim) and renders an
+            # unchecked box with the real reason when a check does not pass,
+            # instead of a pre-ticked checkbox.
+            import ast as _ast
+            from saleha.core.security_scanner import ASTSecurityScanner
+
             files = payload.get("files", {})
-            pr_title = "feat(core): Autonomous Multi-File Self-Healing & AST Verification"
-            pr_body = f"""# 🚀 Pull Request: {pr_title}
+            scanner = ASTSecurityScanner()
 
-## 📋 Summary of Changes
-- **Total Files Modified:** {len(files)} files
-- **Files Touched:** {', '.join(files.keys())}
-- **Deterministic Gamma AST Score:** 1.0 (0 Memory Leaks, 0 Division-by-Zero Violations)
-- **Execution Sandbox:** Verified via AddressSanitizer (ASan) & Sub-100μs Pre-Warmed Pool.
+            syntax_errors: List[str] = []
+            all_vulns = []
+            for fname, content in files.items():
+                if fname.endswith(".py"):
+                    try:
+                        _ast.parse(content)
+                    except SyntaxError as exc:
+                        syntax_errors.append(f"{fname}: {exc}")
+                all_vulns.extend(scanner.scan_code(content, filename=fname))
 
-## 🧪 Verification Matrix
-- [x] Static AST Verification Passed
-- [x] Memory Boundaries Validated
-- [x] OWASP Top 10 Security Audit Clean
-- [x] 10-Department Swarm Consensus Achieved
+            ast_clean = not syntax_errors
+            security_clean = not all_vulns
+            ast_line = (
+                "[x] Static AST Verification Passed"
+                if ast_clean
+                else f"[ ] Static AST Verification Failed: {'; '.join(syntax_errors)}"
+            )
+            sec_line = (
+                "[x] Security Scan Clean (0 findings)"
+                if security_clean
+                else f"[ ] Security Scan Found {len(all_vulns)} Issue(s): "
+                     f"{', '.join(sorted({v.rule_id for v in all_vulns}))}"
+            )
+
+            pr_title = f"feat: update {len(files)} file(s)"
+            pr_body = f"""# Pull Request: {pr_title}
+
+## Summary of Changes
+- Total Files Modified: {len(files)} files
+- Files Touched: {', '.join(files.keys()) or '(none)'}
+
+## Verification
+- {ast_line}
+- {sec_line}
 
 ---
-*Generated autonomously by Saleha AI Studio 2.0*"""
+Generated by Saleha AI Studio 2.0. Test suite execution and human review are
+still required before merging -- neither ran here."""
             self._send_json(200, {
-                "success": True,
+                "success": ast_clean and security_clean,
                 "pr_title": pr_title,
                 "pr_markdown": pr_body,
-                "ast_score": 1.0,
+                "ast_clean": ast_clean,
+                "security_clean": security_clean,
+                "vulnerabilities_found": len(all_vulns),
             })
             return
 
@@ -2850,11 +2937,11 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "Endpoint not found"})
 
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: Any) -> None:
         pass
 
 
-def run_web_studio(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True):
+def run_web_studio(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")

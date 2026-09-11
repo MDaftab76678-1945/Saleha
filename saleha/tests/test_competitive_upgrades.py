@@ -73,6 +73,10 @@ class CompetitiveUpgradesTests(unittest.TestCase):
         self.assertIn("kind: Deployment", res["k8s_manifest"])
 
     def test_github_pr_generator_workflow(self):
+        # Both fields it checks now run for real: ast_clean comes from
+        # ast.parse on each .py file, security_clean from ASTSecurityScanner.
+        # This fixture's server.py is valid Python with no flagged pattern,
+        # so both should genuinely come back clean.
         files = {
             "index.html": "<html><body><h1>Saleha</h1></body></html>",
             "server.py": "from fastapi import FastAPI\napp = FastAPI()",
@@ -80,7 +84,8 @@ class CompetitiveUpgradesTests(unittest.TestCase):
         res = self._post("/api/git/pr/generate", {"files": files})
         self.assertTrue(res["success"])
         self.assertIn("Pull Request", res["pr_markdown"])
-        self.assertEqual(res["ast_score"], 1.0)
+        self.assertTrue(res["ast_clean"])
+        self.assertTrue(res["security_clean"])
 
 
 if __name__ == "__main__":

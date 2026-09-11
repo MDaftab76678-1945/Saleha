@@ -248,6 +248,39 @@ def calculate_data() -> int:
     assert any(i.rule_id == "UNDEF-001" and "x" in i.message for i in report.issues)
 
 
+def test_chained_generator_later_clause_sees_earlier_target() -> None:
+    """A second `for`/`if` clause in the same comprehension can reference a
+    name bound by an earlier clause (real Python scoping) -- this was a
+    false positive found in saleha/server/web_server.py's real code:
+    `set(t for e in entries for t in e.get("tags", []))` flagged `e` as
+    CRITICAL undefined, because the old _visit_comprehension visited every
+    generator's `iter` in one pass before any generator's target entered
+    scope, instead of interleaving iter-then-target left to right."""
+    guard = QualityGuard()
+    code = '''
+def tag_count(entries: list) -> int:
+    return len(set(t for e in entries for t in e.get("tags", [])))
+'''
+    report = guard.check_code(code)
+    assert report.critical_count == 0
+    assert not any(i.rule_id == "UNDEF-001" for i in report.issues)
+
+
+def test_first_generator_iter_cannot_see_later_bound_names() -> None:
+    """The first generator's `iter` runs in the enclosing scope, before any
+    comprehension target is bound -- it must not see a name bound later in
+    the same comprehension. Guards against over-fixing the case above into
+    a scope that is too permissive."""
+    guard = QualityGuard()
+    code = '''
+def broken() -> list:
+    return [x for x in undefined_source for y in x]
+'''
+    report = guard.check_code(code)
+    assert report.critical_count > 0
+    assert any(i.rule_id == "UNDEF-001" and "undefined_source" in i.message for i in report.issues)
+
+
 def test_nesting_depth_isolated_from_inner_functions() -> None:
     """Outer function with zero nesting must NOT be penalized for inner function's nesting depth."""
     guard = QualityGuard()

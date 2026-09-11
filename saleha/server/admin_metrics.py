@@ -16,9 +16,13 @@ excluded, and the reasons are documented here so nobody re-adds them by mistake:
   empty trace here.
 - ``NanosecondLatencyHistogram`` has no shared instance and persists nothing;
   every caller builds a throwaway one.
-- ``/api/workflow/dag``, ``/api/hardware/accel`` and ``/api/vault/ticker`` return
-  hardcoded literals (the hardware probe reports ``npu_detected`` unconditionally
-  and fixed tokens-per-second constants), so they are not aggregated here.
+- ``/api/vault/ticker`` returns fixed mock prices (``DoomVaultFinTech.MOCK_PRICES``),
+  not a live feed, so it is not aggregated here.
+- ``/api/workflow/dag`` reports a goal-dependent stage sequence from the real
+  swarm router, not a completed run's outcome -- there is nothing recorded
+  here to aggregate until a run has actually executed.
+- ``/api/hardware/accel`` honestly reports NPU/WebGPU detection as unmeasured
+  (``None``); there is no positive detection result to surface.
 
 Each payload carries a ``sources`` block naming the file behind the numbers, so
 the panel can show the reader where a figure came from.
@@ -244,11 +248,15 @@ def overview() -> Dict[str, Any]:
             },
             {
                 "name": "hardware_accel",
-                "reason": "Reports fixed constants rather than probing the machine.",
+                "reason": "NPU/WebGPU detection is honestly unmeasured (None); nothing to aggregate.",
             },
             {
                 "name": "workflow_dag",
-                "reason": "Node statuses are a hardcoded literal, not live workflow state.",
+                "reason": "Reports a projected stage sequence for a goal, not a completed run's outcome.",
+            },
+            {
+                "name": "vault_ticker",
+                "reason": "Fixed mock prices, not a live feed.",
             },
         ],
     }

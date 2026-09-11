@@ -283,15 +283,22 @@ class QualityGuard:
                 self.scopes.pop()
 
             def _visit_comprehension(self, node: Union[ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp]) -> None:
+                """Walks generators left to right, matching real Python scoping:
+                each `for`/`if` clause after the first can reference names bound
+                by an earlier `for` in the same comprehension (e.g. `{t for e in
+                entries for t in e.get("tags", [])}` -- the second `iter`
+                references `e`, bound by the first). The first generator's own
+                `iter` is visited before any target enters scope, since it runs
+                in the enclosing scope, same as CPython."""
                 comp_scope: Set[str] = set()
-                for gen in node.generators:
-                    self.visit(gen.iter)
+                self.visit(node.generators[0].iter)
+                self.scopes.append(comp_scope)
+                for i, gen in enumerate(node.generators):
+                    if i > 0:
+                        self.visit(gen.iter)
                     for n in ast.walk(gen.target):
                         if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
                             comp_scope.add(n.id)
-
-                self.scopes.append(comp_scope)
-                for gen in node.generators:
                     for if_expr in gen.ifs:
                         self.visit(if_expr)
                 if isinstance(node, ast.DictComp):

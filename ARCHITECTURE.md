@@ -166,6 +166,8 @@ Built on Click, `saleha/cli/commands.py` (~6,500 lines) registers well over 100 
 
 A dependency-light HTTP/SSE server exposing REST endpoints for the core engines above (status, agents, scan/diff/patch, sandbox exec, memory, RAG, security scan, etc.) plus a browser-based UI. Some endpoints listed in the server's own module docstring (e.g. WASM, P2P fuzzing, spatial UI generation, post-quantum crypto, native compilation) are placeholders/stubs for future work, not implemented features — see the server module docstring and treat anything not backed by a corresponding `saleha/core/` module as aspirational.
 
+Read in full and audited 2026-09-11 (pass 43, `NOTEBOOK_IMPORT.md`): eight endpoint-level fabrications found and fixed (`/api/workflow/dag`, `/api/hardware/accel`, `/api/vault/ticker`, `/api/voice/dispatch`, `/api/ast/merge`, `/api/db/seed`, `/api/git/pr/generate` — each previously returned hardcoded or misrepresented results regardless of input). `admin_metrics.py` (the `/api/admin/*` panel) was already honestly audited in an earlier pass and needed no logic change. `swarm_stream_hub.py` is a separate, optional FastAPI app (the `[realtime]` extra) providing a genuine WebSocket push channel for swarm telemetry — not started by default, not the same process as `web_server.py`'s zero-dependency `http.server` core, and does not duplicate `/api/v2/swarm/execute` (the one real implementation of that endpoint lives in `web_server.py`).
+
 ### Web app (`apps/web`)
 
 A Next.js (App Router) application. Confirmed working integration: it calls the Python backend directly over HTTP (e.g. `fetch("http://127.0.0.1:8000/api/v2/swarm/execute")` in `src/app/page.tsx`) for code execution and agent/swarm requests.

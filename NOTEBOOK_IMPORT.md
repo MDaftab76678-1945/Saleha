@@ -3289,3 +3289,168 @@ Not done, and stated rather than glossed: the app was never *launched*. The
 build is verified; runtime startup/shutdown against a live window is not,
 because that needs a human at the machine to see it. The sidecar lifecycle
 code was read and reasoned about in full, which is not the same thing.
+
+## Forty-third pass -- `saleha/server/` read in full: eight fabrications found across two files (2026-09-11)
+
+Scope decision: `saleha/core/` finished pass-38 coverage with no open
+findings, and pass-42 covered the desktop app. `saleha/server/` (the
+REST/SSE web server) and `apps/web/` had not been through this audit. A
+scoping pass over both found `apps/web/` already shows repeated evidence of
+prior remediation (inline comments describing exactly this class of bug,
+fixed); `saleha/server/` had confirmed, unfixed hardcoded/fake-data
+responses, so that is where the full pass went.
+
+Read in full: `web_server.py` (2,890 lines -- skipped only the ~1,480-line
+embedded decorative `HTML_PAGE` sandbox UI string, not Python logic),
+`swarm_stream_hub.py`, `admin_metrics.py`. `admin_metrics.py` was already
+honestly audited (its own docstring documents excluded fabricated sources)
+and needed no logic change, only updated exclusion reasons where the
+underlying endpoints changed below.
+
+### Finding 1: `swarm_stream_hub.py` was dead code with an undeclared dependency
+
+Imported `fastapi`, which was not declared anywhere in `pyproject.toml` --
+`ModuleNotFoundError` on any standard install -- and nothing in the repo
+imported this module. It also duplicated `POST /api/v2/swarm/execute`,
+which is real and already wired in `web_server.py` (with `TaskHistory`
+logging). Not deleted -- rebuilt as an optional, genuinely wired real-time
+push channel: a new `[realtime]` extra (`fastapi`, `uvicorn`) added to
+`pyproject.toml`; the duplicate `/execute` route removed (the one real
+implementation stays in `web_server.py`); `/stream`'s SSE handler, which
+hardcoded `for _ in range(5)` then terminated regardless of activity, is
+now `WebSocket /api/v2/swarm/ws`, open-ended for as long as the client stays
+connected. Fixing this exposed a second, more serious bug: `AgentMessageBus.publish()`
+is a plain synchronous call reachable from any thread -- including
+`web_server.py`'s `ThreadingHTTPServer` worker threads, which have no
+asyncio event loop of their own -- and the original `_on_agent_event`
+scheduled broadcasts with `asyncio.create_task()`, which raises "no running
+event loop" from such a thread and was silently swallowed by
+`AgentMessageBus.publish()`'s broad `except`. Every WebSocket client would
+have sat connected and never received a real event. Fixed with
+`asyncio.run_coroutine_threadsafe()` against the hub's own loop (bound via a
+FastAPI `lifespan` context manager). Verified directly (not through
+`TestClient`, whose WebSocket wrapper hung under this harness for unrelated
+reasons): published an event from a separate thread against a loop-bound
+hub with a fake socket, confirmed delivery.
+
+### Finding 2: `/api/workflow/dag` returned a fixed literal
+
+Hardcoded five nodes with hardcoded `"completed"/"active"/"pending"`
+statuses, identical for every request regardless of any real workflow.
+`swarm_pipeline_engine.py`'s `SwarmRouter.route_goal_to_dag()` already
+computes a real, goal-dependent stage sequence (confirmed pass-30-era code,
+unrelated to this endpoint) -- reused it instead of maintaining a second,
+divergent hardcoded pipeline description. The endpoint now takes a `goal`
+query param, returns the real projected sequence, and reports every node
+honestly as `"not_started"` (no run has happened at this point) rather than
+fabricated completion states. Probe: `?goal=...microservice` and
+`?goal=Fix the outage traceback` route to different stage sequences and
+different node counts (SRE incident goals prepend a stage).
+
+### Finding 3: `/api/hardware/accel` fabricated NPU/WebGPU detection
+
+`webgpu_accelerator.detect_hardware()` set `npu_detected=True` on *every*
+branch of its own if/else (both branches), plus fixed
+`webgpu_supported=True`, `estimated_tokens_per_sec` (135 or 85), and
+`energy_efficiency_score=0.98` -- none measured. A Python process has no
+dependency-free way to query an NPU driver or a browser's WebGPU adapter,
+so this was fabrication, not an estimate. Rewritten to report only what
+`platform.system()`/`platform.machine()` actually establish, with NPU
+presence, WebGPU support, and throughput reported `None` plus a
+`detection_note` explaining why. `test_future_engines.py`'s
+`test_webgpu_hardware_acceleration` had pinned the fabrication
+(`assertTrue(rep.webgpu_supported)`, `assertGreaterEqual(...,50)`) --
+replaced with assertions on the honest `None`s and the real OS/arch fields.
+
+### Finding 4: `/api/vault/ticker` served fixed mock prices as if live
+
+`DoomVaultFinTech.MOCK_PRICES` (the class attribute's own name says "mock")
+was returned from an endpoint whose docstring called it a "Real-Time Crypto
+Market Ticker Feed," with no disclosure to the caller. Module docstring
+corrected; endpoint response now carries `"is_live_feed": false` explicitly.
+
+### Finding 5: `/api/voice/dispatch` claimed action it never took
+
+`"success": True` was hardcoded regardless of input, and
+`"action_summary"` was an f-string reading `"Auto-healing initiated for:
+{transcript}"` -- no agent was ever dispatched; the endpoint only does
+keyword-match intent classification. Replaced `success`/`action_summary`
+with `dispatched: False` and an explicit note that no agent ran. Three
+tests had pinned the fabrication directly
+(`assertIn("Auto-healing", data["action_summary"])` in two files,
+`assertTrue(data["success"])` in a third) -- all three fixed to assert the
+real (non-)behavior.
+
+### Finding 6: `/api/ast/merge` was string concatenation labelled an "AST Merge Engine"
+
+`merged = f"...\n{ours}\n...\n{theirs}"` with `"ast_valid": True` and
+`"conflicts_resolved": 1` hardcoded regardless of input -- no AST parsing
+anywhere. `saleha/core/conflict_resolver.py`'s `ConflictResolver` already
+existed, fully real (parses actual git conflict markers, has a genuine
+AST-semantic merge strategy for same-function edits, verifies the result
+parses) and tested, but had zero production callers anywhere in the repo.
+Wired it into this endpoint instead of building a second implementation.
+Existing tests (`test_web_studio_v2.py`, `test_nextgen_features.py`) used
+disjoint function names, which `ConflictResolver`'s "distinct top-level
+definitions, keep both" strategy handles identically to the old fake
+output, so both passed unchanged -- verified directly against
+`conflict_resolver.resolve_content()` before trusting that.
+
+### Finding 7: `/api/db/seed` reported success on a real failure
+
+The `except` branch of the insert loop returned `"success": True,
+"inserted_records": count` with a `"note": "Mock records synthesized"`
+tacked on -- a caller checking only `success` would see a false positive
+for a seed that never wrote anything. Fixed to report `"success": False,
+"inserted_records": 0` with the real exception surfaced in `"error"`. The
+existing test used a valid schema (a genuine success path) and needed no
+change.
+
+### Finding 8: `/api/git/pr/generate` fabricated an entire verification report
+
+Every claim below "Files Touched" was a hardcoded literal printed
+unconditionally: "Deterministic Gamma AST Score: 1.0 (0 Memory Leaks, 0
+Division-by-Zero Violations)", "OWASP Top 10 Security Audit Clean",
+"10-Department Swarm Consensus Achieved" -- the same shape of defect as
+`/autopr` before its pass-13 fix, this time never caught in the web server.
+Also had decorative emoji in the generated PR body (rule violation).
+Rewritten to run real checks per file: `ast.parse()` for syntax,
+`ASTSecurityScanner.scan_code()` (the same scanner
+`swarm_self_play_arena.py` was wired to in pass 33) for the security claim.
+Each verification line renders an unchecked box with the specific failure
+reason when a check does not pass, instead of a pre-ticked checkbox; the
+response no longer claims a numeric `ast_score` divorced from any scan.
+Both existing tests pinned `ast_score == 1.0` unconditionally -- fixed to
+assert the real `ast_clean`/`security_clean` booleans, plus a new test
+confirming a genuine Python `SyntaxError` in an input file is reported as a
+real failure, not silently passed.
+
+### A ninth bug, found by the repo's own pre-commit gate
+
+Committing the fixes above was blocked by the pre-flight quality gate:
+`quality_guard.py` flagged `web_server.py:1853` (pre-existing code, not
+touched by any of the fixes above) CRITICAL for an undefined name `e` in
+`set(t for e in entries for t in e.get("tags", []))`. That line is valid
+Python -- `e` is the first generator's target, and Python lets a later
+`for`/`if` clause in the same comprehension see an earlier clause's target.
+`QualityGuard`'s `_visit_comprehension` visited every generator's `iter`
+in one pass *before* any generator's target entered scope, instead of
+interleaving iter-then-target left to right -- the same shape of gap as
+the `visit_Lambda` fix (pass 38) and the exception-handler fix (also pass
+38): a real Python scoping rule the AST walker did not model. Fixed by
+visiting the first generator's `iter` in the enclosing scope (correct --
+it really does run before any target is bound), then, for every
+subsequent generator, adding its predecessor's target to scope before
+visiting its `iter`. Verified both directions: the chained-generator false
+positive is gone, and a genuinely out-of-order reference
+(`[x for x in undefined_source for y in x]`) is still caught. Two tests
+added to `test_quality_guard.py`.
+
+### Verification
+
+Full suite: 1859 passed, 8 skipped (was 1856 passed, 8 skipped before this
+pass; +1 from the git/pr syntax-error regression test, +2 from the
+quality_guard scoping tests). `ruff check` run on the new
+`swarm_stream_hub.py` specifically (all-clean); the repo's other touched
+files carry pre-existing import-order findings unrelated to this pass,
+left alone rather than reformatted as unrelated scope-creep.

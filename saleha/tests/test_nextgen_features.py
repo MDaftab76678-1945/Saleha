@@ -23,7 +23,7 @@ from saleha.server.web_server import SalehaAPIHandler
 class NextGenFeaturesTests(unittest.TestCase):
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         web_server.set_auth_token("nextgen-test-token")
         cls.token = "nextgen-test-token"
         cls.server = HTTPServer(("127.0.0.1", 0), SalehaAPIHandler)
@@ -31,11 +31,11 @@ class NextGenFeaturesTests(unittest.TestCase):
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         cls.server.shutdown()
         cls.server.server_close()
 
-    def _post(self, path: str, payload: dict):
+    def _post(self, path: str, payload: dict) -> None:
         req = urllib.request.Request(
             self.base + path,
             data=json.dumps(payload).encode("utf-8"),
@@ -44,7 +44,7 @@ class NextGenFeaturesTests(unittest.TestCase):
         with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
-    def test_sql_query_endpoint(self):
+    def test_sql_query_endpoint(self) -> None:
         schema = "CREATE TABLE test_users (id INT, name TEXT); INSERT INTO test_users VALUES (1, 'Alice'), (2, 'Bob');"
         payload = {
             "query": "SELECT * FROM test_users ORDER BY id ASC",
@@ -56,7 +56,7 @@ class NextGenFeaturesTests(unittest.TestCase):
         self.assertEqual(len(data["rows"]), 2)
         self.assertEqual(data["rows"][0], [1, "Alice"])
 
-    def test_sql_seed_endpoint(self):
+    def test_sql_seed_endpoint(self) -> None:
         schema = "CREATE TABLE subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INT, plan TEXT, mrr_cents INT);"
         payload = {
             "table": "subscriptions",
@@ -67,7 +67,7 @@ class NextGenFeaturesTests(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["inserted_records"], 5)
 
-    def test_git_pr_generate_endpoint(self):
+    def test_git_pr_generate_endpoint(self) -> None:
         payload = {
             "files": {
                 "index.html": "<h1>Test App</h1>",
@@ -76,23 +76,33 @@ class NextGenFeaturesTests(unittest.TestCase):
         }
         data = self._post("/api/git/pr/generate", payload)
         self.assertTrue(data["success"])
-        self.assertIn("feat(core)", data["pr_title"])
+        self.assertIn("feat:", data["pr_title"])
         self.assertIn("Pull Request", data["pr_markdown"])
-        self.assertEqual(data["ast_score"], 1.0)
+        self.assertTrue(data["ast_clean"])
+        self.assertTrue(data["security_clean"])
 
-    def test_terminal_exec_endpoint(self):
+    def test_git_pr_generate_reports_real_syntax_error(self) -> None:
+        # A broken .py file must make ast_clean False and surface the real
+        # reason in the PR body, not a pre-ticked "Passed" checkbox.
+        payload = {"files": {"broken.py": "def fn(:\n    pass"}}
+        data = self._post("/api/git/pr/generate", payload)
+        self.assertFalse(data["success"])
+        self.assertFalse(data["ast_clean"])
+        self.assertIn("Failed", data["pr_markdown"])
+
+    def test_terminal_exec_endpoint(self) -> None:
         payload = {"command": "echo Hello Saleha Terminal"}
         data = self._post("/api/terminal/exec", payload)
         self.assertTrue(data["success"])
         self.assertIn("Hello Saleha Terminal", data["output"])
 
-    def test_terminal_exec_restricted_command(self):
+    def test_terminal_exec_restricted_command(self) -> None:
         payload = {"command": "powershell_evil_command"}
         data = self._post("/api/terminal/exec", payload)
         self.assertFalse(data["success"])
         self.assertIn("restricted", data["output"])
 
-    def test_terminal_exec_blocks_injection(self):
+    def test_terminal_exec_blocks_injection(self) -> None:
         # Semicolon injection
         data = self._post("/api/terminal/exec", {"command": "git status; whoami"})
         self.assertFalse(data["success"])
@@ -103,7 +113,7 @@ class NextGenFeaturesTests(unittest.TestCase):
         self.assertFalse(data2["success"])
         self.assertIn("restricted for security", data2["output"])
 
-    def test_workspace_sync_endpoint(self):
+    def test_workspace_sync_endpoint(self) -> None:
         tmp_dir = tempfile.mkdtemp()
         try:
             payload = {
@@ -120,7 +130,7 @@ class NextGenFeaturesTests(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    def test_ast_merge_endpoint(self):
+    def test_ast_merge_endpoint(self) -> None:
         payload = {
             "ours": "def local(): return True",
             "theirs": "def remote(): return False"

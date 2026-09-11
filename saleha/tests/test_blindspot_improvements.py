@@ -24,7 +24,7 @@ from saleha.core.visual_diff import visual_diff_engine
 class BlindspotImprovementsTests(unittest.TestCase):
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         web_server.set_auth_token("blindspot-test-token")
         cls.token = "blindspot-test-token"
         cls.server = HTTPServer(("127.0.0.1", 0), SalehaAPIHandler)
@@ -32,11 +32,11 @@ class BlindspotImprovementsTests(unittest.TestCase):
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         cls.server.shutdown()
         cls.server.server_close()
 
-    def _post(self, path: str, payload: dict):
+    def _post(self, path: str, payload: dict) -> None:
         req = urllib.request.Request(
             self.base + path,
             data=json.dumps(payload).encode("utf-8"),
@@ -45,7 +45,7 @@ class BlindspotImprovementsTests(unittest.TestCase):
         with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
-    def _get(self, path: str):
+    def _get(self, path: str) -> None:
         req = urllib.request.Request(
             self.base + path,
             headers={"X-Saleha-Token": self.token},
@@ -53,7 +53,7 @@ class BlindspotImprovementsTests(unittest.TestCase):
         with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
-    def test_vault_secrets_set_and_list(self):
+    def test_vault_secrets_set_and_list(self) -> None:
         # 1. Set secret via REST API
         set_res = self._post("/api/vault/set", {"key": "TEST_STRIPE_KEY", "value": "sk_test_9849204820948"})
         self.assertEqual(set_res["status"], "success")
@@ -62,7 +62,7 @@ class BlindspotImprovementsTests(unittest.TestCase):
         list_res = self._get("/api/vault/list")
         self.assertIn("TEST_STRIPE_KEY", list_res["secrets"])
 
-    def test_dynamic_file_tree_workspace_sync(self):
+    def test_dynamic_file_tree_workspace_sync(self) -> None:
         files_payload = {
             "index.html": "<h1>App</h1>",
             "components/Button.jsx": "export const Button = () => <button>Click</button>;",
@@ -72,18 +72,18 @@ class BlindspotImprovementsTests(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(res["synced_files"], 3)
 
-    def test_interactive_terminal_ansi_and_multicommand(self):
+    def test_interactive_terminal_ansi_and_multicommand(self) -> None:
         res = self._post("/api/terminal/exec", {"command": "echo Hello ANSI World"})
         self.assertTrue(res["success"])
         self.assertIn("Hello ANSI World", res["output"])
 
-    def test_voice_dispatch_audio_confirmation(self):
+    def test_voice_dispatch_audio_confirmation(self) -> None:
         res = self._post("/api/voice/dispatch", {"transcript": "Build SaaS payment module", "speak": True})
-        self.assertTrue(res["success"])
+        self.assertFalse(res["dispatched"])
         self.assertTrue(res["speak_audio"])
         self.assertEqual(res["intent"], "GENERATE")
 
-    def test_visual_diff_layout_regression_guard(self):
+    def test_visual_diff_layout_regression_guard(self) -> None:
         base = "<html><body><h1>Dashboard</h1><button>Checkout</button></body></html>"
         curr = "<html><body><h1>Dashboard</h1></body></html>"  # Button missing -> regression!
         diff = visual_diff_engine.compare_layouts(base, curr)

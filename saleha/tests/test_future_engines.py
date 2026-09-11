@@ -98,15 +98,26 @@ class FutureEnginesTests(unittest.TestCase):
         self.assertTrue(data["consensus_achieved"])
 
     def test_webgpu_hardware_acceleration(self) -> None:
+        # detect_hardware() cannot actually probe NPU/WebGPU capability from
+        # a plain Python process (no vendor SDK or browser context), so it
+        # honestly reports those fields as unmeasured (None) instead of a
+        # fabricated True/number. Only OS/architecture are real detections.
+        import platform
+
         rep = webgpu_accelerator.detect_hardware()
-        self.assertTrue(rep.webgpu_supported)
-        self.assertGreaterEqual(rep.estimated_tokens_per_sec, 50)
+        self.assertEqual(rep.os_name, platform.system())
+        self.assertEqual(rep.machine_arch, platform.machine())
+        self.assertIsNone(rep.webgpu_supported)
+        self.assertIsNone(rep.npu_detected)
+        self.assertIsNone(rep.estimated_tokens_per_sec)
+        self.assertTrue(rep.detection_note)
 
         shader = webgpu_accelerator.generate_wgsl_gemm_shader()
         self.assertIn("@compute", shader)
 
         data = self._get("/api/hardware/accel")
-        self.assertTrue(data["webgpu_supported"])
+        self.assertIsNone(data["webgpu_supported"])
+        self.assertIn("detection_note", data)
 
     # --- Phase 3: Formal Verification & Spatial UI ---
     def test_formal_lean4_verifier(self) -> None:

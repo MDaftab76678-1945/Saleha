@@ -548,6 +548,38 @@ re-run without a code fix -- a diagnostic assert-message change
 occurrence prints the real `detail` string instead of a bare
 `assert False is True`.
 
+**`saleha/server/` read in full and fixed (pass 43).** Eight fabrications
+found and fixed across `web_server.py` and `swarm_stream_hub.py`:
+`swarm_stream_hub.py` was dead code (undeclared `fastapi` dependency,
+nothing imported it) duplicating the real `/api/v2/swarm/execute` -- not
+deleted, rebuilt into a genuinely wired optional real-time WebSocket push
+channel (new `[realtime]` extra), which also exposed and fixed a real
+cross-thread `asyncio` bug (`AgentMessageBus.publish()` can run on any
+thread; the old broadcast code silently dropped every event when called
+from a thread with no event loop). `/api/workflow/dag` now calls the real
+`SwarmRouter.route_goal_to_dag()` instead of a fixed literal.
+`/api/hardware/accel` no longer claims NPU/WebGPU detection it cannot
+perform (reports `None` + a reason instead of hardcoded `True`/constants).
+`/api/vault/ticker` discloses `is_live_feed: false` for its mock prices.
+`/api/voice/dispatch` no longer claims "Auto-healing initiated" for an
+endpoint that only classifies intent. `/api/ast/merge` now runs the real
+(previously unwired) `ConflictResolver` instead of string concatenation.
+`/api/db/seed` reports real failure instead of `success: True` on an
+exception. `/api/git/pr/generate` runs real `ast.parse`/`ASTSecurityScanner`
+checks instead of printing a fully hardcoded "0 Memory Leaks, OWASP Clean,
+10-Department Swarm Consensus" report -- the same class of bug `/autopr`
+had before its pass-13 fix, found a second time here. 7 tests across 5
+files had pinned these fabrications directly; all fixed to assert the real
+behavior, plus one new test. Committing exposed a ninth, unrelated bug:
+`quality_guard.py`'s pre-commit gate flagged pre-existing, valid code
+(`web_server.py:1853`, a chained generator expression) CRITICAL undefined
+-- `_visit_comprehension` visited every generator's `iter` before any
+target entered scope, instead of left-to-right, so a later clause
+referencing an earlier clause's target (legal Python) read as undefined.
+Same shape of gap as the `visit_Lambda` fix (pass 38). Fixed and covered
+by two new tests. Full suite: 1859 passed, 8 skipped (was 1856). Detail:
+`NOTEBOOK_IMPORT.md`, "Forty-third pass."
+
 ---
 
 ## Environment facts worth knowing

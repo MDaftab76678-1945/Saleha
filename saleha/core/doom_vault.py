@@ -1,16 +1,21 @@
 """
-Saleha DooM Vault 2.0: Autonomous Multi-Chain FinTech Engine.
+Saleha DooM Vault 2.0: Paper-Trading Simulator (fixed mock prices).
+
+get_ticker_prices() returns MOCK_PRICES, a fixed dict -- there is no
+exchange/market-data connection anywhere in this module, so nothing here is
+a live feed regardless of what a caller's docstring or UI label says.
 Provides:
-- Real-Time Crypto Market Ticker Feed
-- Whale Transaction Radar & Liquidation Alarm (>$1,000,000 USD)
-- Risk-Bounded Paper Trading Simulator with Stop-Loss Controls
+- Fixed mock price ticker (MOCK_PRICES), for simulator use only.
+- Whale-alert classification on a caller-supplied amount (a labeling
+  function, not a detector -- it does not observe real transactions).
+- Paper trading against the mock prices, with real balance/position bookkeeping.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from typing import List, Dict
 
 
 @dataclass
