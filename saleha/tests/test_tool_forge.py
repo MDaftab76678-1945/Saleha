@@ -152,7 +152,7 @@ def test_math_add_execution():
         tool_code=valid_tool_code,
         test_code=valid_test_code,
     )
-    assert passed is True
+    assert passed is True, f"validate_tool_and_test failed, detail: {detail}"
     assert "passed" in detail.lower()
 
 
