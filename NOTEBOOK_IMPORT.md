@@ -3617,3 +3617,208 @@ entry still needs before it can be marked audited.
 the pass-43 baseline, confirming the four deleted `jarvis/` files and the
 `deploy/`/Mukti-doc deletions broke nothing (as expected, since both were
 confirmed unimported/unreferenced before deletion, not after).
+
+## Forty-fifth pass
+
+Followed up on pass 44's open items: `.agents/`, `.cursor/`, `generative-art/`,
+`examples/`, and the five `scripts/` training files flagged "not read closely
+enough to confirm real training vs. scripted progress output." Read all of
+them in full, not by grep. Five real defects found and fixed.
+
+### `saleha/core/grpo_reasoning_trainer.py` -- fabrication, never previously
+### flagged anywhere in this ledger or CLAUDE.md
+
+Zero model calls. `ThoughtTraceGenerator.generate_trace` returned the same
+hardcoded template paragraph regardless of prompt (only the prompt string was
+interpolated into it). `_sample_group_rollouts` picked "candidate code" from
+three hand-written f-string templates selected purely by loop index, never
+from a model. `perf_score = 0.95 - (i * 0.05)`, `policy_loss`, and
+`kl_divergence` were formulas over the step/index number, not measurements.
+`red_team_vulnerabilities_neutralized=24`, `average_thinking_length_tokens=384`,
+and `deployed_model_name="saleha-r1-reasoning:3.5b"` were hardcoded constants
+-- no red-team ever ran, no `ollama create` call existed anywhere in the file.
+`saleha/tests/test_grpo_reasoning_trainer.py` pinned the fabrication in
+place, same trap as every prior instance: it asserted the hardcoded
+`<think>` structure, that `deployed_model_name` was truthy (trivially true
+for a hardcoded string), and `thinking_length > 100` (trivially true for a
+hardcoded 384).
+
+Distinct from `saleha/core/frontier_trainer.py`, which was already genuinely
+fixed (pass 40 lineage) -- real SFT/DPO, RLIF honestly reported as not
+implemented. `grpo_reasoning_trainer.py` had never been through that fix.
+
+Rewrote the module to do real work within what's actually achievable locally:
+G real candidates per prompt via `CoderAgent.generate_code()` (the same real
+model-calling agent `swarm_self_play_arena.py` already uses), each scored by
+the real `ASTSecurityScanner` and `neuro_symbolic_engine.score_code()`. The
+group-relative-advantage arithmetic (`A_i = (R_i - mean) / std`) was already
+genuine math and was kept. Removed what cannot honestly be claimed: no policy
+weight update (would need a training loop this project doesn't have --
+matches frontier_trainer.py's RLIF gap), no synthesized `<think>` trace (real
+CoT would have to come from the model's own output), no red-team count, no
+"deployed model" name. `GRPOTrainingSummary.note` states this explicitly in
+the object itself, not just in comments.
+
+Rewrote `test_grpo_reasoning_trainer.py` to assert on the real behavior:
+winner genuinely has max reward in the group, advantages sum to ~0 (group-
+relative, not absolute), a failed generation is scored 0 rather than as if
+valid, and no `deployed_model_name`/`red_team_vulnerabilities_neutralized`
+attributes exist on the summary at all (removed, not just unused).
+
+Measured: `saleha/tests/test_grpo_reasoning_trainer.py` 3/3 pass in
+`SALEHA_TEST_MODE=1` (fast mock-backed rollouts, ~0.8s combined with the
+swarm arena suite). Live run via
+`scripts/train_grpo_advanced_reasoning.py` under `SALEHA_TEST_MODE=1`
+confirmed real per-rollout data flows into the printed table (model name,
+AST validity, unresolved HIGH count, reward, advantage) -- mock provider
+returns the same code every call in test mode so rewards are flat across
+rollouts in this run, which is the mock being deterministic, not a
+fabrication.
+
+### `scripts/train_swarm_self_play_arena.py` -- fabrication wrapper around
+### an already-fixed module
+
+`saleha/core/swarm_self_play_arena.py` itself is genuinely fixed (confirmed,
+matches the pass-33 CLAUDE.md entry: real `CoderAgent.generate_code()`, real
+`ASTSecurityScanner`, honest `hard_negative_mined` logic, docstring
+explicitly states "performs no weight averaging"). But the *script* wrapping
+it printed a fully hardcoded battle-log table never derived from the run's
+actual `summary`/`battles` data: `"6 Injected (6 Neutralized)"`,
+`"100.0%"` chaos resilience, and judge rewards `0.9850`-`0.9960` for all
+four levels, literal strings unrelated to output. The closing panel's
+`"+1.8% SWA Ensemble Boost"` is the exact constant CLAUDE.md already
+documents as removed from `StochasticWeightAverager` in the pass-33 fix --
+it had survived in this unaudited wrapper script.
+
+Rewrote the script to call `arena.fight_battle()` directly per curriculum
+prompt and render the real `AdversarialBattleResult` fields (model used,
+generation success, unresolved HIGH findings, real fuzz resilience percent,
+real Pareto reward, real hard-negative flag) plus the real aggregate from
+`RewardAggregator.aggregate()`. Measured: ran end-to-end under
+`SALEHA_TEST_MODE=1` -- 8 real battles across 4 levels, table values vary
+per battle (not constant), aggregate reward genuinely computed as the
+top-4 mean.
+
+### `scripts/train_saleha_frontier_model.py` -- crashed on every real
+### invocation; API drift from the pass-40 `frontier_trainer.py` rewrite
+
+Confirmed by running it: `AttributeError: 'TrainingRunReport' object has no
+attribute 'initial_loss'`. The script referenced `report.initial_loss`,
+`report.final_loss`, `report.gguf_path`, and `report.benchmarks` -- none of
+which exist on the current `TrainingRunReport` dataclass (it has
+`sft_result`, `total_dpo_pairs`, `dpo_final_loss`,
+`benchmark_before_pass_rate`/`benchmark_after_pass_rate`, etc.). The script
+was written against `frontier_trainer.py`'s pre-pass-40 fabricated API and
+never updated when that module was rewritten to be honest, so every
+invocation crashed after printing four `time.sleep()`-animated fake "100%"
+progress bars that had no relationship to the real training call that
+followed them.
+
+Rewrote the script against the real `TrainingRunReport` fields: prints
+phases-completed vs. phases-skipped (each phase already carries its own
+honest detail string from `frontier_trainer.py`), real SFT success flag,
+real DPO pair count, and reports `report.error` when present instead of
+crashing past it. Measured: ran end-to-end on this machine (no
+torch/peft/trl installed in `.venv`) -- prints "Phase 1: SFT -- FAILED (No
+local fine-tuning backend available...)" and exits cleanly instead of
+throwing `AttributeError`.
+
+### `saleha/core/doom_workspace_engine.py` -- missing import + a real
+### auto-repair bug found by actually running the demo
+
+`Tuple` was used in a type hint (`_auto_git_commit`'s return type) but never
+imported (`from typing import Any, Callable, Dict, List, Optional` was
+missing it). `from __future__ import annotations` kept this from crashing at
+call time, but it is a real, previously undetected diagnostic. Fixing the
+import made the linter scan the rest of the file for the first time and
+surfaced six more: `Callable`, `List`, `AgentRole`, `field` unused, plus
+seven unnecessary `str()` calls wrapping values (`file_path.name`) that were
+already `str`. All fixed.
+
+Running `examples/run_dogfood_demo.py` (see below) surfaced a real bug in
+`_apply_swarm_patch`'s divisor auto-fix: it replaced `divisor = 0` with
+`divisor = 1  // [Auto-Fixed by Saleha]` in the C scenario, splicing the
+inline comment in *before* the statement's own trailing `;` -- the comment
+swallowed the semicolon, producing invalid C
+(`int divisor = 1  // [Auto-Fixed by Saleha];` is not a valid statement).
+Fixed with a regex that places the comment after the statement's terminator
+instead of before it. Measured before/after: before the fix, the patched
+line was `int divisor = 1  // [Auto-Fixed by Saleha];`; after,
+`int divisor = 1;  // [Auto-Fixed by Saleha]` -- confirmed via a direct call
+to `_apply_swarm_patch` with the demo's own C fixture.
+`test_doom_swarm_engines.py` 15/15 still pass (the existing
+`test_auto_heal_division_by_zero` test's Python-only fixture did not
+exercise the C-comment-ordering path, which is exactly how this survived
+until now).
+
+### `examples/run_dogfood_demo.py` -- unconditional success banner + decorative glyphs
+
+The closing line printed `"Live Dogfooding Complete: ... 100% self-healed
+and verified!"` unconditionally, regardless of whether `res_py.repaired` or
+`res_c.repaired` actually came back `True`. Made conditional on both real
+result flags, with an honest yellow "not all scenarios were auto-repaired"
+branch showing the actual per-scenario booleans when either one is `False`.
+Also removed the `check-mark`/decorative glyph and two unused imports
+(`os`, `time`, `TriTierMemoryEngine`) exposed once the file was read in
+full. Measured: ran end-to-end, both scenarios repaired in this run so the
+green branch fires -- correct either way now, not just in the case that
+happened to run.
+
+### `scripts/evaluate_real_trained_model.py` -- a real correctness bug plus decorative glyphs
+
+`imp_str = "+100% BOOST" if (not base_scores[i] and lora_scores[i]) else
+"MAINTAINED"` collapsed three distinct outcomes into one label: base pass +
+LoRA fail (an actual regression) printed the same "MAINTAINED" as base fail
++ LoRA fail (nothing to maintain) and base pass + LoRA pass (genuinely
+maintained). Split into four explicit cases (`IMPROVED`, `REGRESSED`,
+`MAINTAINED (both pass)`, `MAINTAINED (both fail)`). The closing summary
+panel also hardcoded `"(Passed 100% of benchmark tests)"` next to the LoRA
+score regardless of the actual `lora_pass_pct` value, and four unconditional
+"Key Real-World Benefits Demonstrated" bullets that did not derive from the
+per-test results at all -- replaced with real pass counts and an
+improved/regressed domain list derived from `base_scores`/`lora_scores`.
+Decorative emoji removed from this file and from
+`scripts/evaluate_artificial_analysis_suite.py`'s test-ID labels and status
+lines (13 instances combined) -- confirmed by direct encode-to-cp1252 test
+that at least one (`\U0001f399`, the microphone glyph) crashes on this
+machine's console encoding exactly as CLAUDE.md's rule describes, not a
+theoretical risk.
+
+### Genuine, no action needed
+
+`saleha/core/self_improve.py` (435 lines, never previously in this ledger)
+and `.agents/skills/self-improve-engine/` -- real model call via
+`default_provider.generate()`, real isolated-tempdir pytest execution before
+anything is written to `saleha/tests/`, real git branch isolation
+(`auto/self-improve`, never the branch the cycle started on), safety rails
+enforced in code (only ever writes new test files, never edits existing
+source; never pushes to remote). This is the actual, working core of the
+self-building vision `CLAUDE.md` describes. `.agents/scripts/preflight_lint.py`
+calls the real `QualityGuard`. `.cursor/rules/agents.mdc` and
+`.agents/rules/agents.md` both correctly point at `AGENTS.md`/`ORCHESTRATOR.md`,
+no drift. `generative-art/quorum-bloom-philosophy.md` is an unrelated
+creative-writing brief, no Mukti/Nexus contamination.
+`scripts/evaluate_artificial_analysis_suite.py` and
+`scripts/evaluate_real_trained_model.py` (beyond the bug above) both make
+real `torch`/`transformers`/`peft` calls and score real generated text
+against real regex/string checks -- oversold in naming ("Saleha-ASI",
+"Super-Intelligent") but not fabricated.
+
+### What was found but deliberately not acted on this pass
+
+Section 8's remaining unaudited items are still open: most of
+`saleha/core/`'s 249 files and `saleha/tests/`'s 250 files, the
+`datasets/synthesize_sovereign_ultra_dataset.py` lineage, and the
+still-unverified `scripts/train_apex_97_frontier.py`-adjacent post-mortem
+scripts. None of those were touched this pass.
+
+### Verified
+
+`saleha/tests/test_grpo_reasoning_trainer.py` + `test_swarm_self_play_arena.py`:
+9/9 pass in 0.84s. `test_doom_swarm_engines.py`: 15/15 pass. All five touched
+scripts confirmed to run end-to-end without crashing (three ran live under
+`SALEHA_TEST_MODE=1`; two -- `evaluate_real_trained_model.py`,
+`evaluate_artificial_analysis_suite.py` -- confirmed by `py_compile` only,
+since they need `torch`/`peft`/a real GPU adapter checkpoint this machine
+does not have loaded). Full suite run pending at time of writing this entry;
+see the commit for the final count.

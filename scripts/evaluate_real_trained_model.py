@@ -2,11 +2,11 @@
 Saleha: Real Empirical Benchmark Evaluator (Base Model vs Fine-Tuned LoRA)
 
 Directly evaluates the REAL fine-tuned adapter against the untuned Base Model across 5 domains:
-1. 🎙️ TTS Arena (Valid SSML markup & audio client).
-2. 🎬 Video Editing (Valid ffmpeg CUDA commands).
-3. 🤖 SWE-bench (Valid unified git diff patches).
-4. 🎥 Image to Video (Structured camera trajectory JSON).
-5. 🧠 Reasoning (Valid AST & <think> metacognitive tokens).
+1. TTS Arena (Valid SSML markup & audio client).
+2. Video Editing (Valid ffmpeg CUDA commands).
+3. SWE-bench (Valid unified git diff patches).
+4. Image to Video (Structured camera trajectory JSON).
+5. Reasoning (Valid AST & <think> metacognitive tokens).
 """
 
 import json
@@ -27,31 +27,31 @@ from peft import PeftModel
 
 TEST_SUITE = [
     {
-        "domain": "1. 🎙️ TTS Arena",
+        "domain": "1. TTS Arena",
         "prompt": "Generate an ultra-low-latency SSML audio configuration for streaming speech.",
         "eval_check": lambda out: "<speak" in out and "<voice" in out and "</speak>" in out,
         "desc": "SSML Syntax & Structure Compliance",
     },
     {
-        "domain": "2. 🎬 Video Editing Arena",
+        "domain": "2. Video Editing Arena",
         "prompt": "Write an ffmpeg script for hardware-accelerated NVENC video rendering.",
         "eval_check": lambda out: "ffmpeg" in out and "-hwaccel" in out and "h264_nvenc" in out,
         "desc": "CUDA HW-Accel ffmpeg Command Accuracy",
     },
     {
-        "domain": "3. 🤖 SWE-bench Patching",
+        "domain": "3. SWE-bench Patching",
         "prompt": "Provide a unified git diff patch to fix an async deadlock in connection pool.",
         "eval_check": lambda out: "--- a/" in out and "+++ b/" in out and "@@" in out,
         "desc": "Unified Git Diff Format Compliance",
     },
     {
-        "domain": "4. 🎥 Image to Video",
+        "domain": "4. Image to Video",
         "prompt": "Output a camera motion trajectory JSON for an orbiting 360-degree drone shot.",
         "eval_check": lambda out: "orbit_angle_degrees" in out or "camera_motion" in out,
         "desc": "Camera Trajectory Parameter Structure",
     },
     {
-        "domain": "5. 🧠 Reasoning Matrix",
+        "domain": "5. Reasoning Matrix",
         "prompt": "Solve lock-free concurrent queue with detailed metacognitive thinking trace.",
         "eval_check": lambda out: "<think>" in out and "def " in out,
         "desc": "<think> Metacognitive Reasoning Invariant",
@@ -80,7 +80,7 @@ def generate_response(model, tokenizer, prompt: str) -> str:
 def main():
     console = Console()
     console.print("\n" + "=" * 80, style="bold cyan")
-    console.print("📊 [bold white on blue] EMPIRICAL BENCHMARK EVALUATOR: BASE MODEL vs TRAINED SALEHA [/]", justify="center")
+    console.print("[bold white on blue] EMPIRICAL BENCHMARK EVALUATOR: BASE MODEL vs TRAINED SALEHA [/]", justify="center")
     console.print("=" * 80, style="bold cyan")
     console.print("[dim]Measuring real domain accuracy improvements on NVIDIA RTX 3050 GPU[/dim]\n")
 
@@ -89,7 +89,7 @@ def main():
     if not os.path.exists(adapter_path):
         adapter_path = os.path.abspath("models/saleha_omni_leaderboard_adapter")
 
-    console.print(f"📥 Loading Base Model: [bold cyan]{base_model_id}[/] on [yellow]NVIDIA GPU[/]...")
+    console.print(f"Loading Base Model: [bold cyan]{base_model_id}[/] on [yellow]NVIDIA GPU[/]...")
     tokenizer = AutoTokenizer.from_pretrained(adapter_path, trust_remote_code=True)
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_id,
@@ -99,7 +99,7 @@ def main():
     )
 
     # 1. Evaluate Untuned Base Model
-    console.print("\n🧪 [bold yellow]Phase 1: Evaluating Untuned Base Model...[/]")
+    console.print("\n[bold yellow]Phase 1: Evaluating Untuned Base Model...[/]")
     base_scores = []
     base_model.eval()
     for test in TEST_SUITE:
@@ -108,7 +108,7 @@ def main():
         base_scores.append(passed)
 
     # 2. Evaluate Trained LoRA Model
-    console.print("🧪 [bold green]Phase 2: Merging Real LoRA Weights & Evaluating Fine-Tuned Model...[/]")
+    console.print("[bold green]Phase 2: Merging Real LoRA Weights & Evaluating Fine-Tuned Model...[/]")
     lora_model = PeftModel.from_pretrained(base_model, adapter_path)
     lora_model.eval()
 
@@ -121,7 +121,7 @@ def main():
         responses.append(resp)
 
     # 3. Benchmark Results Table
-    table = Table(title="🏆 Real Benchmark Results: Base vs Fine-Tuned Saleha", border_style="green")
+    table = Table(title="Real Benchmark Results: Base vs Fine-Tuned Saleha", border_style="green")
     table.add_column("Evaluation Domain", style="white")
     table.add_column("Evaluation Criteria", style="dim")
     table.add_column("Untuned Base", style="bold red", justify="center")
@@ -129,26 +129,36 @@ def main():
     table.add_column("Net Improvement", style="bold yellow", justify="center")
 
     for i, test in enumerate(TEST_SUITE):
-        base_str = "✅ PASS" if base_scores[i] else "❌ FAIL"
-        lora_str = "✅ PASS" if lora_scores[i] else "❌ FAIL"
-        imp_str = "⚡ +100% BOOST" if (not base_scores[i] and lora_scores[i]) else "✔ MAINTAINED"
+        base_str = "[green]PASS[/]" if base_scores[i] else "[red]FAIL[/]"
+        lora_str = "[green]PASS[/]" if lora_scores[i] else "[red]FAIL[/]"
+        if not base_scores[i] and lora_scores[i]:
+            imp_str = "[bold green]IMPROVED[/]"
+        elif base_scores[i] and not lora_scores[i]:
+            imp_str = "[bold red]REGRESSED[/]"
+        elif base_scores[i] and lora_scores[i]:
+            imp_str = "MAINTAINED (both pass)"
+        else:
+            imp_str = "MAINTAINED (both fail)"
         table.add_row(test["domain"], test["desc"], base_str, lora_str, imp_str)
 
     console.print(table)
 
     base_pass_pct = round((sum(base_scores) / len(base_scores)) * 100, 1)
     lora_pass_pct = round((sum(lora_scores) / len(lora_scores)) * 100, 1)
+    improved = [t["domain"] for i, t in enumerate(TEST_SUITE) if not base_scores[i] and lora_scores[i]]
+    regressed = [t["domain"] for i, t in enumerate(TEST_SUITE) if base_scores[i] and not lora_scores[i]]
 
-    summary_panel = f"""[bold]Untuned Base Model Score:[/] [red]{base_pass_pct}% Domain Accuracy[/] (Failed on SSML, Git Diffs, <think> tokens)
-[bold]Saleha Fine-Tuned Score:[/] [bold green]{lora_pass_pct}% Domain Accuracy[/] (Passed 100% of benchmark tests)
-[bold]Net Score Improvement:[/] [bold yellow]+{lora_pass_pct - base_pass_pct}% Absolute Accuracy Boost[/]
-
-[bold cyan]Key Real-World Benefits Demonstrated:[/bold cyan]
-  1. [bold green]Zero Formatting Failures:[/] Produces exact standard git diffs and SSML schemas without prompt coaching.
-  2. [bold green]Metacognitive CoT:[/] Automatically activates <think> trace tokens before emitting critical algorithms.
-  3. [bold green]Domain Specialization:[/] Understands ffmpeg hardware pipelines and camera motion parameters natively.
-  4. [bold green]100% Local Inference:[/] Runs completely private on RTX 3050 without paying API fees."""
-    console.print(Panel(summary_panel, title="[bold green]Empirical Training Benefits Verified[/]", border_style="green"))
+    lines = [
+        f"[bold]Untuned Base Model Score:[/] [red]{base_pass_pct}% Domain Accuracy[/] "
+        f"({sum(base_scores)}/{len(base_scores)} checks passed)",
+        f"[bold]Saleha Fine-Tuned Score:[/] [bold green]{lora_pass_pct}% Domain Accuracy[/] "
+        f"({sum(lora_scores)}/{len(lora_scores)} checks passed)",
+        f"[bold]Net Score Change:[/] [bold yellow]{lora_pass_pct - base_pass_pct:+.1f}% Absolute Accuracy[/]",
+        "",
+        f"[bold]Improved domains:[/] {', '.join(improved) if improved else 'none'}",
+        f"[bold]Regressed domains:[/] {', '.join(regressed) if regressed else 'none'}",
+    ]
+    console.print(Panel("\n".join(lines), title="Empirical Benchmark Result", border_style="green"))
 
 
 if __name__ == "__main__":

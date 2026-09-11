@@ -6,15 +6,14 @@ heals code flaws with agentic repair loops, and creates automated git commits.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from saleha.core.gamma_critic_sandbox import GammaReport, GammaSandboxEngine
-from saleha.core.saleha_swarm_topology import AgentRole, SalehaSwarmTopology
+from saleha.core.saleha_swarm_topology import SalehaSwarmTopology
 from saleha.core.tri_tier_memory import TriTierMemoryEngine
 from saleha.core.incremental_ast_cache import IncrementalASTCache
 
@@ -63,7 +62,7 @@ class DoomWorkspaceEngine:
 
         if not file_path.exists() or not file_path.is_file():
             return WorkspaceEventResult(
-                filename=str(file_path.name),
+                filename=file_path.name,
                 gamma_passed=False,
                 repaired=False,
                 message="File does not exist",
@@ -85,7 +84,7 @@ class DoomWorkspaceEngine:
             content = file_path.read_text(encoding="utf-8")
         except Exception as e:
             return WorkspaceEventResult(
-                filename=str(file_path.name),
+                filename=file_path.name,
                 gamma_passed=False,
                 repaired=False,
                 message=f"Failed to read file: {e}",
@@ -105,7 +104,7 @@ class DoomWorkspaceEngine:
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             return WorkspaceEventResult(
-                filename=str(file_path.name),
+                filename=file_path.name,
                 gamma_passed=True,
                 repaired=False,
                 git_committed=git_ok,
@@ -118,7 +117,7 @@ class DoomWorkspaceEngine:
         if not self.auto_heal:
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             return WorkspaceEventResult(
-                filename=str(file_path.name),
+                filename=file_path.name,
                 gamma_passed=False,
                 repaired=False,
                 elapsed_ms=elapsed_ms,
@@ -135,7 +134,7 @@ class DoomWorkspaceEngine:
                 file_path.write_text(repaired_code, encoding="utf-8")
             except Exception as e:
                 return WorkspaceEventResult(
-                    filename=str(file_path.name),
+                    filename=file_path.name,
                     gamma_passed=False,
                     repaired=False,
                     message=f"Failed to save auto-repaired code: {e}",
@@ -164,7 +163,7 @@ class DoomWorkspaceEngine:
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             return WorkspaceEventResult(
-                filename=str(file_path.name),
+                filename=file_path.name,
                 gamma_passed=True,
                 repaired=True,
                 repaired_code=repaired_code,
@@ -176,7 +175,7 @@ class DoomWorkspaceEngine:
         else:
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             return WorkspaceEventResult(
-                filename=str(file_path.name),
+                filename=file_path.name,
                 gamma_passed=False,
                 repaired=False,
                 elapsed_ms=elapsed_ms,
@@ -190,9 +189,17 @@ class DoomWorkspaceEngine:
         comment_prefix = "#" if language == "python" else "//"
         for v in report.violations:
             if v.rule_id in {"GAMMA_DIV_BY_ZERO", "GAMMA_DIV_BY_ZERO_VAR"}:
-                # Replace literal / 0 or divisor = 0 with safe constant/guard
-                if "divisor = 0" in patched:
-                    patched = patched.replace("divisor = 0", f"divisor = 1  {comment_prefix} [Auto-Fixed by Saleha]")
+                # Replace literal / 0 or divisor = 0 with a safe constant.
+                # The comment must go after the statement's own terminator
+                # (";" in C, end of line in Python), not spliced in before
+                # it -- an inline comment placed mid-statement would
+                # comment out the terminator itself and leave the line
+                # invalid (e.g. "divisor = 1  // note;" is not "divisor = 1;").
+                def _fix_divisor_line(match: "re.Match") -> str:
+                    stmt_end = ";" if match.group(2) else ""
+                    return f"{match.group(1)}1{stmt_end}  {comment_prefix} [Auto-Fixed by Saleha]"
+
+                patched = re.sub(r"(divisor\s*=\s*)0(;?)", _fix_divisor_line, patched)
                 patched = re.sub(r"/\s*0(?![0-9])", "/ 1", patched)
             elif v.rule_id == "GAMMA_MEMORY_LEAK":
                 # Ensure free or with statement added

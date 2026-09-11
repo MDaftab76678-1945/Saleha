@@ -624,6 +624,35 @@ still has open items not acted on this pass — see its "What's actually
 confirmed vs. still just an inventory entry" subsection before assuming
 anything else in that index is clean.
 
+**Pass 44's remaining open items — five fixed (pass 45).**
+`saleha/core/grpo_reasoning_trainer.py` was a full fabrication never
+previously flagged anywhere: zero model calls (hardcoded `<think>` template,
+candidate code chosen by loop index, `red_team_vulnerabilities_neutralized=24`
+and `deployed_model_name` both constants), and its own test file
+(`test_grpo_reasoning_trainer.py`) pinned the fabrication in place — the
+same trap as every prior instance. Rewritten to do real, achievable work:
+G real `CoderAgent`-generated candidates per prompt, scored by the real AST
+security scanner and neuro-symbolic engine, with genuine group-relative
+advantage math; no policy weight update, red-team run, or deployment is
+claimed (matches `frontier_trainer.py`'s already-honest RLIF gap).
+`scripts/train_swarm_self_play_arena.py` was a separate fabrication sitting
+on top of the already-fixed `swarm_self_play_arena.py` module — hardcoded
+battle rows and the exact `"+1.8% SWA Ensemble Boost"` string CLAUDE.md
+already recorded as removed elsewhere; rewritten to render the real
+per-battle results. `scripts/train_saleha_frontier_model.py` crashed on
+every real invocation (`AttributeError: no attribute 'initial_loss'`) —
+API drift from the pass-40 `frontier_trainer.py` rewrite that was never
+propagated to this caller; rewritten against the real `TrainingRunReport`
+fields, confirmed to run end-to-end without crashing. Two real bugs also
+found by actually running things: `doom_workspace_engine.py`'s
+`_apply_swarm_patch` produced invalid C (`divisor = 1  // comment;` —
+the comment swallowed the statement's own semicolon), caught by running
+`examples/run_dogfood_demo.py`, and fixed with a regex that places the
+comment after the terminator; and `evaluate_real_trained_model.py` labelled
+an actual regression (base model passed, LoRA failed) as "MAINTAINED",
+same as a true no-change case — split into four explicit outcomes.
+Detail: `NOTEBOOK_IMPORT.md`, "Forty-fifth pass."
+
 ---
 
 ## Environment facts worth knowing

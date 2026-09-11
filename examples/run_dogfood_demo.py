@@ -4,9 +4,7 @@ Demonstrates the full autonomous self-healing, Gamma AST verification,
 and Tri-Tier memory recording pipeline on real flawed code files.
 """
 
-import os
 import sys
-import time
 from pathlib import Path
 
 if sys.platform == "win32":
@@ -26,7 +24,6 @@ from rich.table import Table
 from rich.syntax import Syntax
 
 from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
-from saleha.core.tri_tier_memory import TriTierMemoryEngine
 
 console = Console(safe_box=True, legacy_windows=False)
 
@@ -112,7 +109,15 @@ def main():
     table.add_row("Tier 3: Semantic Graph", str(mem_report["semantic_facts"]))
 
     console.print(table)
-    console.print("\n[bold green]✓ Live Dogfooding Complete: Zero manual developer effort, 100% self-healed and verified![/]")
+
+    both_repaired = res_py.repaired and res_c.repaired
+    if both_repaired:
+        console.print("\n[bold green]Live Dogfooding Complete: both scenarios auto-repaired and verified.[/]")
+    else:
+        console.print(
+            "\n[bold yellow]Live Dogfooding Complete: not all scenarios were auto-repaired "
+            f"(python repaired={res_py.repaired}, c repaired={res_c.repaired}).[/]"
+        )
 
 if __name__ == "__main__":
     main()
