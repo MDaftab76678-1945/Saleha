@@ -540,8 +540,13 @@ completes in 2m35s and produces a real 14.8MB `saleha-desktop.exe`.
 Not verified: actually launching the built app (needs a human at the
 machine). Detail: `NOTEBOOK_IMPORT.md`, "Forty-second pass."
 
-**Branch state:** work happens on `test-issue-101`, pushed and in sync with
-`origin/test-issue-101` as of pass 42. `main` is behind.
+**Branch state:** PR #2 (passes 36-42) merged into `main` 2026-09-11
+(commit `da4ea18`). `main` is now current. A one-off Windows CI flake in
+`test_validate_tool_and_test_success` (Python 3.12/3.13 only) cleared on
+re-run without a code fix -- a diagnostic assert-message change
+(commit `b4889b4`) shipped with the PR in case it recurs, so the next
+occurrence prints the real `detail` string instead of a bare
+`assert False is True`.
 
 ---
 
