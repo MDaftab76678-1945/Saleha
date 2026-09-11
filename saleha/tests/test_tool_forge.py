@@ -89,7 +89,7 @@ class MathAddTool(BaseTool):
 """
 
     valid_test_code = """
-from math_add import MathAddTool
+from saleha.tools.math_add import MathAddTool
 
 def test_math_add_execution():
     tool = MathAddTool()
@@ -121,7 +121,7 @@ class BrokenTool(BaseTool):
 """
 
     failing_test_code = """
-from broken import BrokenTool
+from saleha.tools.broken import BrokenTool
 
 def test_broken():
     tool = BrokenTool()
