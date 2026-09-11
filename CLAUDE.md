@@ -435,8 +435,30 @@ timeout is now `SALEHA_MODEL_TIMEOUT`, default 300s, was hardcoded 60).
 `word_counter` is the first tool the fixed pipeline produced end-to-end.
 Detail: `NOTEBOOK_IMPORT.md`, "Thirty-seventh pass."
 
+**`saleha stream` — fixed (pass 38).** A test-coverage sweep of
+`saleha/core/` found 7 of 239 modules with no test importing them.
+`streaming_ui.py` was not just untested -- it crashed on every real
+invocation (`AttributeError`: no `ModelProvider` subclass ever defined
+`stream_generate`), which is exactly why no test existed: any real test
+would have hit the same crash. Fixed by adding real `stream_generate()`
+across the provider hierarchy (`OllamaProvider` does genuine
+`stream: true` NDJSON streaming, verified against a live Ollama
+instance: 115 real incremental chunks for a multi-line generation).
+Fixing it also exposed a bug in the quality gate itself:
+`quality_guard.py`'s module-level scope walker silently skipped every
+`except ... as name:` handler (`ast.ExceptHandler` is not an
+`ast.stmt`), falsely flagging a pre-existing, correct exception binding
+in `inference_router_bridge.py` as CRITICAL -- fixed, same shape of gap
+as the earlier `visit_Lambda` issue. Two other untested modules
+(`mukti_chain_bridge.py`, `inference_router_bridge.py`) were probed
+directly and confirmed to fail honestly rather than fabricate; the
+latter's docstring claimed a build "verified in this environment" that
+no longer holds against this project's actual `.venv` (Python 3.14.7
+vs. pyo3's 3.12 ceiling) -- docstring corrected rather than left stale.
+Detail: `NOTEBOOK_IMPORT.md`, "Thirty-eighth pass."
+
 **Branch state:** work happens on `test-issue-101`, pushed and in sync with
-`origin/test-issue-101` as of pass 37. `main` is behind.
+`origin/test-issue-101` as of pass 38. `main` is behind.
 
 ---
 

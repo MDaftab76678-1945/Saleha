@@ -2807,3 +2807,113 @@ at its real path, registered via the CLI wiring
 Verified: `saleha/tests/test_model_provider.py`,
 `test_tool_forge.py`, `test_tool_word_counter.py` all green; full suite
 `1794 passed, 7 skipped` (was 1714 -- new tests, no regressions).
+
+## Thirty-eighth pass -- a test-coverage audit found `saleha stream` crashes on every call (2026-09-11)
+
+Roadmap item: "widen test coverage of the ~220 `saleha/core/` modules." A
+grep across every test file for each module's name found 7 of 239 with no
+import anywhere in `saleha/tests/`: `audit_log`, `inference_router_bridge`,
+`mukti_chain_bridge`, `path_utils`, `project_builder`, `stats_tracker`,
+`streaming_ui`. Read all seven in full rather than trusting the grep.
+
+**`streaming_ui.py` -- confirmed broken, not just untested.** Its
+`stream_to_terminal()` called `default_provider.stream_generate(...)`.
+No `ModelProvider` subclass has ever defined that method:
+
+```text
+AttributeError: 'FallbackChainProvider' object has no attribute 'stream_generate'
+```
+
+This is the live `saleha stream` CLI command (`core_agentic.py:484`), not
+dead code -- every real invocation has always crashed. No test existed
+because any test written against the real code path would have hit the
+same `AttributeError` immediately; the module's total absence from
+`saleha/tests/` was itself the symptom, not a coincidence alongside it.
+
+Fixed by adding real `stream_generate()` support: a default on the
+`ModelProvider` base class that degrades honestly (one callback with the
+whole `generate()` result, for providers without a streaming backend --
+not a fabricated multi-chunk replay), a genuine token-by-token
+implementation on `OllamaProvider` using Ollama's `stream: true`
+newline-delimited-JSON response, and a cascading override on
+`FallbackChainProvider` mirroring `generate()`'s existing fallback order.
+
+Verified against a running local Ollama instance, not assumed:
+
+```text
+Prompt: "Say OK"                                    -> 1 chunk, "OK"
+Prompt: "Write a 5-line python function..."          -> 115 chunks, streamed content
+```
+
+One chunk for a two-token reply and 115 for a real generation is the
+expected shape of genuine incremental streaming, not evidence of a
+mock -- a fabricated stream would show the same chunk count regardless of
+output length. `stream_to_terminal()` end-to-end, using the real Rich
+`Live` renderer against the real fixed provider, also produced correct
+terminal output.
+
+**Fixing this exposed a second bug, in the tool that was supposed to
+catch this class of thing.** The pre-commit quality gate rejected
+`inference_router_bridge.py` (touched only for a docstring correction
+below) as CRITICAL for `str(exc)` inside a module-level
+`except ImportError as exc:` block that has been in the file the whole
+time. Root cause: `ast.ExceptHandler` is not an `ast.stmt` subclass, so
+`_collect_module_level_bindings`'s `isinstance(child, ast.stmt)` filter
+over a `Try` node's children silently never reached its handlers --
+every module-level `except ... as name:` bound `name` nowhere the
+checker could see, and any use of it inside the handler body scored a
+false CRITICAL `UNDEF-001`. This is the same shape of gap as the
+already-fixed `visit_Lambda` omission (pass 32): a scope the visitor's
+generic child-walk quietly does not descend into. Fixed by also
+accepting `ast.ExceptHandler` in that filter; the function-scope
+counterpart (`ScopeVisitor._collect_local_bindings`) already handled it
+correctly, so only the module-level path had the gap. A regression test
+(`test_module_level_except_name_not_falsely_undefined`) reproduces the
+exact pattern found in the real file.
+
+**Two other untested modules probed and confirmed honest, left
+unchanged:**
+
+- `mukti_chain_bridge.py` (Python-to-Solidity escrow bridge) --
+  `web3` is not installed in this environment; called it directly and it
+  raised `ChainUnavailableError("The 'web3' package is not installed...")`
+  rather than fabricating a transaction receipt. Its own design-goals
+  docstring promises exactly this ("No silent success"); the promise
+  holds under a real call.
+- `inference_router_bridge.py` (PyO3 bridge to a Rust routing crate) --
+  its docstring claimed `maturin develop` "was verified in this
+  environment." Re-checked directly: `cargo check --lib` in that crate
+  now fails outright, because `pyo3 0.20.3`'s build script rejects this
+  project's actual `.venv` interpreter (Python 3.14.7) as newer than its
+  supported maximum (3.12). The crate did not regress; the interpreter
+  the claim was checked against did, and the docstring kept asserting a
+  now-unverifiable fact as current. Corrected the docstring to record
+  what was actually re-checked and what would need to change
+  (pin `pyo3`, or set `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` and
+  confirm the resulting extension actually loads) before trusting the
+  "verified" claim again -- left the bridge code itself untouched, since
+  its `is_available() == False` behavior on this machine is the honest
+  current state, not a bug.
+
+**Also, while touching two of these files: removed decorative emoji**
+(`audit_log.py`'s demo block, `streaming_ui.py`'s panel title), per
+`CLAUDE.md`'s rule against them on cp1252 consoles. `streaming_ui.py`'s
+emoji was not merely cosmetic -- the same exception-handling code path
+that should report a provider failure was additionally crashing with
+`UnicodeEncodeError` trying to print it, a second, unrelated way the
+command could fail before this pass.
+
+`path_utils.py`, `project_builder.py`, and `stats_tracker.py` were also
+read in full: no fabrication or crash found in any of the three.
+
+### Verified
+
+```text
+python -m pytest saleha/tests/test_model_provider.py saleha/tests/test_streaming_ui.py saleha/tests/test_quality_guard.py -q
+24 passed
+
+python -m pytest saleha/tests/ -q
+1800 passed, 7 skipped, 60 subtests passed in 97.35s   (was 1794 passed, 7 skipped)
+```
+
+`test_streaming_ui.py` did not exist before this pass.
