@@ -25,7 +25,6 @@ Zero-dependency local HTTP server providing:
 import os
 import sys
 import json
-import math
 import io
 import zipfile
 import secrets
@@ -33,17 +32,14 @@ import sqlite3
 import subprocess
 import urllib.parse
 import webbrowser
-from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import Optional, Dict, Any, List
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.skill_registry import registry as skill_registry
 from saleha.core.tool_calling import global_tool_registry
 from saleha.core.memory_store import memory_store
 from saleha.core.codebase_indexer import CodebaseIndexer, SmartPatcher
-from saleha.core.agentic_loop import AgentLoop
-from saleha.agents.base_agent import BaseAgent
 from saleha.core.team_orchestrator import TeamOrchestrator
 from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.polyglot_executor import polyglot_executor
@@ -1565,18 +1561,25 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
         });
         const d = await res.json();
         if (d.success) {
+          // Columns and rows are rendered only as returned. The placeholder
+          // defaults that used to sit here invented a row the query never
+          // produced, so an empty result read as live data.
+          const cols = d.columns || [];
+          const rows = d.rows || [];
           let html = `<table style="width:100%; border-collapse:collapse; font-size:0.78rem;">`;
-          html += `<thead><tr>` + (d.columns || ['live_status', 'name', 'uptime_pct']).map(c => `<th style="padding:0.4rem; background:#0e1320; color:var(--accent); text-align:left; border:1px solid var(--border-subtle);">${c}</th>`).join('') + `</tr></thead>`;
-          html += `<tbody>` + (d.rows || [[1, 'Saleha DB Engine', 99.98]]).map(r => `<tr>` + r.map(v => `<td style="padding:0.4rem; background:#04060a; border:1px solid var(--border-subtle);">${v}</td>`).join('') + `</tr>`).join('') + `</tbody></table>`;
-          document.getElementById('sql-result-box').innerHTML = html;
-          showToast('SQL Query Executed Successfully', 'success');
+          html += `<thead><tr>` + cols.map(c => `<th style="padding:0.4rem; background:#0e1320; color:var(--accent); text-align:left; border:1px solid var(--border-subtle);">${c}</th>`).join('') + `</tr></thead>`;
+          html += `<tbody>` + rows.map(r => `<tr>` + r.map(v => `<td style="padding:0.4rem; background:#04060a; border:1px solid var(--border-subtle);">${v}</td>`).join('') + `</tr>`).join('') + `</tbody></table>`;
+          document.getElementById('sql-result-box').innerHTML = rows.length ? html : 'Query returned no rows.';
+          showToast(`Query returned ${rows.length} row(s)`, 'success');
         } else {
           document.getElementById('sql-result-box').innerText = 'Error: ' + d.error;
           showToast(d.error, 'error');
         }
       } catch(e) {
-        document.getElementById('sql-result-box').innerText = 'Query executed: 1 row returned.';
-        showToast('Query Executed', 'success');
+        // The request itself failed, so nothing ran. Reporting a row count
+        // here would be inventing a result out of a network error.
+        document.getElementById('sql-result-box').innerText = 'Query failed: ' + e;
+        showToast('Query failed: ' + e, 'error');
       }
     }
 
@@ -1594,12 +1597,30 @@ HTML_PAGE = HTML_PAGE.replace("__SALEHA_VERSION__", __version__)
 
 class SalehaAPIHandler(BaseHTTPRequestHandler):
 
+    # HTTP/1.1 so clients may reuse a connection. This is only safe because
+    # every bounded response below sends Content-Length; the one unbounded
+    # response (the SSE stream) opts out explicitly with Connection: close.
+    protocol_version = "HTTP/1.1"
+
     def _send_json(self, status_code: int, data: Any) -> None:
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self._send_cors_headers()
-        self.end_headers()
-        self.wfile.write(json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8'))
+        # Content-Length is required, not optional: without it a client has no
+        # framing for the body and must read until the socket closes, so every
+        # response ends in an abort (ConnectionAbortedError on Windows) and no
+        # connection can ever be reused.
+        body = json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8')
+        try:
+            self.send_response(status_code)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self._send_cors_headers()
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # The client hung up before reading the response. That is its
+            # right, and it says nothing about whether the request was
+            # handled -- so drop the connection quietly instead of raising a
+            # stack trace out of the handler thread.
+            self.close_connection = True
 
     def _send_cors_headers(self) -> None:
         # Lets the Next.js web app (different port) and the Tauri desktop webview
@@ -1793,11 +1814,12 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         if path in ('/', '/index.html'):
             token = get_auth_token()
-            page = HTML_PAGE.replace("__INJECTED_AUTH_TOKEN__", token)
+            page_bytes = HTML_PAGE.replace("__INJECTED_AUTH_TOKEN__", token).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(page_bytes)))
             self.end_headers()
-            self.wfile.write(page.encode('utf-8'))
+            self.wfile.write(page_bytes)
             return
 
         if path == "/api/health":
@@ -1921,7 +1943,11 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
-            self.send_header('Connection', 'keep-alive')
+            # This body has no Content-Length, so under HTTP/1.1 the socket
+            # must close to frame it. keep-alive here would leave the client
+            # waiting for a next response that never comes.
+            self.send_header('Connection', 'close')
+            self.close_connection = True
             self.end_headers()
 
             def _sse_event(event: Dict[str, Any]) -> None:
@@ -2129,7 +2155,16 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 return
             orchestrator = TeamOrchestrator()
             result = orchestrator.run_team_workflow(goal=goal, debate=debate)
-            self._send_json(200, {"success": result.success, "goal": result.goal, "total_steps": len(result.plan.steps) if result.plan else 0})
+            # TeamResult has no `plan`; reading one raised AttributeError on
+            # every call to this endpoint. The real record of what ran is
+            # stages_completed.
+            self._send_json(200, {
+                "success": result.success,
+                "goal": result.goal,
+                "stages_completed": result.stages_completed,
+                "total_steps": len(result.stages_completed),
+                "execution_error": result.execution_error,
+            })
             return
 
         if path == "/api/exec":
@@ -2335,12 +2370,13 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
                 for fname, content in files.items():
                     zf.writestr(fname, content)
-            buf.seek(0)
+            archive = buf.getvalue()
             self.send_response(200)
             self.send_header('Content-Type', 'application/zip')
             self.send_header('Content-Disposition', 'attachment; filename="saleha-project-export.zip"')
+            self.send_header('Content-Length', str(len(archive)))
             self.end_headers()
-            self.wfile.write(buf.read())
+            self.wfile.write(archive)
             return
 
         if path == "/api/workspace/sync":

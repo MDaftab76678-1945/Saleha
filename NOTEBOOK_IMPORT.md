@@ -4282,3 +4282,147 @@ them, and all four still pass unchanged).
 after the fix (was `0.0`/`SAFE` before). `QualityGuard(strict_mode=True)`
 on both touched files: `passed=True`. Full suite run pending at time of
 writing this entry.
+
+## Fiftieth pass
+
+Started from a symptom rather than a file: the pass-49 full-suite run
+printed
+
+```
+Exception occurred during processing of request from ('127.0.0.1', 55160)
+```
+
+next to a green `1863 passed`. Nothing failed, so nothing had ever
+chased it. That is the exact shape this repo keeps finding -- something
+failing quietly underneath a green result -- so it was worth following.
+
+### Narrowing it
+
+`-q` had swallowed the traceback. Re-running with `-s` and no capture
+gave the full stack and the real exception:
+
+```
+File "saleha/server/web_server.py", line 1662, in _reject_unauthorized
+  self._send_json(401, {...})
+ConnectionAbortedError: [WinError 10053] An established connection was
+aborted by the software in your host machine
+```
+
+Per-file counts isolated it to `test_web_server.py` (5 aborts per run;
+the other three HTTP-server test files: 0). Running the named test alone
+passed clean -- it was order-dependent, which is why it had never looked
+like a real defect.
+
+### The actual bug: no response framing
+
+`_send_json` never sent `Content-Length`. Grepping the whole file
+confirmed the header was **read** (line 2064, for request bodies) and
+never **written** anywhere in the server. Probed with a raw socket, so
+urllib could not normalise the framing away:
+
+```
+--- 401 unauthorized ---          --- 200 authorized ---
+HTTP/1.0 401 Unauthorized         HTTP/1.0 200 OK
+Content-Type: application/json    Content-Type: application/json
+  Content-Length present: False     Content-Length present: False
+  Transfer-Encoding present: False   Transfer-Encoding present: False
+```
+
+Neither `Content-Length` nor `Transfer-Encoding` on **any** response.
+A client therefore has no way to know where a body ends and must read
+until the socket closes, so the server has to slam the connection shut
+after every single response. That abort is what surfaced in the log.
+
+A second probe measured the consequence a browser would actually hit --
+two sequential requests on one socket:
+
+```
+first response bytes:  266
+second request FAILED: ConnectionAbortedError [WinError 10053]
+```
+
+Connection reuse was structurally impossible. Compounding it,
+`protocol_version` was never set, so the handler answered `HTTP/1.0`.
+
+### Fixes
+
+- `_send_json` now serialises the body first and sends
+  `Content-Length`. Same gap fixed on the two other bounded response
+  paths found by auditing every `send_response`/`end_headers` call in
+  the file rather than just the one in the traceback: the HTML index
+  page, and the **ZIP project export** (an unframed binary download is
+  the case most likely to truncate in a real browser).
+- `protocol_version = "HTTP/1.1"`, safe only because every bounded
+  response now declares a length. The one unbounded response -- the SSE
+  stream at `/api/stream/team` -- cannot have a length, so it opts out
+  explicitly with `Connection: close` and `close_connection = True`.
+  Leaving it on keep-alive under HTTP/1.1 would have been a new bug
+  introduced by the fix.
+- `_send_json` now catches `BrokenPipeError`/`ConnectionResetError`/
+  `ConnectionAbortedError` and drops the connection quietly. A client
+  hanging up early is its own right and says nothing about whether the
+  request was served; it should not raise a stack trace out of the
+  handler thread.
+- The test helper `_get_status_only` took `err.code` off the
+  `HTTPError` and never read or closed it, abandoning the socket
+  mid-write. Fixed to drain and close like a real client.
+
+Measured, before vs. after, on the same command:
+
+| | aborts per run |
+| --- | --- |
+| before | 5 |
+| after | 0 |
+
+And connection reuse, same probe as above: `second response bytes: 287`
+where it previously raised.
+
+### Regression tests
+
+Two added, both over a raw socket since urllib hides exactly what is
+under test:
+
+- `test_responses_declare_content_length` -- asserts the header is
+  present **and** that the body length matches it, on the authorized
+  and the unauthorized path (subtests).
+- `test_connection_is_reusable_for_a_second_request` -- two requests,
+  one socket.
+
+Verified they catch the real bug rather than pinning the fix: stashing
+only `web_server.py` and running them against the unfixed server gives
+`3 failed, 1 passed` -- "authorized response sent no Content-Length",
+"unauthorized response sent no Content-Length", and "a response came
+back empty on the reused socket".
+
+### Found while in the file
+
+- **`/api/team` crashed on every call.** `len(result.plan.steps)` --
+  `TeamResult` has no `plan` field (confirmed against its dataclass:
+  13 fields, no `plan`). Probed live: the old code gives
+  `http.client.RemoteDisconnected: Remote end closed connection without
+  response`; the fixed version returns a real 200 with
+  `stages_completed`, which is the field that actually records what ran.
+  This endpoint was missed by pass 43's read of the same file.
+- **Two fabrications in the dashboard's SQL panel.** The result renderer
+  defaulted to `d.rows || [[1, 'Saleha DB Engine', 99.98]]` -- an
+  invented row, so an empty result rendered as live data -- and the
+  `catch` block printed `'Query executed: 1 row returned.'` with a green
+  success toast when the request had *failed*. Both replaced with the
+  real row count and a real error.
+- Five genuinely unused imports removed (`math`, `HTTPServer`,
+  `skill_registry`, `AgentLoop`, `BaseAgent`); one Hinglish comment in
+  `test_web_server.py` translated per the English-only rule.
+
+### A pre-existing flaky test, measured rather than guessed at
+
+Mid-pass, `test_post_api_scan` and `test_post_api_souls_use` timed out
+once in a 4-file run. Rather than assume the HTTP/1.1 change caused it,
+measured both ways: 3/3 clean runs on the new code *and* 3/3 clean on
+stashed old code -- so it pre-dated this pass. Cause: `/api/scan` walks
+the whole repo and takes **2.33-2.43s** measured over three runs,
+against a hardcoded `timeout=5` -- roughly 2x headroom, which the rest
+of the suite's load can erase. Raised to a named `REQUEST_TIMEOUT = 30`
+(these timeouts guard against a hang, not slowness). 3/3 clean after.
+
+`QualityGuard.check_file` on `web_server.py`: `passed=True`,
+`quality_score=100.0`, 0 issues, type coverage 100%.

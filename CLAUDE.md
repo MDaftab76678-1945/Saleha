@@ -809,8 +809,42 @@ allowing 0-2 intervening words in both the chest-pain and
 difficulty-breathing patterns; verified the fix catches the intensifier
 case, still catches the simple case, and does not false-positive on safe
 input. Two new tests added; existing four (already Hindi-agnostic) pass
-unchanged. Full suite run pending at time of writing this entry.
+unchanged. The full suite that was pending when this entry was written
+has since been run: `1863 passed, 8 skipped`.
 Detail: `NOTEBOOK_IMPORT.md`, "Forty-ninth pass."
+
+**A silent `ConnectionAbortedError` under a green suite -- fixed
+(pass 50).** The pass-49 suite printed `Exception occurred during
+processing of request from ('127.0.0.1', ...)` next to a green
+`1863 passed`; nothing failed, so nothing had chased it. Root cause:
+`web_server.py`'s `_send_json` never sent `Content-Length`, and the
+header was in fact written nowhere in the server (only read, for
+request bodies). With neither `Content-Length` nor `Transfer-Encoding`
+on any response -- confirmed on the wire with a raw socket, for both
+200 and 401 -- a client cannot know where a body ends and must read
+until close, so the server aborted every connection. Connection reuse
+was structurally impossible (a second request on the same socket raised
+`ConnectionAbortedError`); `protocol_version` was also never set, so
+the server answered HTTP/1.0. Fixed on all three bounded response paths
+found by auditing every `send_response` in the file -- JSON, the HTML
+index, and the **ZIP project export** (an unframed binary download is
+the case most likely to truncate in a real browser) -- then enabled
+HTTP/1.1, with the one unbounded response (the SSE stream) opting out
+explicitly via `Connection: close` so the fix did not introduce a new
+hang. Measured: 5 aborts per run before, 0 after. Two raw-socket
+regression tests added, verified to fail (`3 failed, 1 passed`) against
+the stashed unfixed server. Found while in the file: **`/api/team`
+crashed on every call** (`result.plan` -- `TeamResult` has no such
+field; probed live, `RemoteDisconnected` before vs. a real 200 after),
+missed by pass 43's read of this same file; and two fabrications in the
+dashboard SQL panel (an invented default row `[[1, 'Saleha DB Engine',
+99.98]]` rendered when a query returned nothing, and a `catch` block
+printing "Query executed: 1 row returned." with a green success toast
+when the request had failed). Also: a pre-existing flaky test measured
+rather than guessed at -- `/api/scan` takes 2.33-2.43s against a
+hardcoded `timeout=5`, confirmed flaky on stashed old code too, raised
+to a named `REQUEST_TIMEOUT = 30`.
+Detail: `NOTEBOOK_IMPORT.md`, "Fiftieth pass."
 
 ---
 

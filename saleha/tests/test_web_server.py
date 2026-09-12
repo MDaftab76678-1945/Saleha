@@ -1,6 +1,7 @@
 import unittest
 import threading
 import json
+import socket
 import urllib.request
 import urllib.error
 import uuid
@@ -10,13 +11,13 @@ from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
 
 
-# SEC003-safe: runtime-generated token (hardcoded literal nahi)
+# SEC003-safe: runtime-generated token, not a hardcoded literal.
 AUTH_TOKEN = "tok-" + uuid.uuid4().hex[:16]
 
 
 class WebServerTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         web_server.set_auth_token(AUTH_TOKEN)
         # Bind to port 0 to let OS assign an available port
         cls.server = HTTPServer(("127.0.0.1", 0), SalehaAPIHandler)
@@ -26,14 +27,20 @@ class WebServerTests(unittest.TestCase):
         cls.thread.start()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         cls.server.shutdown()
         cls.server.server_close()
+
+    # /api/scan walks the whole repo and measures ~2.4s here, so a 5s budget
+    # left only ~2x headroom and timed out under load from the rest of the
+    # suite. These timeouts guard against a hang, not slowness; they do not
+    # need to be tight.
+    REQUEST_TIMEOUT = 30
 
     def _get(self, path: str, auth: bool = True) -> tuple[int, bytes]:
         headers = {"X-Saleha-Token": AUTH_TOKEN} if auth else {}
         req = urllib.request.Request(f"{self.base_url}{path}", headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
             return resp.status, resp.read()
 
     def _post(self, path: str, payload: dict, auth: bool = True) -> tuple[int, bytes]:
@@ -46,45 +53,115 @@ class WebServerTests(unittest.TestCase):
             data=data,
             headers=headers
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
             return resp.status, resp.read()
 
     def _get_status_only(self, path: str, headers: dict | None = None) -> int:
         req = urllib.request.Request(f"{self.base_url}{path}", headers=headers or {})
         try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
+                resp.read()
                 return resp.status
         except urllib.error.HTTPError as err:
+            # Drain and close, as any real client does. Abandoning the body
+            # aborts the socket mid-write, and the server then logs a
+            # ConnectionAbortedError for a request it actually served fine.
+            with err:
+                err.read()
             return err.code
 
     # ---------------- Security posture tests ----------------
 
-    def test_api_requires_token(self):
+    def test_api_requires_token(self) -> None:
         self.assertEqual(self._get_status_only("/api/status"), 401)
 
-    def test_api_rejects_wrong_token(self):
+    def test_api_rejects_wrong_token(self) -> None:
         self.assertEqual(
             self._get_status_only("/api/status", {"X-Saleha-Token": "wrong-token"}),
             401,
         )
 
-    def test_api_rejects_bad_query_token(self):
+    def test_api_rejects_bad_query_token(self) -> None:
         self.assertEqual(self._get_status_only("/api/status?token=nope"), 401)
 
-    def test_index_page_served_without_token_and_injects_token(self):
+    def test_index_page_served_without_token_and_injects_token(self) -> None:
         status, body = self._get("/", auth=False)
         self.assertEqual(status, 200)
         self.assertIn(AUTH_TOKEN.encode(), body)
 
-    def test_no_wildcard_cors_header_on_json_responses(self):
+    def test_no_wildcard_cors_header_on_json_responses(self) -> None:
         req = urllib.request.Request(
             f"{self.base_url}/api/status",
             headers={"X-Saleha-Token": AUTH_TOKEN}
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
             self.assertIsNone(resp.headers.get("Access-Control-Allow-Origin"))
 
-    def test_post_without_token_is_unauthorized(self):
+    @staticmethod
+    def _content_length(head: str) -> int | None:
+        for line in head.split("\r\n"):
+            if line.lower().startswith("content-length:"):
+                return int(line.split(":", 1)[1])
+        return None
+
+    def _read_one_response(self, sock: socket.socket) -> tuple[str, bytes]:
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+        head, _, body = buf.partition(b"\r\n\r\n")
+        head_text = head.decode(errors="replace")
+        length = self._content_length(head_text)
+        while length is not None and len(body) < length:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            body += chunk
+        return head_text, body
+
+    def test_responses_declare_content_length(self) -> None:
+        # Without Content-Length a client has no framing for the body and must
+        # read until the socket closes, so every response ends in an abort.
+        # urllib hides this, so these go over a raw socket. Both the authorized
+        # and the rejected path must declare it.
+        for label, token in (("authorized", AUTH_TOKEN), ("unauthorized", None)):
+            with self.subTest(label):
+                sock = socket.create_connection(("127.0.0.1", self.port), timeout=self.REQUEST_TIMEOUT)
+                try:
+                    req = "GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                    if token:
+                        req += "X-Saleha-Token: " + token + "\r\n"
+                    sock.sendall((req + "\r\n").encode())
+                    head, body = self._read_one_response(sock)
+                finally:
+                    sock.close()
+                length = self._content_length(head)
+                self.assertIsNotNone(length, label + " response sent no Content-Length")
+                self.assertEqual(len(body), length, label + " body length disagreed with the header")
+
+    def test_connection_is_reusable_for_a_second_request(self) -> None:
+        # HTTP/1.1 plus an accurate Content-Length lets one socket serve two
+        # requests. Under the old HTTP/1.0-with-no-length behaviour the second
+        # request raised ConnectionAbortedError.
+        req = (
+            "GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+            "X-Saleha-Token: " + AUTH_TOKEN + "\r\n\r\n"
+        ).encode()
+        sock = socket.create_connection(("127.0.0.1", self.port), timeout=self.REQUEST_TIMEOUT)
+        try:
+            bodies = []
+            for _ in range(2):
+                sock.sendall(req)
+                _, body = self._read_one_response(sock)
+                bodies.append(body)
+        finally:
+            sock.close()
+        self.assertEqual(len(bodies), 2)
+        self.assertTrue(all(bodies), "a response came back empty on the reused socket")
+
+    def test_post_without_token_is_unauthorized(self) -> None:
         data = json.dumps({"code": "print('x')"}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.base_url}/api/exec",
@@ -92,7 +169,7 @@ class WebServerTests(unittest.TestCase):
             headers={"Content-Type": "application/json"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=self.REQUEST_TIMEOUT) as resp:
                 status = resp.status
         except urllib.error.HTTPError as err:
             status = err.code
@@ -100,26 +177,26 @@ class WebServerTests(unittest.TestCase):
 
     # ---------------- Functional tests ----------------
 
-    def test_get_index_html(self):
+    def test_get_index_html(self) -> None:
         status, body = self._get("/", auth=False)
         self.assertEqual(status, 200)
         self.assertIn(b"Saleha AI Web Studio", body)
 
-    def test_get_api_status(self):
+    def test_get_api_status(self) -> None:
         status, body = self._get("/api/status")
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["status"], "healthy")
         self.assertGreaterEqual(data["agent_profiles_count"], 1)
 
-    def test_get_api_agents(self):
+    def test_get_api_agents(self) -> None:
         status, body = self._get("/api/agents")
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertIn("profiles", data)
         self.assertGreaterEqual(len(data["profiles"]), 1)
 
-    def test_get_api_tools(self):
+    def test_get_api_tools(self) -> None:
         status, body = self._get("/api/tools")
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
@@ -127,60 +204,60 @@ class WebServerTests(unittest.TestCase):
         tool_names = [t["name"] for t in data["tools"]]
         self.assertIn("web_fetch", tool_names)
 
-    def test_get_api_memory(self):
+    def test_get_api_memory(self) -> None:
         status, body = self._get("/api/memory")
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertIn("total_entries", data)
 
-    def test_post_api_scan(self):
+    def test_post_api_scan(self) -> None:
         status, body = self._post("/api/scan", {"path": "."})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertIn("summary", data)
         self.assertGreater(data["summary"]["total_files"], 0)
 
-    def test_post_api_exec(self):
+    def test_post_api_exec(self) -> None:
         status, body = self._post("/api/exec", {"language": "python", "code": "print('hello_sandbox')"})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data["success"])
         self.assertIn("hello_sandbox", data["output"])
 
-    def test_post_api_vision(self):
+    def test_post_api_vision(self) -> None:
         status, body = self._post("/api/vision/generate", {"spec": "Button with icon", "framework": "react"})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["framework"], "react")
         self.assertTrue(len(data["code"]) > 10)
 
-    def test_post_api_fuzz(self):
+    def test_post_api_fuzz(self) -> None:
         status, body = self._post("/api/fuzz/run", {"code": "def handle(v): return len(str(v))"})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["total_mutations"], 4)
 
-    def test_post_api_sre(self):
+    def test_post_api_sre(self) -> None:
         status, body = self._post("/api/sre/analyze", {"log": "ZeroDivisionError: division by zero"})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["error_type"], "ZeroDivisionError")
         self.assertIn("denominator == 0", data["hotfix"])
 
-    def test_post_api_deploy(self):
+    def test_post_api_deploy(self) -> None:
         status, body = self._post("/api/deploy/generate", {"app_name": "demo-svc", "port": 8000})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["app_name"], "demo-svc")
         self.assertIn("FROM python", data["dockerfile"])
 
-    def test_post_api_loadtest(self):
+    def test_post_api_loadtest(self) -> None:
         status, body = self._post("/api/loadtest/run", {"url": f"{self.base_url}/api/status", "requests": 10})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data["rps"] > 0)
 
-    def test_post_api_diff_patch(self):
+    def test_post_api_diff_patch(self) -> None:
         old_text = "def calc(x):\n    return x + 1\n"
         search = "return x + 1"
         replace = "return x * 10"
@@ -190,7 +267,7 @@ class WebServerTests(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertIn("return x * 10", data["patched"])
 
-    def test_get_api_souls(self):
+    def test_get_api_souls(self) -> None:
         status, body = self._get("/api/souls")
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
@@ -198,7 +275,7 @@ class WebServerTests(unittest.TestCase):
         self.assertEqual(data["total_souls"], 10)
         self.assertTrue(len(data["souls"]) == 10)
 
-    def test_post_api_souls_use(self):
+    def test_post_api_souls_use(self) -> None:
         status, body = self._post("/api/souls/use", {"soul": "artisan"})
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
@@ -206,7 +283,7 @@ class WebServerTests(unittest.TestCase):
         self.assertEqual(data["active_soul"], "artisan")
         self.assertIn("Glassmorphic", data["display_name"])
 
-    def test_post_api_sandbox_execute_runs_real_code(self):
+    def test_post_api_sandbox_execute_runs_real_code(self) -> None:
         status, body = self._post(
             "/api/sandbox/execute",
             {"code": "print(2 + 2)", "language": "python", "prefer_docker": False},
@@ -219,7 +296,7 @@ class WebServerTests(unittest.TestCase):
         # just claim success without running anything.
         self.assertEqual(data["sandbox_tier"], "process")
 
-    def test_vault_set_then_delete(self):
+    def test_vault_set_then_delete(self) -> None:
         key = "TEST_SECRET_" + uuid.uuid4().hex[:8]
         status, body = self._post("/api/vault/set", {"key": key, "value": "shh"})
         self.assertEqual(status, 200)
@@ -238,7 +315,7 @@ class WebServerTests(unittest.TestCase):
         data = json.loads(body.decode("utf-8"))
         self.assertEqual(data["status"], "not_found")
 
-    def test_get_api_agents_returns_real_roster(self):
+    def test_get_api_agents_returns_real_roster(self) -> None:
         status, body = self._get("/api/agents")
         self.assertEqual(status, 200)
         data = json.loads(body.decode("utf-8"))
