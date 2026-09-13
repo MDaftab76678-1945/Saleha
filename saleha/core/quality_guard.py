@@ -32,6 +32,13 @@ information. `raw_score` keeps the uncapped value.
 `max_files` (default 50) wherever `os.walk` happened to reach and returned
 `all_passed` over that slice with no indication it was partial. The result now
 says how many files exist and whether the scan was truncated.
+
+**4. SEC-001 (eval/exec) has one inline opt-out, not a rule removal.**
+Unlike SOV-001, this check catches a real defect class and stays as-is for
+everyone by default. A call site that IS the feature -- `saleha profile
+"<code>"` exists specifically to exec() a user-supplied snippet -- states
+that on the line itself with a `saleha: allow-exec` comment, rather than
+the rule being narrowed or removed for every caller.
 """
 
 from __future__ import annotations
@@ -385,11 +392,23 @@ class QualityGuard:
         total_functions = 0
         typed_functions = 0
         max_depth = 0
+        code_lines = code.splitlines()
 
         for node in ast.walk(tree):
             # Check eval / exec
             if isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
+                    # A tool whose entire purpose is executing user-supplied
+                    # code (e.g. `saleha profile "<snippet>"`) calls exec() as
+                    # its feature, not by mistake -- the risk is already
+                    # explicit in what the command does. Rather than weaken
+                    # the check for everyone (the SOV-001 mistake this file's
+                    # own docstring documents), a call site states its intent
+                    # inline, on the same line the primitive is used.
+                    line_src = (code_lines[node.lineno - 1]
+                                if 0 < node.lineno <= len(code_lines) else "")
+                    if "saleha: allow-exec" in line_src:
+                        continue
                     issues.append(QualityIssue(
                         severity="CRITICAL",
                         rule_id="SEC-001",

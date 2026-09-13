@@ -70,21 +70,52 @@ class StructuredReasoner:
         re.IGNORECASE,
     )
 
+    # A fenced action block -- ```tool_call {...}``` or ```json {"finish":...}```
+    # -- that a model emitted AFTER opening a reasoning tag it never closed.
+    # Deleting it along with the trace throws away the only actionable part of
+    # the reply. Measured on the four cases in the docstring below.
+    TRAILING_ACTION_PATTERN = re.compile(
+        r"```(?:tool_call|json)?\s*\{[\s\S]*?\}\s*```", re.IGNORECASE)
+
     @classmethod
     def strip_reasoning(cls, text: str) -> str:
         """
-        Remove reasoning blocks, closed or not.
+        Remove reasoning blocks, closed or not, without discarding the action.
 
         Callers that only ran the closed-tag patterns kept truncated traces:
         `<think>partial reasoning` with no closer survived intact. This is the
         single place that handles both, so a fix here reaches every caller.
+
+        The unclosed-tag rule deletes to end-of-string, which was destroying
+        real work. Measured directly:
+
+            unclosed <think> then a valid call  -> clean len 0, call LOST
+            closed </think>  then a valid call  -> call survives
+            no think tag at all                 -> call survives
+            unclosed <THINKING> then a call     -> clean len 0, call LOST
+
+        A reasoning model that runs out of budget mid-thought, or simply omits
+        the closer, therefore had its `tool_call` silently deleted and the
+        loop saw an empty reply. Any fenced action block after the open tag is
+        now preserved -- the trace still goes (leaving it in produced a
+        SyntaxError, which is why the rule exists), but the instruction does
+        not go with it.
         """
         if not text:
             return ""
         cleaned = cls.THINKING_PATTERN.sub("", text)
         cleaned = cls.SCRATCHPAD_PATTERN.sub("", cleaned)
         cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL | re.IGNORECASE)
-        cleaned = cls.UNCLOSED_REASONING_PATTERN.sub("", cleaned)
+
+        truncated = cls.UNCLOSED_REASONING_PATTERN.search(cleaned)
+        if truncated:
+            # Rescue any action block sitting inside the doomed region before
+            # dropping it.
+            rescued = cls.TRAILING_ACTION_PATTERN.findall(truncated.group(0))
+            cleaned = cls.UNCLOSED_REASONING_PATTERN.sub("", cleaned)
+            if rescued:
+                cleaned = (cleaned + "\n" + rescued[-1]).strip()
+
         return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
 
     @classmethod

@@ -55,12 +55,14 @@ Nothing here is claimed to be exhaustive, and `scan()` reports what it matched
 so a caller can see the basis for the verdict rather than trust a score.
 
 Known false positives: any file that *discusses* prompt injection trips this
-scanner. In this repo exactly three files do: `untrusted_content.py` (the
+scanner. In this repo exactly four files do: `untrusted_content.py` (the
 patterns), `agentic_loop.py` (documents the attack, and legitimately uses the
-```tool_call fence in its own prompt format), and `tool_calling.py`. That is
-accepted rather than patched around: `scan()` only marks content, it never
-blocks, so a false positive costs one warning line and nothing else. Narrowing
-the patterns to dodge it would cost real detections.
+```tool_call fence in its own prompt format), `tool_calling.py`, and
+`structured_reasoner.py` (its `TRAILING_ACTION_PATTERN` has to match that same
+fence in order to rescue a real tool call out of a truncated reasoning block).
+That is accepted rather than patched around: `scan()` only marks content, it
+never blocks, so a false positive costs one warning line and nothing else.
+Narrowing the patterns to dodge it would cost real detections.
 """
 
 from __future__ import annotations

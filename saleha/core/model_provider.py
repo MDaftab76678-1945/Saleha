@@ -85,16 +85,29 @@ class OllamaProvider(ModelProvider):
         action-menu loop to force a single integer choice, which removes the
         parse-failure class of errors entirely rather than recovering from it.
         """
+        # Caller options are MERGED over the defaults, never substituted for
+        # them. `options or {...}` meant any caller passing a partial dict
+        # silently dropped every default -- and `BaseAgent.think()` passes
+        # exactly `{"temperature": t}` whenever a profile sets one, so
+        # `num_predict` disappeared and Ollama's small default applied.
+        # Measured: qwen3:8b then spent its whole budget inside its <think>
+        # block and returned HTTP 200 with an empty body
+        # (done_reason='length'), which cost three control runs to diagnose.
+        # A required option must not be droppable by a caller that only meant
+        # to set the temperature.
+        merged_options = {
+            "temperature": 0.2,
+            "num_predict": 2048,
+            "repeat_penalty": 1.15,
+            "top_p": 0.9,
+        }
+        if options:
+            merged_options.update(options)
         payload = {
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "options": options or {
-                "temperature": 0.2,
-                "num_predict": 2048,
-                "repeat_penalty": 1.15,
-                "top_p": 0.9,
-            },
+            "options": merged_options,
         }
         if response_format:
             payload["format"] = response_format
@@ -115,9 +128,32 @@ class OllamaProvider(ModelProvider):
             response = requests.post(self.generate_url, json=payload, timeout=self.timeout)
             response.raise_for_status()
             result = response.json()
+            content = result.get("response", "").strip()
+            if not content:
+                # HTTP 200 with an empty `response` was reported as
+                # success=True with no content, so every caller treated "the
+                # model said nothing" as a completed generation. Measured
+                # against a real repo run: the agent loop logged three
+                # `(empty reply)` turns and burned its parse-retry budget,
+                # unable to tell an empty generation from a provider failure.
+                # An answer that is not there is not a success.
+                return ProviderResponse(
+                    success=False,
+                    content="",
+                    error_message=(
+                        f"Ollama returned HTTP 200 with an empty response "
+                        f"(model={model}, prompt {len(prompt)} chars, "
+                        f"done_reason={result.get('done_reason', 'unknown')!r}). "
+                        f"The request succeeded but the model generated "
+                        f"nothing."
+                    ),
+                    response_time=time.time() - start_time,
+                    tokens_used=int(result.get("eval_count", 0) or 0),
+                    provider_name="ollama",
+                )
             return ProviderResponse(
                 success=True,
-                content=result.get("response", "").strip(),
+                content=content,
                 response_time=time.time() - start_time,
                 tokens_used=int(result.get("eval_count", 0) or 0),
                 provider_name="ollama",

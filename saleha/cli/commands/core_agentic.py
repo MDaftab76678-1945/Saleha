@@ -41,7 +41,9 @@ from saleha import __version__
 @click.option('--resume', '-r', is_flag=True, help='Resume the last interrupted session from its checkpoint')
 @click.option('--stream', is_flag=True, help='Stream coder tokens live in the terminal')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def run(goal, model, profile, max_attempts, verbose, execute, commit, context_dir, tests, resume, stream, as_json):
+def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: int,
+        verbose: bool, execute: bool, commit: bool, context_dir: Optional[str],
+        tests: bool, resume: bool, stream: bool, as_json: bool) -> None:
     """
     Full self-healing pipeline: Plan -> Code -> Test -> Fix -> Execute
     
@@ -75,7 +77,7 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
             _cb = None
             if stream:
 
-                def _cb(token: str):
+                def _cb(token: str) -> None:
                     console.print(token, end='')
             result = orchestrator.execute_task(goal, profile=profile, auto_commit=commit, context_dir=context_dir, generate_tests=tests, resume_session=resume, on_token=_cb)
             if stream:
@@ -132,16 +134,34 @@ def run(goal, model, profile, max_attempts, verbose, execute, commit, context_di
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--max-steps', default=12, type=click.IntRange(1, 40), help='Maximum think-act steps')
 @click.option('--write', is_flag=True, help='Allow write_file tool (still gated by SALEHA_APPROVAL)')
+@click.option('--timeout', default=300, type=click.IntRange(30, 7200), show_default=True,
+              help='Wall-clock budget for the whole run, in seconds. Raise it for larger '
+                   'or reasoning models -- they spend far longer per turn.')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable transcript')
-def agent(goal, root_dir, model, max_steps, write, as_json):
+def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
+          timeout: int, as_json: bool) -> None:
     """Autonomous agent that thinks, uses tools, and investigates a repo.
 
     Example: saleha agent "find all API endpoints missing auth checks" --dir ./src
     """
     from saleha.core.agentic_loop import AgentLoop
     from saleha.agents.base_agent import BaseAgent
-    console.print(Panel.fit(f"[bold cyan]🎯 Goal:[/] {goal}\n[bold cyan]📁 Root:[/] {os.path.abspath(root_dir)}\n[bold cyan]🔧 Tools:[/] list_dir, read_file, search_repo, run_code{(', write_file' if write else '')}\n[bold cyan]🔁 Max Steps:[/] {max_steps}", title='[bold green]🤖 Saleha Autonomous Agent[/]', border_style='green'))
-    loop = _cmds.AgentLoop(agent=_cmds.BaseAgent(role='Agent', model=model), root_dir=root_dir, max_steps=max_steps, allow_write=write)
+    # The tool list here was hardcoded and stale: it omitted get_file_outline,
+    # find_symbols and -- most misleadingly -- patch_file, the tool a user has
+    # to know about to ask for an actual fix. The loop's own dispatch table
+    # has always had all eight, and the system prompt builds its list from
+    # that table, so only this panel was wrong.
+    read_tools = 'list_dir, read_file, get_file_outline, find_symbols, search_repo, run_code'
+    tool_line = read_tools + (', patch_file, write_file' if write else '')
+    console.print(Panel.fit(f"[bold cyan]🎯 Goal:[/] {goal}\n[bold cyan]📁 Root:[/] {os.path.abspath(root_dir)}\n[bold cyan]🔧 Tools:[/] {tool_line}\n[bold cyan]🔁 Max Steps:[/] {max_steps}\n[bold cyan]⏱ Timeout:[/] {timeout}s", title='[bold green]🤖 Saleha Autonomous Agent[/]', border_style='green'))
+    # timeout_sec was never passed, so every run silently took AgentLoop's
+    # 300s default however big --max-steps was. Measured: a qwen3:8b control
+    # run against a real repo bug was killed at step 5 by that ceiling while
+    # it was still making genuine progress (it reached the outline in two
+    # steps, where the 3B model needed a rejection first). The experiment had
+    # measured a hardcoded limit rather than the model -- and a user picking a
+    # larger model hits exactly the same wall with no flag to raise it.
+    loop = _cmds.AgentLoop(agent=_cmds.BaseAgent(role='Agent', model=model), root_dir=root_dir, max_steps=max_steps, allow_write=write, timeout_sec=float(timeout))
     result = loop.run(goal, on_event=lambda ev: None if as_json else console.print(f"[dim]step {ev.get('step')}[/] [cyan]{ev.get('action')}[/] -> {_cmds._one_line(ev.get('observation', ''))}"))
     if as_json:
         click.echo(json.dumps({'success': result.success, 'final_message': result.final_message, 'error': result.error, 'steps': [{'step': s.step, 'action': s.action, 'args': s.args_preview, 'observation': s.observation[:500]} for s in result.steps]}, ensure_ascii=True))
@@ -155,7 +175,7 @@ def agent(goal, root_dir, model, max_steps, write, as_json):
 @click.argument('goal')
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def plan(goal, model, as_json):
+def plan(goal: str, model: str, as_json: bool) -> None:
     """
     Generate task plan only (no code generation)
     
@@ -190,7 +210,7 @@ def plan(goal, model, as_json):
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
 @click.option('--output', type=click.Path(dir_okay=False), help='Write generated code to a file')
-def code(task, model, as_json, output):
+def code(task: str, model: str, as_json: bool, output: Optional[str]) -> None:
     """
     Generate code for a specific task
     
@@ -242,7 +262,7 @@ def code(task, model, as_json, output):
 @click.argument('question')
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def ask(question, model, as_json):
+def ask(question: str, model: str, as_json: bool) -> None:
     """Ask Saleha a normal question without starting the interactive shell."""
     agent = _cmds.BaseAgent(role='Assistant', model=model)
     result = agent.think(question)
@@ -260,7 +280,7 @@ def ask(question, model, as_json):
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def agents(as_json):
+def agents(as_json: bool) -> None:
     """Show dynamic agent profiles loaded from saleha/skills/."""
     _cmds.profile_registry.reload()
     loaded_profiles = _cmds.profile_registry.list_profiles()
@@ -287,14 +307,14 @@ def agents(as_json):
 @cli.command()
 @click.option('--profile', '-p', default=None, help='Initial agent profile (e.g. architect, sde, security)')
 @click.option('--model', '-m', default='auto', help='Model to use')
-def chat(profile, model):
+def chat(profile: Optional[str], model: str) -> None:
     """Start an interactive pair-programming shell with Saleha agents."""
     _cmds.start_repl(initial_profile=profile, model=model)
 
 @cli.command()
 @click.option('--profile', '-p', default=None, help='Initial agent profile (e.g. architect, sde, security)')
 @click.option('--model', '-m', default='auto', help='Model to use')
-def repl(profile, model):
+def repl(profile: Optional[str], model: str) -> None:
     """Alias for 'saleha chat'."""
     _cmds.start_repl(initial_profile=profile, model=model)
 
@@ -304,7 +324,7 @@ def repl(profile, model):
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--apply', is_flag=True, help='Actually write changes (default: dry-run plan only)')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable edit plan')
-def edit(goal, root_dir, model, apply, as_json):
+def edit(goal: str, root_dir: str, model: str, apply: bool, as_json: bool) -> None:
     """Plan (and optionally apply) multi-file edits across an existing repo.
 
     Example dry-run:  saleha edit "add retry logic to API calls" --dir ./src
@@ -347,7 +367,7 @@ def edit(goal, root_dir, model, apply, as_json):
 
 @cli.command(name='profile')
 @click.argument('code_snippet')
-def profile_cmd(code_snippet):
+def profile_cmd(code_snippet: str) -> None:
     """
     Profile execution latency, memory footprint, and GC overhead.
     
@@ -356,8 +376,8 @@ def profile_cmd(code_snippet):
     from saleha.core.performance_profiler import performance_profiler
     console.print(f'[bold cyan]⏱️ Profiling snippet:[/] [yellow]{code_snippet}[/]')
 
-    def target_exec():
-        exec(code_snippet, {})
+    def target_exec() -> None:
+        exec(code_snippet, {})  # saleha: allow-exec -- profiling a user snippet IS this command's job
     _, m = performance_profiler.profile_callable(target_exec)
     if m.success:
         console.print(f'\n[bold green]✅ Execution Profile Completed:[/]')
@@ -371,7 +391,7 @@ def profile_cmd(code_snippet):
 @cli.command()
 @click.option('--live', is_flag=True, help='Run auto-refreshing live dashboard')
 @click.option('--refresh', default=2.0, help='Refresh interval in seconds (for live mode)')
-def dashboard(live, refresh):
+def dashboard(live: bool, refresh: float) -> None:
     """Render the Saleha multi-agent operations dashboard."""
     if live:
         _cmds.run_live_dashboard(refresh_seconds=refresh)
@@ -381,7 +401,7 @@ def dashboard(live, refresh):
 @cli.command()
 @click.option('--live', is_flag=True, help='Run auto-refreshing live dashboard')
 @click.option('--refresh', default=2.0, help='Refresh interval in seconds (for live mode)')
-def ui(live, refresh):
+def ui(live: bool, refresh: float) -> None:
     """Alias for 'saleha dashboard'."""
     if live:
         _cmds.run_live_dashboard(refresh_seconds=refresh)
@@ -389,7 +409,7 @@ def ui(live, refresh):
         _cmds.render_dashboard()
 
 @cli.command()
-def status():
+def status() -> None:
     """
     Show Saleha system status
     """
@@ -418,7 +438,7 @@ def status():
 
 @cli.command()
 @click.option('--model', '-m', default='auto', help='Model to use')
-def interactive(model):
+def interactive(model: str) -> None:
     """
     Start interactive Saleha shell
     
@@ -466,25 +486,25 @@ def interactive(model):
             break
 
 @cli.command()
-def tui():
+def tui() -> None:
     """Launch full-screen interactive Terminal TUI Canvas IDE."""
     _cmds.start_tui_canvas(console)
 
 @cli.command()
-def canvas():
+def canvas() -> None:
     """Alias for 'saleha tui'."""
     _cmds.start_tui_canvas(console)
 
 @cli.command(name='stream')
 @click.argument('prompt')
 @click.option('--model', '-m', default='auto', help='Model to stream from')
-def stream_cmd(prompt, model):
+def stream_cmd(prompt: str, model: str) -> None:
     """Stream generated tokens in real-time with typewriter syntax highlighting."""
     from saleha.core.streaming_ui import streaming_ui
     streaming_ui.stream_to_terminal(model=model, prompt=prompt, title='Saleha Stream')
 
 @cli.command(name='debug-repl')
-def repl_cmd():
+def repl_cmd() -> None:
     """Start an interactive stateful Python AI REPL & live variable debugger.
 
     (Pehle ye 'repl' naam se registered tha, jisne 'saleha repl --profile'
@@ -496,7 +516,7 @@ def repl_cmd():
 @cli.command(name='hud')
 @click.option('--once', is_flag=True, help='Render a single static snapshot without live loop')
 @click.option('--rate', default=1.0, help='Refresh interval in seconds')
-def hud_cmd(once, rate):
+def hud_cmd(once: bool, rate: float) -> None:
     """
     Live interactive Terminal Heads-Up Display (HUD) with real-time telemetry and hotkeys.
     
@@ -509,18 +529,18 @@ def hud_cmd(once, rate):
         terminal_hud.run_live(refresh_rate=rate)
 
 @cli.command(name='dashboard')
-def dashboard_cmd():
+def dashboard_cmd() -> None:
     """Launch terminal rich operations dashboard."""
     _cmds.render_dashboard()
 
 @cli.command(name='ui')
-def ui_cmd():
+def ui_cmd() -> None:
     """Launch terminal dashboard (alias)."""
     _cmds.render_dashboard()
 
 @cli.command(name='watch-ai')
 @click.argument('directory', default='.')
-def watch_ai_cmd(directory):
+def watch_ai_cmd(directory: str) -> None:
     """
     Start Real-Time File Watcher with instant inline syntax & security hints.
     
@@ -531,7 +551,7 @@ def watch_ai_cmd(directory):
     console.print(f'[bold green]👀 Saleha Watch-AI is actively monitoring:[/] [cyan]{os.path.abspath(directory)}[/]')
     console.print('[dim]Edit any .py/.js/.ts file to see real-time suggestions. Press Ctrl+C to stop.[/]')
 
-    def on_event(ev):
+    def on_event(ev: Any) -> None:
         if ev.suggestions:
             console.print(f'\n[bold yellow]⚡ File changed:[/] {ev.path}')
             for s in ev.suggestions:
@@ -547,7 +567,7 @@ def watch_ai_cmd(directory):
 
 @cli.command(name='tui')
 @click.option('--model', default='auto', help='Model to power the TUI session')
-def tui_cmd(model: str):
+def tui_cmd(model: str) -> None:
     """
     Launch the full-screen interactive Terminal UI (Aider-style workspace).
     
@@ -558,7 +578,7 @@ def tui_cmd(model: str):
 
 @cli.command('resume')
 @click.argument('execution_id')
-def resume_cli_cmd(execution_id: str):
+def resume_cli_cmd(execution_id: str) -> None:
     """Resume an interrupted swarm execution from its last saved checkpoint."""
     from saleha.core.swarm_pipeline_engine import swarm_engine
     from saleha.cli.swarm_visualizer import visualizer
@@ -572,7 +592,7 @@ def resume_cli_cmd(execution_id: str):
 @cli.command('dev')
 @click.option('--all', 'all_apps', is_flag=True, default=False, help='Launch backend server and frontend apps simultaneously')
 @click.option('--port', default=8000, help='Backend server port')
-def dev_cli_cmd(all_apps: bool, port: int):
+def dev_cli_cmd(all_apps: bool, port: int) -> None:
     """Start local development server and client applications."""
     if all_apps:
         console.print('[bold cyan]🚀 Starting Saleha AI Multi-App Dev Ecosystem...[/bold cyan]')
@@ -586,13 +606,13 @@ def dev_cli_cmd(all_apps: bool, port: int):
         _cmds.run_web_studio(port=port, open_browser=True)
 
 @cli.command('chat')
-def chat_cli_cmd():
+def chat_cli_cmd() -> None:
     """Start interactive pair-programming chat playground."""
     from saleha.cli.chat_session import run_chat_repl
     run_chat_repl()
 
 @cli.command('play')
-def play_cli_cmd():
+def play_cli_cmd() -> None:
     """Alias for interactive chat playground."""
     from saleha.cli.chat_session import run_chat_repl
     run_chat_repl()
@@ -600,7 +620,7 @@ def play_cli_cmd():
 @cli.command('run-container')
 @click.argument('code_or_file')
 @click.option('--timeout', default=15.0, help='Hard timeout in seconds')
-def run_container_cli_cmd(code_or_file: str, timeout: float):
+def run_container_cli_cmd(code_or_file: str, timeout: float) -> None:
     """Execute code inside isolated ephemeral Docker container with cgroup bounds."""
     from saleha.core.ephemeral_container_runner import container_runner
     console.print(f'\n[bold cyan]🐳 Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')

@@ -16,6 +16,45 @@ class ModelProviderTests(unittest.TestCase):
         self.provider = OllamaProvider(base_url="http://ollama.test")
 
     @patch("saleha.core.model_provider.requests.post")
+    def test_caller_options_merge_over_defaults(self, post: Mock) -> None:
+        # `options or {...}` let a caller passing only a temperature drop every
+        # default, including num_predict -- and BaseAgent.think() passes exactly
+        # {"temperature": t} whenever a profile sets one. qwen3:8b then hit
+        # Ollama's small default budget inside its <think> block and returned an
+        # empty body (done_reason='length').
+        resp = Mock()
+        resp.raise_for_status = Mock()
+        resp.json.return_value = {"response": "ok", "eval_count": 3}
+        post.return_value = resp
+
+        self.provider.generate("m", "p", options={"temperature": 0.9})
+
+        sent = post.call_args.kwargs["json"]["options"]
+        self.assertEqual(sent["temperature"], 0.9, "caller value must win")
+        self.assertEqual(sent["num_predict"], 2048, "default must survive")
+        self.assertIn("top_p", sent)
+
+    @patch("saleha.core.model_provider.requests.post")
+    def test_http_200_with_empty_response_is_not_success(self, post: Mock) -> None:
+        # An empty generation used to be reported as success=True with no
+        # content, so every caller treated "the model said nothing" as a
+        # completed call. Measured against a real agent run: three
+        # `(empty reply)` turns burned the parse-retry budget, with no way to
+        # tell an empty generation from a provider failure.
+        resp = Mock()
+        resp.raise_for_status = Mock()
+        resp.json.return_value = {"response": "   ", "done_reason": "load",
+                                  "eval_count": 0}
+        post.return_value = resp
+
+        result = self.provider.generate("test-model", "Say hello")
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.content, "")
+        self.assertIn("empty response", result.error_message)
+        self.assertIn("generated", result.error_message)
+
+    @patch("saleha.core.model_provider.requests.post")
     def test_generate_returns_provider_response(self, post: Mock) -> None:
         response = Mock()
         response.json.return_value = {"response": "hello"}

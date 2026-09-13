@@ -54,6 +54,30 @@ def run_dangerous(payload: str) -> None:
     assert report.passed is False
 
 
+def test_exec_with_allow_marker_is_not_flagged() -> None:
+    """A call site whose entire job is executing user code (`saleha profile`)
+    states that inline instead of the rule being weakened for everyone."""
+    guard = QualityGuard()
+    code = '''
+def run_snippet(payload: str) -> None:
+    exec(payload, {})  # saleha: allow-exec -- profiling a user snippet IS this command's job
+'''
+    report = guard.check_code(code)
+    assert not any(i.rule_id == "SEC-001" for i in report.issues)
+
+
+def test_exec_without_allow_marker_is_still_flagged() -> None:
+    """The marker is an opt-out for a specific line, not a rule removal --
+    an unrelated exec() call elsewhere must still trip SEC-001."""
+    guard = QualityGuard()
+    code = '''
+def run_snippet(payload: str) -> None:
+    exec(payload, {})
+'''
+    report = guard.check_code(code)
+    assert any(i.rule_id == "SEC-001" for i in report.issues)
+
+
 def test_naked_except_detected() -> None:
     guard = QualityGuard()
     code = '''

@@ -35,16 +35,16 @@ def _finish(summary="done"):
 
 
 class AgentLoopTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = self._tmp.name
         with open(os.path.join(self.root, "app.py"), "w") as f:
             f.write("def charge(amount):\n    return amount * 2\n")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def test_read_then_finish_success(self):
+    def test_read_then_finish_success(self) -> None:
         agent = ScriptedAgent([
             _tool_call("read_file", path="app.py"),
             _finish("found charge function"),
@@ -56,7 +56,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(res.steps[0].action, "read_file")
         self.assertIn("def charge", res.steps[0].observation)
 
-    def test_run_code_observation(self):
+    def test_run_code_observation(self) -> None:
         agent = ScriptedAgent([
             _tool_call("run_code", code="print(6*7)"),
             _finish("computed"),
@@ -66,7 +66,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("42", res.steps[0].observation)
         self.assertIn("exit=0", res.steps[0].observation)
 
-    def test_search_repo_finds_match(self):
+    def test_search_repo_finds_match(self) -> None:
         agent = ScriptedAgent([
             _tool_call("search_repo", pattern="charge"),
             _finish("located"),
@@ -75,14 +75,14 @@ class AgentLoopTests(unittest.TestCase):
         obs = res.steps[0].observation
         self.assertIn("app.py:1", obs)
 
-    def test_max_steps_exhaustion_fails(self):
+    def test_max_steps_exhaustion_fails(self) -> None:
         agent = ScriptedAgent([_tool_call("list_dir", path=".")] * 5)
         res = AgentLoop(agent=agent, root_dir=self.root, max_steps=3).run("loop forever")
         self.assertFalse(res.success)
         self.assertIn("max_steps", res.error)
         self.assertEqual(len(res.steps), 3)
 
-    def test_path_traversal_blocked(self):
+    def test_path_traversal_blocked(self) -> None:
         agent = ScriptedAgent([
             _tool_call("read_file", path="../../etc/passwd"),
             _finish("tried"),
@@ -90,24 +90,312 @@ class AgentLoopTests(unittest.TestCase):
         res = AgentLoop(agent=agent, root_dir=self.root).run("escape")
         self.assertIn("no such file", res.steps[0].observation)
 
-    def test_unknown_tool_reported(self):
+    def test_unknown_tool_reported(self) -> None:
+        # A third reply is needed because an unknown tool is a FAILED call and
+        # no longer satisfies min_actions_before_finish -- the loop rejects the
+        # finish and asks again, which is the intended behaviour.
         agent = ScriptedAgent([
             _tool_call("delete_everything"),
+            _tool_call("read_file", path="app.py"),
             _finish("ok"),
         ])
         res = AgentLoop(agent=agent, root_dir=self.root).run("chaos")
         self.assertIn("unknown tool", res.steps[0].observation)
 
-    def test_write_disabled_by_default(self):
+    def test_failed_call_does_not_license_finish(self) -> None:
+        # Measured against a real repo bug: find_symbols crashed with "bad
+        # args", the model called finish() next turn, and the run reported
+        # success -- because min_actions_before_finish counted appended steps
+        # and a crashed call still appends. A call that errored proves nothing.
+        agent = ScriptedAgent([
+            _tool_call("find_symbols", file_path="app.py"),   # wrong arg name
+            _finish("done"),
+            _tool_call("read_file", path="app.py"),           # a real action
+            _finish("now genuinely done"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root).run("fix it")
+        self.assertIn("bad args for find_symbols", res.steps[0].observation)
+        # The rejection must name the correct arguments, not just complain.
+        rejected = [s for s in res.steps if s.action == "read_file"]
+        self.assertTrue(rejected, "the loop never recovered to a real call")
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(res.final_message, "now genuinely done")
+
+    def test_all_patches_failed_cannot_be_reported_as_done(self) -> None:
+        # Measured against a real requests bug: patch_file returned "Could not
+        # match search block", the next turn claimed "the patch was applied
+        # successfully", and the CLI printed a green tick over an unchanged
+        # file. Reads succeeding is not evidence that a write happened.
+        agent = ScriptedAgent([
+            _tool_call("read_file", path="app.py"),
+            _tool_call("patch_file", path="app.py",
+                       search="text that is not in the file", replace="x"),
+            _finish("the patch was applied successfully"),
+            # The loop rejects that finish; the model repeating the claim must
+            # not get it accepted either.
+            _finish("the patch was applied successfully"),
+            _finish("the patch was applied successfully"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                         max_steps=5)
+        with patch_gate(approve_result=True):
+            res = loop.run("fix the bug")
+        self.assertFalse(res.success,
+                         "a run whose every patch failed must not report success")
+        self.assertIn("patch failed", res.steps[1].observation)
+
+    def test_successful_patch_still_finishes(self) -> None:
+        # The guard above must not break the honest path.
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="app.py",
+                       search="amount * 2", replace="amount * 10"),
+            _finish("patched"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True)
+        with patch_gate(approve_result=True):
+            res = loop.run("patch charge")
+        self.assertTrue(res.success, res.error)
+        self.assertEqual(res.final_message, "patched")
+
+    def test_timeout_is_honoured_and_reported(self) -> None:
+        # `saleha agent` never passed timeout_sec, so every run silently took
+        # the 300s default however large --max-steps was. A qwen3:8b control
+        # run against a real repo bug was killed at step 5 by that ceiling
+        # while still making genuine progress, so the experiment measured a
+        # hardcoded limit rather than the model. This asserts the budget is
+        # real and that exhausting it is reported honestly, not as success.
+        agent = ScriptedAgent([_tool_call("list_dir", path=".")] * 6)
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=6,
+                         timeout_sec=0.0)
+        res = loop.run("take too long")
+        self.assertFalse(res.success)
+        self.assertIn("timed out", res.error)
+
+    def test_cli_agent_passes_timeout_through(self) -> None:
+        # The parameter existed on AgentLoop and was simply never handed over
+        # by the CLI -- a silent gap no test could see. This fails if the
+        # argument is dropped again.
+        import inspect
+
+        from saleha.cli.commands import core_agentic
+
+        # `agent` is a Click Command, not a function -- inspect needs the
+        # underlying callback, which Click types as Optional.
+        callback = core_agentic.agent.callback
+        self.assertIsNotNone(callback, "saleha agent has no callback")
+        assert callback is not None
+        src = inspect.getsource(callback)
+        self.assertIn("timeout_sec=", src)
+        params = inspect.signature(core_agentic.agent.callback).parameters
+        self.assertIn("timeout", params)
+
+    def test_unclosed_reasoning_tag_does_not_destroy_the_tool_call(self) -> None:
+        # Measured: an unclosed <think> made strip_reasoning delete to
+        # end-of-string, taking a perfectly valid tool_call with it, so the
+        # loop saw an empty reply and burned a parse-retry. A reasoning model
+        # that omits the closer is a normal occurrence, not an error.
+        from saleha.core.structured_reasoner import StructuredReasoner
+
+        call = ('```tool_call\n{"tool": "read_file", "args": '
+                '{"path": "x.py", "start_line": 160, "end_line": 228}}\n```')
+        for opener in ("<think>", "<THINKING>", "<scratchpad>"):
+            raw = f"{opener}reasoning that never closes\n{call}"
+            clean = StructuredReasoner.strip_reasoning(raw)
+            parsed = AgentLoop._parse_call(clean)
+            self.assertIsNotNone(
+                parsed, f"{opener} destroyed the tool_call: clean={clean!r}")
+            self.assertEqual(parsed[0], "read_file")
+            self.assertEqual(parsed[1]["start_line"], 160)
+            # The reasoning trace itself must still be gone -- leaving it in
+            # is what produced a SyntaxError in an earlier pass.
+            self.assertNotIn("never closes", clean)
+
+    def test_closed_reasoning_tag_still_strips_and_keeps_the_call(self) -> None:
+        from saleha.core.structured_reasoner import StructuredReasoner
+
+        raw = ('<think>short thought</think>\n'
+               '```tool_call\n{"tool": "list_dir", "args": {"path": "."}}\n```')
+        clean = StructuredReasoner.strip_reasoning(raw)
+        self.assertNotIn("short thought", clean)
+        self.assertEqual(AgentLoop._parse_call(clean),
+                         ("list_dir", {"path": "."}))
+
+    def test_patch_call_with_literal_newlines_in_search_parses(self) -> None:
+        # Measured against a real repo bug: a patch_file call whose `search`
+        # value spanned several source lines was rejected outright, because
+        # json.loads forbids a literal newline inside a string -- and writing
+        # the lines verbatim is the natural thing for a model to do when it is
+        # copying them out of the file it just read. One wasted step.
+        raw = ('```tool_call\n'
+               '{"tool": "patch_file", "args": {"path": "utils.py", "search": "'
+               'if total_length is None:\n'
+               '        total_length = 0\n'
+               '", "replace": "pass"}}\n'
+               '```')
+        parsed = AgentLoop._parse_call(raw)
+        self.assertIsNotNone(parsed, "literal newlines in search still reject")
+        self.assertEqual(parsed[0], "patch_file")
+        self.assertIn("total_length = 0", parsed[1]["search"])
+        self.assertIn("\n", parsed[1]["search"])
+
+    def test_well_formed_payload_is_not_reinterpreted(self) -> None:
+        # Strict parsing runs first, so an already-escaped payload must come
+        # through byte-identical rather than through the lenient path.
+        raw = ('```tool_call\n'
+               '{"tool": "patch_file", "args": {"path": "u.py", '
+               '"search": "a\\nb", "replace": "c"}}\n'
+               '```')
+        parsed = AgentLoop._parse_call(raw)
+        self.assertEqual(parsed[1]["search"], "a\nb")
+
+    def test_parser_accepts_the_shapes_models_actually_emit(self) -> None:
+        # All of these were probed against the real parser; they are pinned so
+        # a future regex change cannot silently start rejecting one.
+        shapes = {
+            "single line no newline":
+                '```tool_call {"tool": "read_file", "args": {"path": "x.py"}} ```',
+            "canonical":
+                '```tool_call\n{"tool": "read_file", "args": {"path": "x.py"}}\n```',
+            "bare json":
+                '{"tool": "read_file", "args": {"path": "x.py"}}',
+            "prose then bare json":
+                'I will read it.\n{"tool": "read_file", "args": {"path": "x.py"}}',
+            "nested braces in a value":
+                '```tool_call\n{"tool": "patch_file", "args": {"path": "u.py", '
+                '"search": "d = {\'a\': 1}", "replace": "d = {}"}}\n```',
+            "block then trailing prose":
+                '```tool_call\n{"tool": "read_file", "args": {"path": "x.py"}}\n```\n'
+                'Then I will inspect it.',
+        }
+        for label, raw in shapes.items():
+            with self.subTest(shape=label):
+                self.assertIsNotNone(AgentLoop._parse_call(raw), label)
+
+    def test_no_observation_ever_embeds_a_live_tool_call_fence(self) -> None:
+        """A contract, because "remember next time" is not a mechanism.
+
+        Measured: an observation carrying a real ```tool_call block made
+        qwen3:8b spend 334.7s and return ZERO characters; the same guidance in
+        prose got a correct parsed call in 42.4s. A model told to reply with
+        exactly one such block, handed a prompt already containing one,
+        produces nothing. Only the SYSTEM PROMPT may show the fence -- it
+        defines the format; observations must describe calls in prose.
+        """
+        import inspect
+
+        from saleha.core import agentic_loop as mod
+
+        src = inspect.getsource(mod)
+        # Strip the system prompt, which legitimately shows the format.
+        without_prompt = src.replace(AgentLoop.SYSTEM_PROMPT, "")
+        # The remaining source must not build a fence inside any string it
+        # hands back to the model as an observation or rejection.
+        self.assertNotIn('```tool_call\\n{"tool"', without_prompt)
+        self.assertNotIn("```tool_call\\n{{\"tool\"", without_prompt)
+
+        for hint in mod._NEXT_ACTION_HINT.values():
+            self.assertNotIn("```", hint, f"live fence in hint: {hint!r}")
+
+    def test_tool_observations_are_fence_free_on_real_files(self) -> None:
+        agent = ScriptedAgent([_finish("x")])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        big = os.path.join(self.root, "big.py")
+        with open(big, "w", encoding="utf-8") as fh:
+            fh.write("def a():\n    return 1\n" * 400)
+        for observation in (
+            loop._tool_read_file("big.py"),
+            loop._tool_get_file_outline("big.py"),
+            loop._tool_find_symbols("a"),
+        ):
+            self.assertNotIn("```tool_call", observation)
+
+    def test_qwen3_real_reply_shapes_all_parse(self) -> None:
+        """The four shapes qwen3:8b actually emitted, copied byte-for-byte.
+
+        Measured before fixing: only the YAML one failed. JSON inside a
+        ```python fence already parsed via the embedded-object scan, and
+        name/arguments were already accepted -- my first diagnosis blamed the
+        fence language and the key names, and measurement disproved both.
+        """
+        shapes = {
+            "YAML inside a ```python fence": (
+                '```python\n'
+                'tool_call:\n'
+                '  name: read_file\n'
+                '  arguments: {"path": "src/requests/utils.py"}\n'
+                '```'
+            ),
+            "JSON inside a ```python fence": (
+                '```python\ntool_call\n{\n  "name": "read_file",\n'
+                '  "arguments": {\n    "path": "src/requests/utils.py"\n  }\n}\n```'
+            ),
+            "same JSON, canonical fence": (
+                '```tool_call\n{"name": "read_file", "arguments": '
+                '{"path": "src/requests/utils.py"}}\n```'
+            ),
+            "same JSON, no fence": (
+                '{"name": "read_file", "arguments": '
+                '{"path": "src/requests/utils.py"}}'
+            ),
+        }
+        for label, raw in shapes.items():
+            with self.subTest(shape=label):
+                parsed = AgentLoop._parse_call(raw)
+                self.assertIsNotNone(parsed, f"rejected: {label}")
+                self.assertEqual(parsed[0], "read_file")
+                self.assertEqual(parsed[1]["path"], "src/requests/utils.py")
+
+    def test_yaml_tool_call_without_arguments_still_names_the_tool(self) -> None:
+        raw = '```python\ntool_call:\n  name: list_dir\n```'
+        parsed = AgentLoop._parse_call(raw)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed[0], "list_dir")
+        self.assertEqual(parsed[1], {})
+
+    def test_read_file_line_range_returns_numbered_lines(self) -> None:
+        agent = ScriptedAgent([_finish("x")])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        out = loop._tool_read_file("app.py", start_line=1, end_line=2)
+        self.assertIn("1: ", out)
+        self.assertNotIn("3: ", out)
+
+    def test_read_file_rejects_non_numeric_range(self) -> None:
+        agent = ScriptedAgent([_finish("x")])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        out = loop._tool_read_file("app.py", start_line="abc")
+        self.assertIn("must be integers", out)
+
+    def test_bad_args_observation_names_the_correct_arguments(self) -> None:
+        agent = ScriptedAgent([
+            _tool_call("find_symbols", file_path="app.py"),
+            _tool_call("read_file", path="app.py"),
+            _finish("ok"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root).run("investigate")
+        self.assertIn("symbol_name", res.steps[0].observation)
+
+    def test_prompt_advertises_real_argument_names(self) -> None:
+        # The prompt used to list bare tool names, so the model guessed args.
+        for tool, sig in AgentLoop.TOOL_SIGNATURES.items():
+            self.assertTrue(sig.startswith("{"), tool)
+        self.assertIn("symbol_name", AgentLoop.TOOL_SIGNATURES["find_symbols"])
+        self.assertIn("pattern", AgentLoop.TOOL_SIGNATURES["search_repo"])
+        self.assertIn("search", AgentLoop.TOOL_SIGNATURES["patch_file"])
+
+    def test_write_disabled_by_default(self) -> None:
+        # A blocked write is a FAILED mutation, so the loop now rejects the
+        # following finish rather than reporting success over an unchanged
+        # repo. The extra turns are that rejection being exercised.
         agent = ScriptedAgent([
             _tool_call("write_file", path="new.py", content="x=1"),
-            _finish("attempted write"),
+            _tool_call("read_file", path="app.py"),
+            _finish("investigated only"),
         ])
-        res = AgentLoop(agent=agent, root_dir=self.root).run("write something")
+        res = AgentLoop(agent=agent, root_dir=self.root, max_steps=6).run("write something")
         self.assertFalse(os.path.exists(os.path.join(self.root, "new.py")))
         self.assertIn("BLOCKED", res.steps[0].observation)
 
-    def test_write_with_allow_and_approval_writes(self):
+    def test_write_with_allow_and_approval_writes(self) -> None:
         agent = ScriptedAgent([
             _tool_call("write_file", path="notes/new.py", content="x=1"),
             _finish("written"),
@@ -118,7 +406,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertTrue(os.path.isfile(os.path.join(self.root, "notes", "new.py")))
 
-    def test_on_event_streaming(self):
+    def test_on_event_streaming(self) -> None:
         events = []
         agent = ScriptedAgent([
             _tool_call("list_dir", path="."),
@@ -129,7 +417,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertGreaterEqual(len(events), 2)
         self.assertEqual(events[-1]["action"], "finish")
 
-    def test_patch_file_tool(self):
+    def test_patch_file_tool(self) -> None:
         agent = ScriptedAgent([
             _tool_call("patch_file", path="app.py", search="amount * 2", replace="amount * 10"),
             _finish("patched"),
@@ -141,7 +429,7 @@ class AgentLoopTests(unittest.TestCase):
         with open(os.path.join(self.root, "app.py"), "r") as f:
             self.assertIn("amount * 10", f.read())
 
-    def test_get_file_outline_and_find_symbols(self):
+    def test_get_file_outline_and_find_symbols(self) -> None:
         agent = ScriptedAgent([
             _tool_call("get_file_outline", path="app.py"),
             _tool_call("find_symbols", symbol_name="charge"),
@@ -153,7 +441,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("def charge()", res.steps[0].observation)
         self.assertIn("app.py", res.steps[1].observation)
 
-    def test_deepseek_r1_think_parsing(self):
+    def test_deepseek_r1_think_parsing(self) -> None:
         events = []
         agent = ScriptedAgent([
             "<think>Analyzing billing function to verify rate logic.</think>\n"
@@ -170,7 +458,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertGreaterEqual(len(think_events), 2)
         self.assertIn("Analyzing billing", think_events[0]["thought"])
 
-    def test_premature_finish_rejected_then_recovers(self):
+    def test_premature_finish_rejected_then_recovers(self) -> None:
         """Real bug found running Saleha against actual SWE-bench instances:
         a small model called finish() on turn 1 with zero prior tool calls,
         hallucinating completion. finish() must be rejected until at least
@@ -193,7 +481,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(len(rejected), 1)
         self.assertIn("REJECTED", rejected[0]["observation"])
 
-    def test_repeated_premature_finish_exhausts_max_steps(self):
+    def test_repeated_premature_finish_exhausts_max_steps(self) -> None:
         """If the model never takes a real action, it must not be able to
         force a false success by just repeating finish()."""
         agent = ScriptedAgent([_finish("done")] * 5)
@@ -201,7 +489,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertIn("max_steps", res.error)
 
-    def test_min_actions_before_finish_zero_keeps_old_behavior(self):
+    def test_min_actions_before_finish_zero_keeps_old_behavior(self) -> None:
         """min_actions_before_finish=0 restores immediate-finish (opt-out)."""
         agent = ScriptedAgent([_finish("instant")])
         res = AgentLoop(agent=agent, root_dir=self.root,
@@ -213,7 +501,7 @@ class AgentLoopTests(unittest.TestCase):
     # Parse resilience: one bad reply must not kill the whole run
     # ------------------------------------------------------------------
 
-    def test_prose_only_turn_is_retried_not_fatal(self):
+    def test_prose_only_turn_is_retried_not_fatal(self) -> None:
         """Real measured failure: qwen2.5-coder:3b's first turn is often pure
         prose ("I will start by listing all files...") with the tool call
         intended for the next turn. That single turn used to end the run at
@@ -233,7 +521,7 @@ class AgentLoopTests(unittest.TestCase):
         # The prose turn produced no step; only the real tool call did.
         self.assertEqual(res.steps[0].action, "read_file")
 
-    def test_gives_up_after_consecutive_unparseable_replies(self):
+    def test_gives_up_after_consecutive_unparseable_replies(self) -> None:
         """Resilience must not become an infinite tolerance for garbage."""
         agent = ScriptedAgent(["just talking, no block"] * 8)
         res = AgentLoop(agent=agent, root_dir=self.root,
@@ -241,7 +529,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertIn("consecutive replies", res.error)
 
-    def test_parse_failure_streak_resets_on_a_good_reply(self):
+    def test_parse_failure_streak_resets_on_a_good_reply(self) -> None:
         """Only CONSECUTIVE failures should end the run."""
         agent = ScriptedAgent([
             "prose 1",
@@ -256,14 +544,14 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(res.success, res.error)
         self.assertEqual(len(res.steps), 3)  # list_dir + read_file + finish
 
-    def test_max_parse_retries_zero_restores_fail_fast(self):
+    def test_max_parse_retries_zero_restores_fail_fast(self) -> None:
         agent = ScriptedAgent(["no block here", _tool_call("list_dir", path=".")])
         res = AgentLoop(agent=agent, root_dir=self.root,
                         max_parse_retries=0).run("go")
         self.assertFalse(res.success)
         self.assertIn("no tool_call/finish block", res.error)
 
-    def test_parses_bare_json_call_embedded_in_prose(self):
+    def test_parses_bare_json_call_embedded_in_prose(self) -> None:
         """The model explains itself, then emits an unfenced JSON object."""
         agent = ScriptedAgent([
             'I will read the file first.\n{"tool": "read_file", "args": {"path": "app.py"}}',
@@ -274,7 +562,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(res.steps[0].action, "read_file")
         self.assertIn("def charge", res.steps[0].observation)
 
-    def test_parse_retry_does_not_leave_evidence_ledger_inconsistent(self):
+    def test_parse_retry_does_not_leave_evidence_ledger_inconsistent(self) -> None:
         from saleha.core.task_evidence import EvidenceKind, TaskState
         agent = ScriptedAgent(["all prose"] * 5)
         loop = AgentLoop(agent=agent, root_dir=self.root, max_parse_retries=2,
@@ -288,7 +576,7 @@ class AgentLoopTests(unittest.TestCase):
     # Evidence-based completion (Level-6 architecture target)
     # ------------------------------------------------------------------
 
-    def test_evidence_gate_rejects_finish_with_no_real_work(self):
+    def test_evidence_gate_rejects_finish_with_no_real_work(self) -> None:
         """require_evidence=True: finish() must be refused until the tools
         actually observed the required fact, then accepted once they have."""
         from saleha.core.task_evidence import EvidenceKind, TaskState
@@ -310,7 +598,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(loop.ledger.state, TaskState.ACCEPTED)
         self.assertTrue(loop.ledger.has(EvidenceKind.FILE_READ))
 
-    def test_evidence_gate_never_accepts_without_the_required_kind(self):
+    def test_evidence_gate_never_accepts_without_the_required_kind(self) -> None:
         """A model that only ever searches cannot satisfy a FILE_READ
         requirement, so the run honestly exhausts max_steps."""
         from saleha.core.task_evidence import EvidenceKind, TaskState
@@ -328,7 +616,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("max_steps", res.error)
         self.assertEqual(loop.ledger.state, TaskState.FAILED)
 
-    def test_failed_tool_call_produces_no_evidence(self):
+    def test_failed_tool_call_produces_no_evidence(self) -> None:
         """A tool that errored proves nothing and must not count as work."""
         from saleha.core.task_evidence import EvidenceKind
         agent = ScriptedAgent([
@@ -350,7 +638,7 @@ class AgentLoopTests(unittest.TestCase):
         reads = [e for e in loop.ledger.evidence if e.kind == EvidenceKind.FILE_READ]
         self.assertEqual(len(reads), 1)
 
-    def test_write_evidence_moves_state_to_implementing(self):
+    def test_write_evidence_moves_state_to_implementing(self) -> None:
         from saleha.core.task_evidence import EvidenceKind, TaskState
         agent = ScriptedAgent([
             _tool_call("write_file", path="new.py", content="x = 1\n"),
@@ -366,7 +654,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("IMPLEMENTING", states)
         self.assertEqual(loop.ledger.state, TaskState.ACCEPTED)
 
-    def test_budget_stops_a_runaway_loop(self):
+    def test_budget_stops_a_runaway_loop(self) -> None:
         """max_tool_calls must actually halt the run, not just be advisory."""
         from saleha.core.task_evidence import EvidenceKind, ResourceBudget, TaskState
         agent = ScriptedAgent([_tool_call("list_dir", path=".")] * 10)
@@ -380,7 +668,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(loop.ledger.state, TaskState.FAILED)
         self.assertEqual(len(res.steps), 4)  # 3 allowed, 4th trips the limit
 
-    def test_evidence_off_by_default_keeps_old_behaviour(self):
+    def test_evidence_off_by_default_keeps_old_behaviour(self) -> None:
         """Existing callers must be unaffected: no ledger, no gate."""
         agent = ScriptedAgent([
             _tool_call("read_file", path="app.py"),
@@ -391,7 +679,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(res.success, res.error)
         self.assertIsNone(loop.ledger)
 
-    def test_structured_xml_tool_call_and_thinking_parsing(self):
+    def test_structured_xml_tool_call_and_thinking_parsing(self) -> None:
         events = []
         agent = ScriptedAgent([
             "<THINKING>Formulating plan to read and analyze app.py code structure.</THINKING>\n"
