@@ -400,6 +400,79 @@ class SmartRouter:
             "rationale": "Standard implementation and modular engineering task."
         }
 
+    def classify_tier_via_rust(
+        self,
+        task: str,
+        privacy_required: bool = False,
+        max_budget_usd: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Ask the compiled Rust router which *tier* a task belongs to, then
+        pick a concrete installed model within that tier here.
+
+        The two routers decide genuinely different things and neither
+        replaces the other:
+
+        * The Rust side (rust/crates/agent-inference-router) decides the
+          execution tier -- local model, decentralized GPU node, or premium
+          cloud API -- from a numeric complexity score, a privacy flag, and a
+          registry of nodes with real load/latency/cost figures.
+        * This class decides *which installed Ollama model* to use, from
+          measured per-model history, keyword fit, and thermal state.
+
+        So the honest composition is: Rust picks the tier, Python picks the
+        model inside it. The Rust router is consulted, never obeyed blindly --
+        if its answer is a tier this machine cannot serve (no decentralized
+        nodes are registered in a local dev setup, and no cloud key is
+        configured), the local selection still stands and the result says so.
+
+        Returns the existing classify_task_tier() dict plus `rust_*` keys, so
+        every existing caller keeps working unchanged. `rust_available` is
+        False -- with a reason -- when the extension is not built, rather than
+        a fabricated tier.
+        """
+        base = self.classify_task_tier(task)
+
+        from saleha.core.inference_router_bridge import rust_inference_router
+
+        if not rust_inference_router.is_available():
+            base["rust_available"] = False
+            base["rust_reason"] = (
+                rust_inference_router.import_error()
+                or "inference_router extension not built"
+            )
+            return base
+
+        # classify_task_tier scores 0-10; the Rust router takes 0.0-1.0.
+        # Converting rather than passing the raw number is the whole reason
+        # this wrapper exists -- handing 8.5 to a router that treats >0.8 as
+        # "premium" would send every standard task to a paid API.
+        complexity_0_to_1 = min(1.0, max(0.0, base["estimated_complexity"] / 10.0))
+
+        try:
+            decision = rust_inference_router.route(
+                task_id=self._get_task_hash(task, base["estimated_complexity"]),
+                prompt=task,
+                complexity_score=complexity_0_to_1,
+                privacy_required=privacy_required,
+                max_budget_usd=max_budget_usd,
+            )
+        except Exception as err:  # extension present but the call failed
+            base["rust_available"] = False
+            base["rust_reason"] = f"rust route() raised: {err}"
+            return base
+
+        base["rust_available"] = True
+        base["rust_target"] = decision["target"]
+        base["rust_node_id"] = decision["node_id"]
+        base["rust_estimated_latency_ms"] = decision["estimated_latency_ms"]
+        base["rust_estimated_cost_usd"] = decision["estimated_cost_usd"]
+        base["rust_complexity_score"] = complexity_0_to_1
+        # Whether the tier the Rust side chose is one this machine can serve.
+        # Only the local tier is; saying so here keeps a caller from treating
+        # "Decentralized-GPU" as a thing that will actually happen.
+        base["rust_tier_is_servable_locally"] = decision["target"].startswith("Local")
+        return base
+
     def get_failover_chain(self, task: str, max_cost_usd: float = 0.0) -> List[str]:
         """Synthesizes prioritized multi-tier failover chain from Local Ollama to Cloud APIs."""
         primary = self.select_model(task)

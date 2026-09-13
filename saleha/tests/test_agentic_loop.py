@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 from saleha.core.agentic_loop import AgentLoop, LoopResult
@@ -11,11 +12,11 @@ from saleha.core.agentic_loop import AgentLoop, LoopResult
 class ScriptedAgent:
     """Har think() call pe agla scripted response deta hai."""
 
-    def __init__(self, responses):
+    def __init__(self, responses: list) -> None:
         self.responses = list(responses)
-        self.prompts = []
+        self.prompts: list = []
 
-    def think(self, prompt, **kwargs):
+    def think(self, prompt: str, **kwargs: Any) -> MagicMock:
         self.prompts.append(prompt)
         resp = MagicMock()
         if isinstance(self.responses[0], Exception):
@@ -26,11 +27,11 @@ class ScriptedAgent:
         return resp
 
 
-def _tool_call(name, **args):
+def _tool_call(name: str, **args: Any) -> str:
     return f'```tool_call\n{{"tool": "{name}", "args": {json.dumps(args)}}}\n```'
 
 
-def _finish(summary="done"):
+def _finish(summary: str = "done") -> str:
     return f'```json\n{{"finish": "{summary}"}}\n```'
 
 
@@ -698,13 +699,152 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("Formulating plan", think_events[0]["thought"])
 
 
+class RunTestsToolTests(unittest.TestCase):
+    """The run_tests tool and the evidence gate that depends on it.
+
+    EvidenceKind.TESTS_PASSED existed since the ledger was written, but no
+    tool could record it -- so a completion claim could never rest on an
+    actual test run. Measured against a real `requests` bug in pass 53: the
+    agent landed two patches, reported success, and took the repo from 4
+    failing tests to 7, because "did a write succeed?" was the only question
+    being asked.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _loop(self, **kw: Any) -> AgentLoop:
+        return AgentLoop(agent=ScriptedAgent([]), root_dir=self.root, **kw)
+
+    def _write(self, name: str, text: str) -> None:
+        path = os.path.join(self.root, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    # ---- discovery -------------------------------------------------
+    def test_discovery_reports_why_when_nothing_is_found(self) -> None:
+        """An empty directory must say so, not fall back to a command that
+        tests nothing and exits 0."""
+        argv, why = self._loop()._discover_test_command()
+        self.assertIsNone(argv)
+        self.assertIn("none found", why)
+
+    def test_discovery_finds_pytest_from_pyproject(self) -> None:
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\ntestpaths = ['t']\n")
+        argv, why = self._loop()._discover_test_command()
+        self.assertIsNotNone(argv)
+        assert argv is not None
+        self.assertIn("pytest", argv)
+        self.assertIn("pyproject.toml", why)
+
+    def test_discovery_finds_cargo_from_manifest(self) -> None:
+        self._write("Cargo.toml", "[package]\nname = 'x'\n")
+        argv, _ = self._loop()._discover_test_command()
+        self.assertEqual(argv, ["cargo", "test"])
+
+    def test_discovery_ignores_package_json_without_a_test_script(self) -> None:
+        """A marker's presence is not the same as it configuring tests."""
+        self._write("package.json", '{"name": "x", "scripts": {"build": "tsc"}}')
+        argv, why = self._loop()._discover_test_command()
+        self.assertIsNone(argv)
+        self.assertIn("none found", why)
+
+    def test_discovery_falls_back_to_a_tests_directory(self) -> None:
+        self._write("tests/test_x.py", "def test_ok():\n    assert True\n")
+        argv, why = self._loop()._discover_test_command()
+        self.assertIsNotNone(argv)
+        assert argv is not None
+        self.assertIn("pytest", argv)
+        self.assertIn("tests/", why)
+
+    # ---- running ---------------------------------------------------
+    def test_missing_test_command_is_reported_not_faked(self) -> None:
+        observation = self._loop()._tool_run_tests()
+        self.assertTrue(observation.startswith("no test command found:"))
+        self.assertFalse(observation.startswith("PASSED "))
+
+    def test_a_passing_suite_reports_passed(self) -> None:
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("test_ok.py", "def test_ok():\n    assert True\n")
+        observation = self._loop()._tool_run_tests(target="test_ok.py")
+        self.assertTrue(observation.startswith("PASSED "), msg=observation)
+        self.assertIn("exit 0", observation)
+
+    def test_a_failing_suite_reports_failed(self) -> None:
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("test_bad.py", "def test_bad():\n    assert False\n")
+        observation = self._loop()._tool_run_tests(target="test_bad.py")
+        self.assertTrue(observation.startswith("FAILED "), msg=observation)
+        self.assertFalse(observation.startswith("PASSED "))
+
+    def test_target_cannot_escape_the_repo_root(self) -> None:
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        observation = self._loop()._tool_run_tests(target="../../etc/passwd")
+        self.assertIn("path traversal blocked", observation)
+
+    # ---- the evidence gate -----------------------------------------
+    def _run_with_evidence(self, script: list) -> LoopResult:
+        from saleha.core.task_evidence import EvidenceKind
+
+        loop = AgentLoop(
+            agent=ScriptedAgent(script),
+            root_dir=self.root,
+            require_evidence=True,
+            required_evidence=[EvidenceKind.TESTS_PASSED],
+            min_actions_before_finish=0,
+            max_steps=4,
+        )
+        return loop.run("make the suite green")
+
+    def test_a_passing_run_records_tests_passed_and_admits_finish(self) -> None:
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("test_ok.py", "def test_ok():\n    assert True\n")
+        result = self._run_with_evidence([
+            _tool_call("run_tests", target="test_ok.py"),
+            _finish("suite is green"),
+        ])
+        self.assertTrue(result.success, msg=result.error)
+
+    def test_a_failing_run_records_nothing_so_finish_is_refused(self) -> None:
+        """The one tool whose call succeeding is NOT the fact being claimed:
+        run_tests runs fine and reports a red suite. Recording TESTS_PASSED
+        there would be exactly the fake green this tool exists to prevent."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("test_bad.py", "def test_bad():\n    assert False\n")
+        result = self._run_with_evidence([
+            _tool_call("run_tests", target="test_bad.py"),
+            _finish("all fixed"),
+            _finish("really, all fixed"),
+            _finish("please"),
+        ])
+        self.assertFalse(result.success)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertTrue(
+            rejected or "max_steps" in result.error,
+            msg=f"finish should never be admitted on a red suite: {result.error}",
+        )
+
+    def test_the_prompt_advertises_run_tests(self) -> None:
+        self.assertIn("run_tests", AgentLoop.TOOL_SIGNATURES)
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        loop = AgentLoop(agent=ScriptedAgent([_finish("x")]), root_dir=self.root,
+                         min_actions_before_finish=0, max_steps=1)
+        loop.run("anything")
+        self.assertIn("run_tests", loop.agent.prompts[0])
+
+
 class patch_gate:
     """approval_gate.approve ko force-approve karta hai (context manager)."""
-    def __init__(self, approve_result=True):
+    def __init__(self, approve_result: bool = True) -> None:
         self.result = approve_result
         self._cm = None
 
-    def __enter__(self):
+    def __enter__(self) -> "patch_gate":
         from unittest.mock import patch
         import saleha.core.approval_gate as gate
         self._cm = patch.object(gate, "approve",
@@ -715,7 +855,7 @@ class patch_gate:
         assert gate2.approve  # sanity
         return self
 
-    def __exit__(self, *a):
+    def __exit__(self, *a: Any) -> Optional[bool]:
         return self._cm.__exit__(*a)
 
 

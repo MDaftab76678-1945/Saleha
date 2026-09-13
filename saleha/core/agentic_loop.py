@@ -29,6 +29,8 @@ import os
 import re
 import hashlib
 import json
+import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -121,7 +123,8 @@ _NEXT_ACTION_HINT = {
     "file_modified": ('call patch_file with "path", "search" (text copied '
                       'byte-for-byte from the file) and "replace"'),
     "code_executed": 'call run_code with a "code" argument',
-    "tests_passed": "run the project's real test command and let it exit 0",
+    "tests_passed": ('call run_tests with no arguments (it finds the project\'s '
+                     'own test command) and let it exit 0'),
     "syntax_valid": "re-read the file you changed to confirm it still parses",
     "file_exists": "verify the expected output file is really on disk",
 }
@@ -195,6 +198,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
         "find_symbols": '{"symbol_name": "<function or class name>"}',
         "search_repo": '{"pattern": "<regex>"}',
         "run_code": '{"code": "<python source>"}',
+        "run_tests": ('{} (no arguments -- discovers the project\'s test command; '
+                      'optional "target": "<file or test id>" to narrow it)'),
         "patch_file": '{"path": "<file>", "search": "<exact existing text>", "replace": "<new text>"}',
         "write_file": '{"path": "<file>", "content": "<full new content>"}',
     }
@@ -204,6 +209,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  code_executor=None,
                  allowed_tools: Optional[List[str]] = None,
                  timeout_sec: float = 300.0,
+                 test_timeout_sec: float = 600.0,
                  min_actions_before_finish: int = 1,
                  max_parse_retries: int = 3,
                  require_evidence: bool = False,
@@ -214,6 +220,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
         self.max_steps = max_steps
         self.allow_write = allow_write
         self.timeout_sec = timeout_sec
+        # A real suite routinely outruns a single tool call's patience -- this
+        # repo's own takes ~2 minutes. Kept separate from timeout_sec so the
+        # whole-run budget and one test invocation can be tuned independently.
+        self.test_timeout_sec = test_timeout_sec
         # Evidence-based completion (Level-6 architecture target). When on,
         # finish() is admissible only if the tools actually observed the
         # required facts -- a summary alone can never end the task. Off by
@@ -427,6 +437,140 @@ Never invent tool outputs. One block per reply. Be efficient."""
             out += f"\nstderr: {_truncate(res.error, 800)}"
         return out
 
+    # Test-command discovery, most specific signal first. Each entry is
+    # (marker file, predicate on its text, command). The predicate exists
+    # because a marker's presence is not the same as it configuring tests:
+    # this repo's own package.json has a "test" script, but a Python repo
+    # with an unrelated package.json does not.
+    def _discover_test_command(self) -> Tuple[Optional[List[str]], str]:
+        """Find the project's own test command. Returns (argv, why).
+
+        argv is None when nothing could be discovered, and `why` always says
+        what was looked for -- an agent that cannot find a test command must
+        be told that plainly, not handed a default that silently tests
+        nothing.
+        """
+        root = self.root_dir
+
+        def read(name: str) -> Optional[str]:
+            p = os.path.join(root, name)
+            if not os.path.isfile(p):
+                return None
+            try:
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    return f.read()
+            except OSError:
+                return None
+
+        pyproject = read("pyproject.toml")
+        if pyproject and "[tool.pytest.ini_options]" in pyproject:
+            return ([sys.executable, "-m", "pytest", "-q"],
+                    "pyproject.toml declares [tool.pytest.ini_options]")
+        if read("pytest.ini") is not None:
+            return ([sys.executable, "-m", "pytest", "-q"], "pytest.ini present")
+        if read("tox.ini") is not None:
+            return ([sys.executable, "-m", "pytest", "-q"], "tox.ini present")
+
+        setup_cfg = read("setup.cfg")
+        if setup_cfg and "[tool:pytest]" in setup_cfg:
+            return ([sys.executable, "-m", "pytest", "-q"],
+                    "setup.cfg declares [tool:pytest]")
+
+        cargo = read("Cargo.toml")
+        if cargo:
+            return (["cargo", "test"], "Cargo.toml present")
+
+        pkg = read("package.json")
+        if pkg:
+            try:
+                scripts = json.loads(pkg).get("scripts", {})
+            except json.JSONDecodeError:
+                scripts = {}
+            if "test" in scripts:
+                return (["npm", "test", "--silent"],
+                        'package.json declares a "test" script')
+
+        # A tests/ directory with no config still usually means pytest.
+        for candidate in ("tests", "test"):
+            if os.path.isdir(os.path.join(root, candidate)):
+                return ([sys.executable, "-m", "pytest", candidate, "-q"],
+                        f"{candidate}/ directory present, no test config found")
+
+        return (None,
+                "looked for pyproject.toml [tool.pytest.ini_options], pytest.ini, "
+                "tox.ini, setup.cfg [tool:pytest], Cargo.toml, package.json "
+                '"test" script, and a tests/ directory -- none found')
+
+    def _tool_run_tests(self, target: str = "") -> str:
+        """Run the project's real test suite and report what actually happened.
+
+        This is the tool the evidence gate needs: `EvidenceKind.TESTS_PASSED`
+        has existed since the ledger was written, but nothing could ever
+        record it, so `saleha agent` could claim a repair was done having
+        never run a test. Measured against a real `requests` bug in pass 53:
+        the agent landed two patches, reported success, and took the repo
+        from 4 failing tests to 7 -- because "did a write succeed?" was the
+        only question being asked.
+        """
+        argv, why = self._discover_test_command()
+        if argv is None:
+            return f"no test command found: {why}"
+
+        if target:
+            safe = self._safe_path(target)
+            if safe is None:
+                return f"path traversal blocked: {target}"
+            argv = argv + [target]
+
+        try:
+            proc = subprocess.run(
+                argv,
+                cwd=self.root_dir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.test_timeout_sec,
+            )
+        except FileNotFoundError:
+            return (f"test command not runnable: {argv[0]!r} is not on PATH "
+                    f"(discovered because {why})")
+        except subprocess.TimeoutExpired:
+            return (f"test run timed out after {self.test_timeout_sec}s "
+                    f"(command: {' '.join(argv)}). Nothing is proven by a "
+                    f"timeout -- narrow the run with a \"target\".")
+
+        output = f"{proc.stdout}\n{proc.stderr}".strip()
+
+        # Reuse the existing parser rather than writing a second one. It is
+        # tested (test_2026_disciplines_suite.py) but was imported by nothing
+        # in production until now.
+        summary = ""
+        try:
+            from saleha.core.harness import PolyglotHarnessParser
+
+            if argv[0] == "cargo":
+                outcome = PolyglotHarnessParser.parse_cargo_test(output)
+            else:
+                outcome = PolyglotHarnessParser.parse_pytest(output)
+            if outcome.passed or outcome.failed or outcome.errors:
+                summary = (f"{outcome.framework}: {outcome.passed} passed, "
+                           f"{outcome.failed} failed, {outcome.skipped} skipped, "
+                           f"{outcome.errors} errors")
+                if outcome.failure_details:
+                    summary += "\n" + "\n".join(outcome.failure_details[:10])
+        except Exception:
+            summary = ""
+
+        # The exit code is the verdict. A parser that fails to find a summary
+        # line must not turn a red run green, so the two are reported
+        # separately and the exit code decides.
+        verdict = "PASSED" if proc.returncode == 0 else "FAILED"
+        head = (f"{verdict} (exit {proc.returncode}) -- ran `{' '.join(argv)}` "
+                f"in {self.root_dir} [{why}]")
+        body = summary or _truncate(output, 1500)
+        return f"{head}\n{body}"
+
     def _tool_write_file(self, path: str, content: str) -> str:
         if not self.allow_write:
             return "BLOCKED: write tool disabled (enable allow_write=True)"
@@ -590,6 +734,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             "find_symbols": self._tool_find_symbols,
             "search_repo": self._tool_search_repo,
             "run_code": self._tool_run_code,
+            "run_tests": self._tool_run_tests,
             "patch_file": self._tool_patch_file,
             "write_file": self._tool_write_file,
         }
@@ -633,6 +778,12 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 "write_file": EvidenceKind.FILE_MODIFIED,
                 "patch_file": EvidenceKind.FILE_MODIFIED,
                 "run_code": EvidenceKind.CODE_EXECUTED,
+                # TESTS_PASSED has existed in EvidenceKind since the ledger
+                # was written, but no tool could record it -- so a completion
+                # claim could never actually rest on a test run. run_tests is
+                # what closes that gap; note the recording below is further
+                # gated on the run having genuinely passed.
+                "run_tests": EvidenceKind.TESTS_PASSED,
             }
         else:
             evidence_for_tool = {}
@@ -992,6 +1143,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     or observation.startswith("unknown tool ")
                 )
                 kind = evidence_for_tool.get(tool_name)
+                # run_tests is the one tool whose call succeeding is NOT the
+                # fact being claimed: it runs fine and reports a red suite.
+                # Recording TESTS_PASSED for a failing run would be precisely
+                # the fake green this tool was added to prevent, so the
+                # observation's own verdict has to agree.
+                if (kind is not None and kind.value == "tests_passed"
+                        and not observation.startswith("PASSED ")):
+                    kind = None
                 if kind is not None and not tool_failed:
                     self.ledger.record(kind, f"{tool_name}({args_preview})",
                                        "agentic_loop.run")
