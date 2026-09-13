@@ -39,26 +39,41 @@ agent-inference-router/Cargo.toml and src/lib.rs):
    would never have produced anything Python could actually `import`. Added:
 
        #[pymodule]
-       fn inference_router(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+       fn inference_router(m: &Bound<'_, PyModule>) -> PyResult<()> {
            m.add_class::<InferenceRouter>()?;
            Ok(())
        }
 
-After those three fixes, `maturin develop` (run from
-rust/crates/agent-inference-router/) actually builds and installs the extension,
-and `import inference_router; inference_router.InferenceRouter()` genuinely
-works -- this was verified against an earlier Python/pyo3 combination, not assumed.
+Built and verified on this machine 2026-09-13: `maturin develop --release`
+from rust/crates/agent-inference-router/ produces a real CPython 3.14 wheel,
+and `is_available()` is True with `import_error()` None. The routing decision
+genuinely varies with input -- complexity 0.1 routes to Local-Llama-3 at
+$0.00, complexity 0.95 to GPT-4-Turbo at $0.05, and registering an
+FHE-capable node moves a privacy-required request from the premium fallback
+to Decentralized-FHE on that peer.
 
-Re-checked 2026-09-11 against this project's current `.venv` (Python 3.14.7):
-`cargo check --lib` in that crate directory now fails outright --
-`pyo3 0.20.3`'s build script rejects Python 3.14 as newer than its supported
-maximum (3.12). The crate itself did not regress; the interpreter it is
-checked against did. Either pin pyo3 to a release that supports 3.14+, or set
-`PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` and confirm the stable-ABI build
-actually produces a loadable extension, before trusting this module's
-"verified" claim again. Until then, treat is_available() == False on this
-machine as the honest, current state -- not evidence the bridge itself is
-broken.
+Getting there required bumping pyo3 0.20.3 -> 0.29 (0.20.3's build script
+rejects any interpreter newer than 3.12, so it could not build against this
+project's Python 3.14.7 at all) and migrating the three API breaks that came
+with it: `&PyDict` -> `&Bound<'_, PyDict>`, `&PyModule` -> `&Bound<'_,
+PyModule>`, and the `#[pymodule]` function losing its `Python<'_>` parameter.
+
+Two defects were found and fixed while the extension was finally runnable:
+
+* `route_request` called `.unwrap()` on every dict lookup, so a caller
+  omitting any field aborted the interpreter instead of raising. It now
+  raises KeyError naming the missing key.
+* Both node-selection paths quoted `cost_per_token * 100.0` -- a hardcoded
+  token count -- while the real prompt sat unused in a `_prompt` parameter,
+  so every request of every length was priced identically. Cost is now
+  estimated from the prompt (~4 chars per token). Still an estimate, not a
+  tokenizer, but it responds to its input.
+
+Also deleted in the same pass: `src/router.rs` and `src/grpc_server.rs`, both
+confirmed unreferenced (no `mod` declaration anywhere). `router.rs` was a
+second, parallel copy of this router's logic, and `grpc_server.rs` could not
+compile at all -- it uses tonic, which is not in Cargo.toml, against a .proto
+file that does not exist in the crate.
 
 Usage (once the extension is built -- see build_instructions() below):
 

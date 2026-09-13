@@ -1,5 +1,6 @@
+use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyAny, PyDict};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -72,15 +73,31 @@ impl InferenceRouter {
         );
     }
 
-    fn route_request(&self, request: &PyDict) -> PyResult<PyObject> {
-        // Extract from Python dict
-        let task_id: String = request.get_item("task_id")?.unwrap().extract()?;
-        let prompt: String = request.get_item("prompt")?.unwrap().extract()?;
-        let complexity_score: f32 = request.get_item("complexity_score")?.unwrap().extract()?;
-        let privacy_required: bool = request.get_item("privacy_required")?.unwrap().extract()?;
-        let max_budget_usd: f32 = request.get_item("max_budget_usd")?.unwrap().extract()?;
+    /// Route one request supplied as a Python dict.
+    ///
+    /// A missing key is reported by name rather than panicking: the previous
+    /// version called `.unwrap()` on every lookup, so a caller omitting any
+    /// field aborted the interpreter instead of raising KeyError.
+    fn route_request<'py>(
+        &self,
+        py: Python<'py>,
+        request: &Bound<'py, PyDict>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        // Look a key up, or raise KeyError naming it. The previous version
+        // called `.unwrap()` on every lookup, so a caller omitting any field
+        // aborted the interpreter instead of raising.
+        let need = |key: &str| -> PyResult<Bound<'py, PyAny>> {
+            request.get_item(key)?.ok_or_else(|| {
+                PyKeyError::new_err(format!("route_request: missing required key '{key}'"))
+            })
+        };
 
-        // Core routing logic
+        let task_id: String = need("task_id")?.extract()?;
+        let prompt: String = need("prompt")?.extract()?;
+        let complexity_score: f32 = need("complexity_score")?.extract()?;
+        let privacy_required: bool = need("privacy_required")?.extract()?;
+        let max_budget_usd: f32 = need("max_budget_usd")?.extract()?;
+
         let decision = self.route_internal(
             task_id,
             prompt,
@@ -89,15 +106,12 @@ impl InferenceRouter {
             max_budget_usd,
         );
 
-        // Convert back to Python dict
-        Python::with_gil(|py| {
-            let result = PyDict::new(py);
-            result.set_item("target", &decision.target)?;
-            result.set_item("node_id", decision.node_id)?;
-            result.set_item("estimated_latency_ms", decision.estimated_latency_ms)?;
-            result.set_item("estimated_cost_usd", decision.estimated_cost_usd)?;
-            Ok(result.into())
-        })
+        let result = PyDict::new(py);
+        result.set_item("target", decision.target)?;
+        result.set_item("node_id", decision.node_id)?;
+        result.set_item("estimated_latency_ms", decision.estimated_latency_ms)?;
+        result.set_item("estimated_cost_usd", decision.estimated_cost_usd)?;
+        Ok(result)
     }
 
     fn get_node_count(&self) -> usize {
@@ -137,7 +151,17 @@ impl InferenceRouter {
         }
     }
 
-    fn route_to_secure_node(&self, _prompt: &str) -> RouteDecision {
+    /// Rough token count for cost estimation: ~4 characters per token.
+    ///
+    /// The previous version multiplied `cost_per_token` by a hardcoded 100.0
+    /// while the real prompt sat unused in `_prompt`, so every request of
+    /// every length was quoted the same price. This is still an estimate, not
+    /// a tokenizer -- but it responds to the input it is given.
+    fn estimated_tokens(prompt: &str) -> f32 {
+        (prompt.len() as f32 / 4.0).max(1.0)
+    }
+
+    fn route_to_secure_node(&self, prompt: &str) -> RouteDecision {
         let best_node = self.node_registry
             .values()
             .filter(|n| n.supports_fhe && n.current_load < 0.8)
@@ -148,7 +172,7 @@ impl InferenceRouter {
                 target: "Decentralized-FHE".to_string(),
                 node_id: Some(node.peer_id.clone()),
                 estimated_latency_ms: node.avg_latency_ms,
-                estimated_cost_usd: node.cost_per_token * 100.0,
+                estimated_cost_usd: node.cost_per_token * Self::estimated_tokens(prompt),
             },
             None => RouteDecision {
                 target: "GPT-4-Turbo".to_string(),
@@ -159,7 +183,7 @@ impl InferenceRouter {
         }
     }
 
-    fn route_to_decentralized(&self, _prompt: &str) -> RouteDecision {
+    fn route_to_decentralized(&self, prompt: &str) -> RouteDecision {
         let best_node = self.node_registry
             .values()
             .filter(|n| n.current_load < 0.9)
@@ -170,7 +194,7 @@ impl InferenceRouter {
                 target: "Decentralized-GPU".to_string(),
                 node_id: Some(node.peer_id.clone()),
                 estimated_latency_ms: node.avg_latency_ms,
-                estimated_cost_usd: node.cost_per_token * 100.0,
+                estimated_cost_usd: node.cost_per_token * Self::estimated_tokens(prompt),
             },
             None => RouteDecision {
                 target: "Local-Llama-3".to_string(),
@@ -183,7 +207,7 @@ impl InferenceRouter {
 }
 
 #[pymodule]
-fn inference_router(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn inference_router(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<InferenceRouter>()?;
     Ok(())
 }
