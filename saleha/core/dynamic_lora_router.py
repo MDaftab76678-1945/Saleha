@@ -1,17 +1,30 @@
 """
-Saleha Core: Dynamic Hot-Swappable Micro-LoRA Router
+Saleha Core: keyword-based domain classifier for task prompts.
 
-Enables sub-5ms dynamic adapter switching and multi-adapter fusion based on task domain:
-1. Micro-Adapters: Backend (FastAPI), Frontend (React 19), Security (OWASP SAST), Algorithms (MCTS), Database (Postgres/Redis).
-2. Hot-Swapping without reloading base SLM weights.
-3. Multi-Adapter Dynamic Weight Fusion (alpha_1 * LoRA_A + alpha_2 * LoRA_B).
+HONEST SCOPE NOTE. This loads no LoRA adapter, swaps no weights, and fuses
+nothing. It is a keyword matcher over the prompt string, and the `rank_r` /
+`alpha` fields below are metadata describing adapters that would have to be
+trained first -- no file named by any `adapter_id` exists in this repository
+(checked).
+
+It previously called itself a "Dynamic Hot-Swappable Micro-LoRA Router"
+claiming "sub-5ms dynamic adapter switching" and "Multi-Adapter Dynamic
+Weight Fusion (alpha_1 * LoRA_A + alpha_2 * LoRA_B)". The "sub-5ms switch"
+was the cost of setting a boolean on six dicts, and `confidence` was the
+literal 0.96 on every call -- returned with equal confidence for a prompt it
+classified by a real keyword hit and for one it fell through to "general" on,
+which is precisely backwards.
+
+`confidence` is now the share of the prompt's matched keywords that belong to
+the winning domain, and a fall-through to "general" reports 0.0 -- an honest
+"no signal", not 0.96.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+from typing import Dict, List
 
 
 @dataclass
@@ -30,13 +43,30 @@ class LoRARoutingDecision:
     task_prompt: str
     detected_domain: str
     selected_adapter: str
-    switching_latency_ms: float
+    classification_ms: float
+    # Share of matched domain keywords belonging to the winning domain, in
+    # [0.0, 1.0]. 0.0 means no keyword matched and "general" was the
+    # fall-through, not a positive identification.
     confidence: float
-    fused_adapters: List[str]
+    matched_keywords: List[str]
+    # No adapter is loaded by this class. True would require a trained
+    # adapter file, and none exists in this repository.
+    adapter_loaded: bool = False
+
+
+# Domain keywords, checked in order. First domain with a match wins, matching
+# the original precedence.
+DOMAIN_KEYWORDS: Dict[str, List[str]] = {
+    "frontend": ["react", "frontend", "ui", "css", "component", "button", "html"],
+    "security": ["security", "cwe", "owasp", "jwt", "auth", "inject", "encrypt"],
+    "database": ["postgres", "sql", "db", "database", "redis", "schema", "table"],
+    "algorithms": ["algorithm", "mcts", "tree", "graph", "dp", "sort", "binary"],
+    "backend": ["fastapi", "api", "backend", "endpoint", "route", "async"],
+}
 
 
 class DynamicLoRARouter:
-    """Sub-5ms hot-swappable domain adapter router."""
+    """Classifies a prompt into a domain by keyword match. Loads nothing."""
 
     def __init__(self):
         self.adapters: Dict[str, MicroAdapterSpec] = {
@@ -51,25 +81,34 @@ class DynamicLoRARouter:
         self.adapters["general"].active = True
 
     def route_and_switch(self, task_prompt: str) -> LoRARoutingDecision:
-        """Analyzes prompt, selects best domain adapter, and executes sub-5ms switch."""
+        """Classifies `task_prompt` into a domain by keyword match.
+
+        `confidence` is the winning domain's share of all matched keywords, so
+        a prompt hitting only frontend terms scores 1.0 while one straddling
+        two domains scores proportionally lower. A prompt matching nothing
+        falls through to "general" with confidence 0.0 -- the old code
+        returned the literal 0.96 for that case too, reporting a fall-through
+        with the same confidence as a clean hit.
+        """
         start_t = time.perf_counter()
         prompt_lower = task_prompt.lower()
 
-        # Domain classification
-        if any(k in prompt_lower for k in ["react", "frontend", "ui", "css", "component", "button", "html"]):
-            target_domain = "frontend"
-        elif any(k in prompt_lower for k in ["security", "cwe", "owasp", "jwt", "auth", "inject", "encrypt"]):
-            target_domain = "security"
-        elif any(k in prompt_lower for k in ["postgres", "sql", "db", "database", "redis", "schema", "table"]):
-            target_domain = "database"
-        elif any(k in prompt_lower for k in ["algorithm", "mcts", "tree", "graph", "dp", "sort", "binary"]):
-            target_domain = "algorithms"
-        elif any(k in prompt_lower for k in ["fastapi", "api", "backend", "endpoint", "route", "async"]):
-            target_domain = "backend"
+        hits: Dict[str, List[str]] = {}
+        for domain, keywords in DOMAIN_KEYWORDS.items():
+            matched = [k for k in keywords if k in prompt_lower]
+            if matched:
+                hits[domain] = matched
+
+        if hits:
+            target_domain = next(d for d in DOMAIN_KEYWORDS if d in hits)
+            total_matches = sum(len(m) for m in hits.values())
+            confidence = round(len(hits[target_domain]) / total_matches, 2)
+            matched_keywords = hits[target_domain]
         else:
             target_domain = "general"
+            confidence = 0.0
+            matched_keywords = []
 
-        # Hot-switch adapter
         for name, spec in self.adapters.items():
             spec.active = (name == target_domain)
         self.active_adapter = target_domain
@@ -80,9 +119,10 @@ class DynamicLoRARouter:
             task_prompt=task_prompt,
             detected_domain=target_domain,
             selected_adapter=self.adapters[target_domain].adapter_id,
-            switching_latency_ms=duration_ms,
-            confidence=0.96,
-            fused_adapters=[self.adapters[target_domain].adapter_id],
+            classification_ms=duration_ms,
+            confidence=confidence,
+            matched_keywords=matched_keywords,
+            adapter_loaded=False,
         )
 
     def get_adapter_inventory(self) -> List[MicroAdapterSpec]:

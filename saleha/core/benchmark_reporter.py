@@ -1,8 +1,20 @@
 """
 Saleha Core: Benchmark Score Reporter
 
-Tracks, persists, and visualizes Saleha benchmark scores over time.
-Compares against public leaderboard scores for Devin, GPT-4o, SWE-agent.
+Tracks and persists Saleha's own benchmark runs over time.
+
+It used to render Saleha's score into a single ranked table beside published
+SWE-bench Verified figures for Devin, OpenHands and others, marking our row
+" <- YOU". That comparison was never valid: those figures are Pass@1 on
+SWE-bench Verified (real multi-file repository issues, scored by the official
+Docker harness), and this project has never run that benchmark -- its own
+numbers come from twelve small self-contained problems
+(`real_task_bench.py`). Putting the two in one sorted column implied a rank
+across a benchmark we have not run, which is how `swe-export` ended up
+publishing a fabricated 100.00% directly above Devin's real 13.86%.
+
+The published figures are kept as reference context, clearly labelled as a
+different benchmark, and are never sorted against our own score.
 """
 
 from __future__ import annotations
@@ -16,8 +28,11 @@ from typing import Dict, List, Optional, Any
 
 DEFAULT_SCORES_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "benchmark_scores.jsonl")
 
-# Public leaderboard scores (SWE-bench Verified, as of 2026)
-PUBLIC_LEADERBOARD: Dict[str, float] = {
+# Published Pass@1 figures for other tools on **SWE-bench Verified**, as
+# reported by their authors. Reference context only. Saleha has not run
+# SWE-bench Verified, so none of these is comparable to a Saleha score --
+# see `real_task_bench.scored_swebench_availability()` for what is missing.
+PUBLIC_SWEBENCH_VERIFIED_REFERENCE: Dict[str, float] = {
     "Devin (Cognition)": 13.86,
     "SWE-agent (GPT-4o)": 12.47,
     "AutoCodeRover": 19.00,
@@ -97,7 +112,7 @@ class BenchmarkReporter:
                     continue
         return runs
 
-    def best_score(self, suite: str = "swe_bench") -> Optional[float]:
+    def best_score(self, suite: str = "local_tasks") -> Optional[float]:
         """Return the best score ever achieved on a suite."""
         runs = self.load_runs(suite=suite)
         if not runs:
@@ -105,22 +120,38 @@ class BenchmarkReporter:
         return max(r.score_pct for r in runs)
 
     def generate_leaderboard_report(self, saleha_score: Optional[float] = None) -> str:
-        """Generate a text leaderboard comparison report."""
-        best = saleha_score or self.best_score() or 0.0
-        lines = [
-            "\n🏆 SWE-bench Verified Leaderboard\n" + "="*45,
-            f"  {'Tool':<30} {'Score':>8}",
-            "  " + "-"*40,
+        """Report Saleha's own best local score, then the published SWE-bench
+        figures as clearly separated reference context.
+
+        The two are never merged into one sorted ranking: they are different
+        benchmarks, and sorting them together asserts a comparison this
+        project has not earned.
+        """
+        best = saleha_score if saleha_score is not None else self.best_score()
+        lines = ["\nSaleha local task benchmark (real_task_bench.py)",
+                 "=" * 58]
+        if best is None:
+            lines.append("  No run recorded yet. Run `saleha benchmark-local` first.")
+        else:
+            lines.append(f"  Best recorded local pass rate: {best:.2f}%")
+        lines += [
+            "  Twelve small self-contained problems on one machine.",
+            "",
+            "For reference -- published Pass@1 on SWE-bench Verified,",
+            "a different and much harder benchmark Saleha has NOT run:",
+            "-" * 58,
         ]
-        all_entries = dict(PUBLIC_LEADERBOARD)
-        all_entries["🤖 Saleha AI (local, $0)"] = best
-        for name, score in sorted(all_entries.items(), key=lambda x: -x[1]):
-            marker = " ← YOU" if "Saleha" in name else ""
-            lines.append(f"  {name:<30} {score:>6.2f}%{marker}")
-        lines.append("="*45)
+        for name, score in sorted(PUBLIC_SWEBENCH_VERIFIED_REFERENCE.items(),
+                                  key=lambda x: -x[1]):
+            lines.append(f"  {name:<30} {score:>6.2f}%")
+        lines += [
+            "-" * 58,
+            "  These are not comparable to the number above.",
+            "=" * 58,
+        ]
         return "\n".join(lines)
 
-    def generate_badge_markdown(self, suite: str = "swe_bench") -> str:
+    def generate_badge_markdown(self, suite: str = "local_tasks") -> str:
         """Generate a README badge for best benchmark score."""
         best = self.best_score(suite=suite)
         if best is None:

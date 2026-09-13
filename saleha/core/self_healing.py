@@ -1,16 +1,27 @@
 """
 Saleha Core: Self-Healing & Error Reflexion Engine
-उद्देश्य: कोड एक्जीक्यूशन या कंपाइलेशन एरर को पढ़ना, उसकी जड़ (Root Cause) 
-पहचानना, और एजेंट के लिए एक सुधारा हुआ (Reflexion) निर्देश तैयार करना।
+
+Purpose: read a code execution or compilation error, identify its root cause,
+and build a corrected (reflexion) instruction for the agent to retry with.
+
+Note on language: this file's docstrings, comments and every string it
+produces used to be Devanagari Hindi -- the same violation CLAUDE.md records
+for `orchestrator.py` and `safety_guard.py`. That mattered here rather than
+being cosmetic: `DebuggerAgent` embeds `root_cause_hint` verbatim into the
+prompt it sends to the code model (`saleha/agents/debugger.py`), so a Hindi
+sentence was being handed to a code model as its diagnosis of a Python
+traceback, and `reflexion_prompt` was a fully Hindi instruction block.
 """
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional
 
 # ==============================================================================
-# 1. गणितीय कॉन्फ़िगरेशन (Error Pattern Matching)
-# ये पैटर्न एरर लॉग को स्कैन करते हैं और एरर के प्रकार (Type) को 100% सटीकता से पहचानते हैं।
+# 1. Error pattern matching
+# These patterns scan an error log and classify the error by type. A pattern
+# that matches nothing leaves the type as "UnknownError" -- see
+# `error_detected` below, which reports that honestly rather than claiming a
+# successful detection.
 # ==============================================================================
 
 ERROR_PATTERNS = {
@@ -29,7 +40,7 @@ ERROR_PATTERNS = {
 }
 
 # ==============================================================================
-# 2. डेटा स्ट्रक्चर्स
+# 2. Data structures
 # ==============================================================================
 
 @dataclass
@@ -37,66 +48,69 @@ class HealingResult:
     error_detected: bool
     error_type: str
     root_cause_hint: str
-    reflexion_prompt: str  # यह वह प्रॉम्प्ट है जो एजेंट को सुधार करने के लिए दिया जाएगा
+    # The prompt handed back to the agent so it can correct its own output.
+    reflexion_prompt: str
 
 # ==============================================================================
-# 3. कोर लॉजिक (Core Logic)
+# 3. Core logic
 # ==============================================================================
 
 class SelfHealingEngine:
     def __init__(self):
-        # परफॉर्मेंस के लिए Regex patterns को पहले से कंपाइल कर लें (O(1) lookup time)
+        # Pre-compile the regex patterns for performance.
         self.compiled_errors = {
             err_type: re.compile(pattern, re.IGNORECASE) 
             for err_type, pattern in ERROR_PATTERNS.items()
         }
 
     def analyze_and_heal(self, error_log: str, original_task: str) -> HealingResult:
-        """
-        एरर लॉग का विश्लेषण करता है और एजेंट के लिए एक सुधारा हुआ प्रॉम्प्ट बनाता है।
-        Time Complexity: O(N) जहाँ N एरर लॉग की लंबाई है।
-        """
+        """Analyzes an error log and builds a corrected prompt for the agent."""
         if not error_log or not error_log.strip():
             return HealingResult(
-                error_detected=False, error_type="None", 
-                root_cause_hint="कोई एरर नहीं मिला।", 
+                error_detected=False, error_type="None",
+                root_cause_hint="No error found.",
                 reflexion_prompt=""
             )
 
         detected_type = "UnknownError"
-        root_cause = "एरर का सटीक कारण अज्ञात है। कृपया लॉग की अंतिम पंक्तियों की जाँच करें।"
+        root_cause = ("The exact cause could not be classified. Check the "
+                      "final lines of the log.")
         pattern_matched = False
 
-        # 1. एरर का प्रकार पहचानें
+        # 1. Identify the error type.
         for err_type, pattern in self.compiled_errors.items():
             if pattern.search(error_log):
                 detected_type = err_type
                 pattern_matched = True
                 break
 
-        # 2. जड़ कारण (Root Cause) का अनुमान लगाएं
+        # 2. Infer the likely root cause.
         if detected_type == "SyntaxError":
-            root_cause = "कोड में व्याकरण (Syntax) की गलती है, जैसे बिना बंद हुआ ब्रैकेट, कोलन (:) की कमी, या स्ट्रिंग कोट्स।"
+            root_cause = ("A grammar mistake in the code, such as an unclosed "
+                          "bracket, a missing colon, or unbalanced quotes.")
         elif detected_type == "ImportError":
-            root_cause = "कोई आवश्यक लाइब्रेरी इंस्टॉल नहीं है या फाइल का नाम/रास्ता (path) गलत है।"
+            root_cause = ("A required library is not installed, or the module "
+                          "name/path is wrong.")
         elif detected_type == "IndentationError":
-            root_cause = "Python में इंडेंटेशन (Spaces/Tabs) सही नहीं है।"
+            root_cause = "The indentation (spaces/tabs) is inconsistent."
         elif detected_type == "TypeError":
-            root_cause = "डेटा प्रकार (Data Type) मेल नहीं खा रहे हैं (जैसे String को Integer से जोड़ना)।"
+            root_cause = ("Mismatched data types, such as adding a string to "
+                          "an integer.")
         elif detected_type == "NameError":
-            root_cause = "कोई वेरिएबल या फंक्शन उपयोग करने से पहले परिभाषित (Define) नहीं किया गया है।"
+            root_cause = ("A variable or function is used before it is "
+                          "defined.")
 
-        # 3. Reflexion Prompt तैयार करें (Self-Correction के लिए)
+        # 3. Build the reflexion prompt for self-correction.
         reflexion_prompt = f"""
         [SALEHA SELF-HEALING REFLEXION]
-        मूल कार्य (Original Task): {original_task}
-        पहचाना गया एरर (Detected Error): {detected_type}
-        संभावित जड़ कारण (Root Cause Hint): {root_cause}
-        
-        निर्देश: 
-        1. पिछले कोड में ऊपर बताए गए '{detected_type}' की जाँच करें।
-        2. उसी गलती को दोबारा न करें।
-        3. कोड को ठीक करें और केवल अंतिम, सही कोड ही लौटाएं।
+        Original Task: {original_task}
+        Detected Error: {detected_type}
+        Root Cause Hint: {root_cause}
+
+        Instructions:
+        1. Check the previous code for the '{detected_type}' described above.
+        2. Do not repeat the same mistake.
+        3. Fix the code and return only the final, corrected code.
         """
 
         return HealingResult(
@@ -153,7 +167,7 @@ class SelfHealingEngine:
         return patched
 
 # ==============================================================================
-# 4. टेस्टिंग (Testing)
+# 4. Testing
 # ==============================================================================
 
 if __name__ == "__main__":

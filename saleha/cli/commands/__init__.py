@@ -72,7 +72,7 @@ if TYPE_CHECKING:
     from saleha.cli.dashboard import run_live_dashboard
     from saleha.core.agentic_loop import AgentLoop
     from saleha.core.repo_watcher import repo_watcher
-    from saleha.core.swe_bench_harness import swe_bench
+    from saleha.core.swe_bench_harness import sandbox_self_check
     from saleha.core.lsp_engine import lsp_engine
     from saleha.core.cloud_deployer import cloud_deployer
     from saleha.core.db_optimizer import db_optimizer
@@ -123,7 +123,7 @@ _LAZY_IMPORT_MAP = {
     "run_live_dashboard": ("saleha.cli.dashboard", "run_live_dashboard"),
     "AgentLoop": ("saleha.core.agentic_loop", "AgentLoop"),
     "repo_watcher": ("saleha.core.repo_watcher", "repo_watcher"),
-    "swe_bench": ("saleha.core.swe_bench_harness", "swe_bench"),
+    "sandbox_self_check": ("saleha.core.swe_bench_harness", "sandbox_self_check"),
     "lsp_engine": ("saleha.core.lsp_engine", "lsp_engine"),
     "cloud_deployer": ("saleha.core.cloud_deployer", "cloud_deployer"),
     "db_optimizer": ("saleha.core.db_optimizer", "db_optimizer"),

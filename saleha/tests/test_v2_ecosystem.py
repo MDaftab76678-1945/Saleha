@@ -132,12 +132,37 @@ class EcosystemIntegrationTests(unittest.TestCase):
         self.assertIn("--- a/file.py", lines[0]["model_patch"])
         self.assertEqual(lines[0]["model_name_or_path"], "saleha-v2.0-test")
 
-        # Test Scorecard Generation
-        scorecard = exporter.generate_leaderboard_scorecard(run)
-        self.assertIn("# 🏆 SWE-bench Evaluation Scorecard", scorecard)
+        # Scorecard generation. This used to assert the heading
+        # "SWE-bench Evaluation Scorecard" above a table that ranked Saleha's
+        # score against Devin's and OpenHands' real published figures -- for
+        # a run that never touched SWE-bench.
+        scorecard = exporter.generate_scorecard(run)
+        self.assertIn("Benchmark scorecard", scorecard)
         self.assertIn("50.00%", scorecard)
         self.assertIn("django__django-11099", scorecard)
         self.assertIn("sympy__sympy-13480", scorecard)
+        # The result must not be presented as a SWE-bench score.
+        self.assertIn("not** SWE-bench", scorecard)
+        self.assertIn("not comparable", scorecard)
+
+    def test_scorecard_for_a_run_that_never_executed_reports_no_score(self):
+        exporter = SWEBenchExporter(model_name="saleha-v2.0-test")
+        refused = BenchmarkRun(
+            run_id="refused_01",
+            timestamp="2026-09-13 05:00:00",
+            model="saleha-v2.0-test",
+            suite="local_tasks",
+            total_tasks=0,
+            solved=0,
+            score_pct=0.0,
+            avg_time_sec=0.0,
+            notes="REFUSED: a test passes against deliberately wrong code",
+            metadata={"did_run": False, "results": []},
+        )
+        scorecard = exporter.generate_scorecard(refused)
+        self.assertIn("did not execute", scorecard)
+        self.assertIn("no pass rate", scorecard)
+        self.assertNotIn("Pass rate |", scorecard)
 
 
 if __name__ == "__main__":

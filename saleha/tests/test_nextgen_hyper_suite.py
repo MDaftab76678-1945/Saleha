@@ -29,12 +29,15 @@ class TestNextGenHyperSuite(unittest.TestCase):
 
     def test_dynamic_lora_router_domain_classification(self):
         router = DynamicLoRARouter()
-        
+
         # Test Frontend routing
         res_fe = router.route_and_switch("Build a responsive React 19 navbar with Tailwind CSS")
         self.assertEqual(res_fe.detected_domain, "frontend")
         self.assertEqual(res_fe.selected_adapter, "lora_frontend_v3")
-        self.assertLess(res_fe.switching_latency_ms, 50.0)
+        self.assertLess(res_fe.classification_ms, 50.0)
+        # No adapter file exists for any of these ids; the router classifies
+        # a string and loads nothing, and must not claim otherwise.
+        self.assertFalse(res_fe.adapter_loaded)
 
         # Test Security routing
         res_sec = router.route_and_switch("Check for SQL injection and CWE-89 vulnerabilities in JWT auth")
@@ -45,6 +48,15 @@ class TestNextGenHyperSuite(unittest.TestCase):
         res_algo = router.route_and_switch("Solve traveling salesperson problem with MCTS dynamic programming")
         self.assertEqual(res_algo.detected_domain, "algorithms")
         self.assertEqual(res_algo.selected_adapter, "lora_algorithms_v3")
+
+        # An unmatched prompt must report 0.0 confidence, not the 0.96 the
+        # old code returned for every input including this fall-through.
+        res_none = router.route_and_switch("xyzzy qwerty plugh")
+        self.assertEqual(res_none.detected_domain, "general")
+        self.assertEqual(res_none.confidence, 0.0)
+        self.assertEqual(res_none.matched_keywords, [])
+        # A clean single-domain hit must score higher than the fall-through.
+        self.assertGreater(res_fe.confidence, res_none.confidence)
 
     def test_spics_fuzz_engine_discovers_edge_cases_and_hardens(self):
         fuzzer = SPICSFuzzEngine(default_trials=25)

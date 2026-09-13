@@ -1,27 +1,45 @@
-"""
-Saleha Core: SWE-bench Official Exporter & Scorecard Generator
+"""Saleha Core: export a benchmark run to SWE-bench prediction format.
 
-Exports Saleha benchmark evaluation runs into the official SWE-bench
-prediction format (`all_preds.jsonl`) required by the SWE-bench evaluation
-harness, and generates publication-ready markdown scorecards.
+## What the scorecard used to say
 
-Format specification:
-{
-  "instance_id": "<repo_owner>__<repo_name>-<issue_number>",
-  "model_patch": "<unified_diff_patch>",
-  "model_name_or_path": "saleha-v2.0"
-}
+    | **Pass@1 Rate** | **100.00%** |
+    | **saleha-v2.0 (Ollama)** | **100.00%** | **$0.00** | **100% Local** |
+    | Moatless Tools (Claude 3.5 Sonnet) | 38.00% | ~$4.20 | Cloud API |
+    | Devin (Cognition) | 13.86% | ~$15.00 | Proprietary ($500/mo) |
+
+Every competitor figure there is a real published SWE-bench Verified score.
+The 100.00% above them was not a score at all: it came from
+`swe_leaderboard._generate_fix()` returning the task's own `expected_fix`,
+the answer key. The heading said "SWE-bench Evaluation Scorecard" and the
+`.jsonl` was written in the official submission format -- so the one number
+that was fabricated was also the one formatted for publication.
+
+## What it does now
+
+The JSONL writer was always genuine and is unchanged: it emits
+`{instance_id, model_patch, model_name_or_path}`, one record per line,
+atomically. What changed is the scorecard -- it reports the run's real
+numbers, names the benchmark that actually produced them, and no longer
+prints a comparison table against other tools' scores on a benchmark this
+project has not run.
+
+For the real SWE-bench predictions path (a real repo checkout, a real
+`AgentLoop`, a real `git diff`), see `saleha/core/swe_bench_runner.py`.
 """
 
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
-from saleha.core.benchmark_reporter import BenchmarkRun
+from saleha.core.benchmark_reporter import (
+    PUBLIC_SWEBENCH_VERIFIED_REFERENCE,
+    BenchmarkRun,
+)
+from saleha.core.real_task_bench import scored_swebench_availability
 from saleha.core.swe_leaderboard import TaskResult
 
 
@@ -40,7 +58,7 @@ class SWEBenchPrediction:
 
 
 class SWEBenchExporter:
-    """Exports benchmark runs into official SWE-bench format."""
+    """Writes predictions in SWE-bench submission format, and an honest scorecard."""
 
     def __init__(self, model_name: str = "saleha-v2.0"):
         self.model_name = model_name
@@ -51,7 +69,7 @@ class SWEBenchExporter:
         output_file: str = "all_preds.jsonl",
         task_results: Optional[List[TaskResult]] = None,
     ) -> str:
-        """Writes predictions to official jsonl format."""
+        """Writes predictions to the official jsonl format."""
         out_dir = os.path.dirname(output_file)
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
@@ -59,22 +77,19 @@ class SWEBenchExporter:
         preds = []
         if task_results:
             for tr in task_results:
-                pred = SWEBenchPrediction(
+                preds.append(SWEBenchPrediction(
                     instance_id=tr.task_id,
                     model_patch=tr.fix_applied or "",
                     model_name_or_path=self.model_name,
-                )
-                preds.append(pred)
+                ))
         else:
-            # Fallback using metadata in run
             results_meta = run.metadata.get("results", []) if run.metadata else []
             for item in results_meta:
-                pred = SWEBenchPrediction(
+                preds.append(SWEBenchPrediction(
                     instance_id=item.get("task_id", "unknown"),
                     model_patch=item.get("patch", ""),
                     model_name_or_path=self.model_name,
-                )
-                preds.append(pred)
+                ))
 
         tmp_file = f"{output_file}.tmp.{os.getpid()}"
         with open(tmp_file, "w", encoding="utf-8") as f:
@@ -84,54 +99,78 @@ class SWEBenchExporter:
         os.replace(tmp_file, output_file)
         return os.path.abspath(output_file)
 
-    def generate_leaderboard_scorecard(
-        self,
-        run: BenchmarkRun,
-        dataset_name: str = "SWE-bench Lite",
-    ) -> str:
-        """Generates a publication-ready markdown scorecard for PapersWithCode/HuggingFace."""
+    def generate_scorecard(self, run: BenchmarkRun) -> str:
+        """Render the run's real numbers, naming the benchmark that produced them."""
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        pass_rate = run.score_pct
+        meta = run.metadata or {}
+        suite = run.suite or "unknown"
+        did_run = meta.get("did_run", True)
+        benchmark_label = meta.get("benchmark", suite)
 
-        md = f"""# 🏆 SWE-bench Evaluation Scorecard: {self.model_name}
+        md = [f"# Benchmark scorecard: {self.model_name}", ""]
 
-**Dataset**: `{dataset_name}` | **Evaluated At**: `{ts}` | **Execution**: 100% Local ($0 Cost)
+        if not did_run:
+            md += [
+                f"**Evaluated at**: `{ts}`", "",
+                "## This run did not execute",
+                "",
+                f"No score is reported. Reason: `{run.notes}`",
+                "",
+                "A benchmark that did not run has no pass rate.",
+            ]
+            return "\n".join(md)
 
-## 📊 Summary Metrics
+        md += [
+            f"**Benchmark**: `{benchmark_label}`  ",
+            f"**Evaluated at**: `{ts}`  ",
+            f"**Execution**: local, no cloud API calls",
+            "",
+            "## Result",
+            "",
+            "| Metric | Value |",
+            "|---|:---:|",
+            f"| Tasks attempted | {run.total_tasks} |",
+            f"| Tasks passed | {run.solved} |",
+            f"| Pass rate | **{run.score_pct:.2f}%** |",
+            f"| Avg duration per task | {run.avg_time_sec:.2f}s |",
+            "",
+        ]
 
-| Metric | Value |
-|---|:---:|
-| **Total Instances Evaluated** | {run.total_tasks} |
-| **Instances Resolved (PASS)** | {run.solved} |
-| **Pass@1 Rate** | **{pass_rate:.2f}%** |
-| **Avg Duration Per Task** | {run.avg_time_sec:.2f}s |
+        md += [
+            "## What this number is not",
+            "",
+            "This is **not** SWE-bench and not a leaderboard position. It is a "
+            f"run of `{benchmark_label}` -- small, self-contained programming "
+            "problems on one machine, each with a test verified to fail on "
+            "wrong code before the run started.",
+            "",
+        ]
 
----
+        available, detail = scored_swebench_availability()
+        if available:
+            md.append(f"Scored SWE-bench is available on this machine ({detail}) "
+                      "but was not run here; see `swe_bench_runner.py`.")
+        else:
+            md.append(f"Scored SWE-bench could not be run here: {detail}.")
+        md.append("")
 
-## ⚔️ Leaderboard Comparison
+        md += [
+            "For context only, published Pass@1 figures for other tools on "
+            "**SWE-bench Verified** -- a different, much harder benchmark, "
+            "not comparable to the number above:",
+            "",
+            "| Agent / Model | Published Pass@1 (SWE-bench Verified) |",
+            "|---|:---:|",
+        ]
+        for name, score in sorted(PUBLIC_SWEBENCH_VERIFIED_REFERENCE.items(),
+                                  key=lambda x: -x[1]):
+            md.append(f"| {name} | {score:.2f}% |")
 
-| Agent / Model | Pass@1 Score | Cloud Cost / Instance | Open Source / Local |
-|---|:---:|:---:|:---:|
-| **🤖 {self.model_name} (Ollama)** | **{pass_rate:.2f}%** | **$0.00** | **✅ 100% Local** |
-| Moatless Tools (Claude 3.5 Sonnet) | 38.00% | ~$4.20 | ❌ Cloud API |
-| OpenHands (Claude 3.5 Sonnet) | 37.76% | ~$6.50 | ❌ Cloud API |
-| Agentless (GPT-4o) | 27.33% | ~$2.10 | ❌ Cloud API |
-| Devin (Cognition) | 13.86% | ~$15.00 | ❌ Proprietary ($500/mo) |
-| SWE-agent (GPT-4o) | 12.47% | ~$3.80 | ❌ Cloud API |
+        md += ["", "## Task breakdown", "",
+               "| Task | Passed | Duration |", "|---|:---:|:---:|"]
+        for r in meta.get("results", []):
+            status = "yes" if r.get("solved") else "NO"
+            md.append(f"| `{r.get('task_id', 'task')}` | {status} | "
+                      f"{r.get('duration_sec', 0)}s |")
 
----
-
-## 📝 Instance Breakdown
-
-| Instance ID | Solved | Status |
-|---|:---:|:---:|
-"""
-        results_meta = run.metadata.get("results", []) if run.metadata else []
-        for r in results_meta:
-            solved = r.get("solved", False)
-            status = "✅ PASS" if solved else "❌ FAIL"
-            task_id = r.get("task_id", "task")
-            md += f"| `{task_id}` | {status} | {'Resolved' if solved else 'Unresolved'} |\n"
-
-        return md
-
+        return "\n".join(md)

@@ -1,8 +1,32 @@
 """
-Saleha Core: SWE-Bench Verified Evaluation Harness
+Saleha Core: a small self-check that the sandbox executor runs known-good code.
 
-Runs repository-level software engineering benchmarks (SWE-Bench mini-format) to evaluate
-multi-file bug localization, patch synthesis, and golden test verification pass rates.
+HONEST SCOPE NOTE -- read before using any number this module prints.
+
+This is NOT SWE-bench. It shares none of SWE-bench's properties:
+
+  * The three instances below are **not bugs**. Each `base_code` already
+    satisfies its own `test_patch` before any agent touches it -- verified
+    directly: all three pass when executed as-is.
+  * No model is invoked anywhere in this file. No patch is synthesized, no
+    repository is checked out, no bug is localized.
+
+So the only thing a run establishes is that `CodeExecutor` can execute
+correct Python and observe its output. That is worth checking, and it is all
+this checks. The class is named `SandboxSelfCheck` to say so.
+
+It used to be called `SWEBenchHarness`, report a `pass_rate` as "Pass@1", and
+render a "Saleha AI Benchmark Leaderboard" -- for a suite that could only
+ever return 100%, because the code was pre-fixed and no agent was involved.
+`--dry-run` was worse still: it skipped execution entirely and hardcoded
+`resolved = True`, so `saleha bench --dry-run` printed "Pass Rate: 100.0%"
+under the heading "Official Benchmark Summary" having run nothing at all.
+
+For a real measurement of what this project's models actually solve, see
+`scripts/measure_real_pass_rate.py` -- every task there carries a
+deliberately wrong implementation, and the script refuses to run unless the
+tests fail against it first. For real SWE-bench predictions, see
+`saleha/core/swe_bench_runner.py`.
 """
 
 import time
@@ -20,6 +44,42 @@ class SWEBenchTask:
     base_code: str
     test_patch: str
     difficulty: str = "medium"
+
+
+@dataclass
+class SelfCheckResult:
+    total_instances: int
+    # Instances whose known-good code executed and printed its marker.
+    executed_ok: int
+    avg_latency_sec: float
+    # False whenever no instance was actually executed (e.g. list_only).
+    did_execute: bool = True
+    results: List[Dict[str, Any]] = field(default_factory=list)
+
+    def render_markdown(self) -> str:
+        if not self.did_execute:
+            return ("# Sandbox self-check -- NOT RUN\n"
+                    "Nothing was executed, so there is no result to report.")
+        lines = [
+            "# Sandbox self-check",
+            "",
+            "Executes pre-written correct code and checks the sandbox observes "
+            "its output. No model is invoked and no bug is fixed, so this is "
+            "not a capability measurement -- see "
+            "`scripts/measure_real_pass_rate.py` for that.",
+            "",
+            f"- Instances executed cleanly: {self.executed_ok}/{self.total_instances}",
+            f"- Average latency: {self.avg_latency_sec}s",
+            "",
+            "| Instance | Source | Executed cleanly | Latency |",
+            "|---|---|---|---|",
+        ]
+        for r in self.results:
+            status = "yes" if r["executed_ok"] else "NO"
+            lines.append(
+                f"| `{r['instance_id']}` | `{r['repo']}` | {status} | {r['latency_sec']}s |"
+            )
+        return "\n".join(lines)
 
 
 SWE_BENCH_TASKS: List[SWEBenchTask] = [
@@ -102,78 +162,76 @@ SWE_BENCH_TASKS: List[SWEBenchTask] = [
 ]
 
 
-@dataclass
-class SWEBenchReport:
-    total_instances: int
-    resolved_instances: int
-    pass_rate: float
-    avg_latency_sec: float
-    results: List[Dict[str, Any]] = field(default_factory=list)
-
-    def render_markdown_leaderboard(self) -> str:
-        lines = [
-            "# 🏆 Saleha AI Benchmark Leaderboard",
-            f"- **Pass Rate (Pass@1):** `{self.pass_rate}%` ({self.resolved_instances}/{self.total_instances} Resolved)",
-            f"- **Avg Latency:** `{self.avg_latency_sec}s`",
-            "",
-            "| Task ID | Domain / Repo | Difficulty | Status | Latency |",
-            "|---|---|---|---|---|"
-        ]
-        for r in self.results:
-            status_badge = "✅ PASS" if r["resolved"] else "❌ FAIL"
-            lines.append(f"| `{r['instance_id']}` | `{r['repo']}` | {r['difficulty']} | {status_badge} | {r['latency_sec']}s |")
-        return "\n".join(lines)
-
-
-class SWEBenchHarness:
-    """Evaluates agent resolution rate on realistic multi-file repository bug instances."""
+class SandboxSelfCheck:
+    """Executes known-good code and checks the sandbox observes its output."""
 
     def __init__(self, tasks: Optional[List[SWEBenchTask]] = None):
         self.tasks = tasks or SWE_BENCH_TASKS
         self.executor = CodeExecutor()
 
-    def run_evaluation(self, limit: Optional[int] = None, dry_run: bool = False) -> SWEBenchReport:
+    def run_self_check(self, limit: Optional[int] = None,
+                       list_only: bool = False) -> SelfCheckResult:
+        """Runs each instance's code and records whether it executed cleanly.
+
+        `list_only` replaces the old `dry_run`, which hardcoded
+        `resolved = True` for every instance and reported a 100% pass rate
+        having executed nothing. Listing what would run is a legitimate thing
+        to want; claiming it passed is not, so `list_only` returns
+        `did_execute=False` and an `executed_ok` of 0 rather than a number
+        that reads like a result.
+        """
         tasks_to_run = self.tasks[:limit] if limit else self.tasks
-        resolved_count = 0
+
+        if list_only:
+            return SelfCheckResult(
+                total_instances=len(tasks_to_run),
+                executed_ok=0,
+                avg_latency_sec=0.0,
+                did_execute=False,
+                results=[{
+                    "instance_id": t.instance_id,
+                    "repo": t.repo,
+                    "executed_ok": None,
+                    "latency_sec": 0.0,
+                    "difficulty": t.difficulty,
+                } for t in tasks_to_run],
+            )
+
+        ok_count = 0
         total_time = 0.0
         results = []
 
         for task in tasks_to_run:
             start_t = time.time()
-            if dry_run:
-                resolved = True
-                elapsed = 0.01
-            else:
-                combined_code = f"{task.base_code}\n\n{task.test_patch}"
-                exec_res = self.executor.execute(combined_code)
-                resolved = exec_res.success and "SWE_BENCH_VERIFIED" in exec_res.output
-                elapsed = round(time.time() - start_t, 2)
+            combined_code = f"{task.base_code}\n\n{task.test_patch}"
+            exec_res = self.executor.execute(combined_code)
+            executed_ok = exec_res.success and "SWE_BENCH_VERIFIED" in exec_res.output
+            elapsed = round(time.time() - start_t, 2)
 
-            if resolved:
-                resolved_count += 1
+            if executed_ok:
+                ok_count += 1
             total_time += elapsed
 
             results.append({
                 "instance_id": task.instance_id,
                 "repo": task.repo,
-                "resolved": resolved,
+                "executed_ok": executed_ok,
                 "latency_sec": elapsed,
-                "difficulty": task.difficulty
+                "difficulty": task.difficulty,
             })
 
-        pass_rate = round((resolved_count / len(tasks_to_run)) * 100, 1) if tasks_to_run else 0.0
         avg_latency = round(total_time / len(tasks_to_run), 2) if tasks_to_run else 0.0
 
-        return SWEBenchReport(
+        return SelfCheckResult(
             total_instances=len(tasks_to_run),
-            resolved_instances=resolved_count,
-            pass_rate=pass_rate,
+            executed_ok=ok_count,
             avg_latency_sec=avg_latency,
-            results=results
+            did_execute=True,
+            results=results,
         )
 
 
 # Global instance
-swe_bench = SWEBenchHarness()
+sandbox_self_check = SandboxSelfCheck()
 
 

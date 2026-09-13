@@ -84,9 +84,14 @@ class ModelBenchmarkEvaluator:
         for task in tasks_to_run:
             start_t = time.time()
             if dry_run:
-                passed = True
-                elapsed = 0.01
-                code = "def placeholder(): pass"
+                # `passed = True` used to be hardcoded here, so `saleha
+                # benchmark --dry-run` printed "Pass@1 Rate: 100.0%" without
+                # invoking a model or executing a line of code. A dry run
+                # lists what would be attempted; it cannot pass a task it
+                # never ran, so it now reports None -- neither pass nor fail.
+                passed = None
+                elapsed = 0.0
+                code = ""
             else:
                 orch_res = orchestrator.execute_task(task.prompt)
                 code = orch_res.final_code
