@@ -4,10 +4,10 @@ from saleha.core.self_healing import SelfHealingEngine
 
 
 class SelfHealingEngineTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = SelfHealingEngine()
 
-    def test_classifies_syntax_error(self):
+    def test_classifies_syntax_error(self) -> None:
         result = self.engine.analyze_and_heal(
             "SyntaxError: invalid syntax", "Create a function"
         )
@@ -17,15 +17,19 @@ class SelfHealingEngineTests(unittest.TestCase):
         self.assertIn("Root Cause Hint", result.reflexion_prompt)
         self.assertIn("Create a function", result.reflexion_prompt)
 
-    def test_classifies_import_error(self):
+    def test_classifies_import_error(self) -> None:
         result = self.engine.analyze_and_heal(
             "ModuleNotFoundError: No module named 'pandas'", "Read a CSV"
         )
 
         self.assertEqual(result.error_type, "ImportError")
-        self.assertIn("लाइब्रेरी", result.root_cause_hint)
+        # Was assertIn("लाइब्रेरी", ...) -- this engine's output is embedded
+        # verbatim into DebuggerAgent's prompt to a code model, so its strings
+        # are English now (CLAUDE.md's language rule).
+        self.assertIn("library", result.root_cause_hint)
+        self.assertTrue(result.root_cause_hint.isascii())
 
-    def test_known_error_type_is_reported_detected(self):
+    def test_known_error_type_is_reported_detected(self) -> None:
         # RuntimeError used to be absent from ERROR_PATTERNS -- this exact
         # input was the "unknown error" case. It is now a known pattern
         # (pass 30), so this asserts the classified-and-detected path
@@ -38,7 +42,7 @@ class SelfHealingEngineTests(unittest.TestCase):
         self.assertEqual(result.error_type, "RuntimeError")
         self.assertTrue(result.reflexion_prompt)
 
-    def test_truly_unknown_error_is_honestly_undetected(self):
+    def test_truly_unknown_error_is_honestly_undetected(self) -> None:
         # error_detected used to be hardcoded True unconditionally (except
         # for an empty log) -- so a log matching no known pattern still
         # reported error_detected=True, alongside error_type="UnknownError".
@@ -54,20 +58,20 @@ class SelfHealingEngineTests(unittest.TestCase):
         self.assertEqual(result.error_type, "UnknownError")
         self.assertTrue(result.reflexion_prompt)
 
-    def test_empty_error_log_is_a_noop(self):
+    def test_empty_error_log_is_a_noop(self) -> None:
         result = self.engine.analyze_and_heal("", "No error")
 
         self.assertFalse(result.error_detected)
         self.assertEqual(result.error_type, "None")
         self.assertEqual(result.reflexion_prompt, "")
 
-    def test_auto_patch_missing_imports(self):
+    def test_auto_patch_missing_imports(self) -> None:
         code = "def delay():\n    time.sleep(1)\n    return json.dumps({'ok': True})"
         patched = self.engine.auto_patch_code(code)
         self.assertIn("import time", patched)
         self.assertIn("import json", patched)
 
-    def test_auto_patch_java_hallucinations(self):
+    def test_auto_patch_java_hallucinations(self) -> None:
         code = "class Counter:\n    def __init__(self):\n        self.val = AtomicInteger(10)\n        System.out.println('init')"
         patched = self.engine.auto_patch_code(code)
         self.assertNotIn("AtomicInteger", patched)
