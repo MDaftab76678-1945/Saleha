@@ -288,9 +288,21 @@ programming tasks (each with a test suite verified to fail on wrong code first):
 | `qwen2.5-coder:3b` | 10 / 12 | 115s |
 
 This is **not SWE-bench and not a leaderboard** — it is a local measurement on one
-machine (`scripts/measure_real_pass_rate.py`). An earlier version of it was itself
-wrong (the harness was executing the model's own test code); the number above is
-post-fix.
+machine. An earlier version of it was itself wrong (the harness was executing the
+model's own test code); the number above is post-fix.
+
+You can reproduce it yourself — the benchmark ships with the package:
+
+```bash
+saleha benchmark-local --preflight        # every test must fail on wrong code
+saleha benchmark-local -m qwen2.5-coder:3b
+```
+
+`--preflight` runs each task's deliberately-wrong implementation first and
+refuses to report a score if any test passes against it. A test that cannot
+fail cannot measure anything — which is exactly how an earlier version of
+this project's leaderboard reported 100% (it graded the answer key against
+its own test).
 
 ---
 

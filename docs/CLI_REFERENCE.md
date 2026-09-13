@@ -9,7 +9,7 @@
 
 | Command | Description | Options |
 |---|---|---|
-| `saleha agent` | Autonomous agent that thinks, uses tools, and investigates a repo. | `<GOAL>` `--dir `ROOT_DIR`` `--model/-m `MODEL`` `--max-steps `MAX_STEPS`` `--write` `--json` |
+| `saleha agent` | Autonomous agent that thinks, uses tools, and investigates a repo. Tools: `list_dir`, `read_file` (line ranges), `get_file_outline`, `find_symbols`, `search_repo`, `run_code`, plus `patch_file`/`write_file` with `--write`. | `<GOAL>` `--dir `ROOT_DIR`` `--model/-m `MODEL`` `--max-steps `MAX_STEPS`` `--write` `--timeout `SECONDS`` `--json` |
 | `saleha agents` | Show dynamic agent profiles loaded from saleha/skills/. | `--json` |
 | `saleha ask` | Ask Saleha a normal question without starting the interactive shell. | `<QUESTION>` `--model/-m `MODEL`` `--json` |
 | `saleha audit` | Show recent code-execution audit records. | `--limit/-n `LIMIT`` `--blocked-only` `--json` |
@@ -54,7 +54,10 @@
 | `saleha stats` | Show persistent model performance stats (saved in ~/.saleha/stats.json) | `--task-type/-t `TASK_TYPE`` `--json` |
 | `saleha status` | Show Saleha system status | - |
 | `saleha stream` | Stream generated tokens in real-time with typewriter syntax highlighting. | `<PROMPT>` `--model/-m `MODEL`` |
-| `saleha swe-bench` | Run SWE-Bench verified evaluation harness on repository-level bug fixing instances. | `--limit/-l `LIMIT`` `--dry-run` `--json` |
+| `saleha sandbox-selfcheck` | Check the sandbox executes known-good code and observes its output. Not a benchmark: no model is invoked and no bug is fixed. | `--limit/-l `LIMIT`` `--list-only` `--json` |
+| `saleha benchmark-local` | Run the real local task benchmark against a model. Twelve self-contained problems, each with a test verified to fail on wrong code before the run starts. Not SWE-bench. | `--model/-m `MODEL`` `--limit/-l `LIMIT`` `--preflight` |
+| `saleha benchmark-public` | Show the best recorded local score, plus published SWE-bench Verified figures for other tools as clearly separated reference context. | - |
+| `saleha swe-export` | Run the local benchmark and export predictions (SWE-bench submission JSONL) plus a scorecard reporting the run's real numbers. | `--output/-o `PATH`` `--scorecard/-s `PATH`` `--model/-m `MODEL`` |
 | `saleha team` | Run multi-agent collaborative swarm pipeline: | `<GOAL>` `--model/-m `MODEL`` `--output-dir/-o `OUTPUT_DIR`` `--debate` `--max-attempts `MAX_ATTEMPTS`` `--json` |
 | `saleha test` | Test code for syntax and security | `<CODE_FILE>` `--json` |
 | `saleha tools` | List all available dynamic tools and their JSON schemas. | `--json` |
