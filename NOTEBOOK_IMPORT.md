@@ -5310,3 +5310,137 @@ of the suite's load can erase. Raised to a named `REQUEST_TIMEOUT = 30`
 
 `QualityGuard.check_file` on `web_server.py`: `passed=True`,
 `quality_score=100.0`, 0 issues, type coverage 100%.
+
+## Fifty-fourth pass — the Rust bridge, and a completion gate that needs a real test run (2026-09-13)
+
+Two things pass 53 left open, plus a correction to something I had asserted
+without measuring.
+
+### First, a claim of mine that was wrong
+
+Asked what was weak in the architecture, I answered that `rust/` was "807MB
+of dead weight" that CI never touches. That was a judgement from `du -sh`,
+not from running anything — the exact "read, don't run" failure this file
+exists to stop. Measured properly:
+
+| Claimed | Measured |
+| --- | --- |
+| 807MB sitting in the repo | 520MB is `rust/target/`, **gitignored**; 0 build artifacts tracked |
+| Unknown whether it compiles | `cargo check --workspace` clean in **2.08s** |
+| Dead weight | 149 `.rs` files, **16,099 lines** of committed source across 13 crates |
+
+### `agent-inference-router` — dead since pass 38, now live
+
+`cargo check` failed outright: pyo3 0.20.3's build script rejects any
+interpreter newer than 3.12, and this project runs Python 3.14.7. The crate
+had not regressed — the interpreter had moved past it. So 16,099 lines of
+Rust had no live path into Python, and the bridge module reported
+`is_available() == False` forever.
+
+Bumped pyo3 0.20.3 → 0.29.2 and migrated three API breaks: `&PyDict` →
+`&Bound<'_, PyDict>`, `&PyModule` → `&Bound<'_, PyModule>`, and `#[pymodule]`
+losing its `Python<'_>` parameter. `maturin develop --release` now produces a
+real CPython 3.14 wheel.
+
+Two defects were only findable once the code could actually run:
+
+- **`.unwrap()` on every dict lookup** — a caller omitting any field aborted
+  the interpreter instead of raising. Probed after the fix:
+  `route_request({"task_id": "x"})` → `KeyError: missing required key 'prompt'`.
+- **Every request priced identically** — both node-selection paths quoted
+  `cost_per_token * 100.0`, a hardcoded token count, while the real prompt sat
+  unused in a `_prompt` parameter. Now estimated from prompt length. Still an
+  estimate, not a tokenizer, but it responds to its input.
+
+Deleted `src/router.rs` (a second parallel copy of the same router, never
+`mod`-declared) and `src/grpc_server.rs` (cannot compile at all — uses tonic,
+absent from Cargo.toml, against a `.proto` file that does not exist).
+
+**The test file was testing nothing.** All five of its real tests were guarded
+on `is_available() == False`, so every one skipped while the extension was
+unbuildable — tests that cannot fail, the defect this repo keeps finding.
+Added an available-path class: 1 passed/5 skipped → **9 passed/5 skipped**.
+
+### `run_tests` — a completion claim can finally rest on a test run
+
+`EvidenceKind.TESTS_PASSED` has existed since the evidence ledger was written,
+but **no tool could ever record it**. Pass 53 measured what that costs: against
+a real psf/requests bug the agent landed two patches, reported success under a
+green tick, and took the repo from 4 failing tests to **7** — because "did a
+write succeed?" was the only question the gate asked.
+
+Discovery is real, not a hardcoded command: `pyproject.toml`
+`[tool.pytest.ini_options]`, `pytest.ini`, `tox.ini`, `setup.cfg`
+`[tool:pytest]`, `Cargo.toml`, a `package.json` with an actual `test` script,
+then a `tests/` directory. When none match it says so and names everything it
+looked for — it never falls back to a command that tests nothing and exits 0.
+
+**The gate that matters:** `run_tests` is the one tool whose call succeeding is
+*not* the fact being claimed — it runs perfectly well and reports a red suite.
+So `TESTS_PASSED` is recorded only when the observation starts with `PASSED `.
+A failing run records nothing and `finish()` stays inadmissible.
+
+Probed: discovery found `python -m pytest -q` from pyproject and said why; a
+passing target gave `PASSED (exit 0) -- pytest: 6 passed`; a missing file gave
+`FAILED (exit 4)` and does not start with `PASSED`.
+
+Reuses `PolyglotHarnessParser` (`saleha/core/harness`), which was tested but
+imported by nothing in production until now.
+
+### `classify_tier_via_rust` — the bridge's first production caller
+
+The two routers decide different things and neither replaces the other: the
+Rust crate takes a 0.0–1.0 score plus a privacy flag and picks an execution
+tier; `SmartRouter` scores 0–10 and picks a concrete installed Ollama model.
+Rust picks the tier, Python picks the model inside it.
+
+The scale conversion is the whole reason the wrapper exists — handing 8.5
+straight to a router treating >0.8 as premium would send every standard task
+to a paid API. Measured:
+
+| Task | Python tier | → Rust |
+| --- | --- | --- |
+| typo in a docstring | fast (2.0) | `Local-Llama-3` (0.2) |
+| distributed architecture | reasoning (8.5) | `GPT-4-Turbo` (0.85) |
+| refactor a function | standard (5.0) | `Local-Llama-3` (0.5) |
+| patient records, privacy=True | standard (5.0) | `GPT-4-Turbo` |
+
+`rust_tier_is_servable_locally` states plainly that no decentralized node is
+registered here, so a caller cannot mistake `Decentralized-GPU` for something
+that will actually happen.
+
+### An unexplained red, left open rather than explained away
+
+After committing, a full suite returned **1 failed, 1908 passed**:
+`test_code_executor.py::test_safe_code_executes`, on `assertTrue(result.success)`.
+
+Worth noting: that run **exited 0**. Reading only the exit code would have
+hidden it.
+
+Mechanism is certain (`code_executor.py:178-184` returns `success=False,
+exit_code=-1` on `TimeoutExpired`, and the test uses `timeout=5`). **Cause is
+not.** Everything measured since:
+
+| Measurement | Result |
+| --- | --- |
+| `main`, full suite ×3 | 1909 / 1909 green, **1 red** |
+| The red run's wall time | **284s** vs 111s and 119s for green runs |
+| Pre-`run_tests` control (`220d591`, separate worktree) | 1891 green |
+| Test alone, ×5 | 5/5 pass, 0.21s each |
+| Under 12 competing subprocesses, ×8 | 0/8 failures, slowest 0.75s |
+| While a real full suite competed, ×10 | 0/10 failures, max 0.25s |
+
+My leading hypothesis was that `run_tests` spawning real pytest subprocesses
+added contention that pushed a 5s ceiling over. **Two deliberate reproductions
+failed to reproduce it**, so that hypothesis is not supported. The control run
+does not settle it either — it ran on an idle machine (119s), and the failure
+only ever appeared at 284s while another full suite competed.
+
+So: cause unattributed. Not written up as fixed, not blamed on `run_tests`, and
+not dismissed as pre-existing. If it recurs, the first thing to check is
+whether `timeout=5` in that file wants the same treatment `/api/scan`'s
+`timeout=5` got in pass 50 — a hang guard, not a slowness guard.
+
+**Measured:** suite 1891 → **1909 passed**, 13 skipped. Bridge tests 1 → 9
+passed. 13 new tests. Quality gate on `test_agentic_loop.py`: 72.0 → 64.0 →
+**100.0**. Commits `220d591`, `682fdb8`.
