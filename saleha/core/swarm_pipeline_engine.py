@@ -281,11 +281,24 @@ class SwarmPipelineEngine:
                     original_tokens=res.original_tokens_est,
                     optimized_tokens=res.optimized_tokens_est,
                     token_savings_pct=savings_pct,
-                    annual_cost_savings_usd=res.annual_cost_savings_usd
+                    annual_cost_savings_usd=res.projected_annual_usd
                 )
                 contract.validate()
-                stage.output_summary = f"Context compressed by {savings_pct}% (Saved ~${res.annual_cost_savings_usd}/yr)"
-                stage.payload = {"savings_pct": savings_pct, "dollar_savings": res.annual_cost_savings_usd}
+                # Report the measured quantity (tokens saved on this call),
+                # not a yearly dollar figure. The old summary read "Saved
+                # ~$10.00/yr" off a hardcoded 1M-calls/yr assumption and shipped
+                # it into GitHub PR bodies as if it were an observed saving.
+                stage.output_summary = (
+                    f"Context compressed by {savings_pct}% "
+                    f"({res.saved_tokens_est} est. tokens saved this call)"
+                )
+                stage.payload = {
+                    "savings_pct": savings_pct,
+                    "saved_tokens_est": res.saved_tokens_est,
+                    "savings_per_call_usd": res.savings_per_call_usd,
+                    "projected_annual_usd": res.projected_annual_usd,
+                    "projection_call_volume": res.projection_call_volume,
+                }
                 message_bus.publish(TokenCompressedEvent(
                     sender_agent="FinOpsOptimizerAgent",
                     original_tokens=res.original_tokens_est,

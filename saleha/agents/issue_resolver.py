@@ -142,7 +142,30 @@ class AutonomousIssueResolver:
         security_box = "[x]" if swarm_result.security_clean else "[ ]"
         security_status = "Passed (0 CWEs Detected)" if swarm_result.security_clean else "Hardened (vulnerabilities found and patched)"
         tests_box = "[x]" if swarm_result.tests_passed else "[ ]"
-        tests_status = "Generated tests executed and passed" if swarm_result.tests_passed else "Generated tests did not pass -- see QALead stage trace above"
+        # "Generated tests" is load-bearing and must stay: what ran is the
+        # suite this pipeline wrote for its own patch, executed in a sandbox.
+        # The repository's existing tests were never run -- nothing here
+        # checks out the repo or invokes its test command -- so this line must
+        # not be read as a regression check. See the heading below.
+        tests_status = ("Generated tests executed and passed"
+                        if swarm_result.tests_passed
+                        else "Generated tests did not pass -- see QALead stage trace above")
+
+        # The only box in this gate that used to be an unconditional "[x]".
+        # token_savings_pct is genuinely measured (finops_optimizer counts
+        # chars/4 before and after stripping blank lines and TODO comments),
+        # but it is legitimately 0.00% on code that was already clean --
+        # measured: "def f(x):\n    return x + 1\n" compresses by exactly
+        # nothing. A ticked box under a heading reading "Quality &
+        # Verification Gate" asserts a check passed; 0% compression is not a
+        # check passing, it is a no-op.
+        compression_ran = swarm_result.token_savings_pct > 0.0
+        compression_box = "[x]" if compression_ran else "[ ]"
+        compression_status = (
+            f"`{swarm_result.token_savings_pct}%` token reduction"
+            if compression_ran
+            else "no reduction -- input had no removable whitespace or TODO comments"
+        )
 
         return f"""## 🚀 {pr_title}
 
@@ -166,15 +189,19 @@ class AutonomousIssueResolver:
 ### 🛡️ Quality & Verification Gate
 - {ast_box} **AST Syntax Verification**: {ast_status}
 - {security_box} **OWASP & SAST Security Audit**: {security_status}
-- {tests_box} **Unit & Regression Testing**: {tests_status}
-- [x] **Context Optimization**: `{swarm_result.token_savings_pct}%` Token Reduction
+- {tests_box} **Generated-Test Execution (sandbox)**: {tests_status}
+- {compression_box} **Context Optimization**: {compression_status}
+
+> **Not checked:** this repository's own test suite was not run against this
+> patch. The box above reports only that the tests this pipeline generated
+> passed in a sandbox alongside the generated code.
 
 ```python
 # Synthesized Hardened Code Patch:
 {swarm_result.final_code[:400]}...
 ```
 
-*Generated Autonomously by **Saleha AI v2.6.0 Swarm Engine** in `{swarm_result.total_duration_ms}ms` ($0 Token Waste).*
+*Generated Autonomously by **Saleha AI v2.6.0 Swarm Engine** in `{swarm_result.total_duration_ms}ms`.*
 """
 
 

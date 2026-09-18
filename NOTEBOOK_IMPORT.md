@@ -5444,3 +5444,86 @@ whether `timeout=5` in that file wants the same treatment `/api/scan`'s
 **Measured:** suite 1891 → **1909 passed**, 13 skipped. Bridge tests 1 → 9
 passed. 13 new tests. Quality gate on `test_agentic_loop.py`: 72.0 → 64.0 →
 **100.0**. Commits `220d591`, `682fdb8`.
+
+## Fifty-fifth pass — the last unconditional tick in a real PR body (2026-09-18)
+
+Started by proposing to wire `run_tests` into `swarm_pipeline_engine` and
+`orchestrator`. Reading both in full killed that plan before any code was
+written, which is the point of reading them in full.
+
+**Neither pipeline writes to disk.** Zero file-write calls in either. They
+generate code as *strings* and return them. So there is no modified repository
+for a project test suite to validate — `_discover_test_command` needs a
+`root_dir` holding a real project, and these stages hold a string. Wiring
+`run_tests` in would have run *this* repo's suite against code that never
+touched it: a green light proving nothing, which is the exact defect shape 54
+passes were spent removing. The proposed work would have added the disease
+while claiming to cure it.
+
+Both stages were also already honest: `swarm_pipeline_engine.py:231` genuinely
+executes source+test through `CodeExecutor` (pass 30), and
+`_handle_verified_success` separates `verified_execution` from
+`ran_without_error` and sets `test_passed=bool(current_test_code)` (pass 13/15).
+
+### Where the real gap was: `issue_resolver.py`
+
+This is the one path that renders markdown into an actual GitHub PR. Pass 30
+fixed two fabrications here. Four things survived.
+
+**1. The only box in the gate that was always ticked.**
+`- [x] **Context Optimization**: {token_savings_pct}% Token Reduction` — the
+`[x]` was a literal while the other three boxes read real values. The
+percentage itself is genuinely computed, and measured, it is legitimately zero:
+
+| Input | savings |
+| --- | --- |
+| `def f(x):\n    return x + 1\n` | **0.00%** |
+| blank-line heavy | 28.57% |
+| with TODO comments | 50.00% |
+
+So a tick appeared under a heading reading "Quality & Verification Gate" for a
+compression step that had done nothing. Now conditional on `> 0.0`, with
+"no reduction -- input had no removable whitespace or TODO comments" on the
+unticked branch.
+
+**2. A dollar figure in a PR body with an invented denominator.**
+`finops_optimizer.py` multiplied tokens saved by a hardcoded
+`1_000_000` calls/year and returned the product as `annual_cost_savings_usd`,
+which reached the PR trace as "Saved ~$10.00/yr". Measured: stripping five
+tokens of whitespace produced "$10.00/yr" on the strength of a call volume
+nobody had ever counted. Replaced with `saved_tokens_est` and
+`savings_per_call_usd` (both measured); the projection survives only as a
+`projected_annual_usd` **property** — not a stored field, so it cannot be
+mistaken for an observation — alongside `projection_call_volume`, which forces
+any renderer to name the assumption. The stage summary now reports
+"1 est. tokens saved this call" instead of a yearly dollar figure.
+
+**3. A heading claiming a check that never ran.**
+"Unit & Regression Testing" sat over `tests_passed`, which means "the generated
+snippet passed its own generated assertions in a sandbox". "Regression" implies
+the existing suite still passes; nothing here checks out a repo or invokes a
+test command. Renamed to "Generated-Test Execution (sandbox)", with an explicit
+block quote in the body: *this repository's own test suite was not run against
+this patch*. Also removed "($0 Token Waste)" — printed unconditionally, with no
+computation behind it in any of the three files that emit it.
+
+**4. A test pinning the happy path as invariant.**
+`test_issue_resolver_and_live_wiring.py` ran the real swarm unmocked and
+asserted `assertTrue(plan.security_clean)` and `assertTrue(plan.tests_passed)`
+— so a genuinely failing security audit or a genuinely failing generated suite
+would have turned the test red and read as a regression in the resolver. The
+recurring trap, found again. Replaced with contract assertions (both are real
+booleans; the PR body renders whichever outcome occurred, ticked or unticked
+with a reason), plus three new tests pinning each fix above.
+
+One of those new tests failed on first run. The cause was my assertion, not the
+code: it searched for `"% token reduction"` while the body renders
+`` `4.17%` token reduction `` — a backtick between the `%` and the space. Fixed
+the assertion, not the output.
+
+Two diagnostics checked against HEAD and confirmed pre-existing, not introduced
+here: `SwarmPipelineEngine`'s unused import in that test file, and
+`execute_swarm`'s nesting-depth MAJOR (HEAD scored the same 90.0).
+
+**Measured:** suite 1909 → **1912 passed**, 13 skipped. Quality gate 96.0 /
+96.0 / 90.0 / 84.0, all passing.
