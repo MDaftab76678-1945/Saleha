@@ -27,11 +27,9 @@ def test_approval_gate() -> None:
     # establish its own precondition. conftest.py now restores that variable
     # around every test, which removed the leak and exposed the dependency.
     #
-    # Note `check()` reads the environment, NOT the constructor mode: it
-    # delegates to the module-level approve(), so ApprovalGate(mode=...) does
-    # not influence it. (requires_approval() *does* honour the constructor
-    # mode -- the two disagree, which is worth fixing separately; changing the
-    # behaviour of a security gate is not a test-cleanup task.)
+    # `check()` honours the constructor mode as of pass 60; with no mode set
+    # it resolves through the environment exactly as before, which is the
+    # production path (the module singleton is built with no mode).
     prev = os.environ.get('SALEHA_APPROVAL')
     os.environ['SALEHA_APPROVAL'] = 'dangerous'
     try:
@@ -57,3 +55,64 @@ def test_requires_approval_with_env_var() -> None:
 def test_approve_with_env_var() -> None:
     os.environ['SALEHA_APPROVAL'] = 'dangerous'
     assert approve('shell_exec', 'Run dangerous command') is False
+
+
+def test_constructor_mode_is_honoured_by_check() -> None:
+    """check() used to delegate to the module-level approve(), which reads
+    SALEHA_APPROVAL -- so `mode=` was ignored and an instance built as the
+    strictest setting auto-approved everything when the env was unset.
+
+    That failure was fail-OPEN: requires_approval() said the action was gated
+    while check() waved it through. The two halves of one object disagreed."""
+    prev = os.environ.get('SALEHA_APPROVAL')
+    os.environ.pop('SALEHA_APPROVAL', None)
+    try:
+        strict = ApprovalGate(mode='always')
+        assert strict.requires_approval('file_write') is True
+        # Non-TTY, no confirmer -> denied. Previously this returned True.
+        assert strict.check('file_write', 'w') is False
+
+        risky = ApprovalGate(mode='dangerous')
+        assert risky.requires_approval('file_write') is True
+        assert risky.check('file_write', 'w') is False
+
+        relaxed = ApprovalGate(mode='off')
+        assert relaxed.requires_approval('file_write') is False
+        assert relaxed.check('file_write', 'w') is True
+    finally:
+        if prev is None:
+            os.environ.pop('SALEHA_APPROVAL', None)
+        else:
+            os.environ['SALEHA_APPROVAL'] = prev
+
+
+def test_no_mode_instance_still_tracks_the_environment() -> None:
+    """The production path: the module singleton is built with no mode, so
+    fixing the override must not change how it behaves."""
+    prev = os.environ.get('SALEHA_APPROVAL')
+    try:
+        for env, expected in (('off', True), ('dangerous', False), ('always', False)):
+            os.environ['SALEHA_APPROVAL'] = env
+            gate = ApprovalGate()
+            assert gate.check('file_write', 'w') is expected, env
+            # and it must agree with the module-level function it replaced
+            assert gate.check('file_write', 'w') is approve('file_write', 'w'), env
+    finally:
+        if prev is None:
+            os.environ.pop('SALEHA_APPROVAL', None)
+        else:
+            os.environ['SALEHA_APPROVAL'] = prev
+
+
+def test_check_still_accepts_an_injected_confirmer() -> None:
+    prev = os.environ.get('SALEHA_APPROVAL')
+    os.environ.pop('SALEHA_APPROVAL', None)
+    try:
+        gate = ApprovalGate(mode='always')
+        assert gate.check('file_write', 'w', confirmer=lambda _p: True) is True
+        assert gate.check('file_write', 'w', confirmer=lambda _p: False) is False
+    finally:
+        if prev is None:
+            os.environ.pop('SALEHA_APPROVAL', None)
+        else:
+            os.environ['SALEHA_APPROVAL'] = prev

@@ -5882,3 +5882,64 @@ gate: `conftest.py`, `test_approval_gate.py`, `test_code_executor.py` all
 **Still open:** the pass-54 failure has no attributed cause. It is one
 occurrence in five full runs of this tree, never reproduced deliberately. The
 next occurrence will print its own reason.
+
+## Sixtieth pass — a security gate that was fail-open (2026-09-18)
+
+Recorded in pass 59 as "the two disagree, worth fixing separately". Read
+properly, it was not a cosmetic inconsistency -- it was fail-**open** on the
+gate that guards file writes, shell exec and `git reset --hard`.
+
+```
+ApprovalGate(mode="always")          # the strictest setting there is
+  requires_approval("file_write") -> True    # "this action is gated"
+  check("file_write", ...)        -> True    # "...go ahead"
+```
+
+Two halves of one object contradicting each other, and the half that actually
+gates the action was the one waving it through. `check()` delegated straight to
+the module-level `approve()`, which reads `SALEHA_APPROVAL` -- so `mode=` was
+ignored entirely, and with the environment unset (its default) every action
+auto-approved.
+
+### Blast radius measured before touching it
+
+- Production constructs `ApprovalGate(mode=...)` **nowhere**: one singleton at
+  module scope, built with no mode.
+- The only `.check()` call site in the whole repository is the test fixed in
+  pass 59.
+- Every production caller (`agentic_loop.py`, `git_native.py`,
+  `tool_calling.py`, `admin_metrics.py`) uses the module-level `approve()`.
+
+So this closes a latent trap without changing current behaviour. `check()` now
+resolves through `self.requires_approval()`, which honours the override; with
+`_override_mode` None it reaches exactly the same code as before. The confirmer
+logic was lifted into a shared `_ask()` rather than duplicated.
+
+Probed both directions:
+
+| case | before | after |
+| --- | --- | --- |
+| `mode="always"` -> `check` | `True` (auto-approve) | **`False`** (fail-closed) |
+| `mode="dangerous"` -> `check` | `True` | **`False`** |
+| no mode, env `dangerous` | `False` | `False` -- unchanged |
+| no mode, env `off` | `True` | `True` -- unchanged |
+
+The no-mode instance still agrees with module-level `approve()` in every
+environment state, which is the production path.
+
+### The teeth-check, done twice because the first was worthless
+
+Stashing to prove the new test catches the old behaviour removed the *test
+file* along with the source, so pytest reported "no tests ran" -- which is not
+a passing test and not a failing one. Stashing only `approval_gate.py` and
+keeping the test gave the real answer: **FAILED at line 73** against the
+unfixed gate, 8/8 once restored.
+
+Three tests added: the override is honoured, the no-mode instance still tracks
+the environment (and still matches `approve()`), and an injected confirmer
+still works through `check()`. Pass 59's comment saying "check() reads the
+environment, NOT the constructor mode" was corrected -- it had just been made
+untrue.
+
+**Measured:** suite 1918 -> **1921 passed**, 13 skipped (+3, the new tests).
+Quality gate: `approval_gate.py` 96.0, `test_approval_gate.py` 100.0.

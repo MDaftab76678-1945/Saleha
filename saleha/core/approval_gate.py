@@ -76,6 +76,21 @@ def _cli_confirm(prompt: str) -> bool:
         return False
 
 
+def _ask(action_type: str, description: str,
+         confirmer: Optional[Callable[[str], bool]]) -> bool:
+    """Run the confirmer for an action already known to need approval.
+
+    Split out of `approve()` so `ApprovalGate.check()` can share it without
+    going back through the module-level mode lookup -- see the note on that
+    method.
+    """
+    confirm = confirmer or _cli_confirm
+    try:
+        return bool(confirm(f"[Saleha {action_type}] {description} -- approve?"))
+    except Exception:
+        return False
+
+
 def approve(action_type: str, description: str,
             confirmer: Optional[Callable[[str], bool]] = None) -> bool:
     """Gated action ke liye permission. Approval required na ho -> True.
@@ -84,11 +99,7 @@ def approve(action_type: str, description: str,
     """
     if not requires_approval(action_type):
         return True
-    confirm = confirmer or _cli_confirm
-    try:
-        return bool(confirm(f"[Saleha {action_type}] {description} -- approve?"))
-    except Exception:
-        return False
+    return _ask(action_type, description, confirmer)
 
 
 class ApprovalGate:
@@ -109,8 +120,27 @@ class ApprovalGate:
             return False
         return requires_approval(action_type)
 
-    def check(self, action_type: str, description: str, confirmer: Optional[Callable[[str], bool]] = None) -> bool:
-        return approve(action_type, description, confirmer=confirmer)
+    def check(self, action_type: str, description: str,
+              confirmer: Optional[Callable[[str], bool]] = None) -> bool:
+        """Permission for a gated action, honouring this instance's mode.
+
+        This used to delegate straight to the module-level `approve()`, which
+        reads SALEHA_APPROVAL and therefore ignored `mode=` entirely. The
+        failure was fail-OPEN, which is the dangerous direction: an instance
+        built as `ApprovalGate(mode="always")` -- explicitly the strictest
+        setting -- reported `requires_approval(...) -> True` while
+        `check(...)` returned True, auto-approving every action, whenever the
+        environment was unset (its default). The two halves of the same object
+        disagreed about whether an action was gated.
+
+        Nothing in production passes `mode=` (the singleton below is built
+        with none), so this tightens a latent trap rather than changing
+        current behaviour: with `_override_mode` None it resolves through
+        `requires_approval()` exactly as before.
+        """
+        if not self.requires_approval(action_type):
+            return True
+        return _ask(action_type, description, confirmer)
 
 
 approval_gate = ApprovalGate()
