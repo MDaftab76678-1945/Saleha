@@ -77,7 +77,7 @@ def doom_audit_cmd(path: str) -> None:
     table.add_column('Value', style='bold')
     table.add_row('Total Files Scanned', str(res['total_files_scanned']))
     table.add_row('Verified Clean Files', f"[green]{res['clean_files']}[/]")
-    table.add_row('Violations / Flawed Files', f"[red]{res['flawed_files']}[/]" if res['flawed_files'] > 0 else '[green]0 (Zero Defect)[/]')
+    table.add_row('Violations / Flawed Files', f"[red]{res['flawed_files']}[/]" if res['flawed_files'] > 0 else '[green]0[/]')
     console.print(table)
     if res['diagnostics']:
         console.print('\n[bold red]Violations Detected:[/]')
@@ -87,7 +87,15 @@ def doom_audit_cmd(path: str) -> None:
                 console.print(f"    └─ [{v['rule']}] Line {v['line']}: {v['msg']}")
                 console.print(f"       [dim]Fix Hint: {v['hint']}[/]")
     else:
-        console.print('\n[bold green]✨ 100% Zero Defect Guarantee: All files passed Gamma AST inspection.[/]')
+        # The scan itself is real (audit_directory_incremental returns real
+        # counts and diagnostics), so "no violations found" is true. "100%
+        # Zero Defect Guarantee" was not: one static AST check finding
+        # nothing is evidence of nothing found, not a guarantee that no
+        # defect exists.
+        console.print(f"\n[bold green]No Gamma AST violations found[/] in "
+                      f"{res['total_files_scanned']} scanned file(s). "
+                      f"[dim]This is one static check, not a guarantee the "
+                      f"code is defect-free.[/]")
 
 @doom_group.command(name='swarm')
 @click.argument('prompt')

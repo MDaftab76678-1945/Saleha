@@ -5607,3 +5607,102 @@ which is the point: no test covered these CLI paths, which is why the breakage
 was invisible. Quality gate: `misc_tools.py` 0.0 -> **100.0**,
 `testing_bench.py` 48.0 -> **92.0**, `info_cli.py` 96.0, `monorepo_cli.py`
 88.0. All four commands verified by real invocation.
+
+## Fifty-seventh pass — invented numbers printed beside named competitors (2026-09-18)
+
+### `saleha benchmark` -- four real measurements, three fabricated claims
+
+Lines 33-68 are genuine: four micro-benchmarks timed with
+`time.perf_counter()` around real loops, computing real ops/sec. Then this
+printed underneath the results table:
+
+```
+Competitive Index vs Market Tools (Cursor, Devin, Bolt.new):
+  - AST Static Verification Latency : 10x Faster (Sub-100us vs 20ms)
+  - Token Cost for Local Developers : $0.00 / Token
+  - Multi-File Merge Reliability    : 100% Deterministic
+```
+
+No competing tool was ever run. The `20ms` it compared against came from
+nowhere. The "AST Static Verification Latency" it claimed to be 10x faster at
+is not one of the four benchmarks above it. And this command never exercises
+the 2PC merge it called deterministic.
+
+That is precisely what the `leaderboard` command was **deleted** for in pass
+30 -- our invented figure rendered beside real published competitor names --
+so the block was removed rather than reworded. There is no honest version
+short of actually measuring the other tools.
+
+A fourth claim in the same command was subtler: the results table's last
+column was headed **"Competitive Grade"** and filled with literals --
+`FAANG Level`, `O(1) Tensor`, `ASan Safe`, `Lock-Free` -- sitting beside
+genuinely measured throughput figures, where a reader would take them as
+graded results. The column is now "What was run" and states the real workload
+per row (`10,000 send+receive pairs`, `2,000 distances, 16-D`). The module
+docstring, which still advertised a "Competitive Index vs Devin, Cursor, and
+Lovable", was corrected too.
+
+One row was renamed for the same reason: "Zero-Allocation Telemetry" reported
+a hardcoded `0 bytes heap` in its latency column, a figure nothing measured.
+It is now "Latency Histogram" with a real us/op timing.
+
+### `saleha doom audit` -- the scan is real, the guarantee was not
+
+`run_full_audit` genuinely scans (`audit_directory_incremental` returns real
+counts and diagnostics), and the clean branch only fires when `diagnostics` is
+empty -- so "all files passed" was true. **"100% Zero Defect Guarantee"** was
+not: one static AST check finding nothing is evidence of nothing found, not a
+guarantee that no defect exists. Now reports the real scanned-file count and
+says plainly it is one static check. Verified by invocation:
+`6 scanned file(s)`, no violations.
+
+### A shipped command nobody can invoke -- reported, not changed
+
+Two commands register the same name:
+
+```
+saleha/cli/benchmark_cli.py:31          <- wins (params: iterations only)
+saleha/cli/commands/testing_bench.py:62 <- unreachable
+```
+
+So `saleha benchmark --model qwen2.5-coder:3b --dry-run` cannot run at all;
+the Ollama model benchmark is shadowed out of existence. This is the pass-30
+`solve-issue` shadowing bug in a new pair. My first duplicate-name scan missed
+it because one uses `@cli.command` and the other `@click.command` -- the
+rescan covering both forms found this is the only such collision in the CLI.
+Renaming a live command is a user-facing decision, so it is recorded here
+rather than made unilaterally.
+
+Also found and confirmed pre-existing (identical crash at HEAD with changes
+stashed): `saleha doom audit <file>` raises `FileExistsError`, because the
+engine treats its argument as a directory and calls `mkdir` on it. Works on a
+directory, which is what its own docstring documents.
+
+### I broke a test, and the two halves needed different fixes
+
+The full suite came back `1 failed, 1911 passed` --
+`test_benchmark_cli.py::test_benchmark_command_execution`. Two distinct
+causes, and separating them mattered:
+
+- **My accidental regression.** Widening the fourth column 20 -> 24 made the
+  table wider, so Rich wrapped the first column differently and
+  `"Sandbox Execution Time"` split across two lines. The assertion was right;
+  my change was wrong. Fixed by restoring width 20 -- *not* by editing the
+  test.
+- **My deliberate rename.** The same test asserted `"Zero-Allocation"`, the
+  label I had intentionally replaced because of its unmeasured `0 bytes heap`.
+  Here the test does follow the code, with a comment recording why, so nobody
+  later reads it as an assertion quietly weakened.
+
+Had I edited the test for both, I would have hidden my own regression behind a
+legitimate rename.
+
+Added `test_no_competitor_comparison_is_claimed`, which fails if
+`Competitive Index`, `10x Faster`, `100% Deterministic`, `Cursor`, `Devin` or
+`FAANG` ever reappear in that command's output. Deleting the block is not
+enough on its own -- nothing stopped it coming back.
+
+**Measured:** suite 1912 -> **1913 passed**, 13 skipped (+1 = the new
+regression test). Quality gate: `doom_group.py` **100.0**,
+`test_benchmark_cli.py` **100.0**, `benchmark_cli.py` 96.0. Both commands
+re-verified by real invocation.
