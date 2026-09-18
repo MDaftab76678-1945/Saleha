@@ -5789,3 +5789,96 @@ already collected by the 1915 run, which began a minute after that file was
 written. Quality gate: both new test files **100.0**, `testing_bench.py` 92.0,
 `git_group.py` 88.0. Every command re-verified by real invocation.
 
+
+## Fifty-ninth pass — the pass-54 red, still unattributed, but no longer undiagnosable (2026-09-18)
+
+Asked to fix the single unexplained failure recorded in pass 54
+(`test_code_executor.py::test_safe_code_executes`, `assertTrue(result.success)`,
+seen once in three full runs). **The cause was not found.** What follows is
+what was ruled out, what was fixed, and what is still open.
+
+### Four reproduction attempts, all negative
+
+| Attempt | Result |
+| --- | --- |
+| Isolated, x5 | 5/5 pass, 0.21s each |
+| 12 competing subprocesses, x8 | 0/8 failures, slowest 0.75s (ceiling 5s) |
+| Against a real competing full suite, x10 | 0/10 failures, max 0.25s |
+| 8-way concurrency, 60 executions | **60/60 pass** |
+
+Four negative results are themselves a finding: whatever this is, it is not
+reproducible by load on this machine.
+
+### A hypothesis that fit the evidence, and was killed by ordering
+
+`test_market_upgrades.py` sets `SALEHA_SANDBOX=require-docker`. Measured
+directly: with that set and no Docker daemon here, `execute("print('ok')")`
+returns **exactly** `success=False, exit_code=-1, blocked=True` -- the precise
+shape of the pass-54 failure.
+
+It is still not the cause. Collection is alphabetical and unrandomised (no
+`addopts`, no randomisation plugin), `test_code_executor.py` sorts **40th** and
+`test_market_upgrades.py` **109th**, so that leak lands *after* the victim, not
+before. That file also cleans up correctly (`setUp`/`tearDown` both pop, the
+one out-of-band set is wrapped in `try/finally`). A satisfying story with the
+ordering against it is not a cause, and is not recorded as one.
+
+### What was actually fixed
+
+**1. The test can now explain itself.** `assertTrue(result.success)` fails with
+"False is not true" and stops before the later assertions, so the single
+occurrence reported nothing: not the exit code, not the error, not whether the
+safety layer blocked it, not the backend. Every assertion in the file now
+carries a `_why(result)` message. Proven by forcing the failure:
+
+```
+AssertionError: False is not true : success=False exit_code=-1 blocked=True
+block_reason='SALEHA_SANDBOX=require-docker is set but the Docker daemon is
+unavailable. Execution refused (fail-closed)...'
+```
+
+If the flake ever returns, it names itself. That is the difference between one
+wasted occurrence and a diagnosable one.
+
+**2. The leak mechanism is closed by a mechanism, not by discipline.**
+`conftest.py` gained an autouse fixture that snapshots and restores
+`SALEHA_SANDBOX`, `SALEHA_APPROVAL` and `SALEHA_MODEL_TIMEOUT` around every
+test. Per-test cleanup is correct today; one missing `finally` and it is not.
+
+### The guard immediately exposed a test passing for the wrong reason
+
+The first full run after adding it came back red:
+`test_approval_gate` -- `assert approval_gate.check('file_write', ...) is False`
+returned True.
+
+Not a regression. `test_approve`, which runs first in that file, sets
+`SALEHA_APPROVAL='dangerous'` and never restores it; `test_approval_gate` was
+passing on that leaked value. With the environment restored, the mode is `off`,
+everything auto-approves, and the assertion fails. **The test was not
+establishing its own precondition -- it was riding on another test's residue.**
+
+My first repair was wrong and probing caught it: I set
+`ApprovalGate(mode='dangerous')`, and it still failed. Reading the class
+explains why -- `check()` ignores the constructor mode entirely and delegates
+to the module-level `approve()`, which reads the environment. The test now sets
+the variable it depends on and restores it in a `finally`, matching the pattern
+`test_git_native.py` already uses correctly.
+
+Checked whether anything else was riding on the same leak: the six test files
+that consume the approval gate without ever setting the variable -- 98/98 pass.
+Nothing else depended on it.
+
+**Recorded, not fixed:** `requires_approval()` honours the constructor mode
+while `check()` does not, so `ApprovalGate(mode='always')` reports
+`requires_approval -> True` and `check -> True` (auto-approve). The two
+disagree. Changing the behaviour of a security gate is not a test-cleanup task,
+so it is noted here rather than done in passing.
+
+**Measured:** suite 1918 passed, 13 skipped -- unchanged, since the red run in
+between was the leak being exposed rather than a defect introduced. Quality
+gate: `conftest.py`, `test_approval_gate.py`, `test_code_executor.py` all
+**100.0**, zero TYPE-001 across the three.
+
+**Still open:** the pass-54 failure has no attributed cause. It is one
+occurrence in five full runs of this tree, never reproduced deliberately. The
+next occurrence will print its own reason.

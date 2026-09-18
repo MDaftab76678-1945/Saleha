@@ -25,5 +25,39 @@ that branch reliably reached instead of reachable only by accident.
 """
 
 import os
+from typing import Iterator
+
+import pytest
 
 os.environ.setdefault("SALEHA_TEST_MODE", "1")
+
+
+# Environment variables that change how code is executed, and therefore what
+# an unrelated test observes if one leaks. `SALEHA_SANDBOX=require-docker`
+# with no Docker daemon makes CodeExecutor.execute() return
+# success=False, exit_code=-1, blocked=True for *any* input -- measured on
+# this machine. Several tests in test_market_upgrades.py set it deliberately
+# and clean up correctly today, but the cleanup is per-test discipline rather
+# than a mechanism: one `finally` omitted, or one exception on an unguarded
+# path, and every later test using the executor fails for a reason that has
+# nothing to do with what it was testing.
+#
+# This does not explain the single unattributed failure recorded in pass 54
+# (collection is alphabetical and unrandomised, and the file that sets this
+# variable sorts *after* test_code_executor.py). It closes the mechanism
+# anyway, because a leak of this kind is invisible in the failure message.
+_EXECUTION_ENV_VARS = ("SALEHA_SANDBOX", "SALEHA_APPROVAL", "SALEHA_MODEL_TIMEOUT")
+
+
+@pytest.fixture(autouse=True)
+def _restore_execution_env() -> Iterator[None]:
+    """Snapshot and restore execution-policy env vars around every test."""
+    saved = {name: os.environ.get(name) for name in _EXECUTION_ENV_VARS}
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
