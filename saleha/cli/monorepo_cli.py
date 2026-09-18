@@ -59,35 +59,40 @@ def verify_cmd():
     root = get_monorepo_root()
     console.print(Panel("[bold cyan]🧬 Running Universal Loop Engineering Verification (Phases 0–7)...[/bold cyan]"))
     
-    # 1. Verify Brief
-    brief = root / "PRODUCT_BRIEF.md"
-    console.print(f"• Phase 0 (Product DNA): {'[green]PASS[/green]' if brief.exists() else '[red]FAIL[/red]'}")
-    
-    # 2. Verify Monorepo Configs
-    turbo = root / "turbo.json"
-    pkg = root / "package.json"
-    console.print(f"• Phase 1 (Turborepo Workspaces): {'[green]PASS[/green]' if turbo.exists() and pkg.exists() else '[red]FAIL[/red]'}")
-    
-    # 3. Verify UI Tokens
-    ui_theme = root / "packages" / "ui" / "src" / "tokens" / "theme.ts"
-    console.print(f"• Phase 2 (Design Tokens & UI): {'[green]PASS[/green]' if ui_theme.exists() else '[red]FAIL[/red]'}")
-    
-    # 4. Verify DB & API
-    prisma = root / "packages" / "db" / "prisma" / "schema.prisma"
-    trpc = root / "packages" / "api" / "src" / "root.ts"
-    console.print(f"• Phase 3 (Prisma DB & tRPC API): {'[green]PASS[/green]' if prisma.exists() and trpc.exists() else '[red]FAIL[/red]'}")
-    
-    # 5. Verify Security
-    auth = root / "packages" / "auth" / "src" / "index.ts"
-    console.print(f"• Phase 4 (SecurityGuard & RBAC): {'[green]PASS[/green]' if auth.exists() else '[red]FAIL[/red]'}")
-    
-    # 6. Verify CI/CD
-    ci = root / ".github" / "workflows" / "ci.yml"
-    console.print(f"• Phase 5 & 6 (GitHub Actions CI): {'[green]PASS[/green]' if ci.exists() else '[red]FAIL[/red]'}")
-    
-    # 7. Verify Observability
-    obs = root / "packages" / "core" / "src" / "observability.ts"
-    console.print(f"• Phase 7 (Observability Engine): {'[green]PASS[/green]' if obs.exists() else '[red]FAIL[/red]'}")
-    
-    console.print("\n[bold green]✅ 100% RECURSIVE VALIDATION PASSED (All 7 Phases Green)[/bold green]")
+    # Each phase is "do the required paths exist", so collect the verdicts
+    # rather than only printing them -- the summary below has to be able to
+    # disagree with a green banner.
+    phase_results = [
+        ("Phase 0 (Product DNA)",
+         (root / "PRODUCT_BRIEF.md").exists()),
+        ("Phase 1 (Turborepo Workspaces)",
+         (root / "turbo.json").exists() and (root / "package.json").exists()),
+        ("Phase 2 (Design Tokens & UI)",
+         (root / "packages" / "ui" / "src" / "tokens" / "theme.ts").exists()),
+        ("Phase 3 (Prisma DB & tRPC API)",
+         (root / "packages" / "db" / "prisma" / "schema.prisma").exists()
+         and (root / "packages" / "api" / "src" / "root.ts").exists()),
+        ("Phase 4 (SecurityGuard & RBAC)",
+         (root / "packages" / "auth" / "src" / "index.ts").exists()),
+        ("Phase 5 & 6 (GitHub Actions CI)",
+         (root / ".github" / "workflows" / "ci.yml").exists()),
+        ("Phase 7 (Observability Engine)",
+         (root / "packages" / "core" / "src" / "observability.ts").exists()),
+    ]
+
+    for name, ok in phase_results:
+        console.print(f"• {name}: {'[green]PASS[/green]' if ok else '[red]FAIL[/red]'}")
+
+    # This summary printed "100% RECURSIVE VALIDATION PASSED (All 7 Phases
+    # Green)" unconditionally -- directly below per-phase checks that each
+    # print FAIL when a path is missing. A run with failing phases still
+    # ended in a green "all passed" banner. The verdict now follows the
+    # checks it claims to summarise.
+    failed = [name for name, ok in phase_results if not ok]
+    if failed:
+        console.print(f"\n[bold red]VALIDATION FAILED[/bold red] "
+                      f"({len(failed)} of {len(phase_results)} phases): "
+                      f"{', '.join(failed)}")
+        raise click.exceptions.Exit(1)
+    console.print(f"\n[bold green]All {len(phase_results)} phases passed.[/bold green]")
 

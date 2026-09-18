@@ -17,6 +17,21 @@ from saleha.core.model_provider import default_provider
 console = Console()
 
 
+def _count_test_files() -> int:
+    """How many test files exist on disk. Counts files; runs nothing.
+
+    `saleha info` is an inspector -- it must not claim a pass state for a
+    suite it never executes. Reporting the file count is something this
+    command can actually observe.
+    """
+    try:
+        from pathlib import Path
+        tests_dir = Path(__file__).resolve().parents[1] / "tests"
+        return len(list(tests_dir.glob("test_*.py")))
+    except OSError:
+        return 0
+
+
 @click.command(name="info", help="Display system architecture, connected engines, and runtime specs.")
 def info_cmd():
     console.print(Panel(f"[bold cyan]🧬 SALEHA AI UNIFIED PLATFORM SPECIFICATIONS (v{__version__})[/bold cyan]\n[dim]Autonomous Software Engineering & Polyglot Multi-Agent Swarm[/dim]"))
@@ -34,7 +49,13 @@ def info_cmd():
     table.add_row("Swarm Topology", "10 Departments (250 Agents)", "🟢 POINCARÉ 16D")
     table.add_row("AST Safety Verifier", "Gamma AST 2PC + ASan Guard", "🟢 0 LEAKS")
     table.add_row("Monorepo Packages", "@saleha/{ui,db,api,auth,core}", "🟢 SYNCHRONIZED")
-    table.add_row("Automated Test Suite", "879 / 879 Unit & System Tests", "🟢 100% PASS")
+    # Was hardcoded "879 / 879 Unit & System Tests" / "100% PASS" -- a count
+    # that was invented, went stale (the suite is four figures now), and
+    # asserted a passing state on a command that runs no tests at all. The
+    # honest version reports how many tests exist and says plainly that this
+    # command did not run them.
+    table.add_row("Automated Test Suite", f"{_count_test_files()} test files under saleha/tests",
+                  "not run here")
 
     console.print(table)
     console.print("\n[bold green]Ready for autonomous software engineering tasks.[/bold green]\n")

@@ -31,7 +31,7 @@ from saleha import __version__
 @cli.command()
 @click.argument('code_file', type=click.Path(exists=True))
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def test(code_file, as_json):
+def test(code_file: str, as_json: bool) -> None:
     """
     Test code for syntax and security
     
@@ -64,7 +64,7 @@ def test(code_file, as_json):
 @click.option('--limit', '-l', default=None, type=int, help='Limit number of test cases')
 @click.option('--dry-run', is_flag=True, help='Simulate benchmark run without LLM calls')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def benchmark_cmd(model, limit, dry_run, as_json):
+def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
     """
     Benchmark local Ollama models on HumanEval-style coding challenges.
     
@@ -90,67 +90,149 @@ def benchmark_cmd(model, limit, dry_run, as_json):
     console.print(table)
     console.print(Panel(f'[bold cyan]Model:[/] {score.model}\n[bold cyan]Pass@1 Rate:[/] [bold green]{score.pass_rate}%[/] ({score.passed_tasks}/{score.total_tasks} passed)\n[bold cyan]Average Latency:[/] {score.avg_latency_sec}s per task', title='[bold green]🏆 Benchmark Summary[/]', border_style='green'))
 
-@cli.command(name='swe-bench')
-@click.option('--limit', '-l', default=None, type=int, help='Limit number of task instances')
-@click.option('--dry-run', is_flag=True, help='Simulate evaluation without execution')
+@cli.command(name='sandbox-selfcheck')
+@click.option('--limit', '-l', default=None, type=int, help='Limit number of instances')
+@click.option('--list-only', is_flag=True, help='List the instances without executing them')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def swe_bench_cmd(limit, dry_run, as_json):
-    """Run SWE-Bench verified evaluation harness on repository-level bug fixing instances."""
-    from saleha.core.swe_bench_harness import swe_bench
-    with Progress(SpinnerColumn(), TextColumn('[cyan]Running SWE-Bench verification suite...'), console=console) as progress:
-        progress.add_task('swe', total=None)
-        report = _cmds.swe_bench.run_evaluation(limit=limit, dry_run=dry_run)
+def sandbox_selfcheck_cmd(limit: int, list_only: bool, as_json: bool) -> None:
+    """Check the sandbox executes known-good code and observes its output.
+
+    This is not a benchmark. The instances are pre-written correct code, no
+    model is invoked, and nothing is fixed -- so it measures the executor,
+    not the agent. For a real capability measurement run
+    `python scripts/measure_real_pass_rate.py`.
+    """
+    with Progress(SpinnerColumn(), TextColumn('[cyan]Running sandbox self-check...'), console=console) as progress:
+        progress.add_task('selfcheck', total=None)
+        report = _cmds.sandbox_self_check.run_self_check(limit=limit, list_only=list_only)
     if as_json:
-        click.echo(json.dumps({'total_instances': report.total_instances, 'resolved_instances': report.resolved_instances, 'pass_rate': report.pass_rate, 'avg_latency_sec': report.avg_latency_sec, 'results': report.results}, ensure_ascii=True))
+        click.echo(json.dumps({'total_instances': report.total_instances, 'executed_ok': report.executed_ok, 'did_execute': report.did_execute, 'avg_latency_sec': report.avg_latency_sec, 'results': report.results}, ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title='🧪 SWE-Bench Verification Report', border_style='cyan')
+    table = Table(title='Sandbox self-check', border_style='cyan')
     table.add_column('Instance ID', style='bold cyan')
-    table.add_column('Repository', style='dim')
-    table.add_column('Resolved', style='bold')
+    table.add_column('Source', style='dim')
+    table.add_column('Executed cleanly', style='bold')
     table.add_column('Latency', style='yellow')
     for r in report.results:
-        res_txt = '[green]✅ RESOLVED[/]' if r['resolved'] else '[red]❌ UNRESOLVED[/]'
+        if r['executed_ok'] is None:
+            res_txt = '[dim]not run[/]'
+        else:
+            res_txt = '[green]yes[/]' if r['executed_ok'] else '[red]NO[/]'
         table.add_row(r['instance_id'], r['repo'], res_txt, f"{r['latency_sec']}s")
     console.print(table)
-    console.print(Panel(f'[bold cyan]Pass Rate:[/] [bold green]{report.pass_rate}%[/] ({report.resolved_instances}/{report.total_instances} resolved)\n[bold cyan]Average Time:[/] {report.avg_latency_sec}s per instance', title='[bold green]🏆 SWE-Bench Summary[/]', border_style='green'))
+    if not report.did_execute:
+        console.print(Panel('[yellow]Nothing was executed (--list-only), so there is no result.[/]', border_style='yellow'))
+        return
+    console.print(Panel(f'[bold cyan]Executed cleanly:[/] {report.executed_ok}/{report.total_instances}\n[bold cyan]Average time:[/] {report.avg_latency_sec}s per instance\n[dim]Executor check only -- no model invoked, no bug fixed.[/]', border_style='cyan'))
+
+@cli.command(name='benchmark-local')
+@click.option('--model', '-m', default=None, help='Ollama model to benchmark')
+@click.option('--limit', '-l', default=None, type=int, help='Limit number of tasks')
+@click.option('--preflight', is_flag=True, help='Only check that every test can fail')
+def benchmark_local_cmd(model: str, limit: int, preflight: bool) -> None:
+    """Run Saleha's local task benchmark against a real model.
+
+    Twelve small self-contained problems, each with a test verified to fail
+    on wrong code before the run starts. Not SWE-bench, not a leaderboard.
+
+    Example: saleha benchmark-local -m qwen2.5-coder:3b
+    """
+    from saleha.core.real_task_bench import DEFAULT_MODEL
+    from saleha.core.swe_leaderboard import local_benchmark
+
+    if preflight:
+        pre = local_benchmark.preflight()
+        if pre['usable']:
+            console.print(f"[green]All {pre['total_tasks']} tests fail on wrong code, as they must.[/]")
+        else:
+            console.print(f"[red]These tests cannot fail, so they measure nothing:[/] {pre['tests_that_cannot_fail']}")
+            raise click.exceptions.Exit(1)
+        return
+
+    chosen = model or DEFAULT_MODEL
+    console.print(f'[cyan]Running local task benchmark against[/] [yellow]{chosen}[/][cyan]...[/]')
+
+    def _report(outcome):
+        mark = '[green]PASS[/]' if outcome.passed else '[red]FAIL[/]'
+        detail = f'  {outcome.error}' if outcome.error else ''
+        console.print(f'  {outcome.task_id:<24} {mark}  ({outcome.duration_sec}s){detail}')
+
+    run = local_benchmark.run_suite(model=chosen, limit=limit, on_task=_report)
+
+    if not run.metadata.get('did_run', True):
+        console.print(Panel(f'[yellow]Benchmark did not run.[/]\n{run.notes}', border_style='yellow'))
+        raise click.exceptions.Exit(1)
+
+    console.print(Panel(
+        f'[bold cyan]Passed:[/] {run.solved}/{run.total_tasks}  '
+        f'([bold]{run.score_pct:.1f}%[/])\n'
+        f'[bold cyan]Model:[/] {run.model}\n'
+        f'[dim]Twelve small self-contained problems on one machine. '
+        f'Not SWE-bench, not a leaderboard position.[/]',
+        border_style='cyan'))
+
 
 @cli.command(name='benchmark-public')
-@click.option('--suite', default='swe_bench', help='Benchmark suite')
-def benchmark_public_cmd(suite):
-    """
-    Run SWE-bench Leaderboard Evaluation and compare against Devin/GPT-4o.
-    
+def benchmark_public_cmd() -> None:
+    """Show Saleha's best recorded local score, and published SWE-bench figures.
+
+    The two are reported separately on purpose: Saleha has not run SWE-bench
+    Verified, so its local score is not comparable to those figures.
+
     Example: saleha benchmark-public
     """
-    from saleha.core.swe_leaderboard import swe_leaderboard
-    console.print('[bold cyan]🏁 Running SWE-bench Local Leaderboard Suite...[/]')
-    run = swe_leaderboard.run_suite(use_llm=False)
-    console.print(f'[bold green]Solved {run.solved}/{run.total_tasks} tasks ({run.score_pct}% pass@1)[/]')
-    console.print(swe_leaderboard.leaderboard_text())
+    from saleha.core.real_task_bench import scored_swebench_availability
+    from saleha.core.swe_leaderboard import local_benchmark
+
+    console.print(local_benchmark.leaderboard_text())
+    available, detail = scored_swebench_availability()
+    if available:
+        console.print(f'\n[green]Scored SWE-bench is available here:[/] {detail}')
+    else:
+        console.print(f'\n[yellow]Scored SWE-bench cannot run here:[/] {detail}')
+
 
 @cli.command(name='swe-export')
 @click.option('--output', '-o', default='all_preds.jsonl', help='Output JSONL file path')
 @click.option('--scorecard', '-s', default='scorecard.md', help='Output markdown scorecard path')
-@click.option('--model', default='saleha-v2.0', help='Model name to tag predictions')
-def swe_export_cmd(output, scorecard, model):
+@click.option('--model', '-m', default=None, help='Model to run and tag predictions with')
+def swe_export_cmd(output: str, scorecard: str, model: str) -> None:
+    """Run the local benchmark and export predictions plus a scorecard.
+
+    The JSONL is in SWE-bench submission format. The scorecard reports the
+    run's real numbers and states plainly which benchmark produced them --
+    it does not present a local score as a SWE-bench result.
+
+    Example: saleha swe-export -o dist/all_preds.jsonl
     """
-    Export SWE-bench evaluation run to official all_preds.jsonl and leaderboard scorecard.
-    
-    Example: saleha swe-export --output dist/all_preds.jsonl --scorecard scorecard.md
-    """
-    from saleha.core.swe_leaderboard import swe_leaderboard
+    from saleha.core.real_task_bench import DEFAULT_MODEL
     from saleha.core.swe_bench_exporter import SWEBenchExporter
-    console.print(f'[bold cyan]🏁 Evaluating benchmark and exporting for model:[/] [yellow]{model}[/]')
-    run = swe_leaderboard.run_suite(use_llm=False, model=model)
-    exporter = SWEBenchExporter(model_name=model)
-    jsonl_path = exporter.export_predictions(run, output_file=output)
-    md = exporter.generate_leaderboard_scorecard(run)
+    from saleha.core.swe_leaderboard import local_benchmark
+
+    chosen = model or DEFAULT_MODEL
+    console.print(f'[cyan]Running local benchmark for[/] [yellow]{chosen}[/][cyan]...[/]')
+
+    def _report(outcome):
+        mark = '[green]PASS[/]' if outcome.passed else '[red]FAIL[/]'
+        console.print(f'  {outcome.task_id:<24} {mark}  ({outcome.duration_sec}s)')
+
+    run = local_benchmark.run_suite(model=chosen, on_task=_report)
+    exporter = SWEBenchExporter(model_name=chosen)
+    jsonl_path = exporter.export_predictions(
+        run, output_file=output, task_results=local_benchmark.task_results(run))
+    md = exporter.generate_scorecard(run)
     with open(scorecard, 'w', encoding='utf-8') as f:
         f.write(md)
-    console.print(f'[bold green]✅ Official SWE-bench predictions exported:[/] {jsonl_path}')
-    console.print(f'[bold green]📊 Scorecard saved:[/] {os.path.abspath(scorecard)}')
-    console.print(f'[bold green]Pass@1 Score:[/] {run.score_pct:.2f}% ({run.solved}/{run.total_tasks} solved)')
+
+    console.print(f'[green]Predictions written:[/] {jsonl_path}')
+    console.print(f'[green]Scorecard written:[/] {os.path.abspath(scorecard)}')
+    if run.metadata.get('did_run', True):
+        console.print(f'[cyan]Local pass rate:[/] {run.score_pct:.2f}% '
+                      f'({run.solved}/{run.total_tasks}) -- not a SWE-bench score.')
+    else:
+        console.print(f'[yellow]Benchmark did not run:[/] {run.notes}')
+
 
 @cli.command(name='resolve-issue')
 @click.argument('issue_ref')
@@ -159,7 +241,7 @@ def swe_export_cmd(output, scorecard, model):
 @click.option('--test-command', default=None,
               help='Command to run as verification, e.g. "pytest -q". '
                    'Without it nothing is verified.')
-def resolve_issue_cmd(issue_ref, branch, auto_pr, test_command):
+def resolve_issue_cmd(issue_ref: str, branch: str, auto_pr: bool, test_command: str) -> None:
     """
     Fetch a GitHub issue and create a fix branch with a PR description.
 
@@ -213,7 +295,7 @@ def resolve_issue_cmd(issue_ref, branch, auto_pr, test_command):
 
 @cli.command(name='benchmark-eval')
 @click.option('--model', default='auto', help='Model to benchmark')
-def benchmark_eval_cmd(model: str):
+def benchmark_eval_cmd(model: str) -> None:
     """
     Autonomous Benchmark & Evaluation Runner (SiliconCopilot-Eval).
     
@@ -229,7 +311,7 @@ def benchmark_eval_cmd(model: str):
 
 @cli.command(name='test-ui')
 @click.argument('path', required=True)
-def test_ui_cmd(path: str):
+def test_ui_cmd(path: str) -> None:
     """
     Autonomous Headless Browser DOM & UI Health Inspector.
     
@@ -241,7 +323,7 @@ def test_ui_cmd(path: str):
     console.print(Panel(f'[bold {col}]🌐 Headless Browser DOM & UI Audit: {path}[/bold {col}]\n{rep.summary}', border_style=col))
 
 @cli.command(name='swebench-eval')
-def swebench_eval_cmd():
+def swebench_eval_cmd() -> None:
     """
     Run standardized SWE-Bench real-world software engineering benchmarks.
     
@@ -254,18 +336,26 @@ def swebench_eval_cmd():
 @cli.command('solve-issue')
 @click.argument('issue_description')
 @click.option('--repo', default='Saleha', help='Target repository name')
-def solve_issue_cli_cmd(issue_description: str, repo: str):
+def solve_issue_cli_cmd(issue_description: str, repo: str) -> None:
     """Autonomously triage, patch, test, and generate a GitHub PR for an issue."""
     from saleha.agents.issue_resolver import issue_resolver
     console.print(f'\n[bold cyan]🐙 Autonomous Issue Resolver Bot — Target:[/] [white]{repo}[/]')
     console.print(f'[dim]Analyzing issue report: "{issue_description[:60]}..."[/dim]\n')
     plan = issue_resolver.resolve_issue(issue_description, repo_name=repo)
     if plan.success:
-        console.print(f'[bold green]✨ Issue Successfully Resolved in {plan.duration_ms}ms![/bold green]')
+        # This pipeline generates code as a string and never writes it to
+        # disk, so nothing was resolved: what finished is a proposed patch
+        # plus a PR description. The old headline read "Issue Successfully
+        # Resolved", and the test line read "100% Passed" -- a percentage
+        # computed nowhere, over a sandbox run of tests this pipeline wrote
+        # for its own patch. The PR body itself was corrected earlier; this
+        # is the same claim one layer up, in the terminal that prints it.
+        console.print(f'[bold green]Patch and PR description generated in {plan.duration_ms}ms[/bold green]')
         console.print(f'  • Issue Reference : [bold yellow]{plan.issue_id}[/]')
-        console.print(f'  • Suggested Branch: [bold cyan]{plan.branch_name}[/]')
+        console.print(f'  • Suggested Branch: [bold cyan]{plan.branch_name}[/] [dim](not created)[/]')
         console.print(f"  • Security Audit  : {('[green]PASS (0 CVEs)[/]' if plan.security_clean else '[yellow]Hardened[/]')}")
-        console.print(f"  • Pytest Assertion: {('[green]100% Passed[/]' if plan.tests_passed else '[red]Failed[/]')}\n")
+        console.print(f"  • Generated tests : {('[green]passed in sandbox[/]' if plan.tests_passed else '[red]FAILED[/]')}")
+        console.print('  [dim]This repository\'s own test suite was not run.[/]\n')
         console.print(Panel(plan.pr_body_markdown, title='[bold green]📦 Generated GitHub PR Markdown[/]', border_style='green'))
     else:
         console.print(f'[bold red]❌ Failed to resolve issue automatically.[/]')

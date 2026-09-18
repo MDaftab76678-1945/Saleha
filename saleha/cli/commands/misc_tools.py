@@ -36,7 +36,8 @@ from saleha import __version__
 @click.option('--error-file', type=click.Path(exists=True, dir_okay=False), help='Read the traceback from a file')
 @click.option('--output', type=click.Path(dir_okay=False), help='Write corrected code to a different file')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def debug(code_file, error_log, model, save, error_file, output, as_json):
+def debug(code_file: str, error_log: Optional[str], model: str, save: bool,
+          error_file: Optional[str], output: Optional[str], as_json: bool) -> None:
     """
     Diagnose an error and generate corrected code.
 
@@ -87,7 +88,7 @@ def debug(code_file, error_log, model, save, error_file, output, as_json):
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def models(as_json):
+def models(as_json: bool) -> None:
     """
     Show all available models and their stats
     """
@@ -119,7 +120,7 @@ def models(as_json):
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def skills(as_json):
+def skills(as_json: bool) -> None:
     """Show skills registered in Saleha's local skill registry."""
     _cmds.load_builtin_skills()
     registered = _cmds.skill_registry.list_skills()
@@ -145,7 +146,8 @@ def skills(as_json):
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--diff-only', is_flag=True, help='Only display the unified diff without saving changes')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def refactor(target_file, instruction, model, diff_only, as_json):
+def refactor(target_file: str, instruction: str, model: str, diff_only: bool,
+             as_json: bool) -> None:
     """Refactor a Python file surgically using AST analysis and unified diff patching."""
     with open(target_file, 'r', encoding='utf-8') as f:
         original_code = f.read()
@@ -178,7 +180,7 @@ def refactor(target_file, instruction, model, diff_only, as_json):
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def tools(as_json):
+def tools(as_json: bool) -> None:
     """List all available dynamic tools and their JSON schemas."""
     registered = _cmds.global_tool_registry.list_tools()
     if as_json:
@@ -195,7 +197,7 @@ def tools(as_json):
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def doctor(as_json):
+def doctor(as_json: bool) -> None:
     """
     Saleha ke common problems ko check karta hai -- jaise wo saari cheezein
     jo is session me manually debug karni padi (Ollama band hona, missing
@@ -256,7 +258,7 @@ def doctor(as_json):
 @cli.command()
 @click.option('--task-type', '-t', default='coding', help='Task category to show stats for')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def stats(task_type, as_json):
+def stats(task_type: Optional[str], as_json: bool) -> None:
     """
     Show persistent model performance stats (saved in ~/.saleha/stats.json)
 
@@ -301,7 +303,7 @@ def stats(task_type, as_json):
 @click.option('--limit', '-n', default=10, help='Number of recent tasks to show')
 @click.option('--failed-only', is_flag=True, help='Show only failed tasks')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def history(limit, failed_only, as_json):
+def history(limit: int, failed_only: bool, as_json: bool) -> None:
     """
     Show recent task history (saved in ~/.saleha/history.jsonl)
 
@@ -335,7 +337,7 @@ def history(limit, failed_only, as_json):
 @cli.command()
 @click.option('--tail', '-n', default=10, help='Recent events to show')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable summary + tail')
-def metrics(tail, as_json):
+def metrics(tail: int, as_json: bool) -> None:
     """Show run success-rate, avg attempts, per-model stats & recent events."""
     from saleha.core.metrics import metrics_tracker
     summary = metrics_tracker.summary()
@@ -369,7 +371,7 @@ def metrics(tail, as_json):
 
 @cli.command(name='plugins')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def plugins_cmd(as_json):
+def plugins_cmd(as_json: bool) -> None:
     """List loaded dynamic plugins and lifecycle event hooks."""
     from saleha.core.plugin_loader import plugin_loader
     plugins = plugin_loader.list_plugins()
@@ -394,7 +396,7 @@ def plugins_cmd(as_json):
 @click.argument('func_name', default='process')
 @click.option('--mutations', '-m', default=5, type=int, help='Number of mutation payloads to test')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def fuzz_cmd(func_name, mutations, as_json):
+def fuzz_cmd(func_name: str, mutations: int, as_json: bool) -> None:
     """Execute automated security mutation fuzzing against code functions."""
     from saleha.core.api_fuzzer import api_fuzzer
     mock_code = f"def {func_name}(val):\n    if len(str(val)) > 100:\n        raise ValueError('Buffer overflow attempt')\n    return {{'status': 'ok'}}"
@@ -420,7 +422,8 @@ def fuzz_cmd(func_name, mutations, as_json):
 @click.option('--requests', '-r', default=50, type=int, help='Total requests to send')
 @click.option('--dry-run', is_flag=True, help='Simulate load benchmark')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def loadtest_cmd(url, concurrency, requests, dry_run, as_json):
+def loadtest_cmd(url: str, concurrency: int, requests: int, dry_run: bool,
+                 as_json: bool) -> None:
     """Execute high-concurrency API load testing and percentile benchmarks."""
     from saleha.core.load_tester import load_tester
     with Progress(SpinnerColumn(), TextColumn(f"[cyan]Executing load test against '{url}' ({requests} requests, {concurrency} workers)..."), console=console) as progress:
@@ -446,7 +449,7 @@ def loadtest_cmd(url, concurrency, requests, dry_run, as_json):
 @cli.command(name='doctor')
 @click.option('--fix', is_flag=True, help='Attempt auto-repair of missing models or folders')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def doctor_cmd(fix, as_json):
+def doctor_cmd(fix: bool, as_json: bool) -> None:
     """Diagnose local environment, Ollama models, Git, Sandbox, and Vault."""
     import shutil
     import subprocess
@@ -525,37 +528,43 @@ def doctor_cmd(fix, as_json):
 @click.option('--limit', '-n', default=None, type=int, help='Maximum number of benchmark instances to evaluate')
 @click.option('--dry-run', is_flag=True, help='Simulate execution quickly without executing heavy code')
 @click.option('--json', 'as_json', is_flag=True, help='Output benchmark results as JSON')
-def bench_cmd(limit, dry_run, as_json):
+def bench_cmd(limit: Optional[int], dry_run: bool, as_json: bool) -> None:
     """
     Run SWE-bench & HumanEval autonomous software engineering benchmark evaluation.
     
     Example: saleha bench
     Example fast: saleha bench --dry-run
     """
-    from saleha.core.swe_bench_harness import swe_bench
-    console.print(Panel(f"[bold cyan]Suite:[/] SWE-bench Verified & HumanEval Suite\n[bold green]Metrics:[/] Pass@1 Resolution Rate, Multi-file Localization, Sandboxed Execution\n[dim]Running {('dry-run simulation' if dry_run else 'sandboxed execution test harness')}...[/]", title='[bold green]🏆 Saleha Autonomous Benchmark Runner[/]', border_style='green'))
-    report = _cmds.swe_bench.run_evaluation(limit=limit, dry_run=dry_run)
+    console.print(Panel("[bold cyan]Sandbox self-check[/]\n[dim]Executes pre-written correct code and checks the sandbox observes its "
+                        "output. No model is invoked and no bug is fixed, so this measures the executor, "
+                        "not the agent. For a real capability measurement run "
+                        "scripts/measure_real_pass_rate.py.[/]", border_style='cyan'))
+    report = _cmds.sandbox_self_check.run_self_check(limit=limit, list_only=dry_run)
     if as_json:
         click.echo(json.dumps(report.__dict__, ensure_ascii=False, indent=2))
         return
-    table = Table(title='📊 Benchmark Problem Resolution Breakdown', show_header=True, header_style='bold magenta', expand=True)
+    table = Table(title='Sandbox self-check breakdown', show_header=True, header_style='bold magenta', expand=True)
     table.add_column('Instance ID', style='bold cyan', width=30)
-    table.add_column('Domain / Repo', width=22)
+    table.add_column('Source', width=22)
     table.add_column('Difficulty', width=12)
-    table.add_column('Resolution', width=12)
+    table.add_column('Executed cleanly', width=18)
     table.add_column('Latency', width=10)
     for r in report.results:
-        status_color = 'green' if r['resolved'] else 'red'
-        status_txt = 'RESOLVED' if r['resolved'] else 'FAILED'
-        table.add_row(r['instance_id'], r['repo'], r['difficulty'], f'[{status_color}]{status_txt}[/]', f"{r['latency_sec']}s")
+        if r['executed_ok'] is None:
+            status_txt = '[dim]not run[/]'
+        else:
+            status_txt = '[green]yes[/]' if r['executed_ok'] else '[red]NO[/]'
+        table.add_row(r['instance_id'], r['repo'], r['difficulty'], status_txt, f"{r['latency_sec']}s")
     console.print(table)
-    rate_color = 'green' if report.pass_rate >= 80 else 'yellow' if report.pass_rate >= 50 else 'red'
-    console.print(Panel(f'[bold white]Total Instances Tested:[/] {report.total_instances}\n[bold white]Instances Resolved:[/] {report.resolved_instances}\n[bold cyan]Pass Rate (Pass@1):[/] [{rate_color}]{report.pass_rate}%[/]\n[bold cyan]Average Latency:[/] {report.avg_latency_sec}s', title='[bold green]🏁 Official Benchmark Summary[/]', border_style='green'))
+    if not report.did_execute:
+        console.print(Panel('[yellow]Nothing was executed (--dry-run), so there is no result to report.[/]', border_style='yellow'))
+        return
+    console.print(Panel(f'[bold white]Instances:[/] {report.total_instances}\n[bold white]Executed cleanly:[/] {report.executed_ok}\n[bold cyan]Average latency:[/] {report.avg_latency_sec}s\n[dim]Executor check only -- not a benchmark score.[/]', border_style='cyan'))
 
 @cli.command(name='lsp')
 @click.argument('target', default='.')
 @click.option('--json', 'as_json', is_flag=True, help='Output diagnostics as JSON')
-def lsp_cmd(target, as_json):
+def lsp_cmd(target: str, as_json: bool) -> None:
     """
     Run compiler-grade static analysis & type-checking diagnostics across workspace.
     
@@ -589,7 +598,7 @@ def lsp_cmd(target, as_json):
 
 @cli.command(name='chaos')
 @click.option('--iterations', default=10, help='Number of randomized fault injection iterations')
-def chaos_cmd(iterations):
+def chaos_cmd(iterations: int) -> None:
     """
     Run autonomous Chaos Engineering fault injection probes to test resilience.
     
@@ -598,7 +607,7 @@ def chaos_cmd(iterations):
     from saleha.core.chaos_engine import chaos_engine
     console.print(f'[bold cyan]💥 Running Chaos Fault Injection Probe ({iterations} iterations)...[/]')
 
-    def mock_target_flow():
+    def mock_target_flow() -> None:
         time.sleep(0.005)
         return True
     res = chaos_engine.probe_resilience(mock_target_flow, iterations=iterations)
@@ -610,7 +619,7 @@ def chaos_cmd(iterations):
 
 @cli.command(name='mock')
 @click.option('--port', default=8080, help='Port for in-memory mock API server')
-def mock_cmd(port):
+def mock_cmd(port: int) -> None:
     """
     Start zero-config Synthetic Mock API Server with realistic schemas.
     
@@ -629,7 +638,7 @@ def mock_cmd(port):
 
 @cli.command(name='init')
 @click.option('--force', is_flag=True, help='Overwrite existing .saleharules file')
-def init_cmd(force):
+def init_cmd(force: bool) -> None:
     """
     Interactively onboard and initialize project for Saleha AI.
     
@@ -646,7 +655,7 @@ def init_cmd(force):
 @cli.command(name='pull')
 @click.argument('model_name', default='recommended')
 @click.option('--benchmark', is_flag=True, help='Benchmark local inference speed after pulling')
-def pull_cmd(model_name, benchmark):
+def pull_cmd(model_name: str, benchmark: bool) -> None:
     """
     Download and benchmark recommended Ollama models.
     
@@ -670,7 +679,7 @@ def pull_cmd(model_name, benchmark):
 @click.option('--model', default='qwen2.5-coder:3b', help='Base model to fine-tune')
 @click.option('--epochs', default=3, help='Training epochs')
 @click.option('--name', default='saleha-custom', help='Output model name')
-def tune_cmd(model, epochs, name):
+def tune_cmd(model: str, epochs: int, name: Optional[str]) -> None:
     """
     Run Local LoRA Fine-Tuning Pipeline on collected codebase data.
     
@@ -689,14 +698,14 @@ def tune_cmd(model, epochs, name):
         console.print(f'[bold red]❌ Fine-Tuning failed:[/] {result.error}')
 
 @cli.group()
-def memory():
+def memory() -> None:
     """Manage Saleha persistent solution memory and knowledge base."""
     pass
 
 @memory.command('list')
 @click.option('--limit', '-n', default=20, help='Number of memories to show')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def memory_list(limit, as_json):
+def memory_list(limit: int, as_json: bool) -> None:
     """List verified solutions stored in persistent memory."""
     memories = _cmds.memory_store.list_all(limit=limit)
     if not memories:
@@ -722,7 +731,7 @@ def memory_list(limit, as_json):
 @click.argument('query')
 @click.option('--semantic', is_flag=True, help='Use TF-IDF Vector Semantic Search')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def memory_search(query, semantic, as_json):
+def memory_search(query: str, semantic: bool, as_json: bool) -> None:
     """Search solutions in memory by keyword, tag, or vector semantic similarity."""
     if semantic:
         raw_results = _cmds.memory_store.semantic_search(query)
@@ -758,7 +767,7 @@ def memory_search(query, semantic, as_json):
 
 @memory.command('clear')
 @click.option('--yes', '-y', is_flag=True, help='Confirm wiping memory without prompt')
-def memory_clear(yes):
+def memory_clear(yes: bool) -> None:
     """Clear all verified solutions from persistent memory."""
     if not yes:
         if not click.confirm('Are you sure you want to clear all persistent solution memories?'):
@@ -769,7 +778,7 @@ def memory_clear(yes):
 
 @memory.command('stats')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def memory_stats(as_json):
+def memory_stats(as_json: bool) -> None:
     """Show memory store statistics."""
     stats = _cmds.memory_store.stats()
     if as_json:
@@ -778,7 +787,7 @@ def memory_stats(as_json):
     console.print(Panel.fit(f"[bold cyan]📦 Total Memories:[/] {stats['total_memories']}\n[bold cyan]🎯 Total Cache Hits:[/] {stats['total_hits']}\n[bold cyan]📁 File Path:[/] {stats['storage_path']}", title='[bold green]Memory Store Statistics[/]', border_style='green'))
 
 @cli.group()
-def ci():
+def ci() -> None:
     """Autonomous CI/CD and Pull Request review commands."""
     pass
 
@@ -787,7 +796,8 @@ def ci():
 @click.option('--pr', 'pr_number', default=None, type=int, help='Pull request number')
 @click.option('--output', '-o', default=None, type=click.Path(), help='Export markdown review report to file')
 @click.option('--json', 'as_json', is_flag=True, help='Output review report as JSON')
-def ci_review(target_dir, pr_number, output, as_json):
+def ci_review(target_dir: str, pr_number: Optional[int], output: Optional[str],
+              as_json: bool) -> None:
     """Run autonomous AST SAST security audit and code quality review."""
     bot = _cmds.PRReviewBot()
     report = bot.review_path(target_dir, pr_number=pr_number)
@@ -804,14 +814,14 @@ def ci_review(target_dir, pr_number, output, as_json):
     console.print(Markdown(report.markdown_review[:1200] + '\n\n*(Full report generated)*'))
 
 @cli.group(name='db')
-def db_group():
+def db_group() -> None:
     """Database schema analysis, index optimization, and migrations."""
     pass
 
 @db_group.command(name='optimize')
 @click.argument('schema_or_file')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def db_optimize_cmd(schema_or_file, as_json):
+def db_optimize_cmd(schema_or_file: str, as_json: bool) -> None:
     """Analyze SQL DDL or models for missing indexes and generate UP/DOWN migrations."""
     from saleha.core.db_optimizer import db_optimizer
     content = schema_or_file
@@ -827,14 +837,14 @@ def db_optimize_cmd(schema_or_file, as_json):
     console.print(Syntax(analysis.migration_sql_up, 'sql', theme='monokai'))
 
 @cli.group(name='workspace')
-def workspace_group():
+def workspace_group() -> None:
     """Multi-Repo & Monorepo synchronized workspace coordination."""
     pass
 
 @workspace_group.command(name='status')
 @click.option('--path', '-p', default='.', help='Workspace root path')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def workspace_status_cmd(path, as_json):
+def workspace_status_cmd(path: str, as_json: bool) -> None:
     """Audit branch status and uncommitted changes across all workspace repos."""
     from saleha.core.workspace_coordinator import workspace_coordinator
     statuses = workspace_coordinator.get_workspace_status(root_dir=path)
@@ -853,14 +863,14 @@ def workspace_status_cmd(path, as_json):
     console.print(table)
 
 @cli.group(name='sre')
-def sre_group():
+def sre_group() -> None:
     """Autonomous SRE Incident Responder and Log Analyzer."""
     pass
 
 @sre_group.command(name='analyze')
 @click.argument('log_or_file')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def sre_analyze_cmd(log_or_file, as_json):
+def sre_analyze_cmd(log_or_file: str, as_json: bool) -> None:
     """Analyze production stacktrace and synthesize emergency hotfix patch."""
     from saleha.core.sre_responder import sre_responder
     content = log_or_file
@@ -877,7 +887,7 @@ def sre_analyze_cmd(log_or_file, as_json):
     console.print(Syntax(report.hotfix_patch, 'python', theme='monokai'))
 
 @cli.group(name='refactor')
-def refactor_group():
+def refactor_group() -> None:
     """
     Autonomous Multi-File Atomic Refactoring & AST Symbol Migration.
     """
@@ -887,7 +897,7 @@ def refactor_group():
 @click.argument('old_symbol')
 @click.argument('new_symbol')
 @click.option('--no-commit', is_flag=True, help='Do not auto-commit changes')
-def refactor_rename_cmd(old_symbol, new_symbol, no_commit):
+def refactor_rename_cmd(old_symbol: str, new_symbol: str, no_commit: bool) -> None:
     """
     Rename symbol across all definitions and call-sites with atomic rollback protection.
     
@@ -908,7 +918,7 @@ def refactor_rename_cmd(old_symbol, new_symbol, no_commit):
             console.print('[bold yellow]🛡️ Automatic transactional rollback completed. Workspace is 100% intact.[/]')
 
 @cli.group(name='multi-repo')
-def multi_repo_group():
+def multi_repo_group() -> None:
     """
     Multi-Repository & Monorepo Cross-Service Dependency Mapping.
     """
@@ -916,7 +926,7 @@ def multi_repo_group():
 
 @multi_repo_group.command(name='scan')
 @click.argument('workspace_dir', default='.')
-def multi_repo_scan_cmd(workspace_dir):
+def multi_repo_scan_cmd(workspace_dir: str) -> None:
     """
     Scan workspace for child repositories and build cross-repo dependency index.
     
@@ -935,14 +945,14 @@ def multi_repo_scan_cmd(workspace_dir):
     console.print(table)
 
 @cli.group(name='env')
-def env_group():
+def env_group() -> None:
     """
     Ephemeral Secret & Process Environment Sync.
     """
     pass
 
 @env_group.command(name='list')
-def env_list_cmd():
+def env_list_cmd() -> None:
     """
     List decrypted environment keys from Vault.
     
