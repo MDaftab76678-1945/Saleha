@@ -14,7 +14,8 @@
 | `saleha ask` | Ask Saleha a normal question without starting the interactive shell. | `<QUESTION>` `--model/-m `MODEL`` `--json` |
 | `saleha audit` | Show recent code-execution audit records. | `--limit/-n `LIMIT`` `--blocked-only` `--json` |
 | `saleha autodoc` | Generate Markdown API docs and Mermaid architecture diagrams from AST. | `<PATH>` `--output-dir/-o `OUTPUT_DIR`` `--json` |
-| `saleha benchmark` | Benchmark local Ollama models on HumanEval-style coding challenges. | `--model/-m `MODEL`` `--limit/-l `LIMIT`` `--dry-run` `--json` |
+| `saleha benchmark` | Micro-benchmark four subsystems on this machine (queue throughput, hyperbolic distance, sandbox execution, latency histogram). Runs no model and compares against no other tool. | `--iterations/-n `ITERATIONS`` |
+| `saleha benchmark-model` | Benchmark local Ollama models on HumanEval-style coding challenges. `--dry-run` lists what would be attempted and reports no pass rate. | `--model/-m `MODEL`` `--limit/-l `LIMIT`` `--dry-run` `--json` |
 | `saleha browser` | Automated Headless Browser Testing & Verification (Playwright). | `<URL>` `--selector/-s `SELECTOR`` `--screenshot/-p `SCREENSHOT`` `--timeout/-t `TIMEOUT`` `--json` |
 | `saleha callers` | Find all code callers referencing a specific function, class, or method. | `<SYMBOL>` `--json` |
 | `saleha canvas` | Alias for 'saleha tui'. | - |

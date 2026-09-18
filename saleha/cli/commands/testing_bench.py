@@ -59,7 +59,14 @@ def test(code_file: str, as_json: bool) -> None:
         console.print(Panel(f'[bold red]❌ FAILED[/] - {result.error_type}', border_style='red'))
         console.print(f'\n[yellow]Reason:[/] {result.error_message}')
 
-@cli.command(name='benchmark')
+# Renamed from 'benchmark'. That name is also declared by
+# saleha/cli/benchmark_cli.py (the micro-benchmark suite), and Click keeps
+# whichever registers last -- so this command, the one that benchmarks an
+# Ollama model on coding tasks, could not be invoked at all. It had been
+# unreachable since the CLI monolith was split on 2026-09-06. The two do
+# genuinely different things, so the fix is to give this one its own name
+# rather than delete either. Pinned by test_cli_reachability.py.
+@cli.command(name='benchmark-model')
 @click.option('--model', '-m', default='auto', help='Ollama model to benchmark')
 @click.option('--limit', '-l', default=None, type=int, help='Limit number of test cases')
 @click.option('--dry-run', is_flag=True, help='Simulate benchmark run without LLM calls')
@@ -68,15 +75,29 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
     """
     Benchmark local Ollama models on HumanEval-style coding challenges.
     
-    Example: saleha benchmark -m qwen2.5-coder:3b
-    Example dry run: saleha benchmark --dry-run
+    Example: saleha benchmark-model -m qwen2.5-coder:3b
+    Example dry run: saleha benchmark-model --dry-run
     """
     from saleha.core.evaluator import evaluator
     with Progress(SpinnerColumn(), TextColumn(f"[cyan]Benchmarking model '{model}'..."), console=console) as progress:
         progress.add_task('bench', total=None)
         score = evaluator.run_benchmark(model=model, limit=limit, dry_run=dry_run)
     if as_json:
-        click.echo(json.dumps({'model': score.model, 'total_tasks': score.total_tasks, 'passed_tasks': score.passed_tasks, 'pass_rate': score.pass_rate, 'avg_latency_sec': score.avg_latency_sec, 'task_results': score.task_results}, ensure_ascii=True))
+        # A dry run executes nothing, so `passed_tasks` stays 0 and
+        # `pass_rate` computes to 0.0 -- arithmetically correct, but a script
+        # reading this JSON sees a measured 0% rather than "no measurement".
+        # The table path below was fixed to say so; this branch returns before
+        # reaching it, so it needs the same treatment.
+        payload = {
+            'model': score.model,
+            'total_tasks': score.total_tasks,
+            'did_execute': not dry_run,
+            'passed_tasks': None if dry_run else score.passed_tasks,
+            'pass_rate': None if dry_run else score.pass_rate,
+            'avg_latency_sec': None if dry_run else score.avg_latency_sec,
+            'task_results': score.task_results,
+        }
+        click.echo(json.dumps(payload, ensure_ascii=True))
         return
     from rich.table import Table
     table = Table(title=f'📊 Saleha Benchmark Report — Model: {score.model}', border_style='green')
@@ -85,9 +106,28 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
     table.add_column('Passed', style='bold')
     table.add_column('Latency', style='yellow')
     for res in score.task_results:
-        pass_txt = '[green]✅ PASS[/]' if res['passed'] else '[red]❌ FAIL[/]'
+        # `passed` is None on a dry run -- evaluator.py sets it that way
+        # deliberately (pass 51 removed a hardcoded True there). None is
+        # falsy, so this used to paint every dry-run row a red FAIL: the
+        # engine was made honest and the display kept lying, just in the
+        # other direction. A task that never ran neither passed nor failed.
+        if res['passed'] is None:
+            pass_txt = '[dim]not run[/]'
+        else:
+            pass_txt = '[green]✅ PASS[/]' if res['passed'] else '[red]❌ FAIL[/]'
         table.add_row(res['task_id'], res['difficulty'], pass_txt, f"{res['latency_sec']}s")
     console.print(table)
+
+    # Same reason: pass_rate is computed from a counter that cannot increment
+    # when nothing executes, so "0.0%" reads as "the model failed everything"
+    # on a run that invoked no model at all.
+    if dry_run:
+        console.print(Panel(
+            f'[bold cyan]Model:[/] {score.model}\n'
+            f'[yellow]Nothing was executed (--dry-run), so there is no pass '
+            f'rate.[/] {score.total_tasks} task(s) would be attempted.',
+            title='[bold yellow]Dry run[/]', border_style='yellow'))
+        return
     console.print(Panel(f'[bold cyan]Model:[/] {score.model}\n[bold cyan]Pass@1 Rate:[/] [bold green]{score.pass_rate}%[/] ({score.passed_tasks}/{score.total_tasks} passed)\n[bold cyan]Average Latency:[/] {score.avg_latency_sec}s per task', title='[bold green]🏆 Benchmark Summary[/]', border_style='green'))
 
 @cli.command(name='sandbox-selfcheck')

@@ -43,11 +43,28 @@ def git_hook_cmd(action, as_json):
     Example install: saleha git hook install
     Example uninstall: saleha git hook uninstall
     """
-    from saleha.core.git_hooks import hook_manager
+    # Was `from saleha.core.git_hooks import hook_manager`, calling
+    # install_pre_commit()/uninstall_pre_commit(). None of those three names
+    # exist: the module exports `git_hook_manager` with install_hooks() /
+    # uninstall_hooks(), which return (ok, message) rather than a dict. So
+    # `saleha git hook install` raised ImportError on every invocation, while
+    # the suite stayed green -- the import is inside the function body, so
+    # nothing but a real run ever reaches it. Found by
+    # test_cli_reachability.py.
+    from saleha.core.git_hooks import git_hook_manager
+    # install_hooks()/uninstall_hooks() return (ok, message); the renderer
+    # below reads 'success'/'message'/'error', so both have to be supplied.
+    # A first version of this fix set 'installed'/'message' only, which made
+    # the renderer fall through to its error branch and print a bare
+    # "None" -- the import was fixed and the behaviour still broken.
     if action == 'install':
-        res = hook_manager.install_pre_commit()
+        ok, message = git_hook_manager.install_hooks()
+        res = {'success': ok, 'installed': ok,
+               'message': message, 'error': None if ok else message}
     elif action == 'uninstall':
-        res = hook_manager.uninstall_pre_commit()
+        ok, message = git_hook_manager.uninstall_hooks()
+        res = {'success': ok, 'installed': False if ok else True,
+               'message': message, 'error': None if ok else message}
     else:
         git_dir = os.path.join(os.path.abspath('.'), '.git', 'hooks', 'pre-commit')
         installed = os.path.isfile(git_dir)

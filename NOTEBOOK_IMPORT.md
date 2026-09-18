@@ -5706,3 +5706,85 @@ enough on its own -- nothing stopped it coming back.
 regression test). Quality gate: `doom_group.py` **100.0**,
 `test_benchmark_cli.py` **100.0**, `benchmark_cli.py` 96.0. Both commands
 re-verified by real invocation.
+
+## Fifty-eighth pass — a check for the defect class the suite cannot see (2026-09-18)
+
+Asked what to do first, I nearly recommended the wrong thing and measured it
+instead.
+
+**The idea that failed:** invoke `--help` on every registered command. Ran it:
+158 commands, **0.1s, zero failures** -- while three of them were broken. Click
+renders help from the decorators without entering the function body, so it
+cannot see a dead import inside one, and a shadowed command is simply absent
+from `cli.commands` rather than failing. That smoke test would have caught
+**none** of the four defects found this morning.
+
+**What does work**, without executing anything:
+
+1. Resolve every `from saleha... import NAME` that sits *inside* a function
+   body and confirm NAME exists.
+2. Confirm no command name is declared twice, across **both** `@cli.command`
+   and `@click.command` spellings.
+
+Replayed against commit `65fb741` -- the one that broke three commands -- check
+1 catches all four regressions by file and line. That is the test now shipping
+as `saleha/tests/test_cli_reachability.py`.
+
+### It found a fourth broken command on its first real run
+
+```
+saleha git hook install
+-> ImportError: cannot import name 'hook_manager' from saleha.core.git_hooks
+```
+
+The module exports `git_hook_manager`; `hook_manager` exists nowhere. And
+`hook_group.py` already uses the correct name -- so there were two git-hook
+command surfaces, one of them dead. Found by the check, not by luck.
+
+**I then fixed it wrong, and the fix printed `None`.** `install_hooks()`
+returns `(ok, message)`, but the renderer reads `res.get('success')` and
+`res.get('error')`. My first version populated `installed`/`message`, so the
+renderer fell to its error branch and printed a bare `❌ None`: the import was
+correct and the behaviour still broken. Fixed properly and verified on all
+three paths (install, status, `--json`).
+
+### The collision test went red on a real bug, so the bug got fixed
+
+`benchmark` was declared in two files. Click keeps the last registration, so
+`saleha benchmark` resolved to the micro-benchmark suite and
+`testing_bench.py`'s Ollama model benchmark -- with `--model`, `--limit`,
+`--dry-run` -- **could not be invoked at all**. It had been unreachable since
+the CLI monolith was split on 2026-09-06: twelve days.
+
+A permanently-red test is not shippable, and weakening the assertion to
+accommodate a known bug is the dishonesty this whole ledger exists to stop. So
+the command was renamed to `benchmark-model` rather than the test being
+loosened. CLI: 158 -> **159** commands.
+
+### And the renamed command was reporting a score for work it never did
+
+`saleha benchmark-model --dry-run` printed five red `FAIL` rows and
+`Pass@1 Rate: 0.0%`. The engine is honest -- `evaluator.py:92` sets
+`passed = None` on a dry run, with a comment recording that pass 51 removed a
+hardcoded `True` there. But `None` is falsy, so the **renderer** painted it as
+failure: pass 51 fixed the engine and left the display lying in the opposite
+direction. A fabricated failure is the same defect as a fabricated success --
+a reported result for work never performed.
+
+Fixed in both output paths, which matters because they diverge: the `--json`
+branch returns before the table is built, so the first fix left
+`"pass_rate": 0.0` still going out to any script consuming it. It now carries
+`did_execute: false` with the score fields null.
+
+`docs/CLI_REFERENCE.md` documented `saleha benchmark` with `--model/--limit/
+--dry-run` -- those are `benchmark-model`'s flags now, and the real
+`benchmark` takes only `-n`. Both rows corrected and checked against the live
+signatures. `CHANGELOG.md`'s older mention was left alone: it is history, and
+it was accurate when written.
+
+**Measured:** suite 1915 -> **1918 passed**, 13 skipped, 1931 collected
+(1918 + 13 = 1931, so nothing went missing). The +3 is the new
+`test_benchmark_model_cli.py`; `test_cli_reachability.py`'s 2 tests were
+already collected by the 1915 run, which began a minute after that file was
+written. Quality gate: both new test files **100.0**, `testing_bench.py` 92.0,
+`git_group.py` 88.0. Every command re-verified by real invocation.
