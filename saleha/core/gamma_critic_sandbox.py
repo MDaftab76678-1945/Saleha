@@ -33,18 +33,42 @@ class GammaReport:
     feedback_signal: str = ""
 
 
+def _has_loop_exit(statements: List[ast.stmt]) -> bool:
+    for stmt in statements:
+        if isinstance(stmt, (ast.Break, ast.Return, ast.Raise)):
+            return True
+        if isinstance(stmt, ast.If):
+            if _has_loop_exit(stmt.body) or _has_loop_exit(stmt.orelse):
+                return True
+        if isinstance(stmt, ast.Try):
+            if _has_loop_exit(stmt.body) or any(_has_loop_exit(h.body) for h in stmt.handlers) or _has_loop_exit(stmt.finalbody):
+                return True
+        if hasattr(ast, "TryStar") and isinstance(stmt, getattr(ast, "TryStar", ast.Try)):
+            try_body = getattr(stmt, "body", [])
+            try_handlers = getattr(stmt, "handlers", [])
+            try_final = getattr(stmt, "finalbody", [])
+            if _has_loop_exit(try_body) or any(_has_loop_exit(getattr(h, "body", [])) for h in try_handlers) or _has_loop_exit(try_final):
+                return True
+        if isinstance(stmt, (ast.With, ast.AsyncWith)):
+            if _has_loop_exit(stmt.body):
+                return True
+    return False
+
+
 class GammaASTInspector(ast.NodeVisitor):
     """
     Performs static AST rule evaluation to detect common programming hazards
     such as Division by Zero, Resource/Memory leaks, Unbound variables,
-    and dangerous calls before execution.
+    infinite loops, bare exception swallowing, hardcoded credentials,
+    and dangerous execution calls before runtime.
     """
 
-    def __init__(self, code: str):
+    def __init__(self, code: str) -> None:
         self.code = code
         self.violations: List[ASTViolation] = []
         self.assigned_vars: Dict[str, Any] = {}
         self.allocated_resources: Dict[str, int] = {}  # var_name -> line
+        self.context_managed_resources: set[str] = set()
 
     def check(self) -> List[ASTViolation]:
         try:
@@ -61,7 +85,7 @@ class GammaASTInspector(ast.NodeVisitor):
                     fix_hint="Correct code syntax before execution.",
                 )
             )
-        
+
         # Check for unclosed / unfreed allocated resources
         for var_name, lineno in self.allocated_resources.items():
             self.violations.append(
@@ -77,12 +101,28 @@ class GammaASTInspector(ast.NodeVisitor):
 
         return self.violations
 
-    def visit_Assign(self, node: ast.Assign):
+    def visit_Assign(self, node: ast.Assign) -> None:
         # Track literal constants (e.g. divisor = 0)
         if isinstance(node.value, ast.Constant):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     self.assigned_vars[target.id] = node.value.value
+                    # Detect hardcoded credentials
+                    if isinstance(node.value.value, str):
+                        lower_id = target.id.lower()
+                        if any(k in lower_id for k in ("api_key", "secret", "password", "token", "auth_token", "private_key")):
+                            val = node.value.value
+                            if len(val) >= 16 or val.startswith(("sk-", "ghp_", "bearer ", "ey")):
+                                self.violations.append(
+                                    ASTViolation(
+                                        rule_id="GAMMA_HARDCODED_SECRET",
+                                        severity="SECURITY",
+                                        message=f"Potential hardcoded secret assigned to '{target.id}'.",
+                                        line=node.lineno,
+                                        column=node.col_offset,
+                                        fix_hint="Load credentials from environment variables or secure vault instead.",
+                                    )
+                                )
 
         # Track resource allocation (open without with)
         if isinstance(node.value, ast.Call):
@@ -92,11 +132,12 @@ class GammaASTInspector(ast.NodeVisitor):
             if func_name in {"open", "socket", "connect"}:
                 for target in node.targets:
                     if isinstance(target, ast.Name):
-                        self.allocated_resources[target.id] = node.lineno
+                        if target.id not in self.context_managed_resources:
+                            self.allocated_resources[target.id] = node.lineno
 
         self.generic_visit(node)
 
-    def visit_BinOp(self, node: ast.BinOp):
+    def visit_BinOp(self, node: ast.BinOp) -> None:
         # Division by zero check
         if isinstance(node.op, (ast.Div, ast.FloorDiv, ast.Mod)):
             # Direct literal division by zero (e.g., x / 0)
@@ -127,32 +168,116 @@ class GammaASTInspector(ast.NodeVisitor):
                     )
         self.generic_visit(node)
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call) -> None:
         # Check if allocated resource is closed
         if isinstance(node.func, ast.Attribute):
             if node.func.attr in {"close", "free", "release"}:
                 if isinstance(node.func.value, ast.Name):
                     self.allocated_resources.pop(node.func.value.id, None)
 
-        # Security check: dangerous OS calls
+        # Security check: dangerous OS / deserialization calls
         func_name = ""
+        module_name = ""
         if isinstance(node.func, ast.Name):
             func_name = node.func.id
         elif isinstance(node.func, ast.Attribute):
             func_name = node.func.attr
+            if isinstance(node.func.value, ast.Name):
+                module_name = node.func.value.id
 
-        if func_name in {"system", "popen", "exec", "eval"}:
+        dangerous_names = {"system", "popen", "exec", "eval"}
+        dangerous_combos = {
+            ("os", "system"), ("os", "popen"),
+            ("pickle", "loads"), ("pickle", "load"),
+            ("subprocess", "call"),
+        }
+        if func_name in dangerous_names or (module_name, func_name) in dangerous_combos:
+            disp_name = f"{module_name}.{func_name}()" if module_name else f"{func_name}()"
             self.violations.append(
                 ASTViolation(
                     rule_id="GAMMA_SECURITY_DANGEROUS_CALL",
                     severity="SECURITY",
-                    message=f"Potentially unsafe execution call '{func_name}()' detected.",
+                    message=f"Potentially unsafe execution call '{disp_name}' detected.",
                     line=node.lineno,
                     column=node.col_offset,
                     fix_hint="Use safe, parameterized APIs or sandbox runner instead.",
                 )
             )
 
+        self.generic_visit(node)
+
+    def visit_While(self, node: ast.While) -> None:
+        is_unconditional = False
+        if isinstance(node.test, ast.Constant) and bool(node.test.value) is True:
+            is_unconditional = True
+        elif isinstance(node.test, ast.Name) and node.test.id in {"True"}:
+            is_unconditional = True
+
+        if is_unconditional and not _has_loop_exit(node.body):
+            self.violations.append(
+                ASTViolation(
+                    rule_id="GAMMA_INFINITE_LOOP",
+                    severity="CRITICAL",
+                    message="Infinite loop detected with no explicit termination (break, return, or raise).",
+                    line=node.lineno,
+                    column=node.col_offset,
+                    fix_hint="Add a loop exit condition, break statement, or termination branch.",
+                )
+            )
+        self.generic_visit(node)
+
+    def visit_Try(self, node: ast.Try) -> None:
+        self._check_try_handlers(node.handlers)
+        self.generic_visit(node)
+
+    def visit_TryStar(self, node: Any) -> None:
+        handlers = getattr(node, "handlers", [])
+        self._check_try_handlers(handlers)
+        self.generic_visit(node)
+
+    def _check_try_handlers(self, handlers: List[ast.ExceptHandler]) -> None:
+        for handler in handlers:
+            is_broad = False
+            if handler.type is None:
+                is_broad = True
+            elif isinstance(handler.type, ast.Name) and handler.type.id in {"Exception", "BaseException"}:
+                is_broad = True
+
+            if is_broad:
+                is_swallowed = False
+                if len(handler.body) == 0:
+                    is_swallowed = True
+                elif len(handler.body) == 1:
+                    first = handler.body[0]
+                    if isinstance(first, ast.Pass):
+                        is_swallowed = True
+                    elif isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and first.value.value is ...:
+                        is_swallowed = True
+
+                if is_swallowed:
+                    self.violations.append(
+                        ASTViolation(
+                            rule_id="GAMMA_BARE_EXCEPT",
+                            severity="WARNING",
+                            message="Broad exception caught and silently swallowed with empty body.",
+                            line=handler.lineno,
+                            column=handler.col_offset,
+                            fix_hint="Catch specific exception types and log or handle the error appropriately.",
+                        )
+                    )
+
+    def visit_With(self, node: ast.With) -> None:
+        for item in node.items:
+            if item.optional_vars and isinstance(item.optional_vars, ast.Name):
+                self.context_managed_resources.add(item.optional_vars.id)
+                self.allocated_resources.pop(item.optional_vars.id, None)
+        self.generic_visit(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        for item in node.items:
+            if item.optional_vars and isinstance(item.optional_vars, ast.Name):
+                self.context_managed_resources.add(item.optional_vars.id)
+                self.allocated_resources.pop(item.optional_vars.id, None)
         self.generic_visit(node)
 
 
