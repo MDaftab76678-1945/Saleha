@@ -267,9 +267,20 @@ Unlike most of section 8, these were traced end to end, not just listed.
   retry/backoff and real token/cost accounting, plus a real GitHub API fetch
   and legitimate AST-based static checks in `formal_verify_python`. Left
   in place: orphaned/unwired, but not fabricated. `jarvis_common_sense.py`,
-  `jarvis_novel_reasoning.py`, `jarvis_transfer_learning.py`, and the
-  audio/C++ files in the same `jarvis/` directory were **not** read this
-  pass and are not covered by this finding either way — still open.
+  `jarvis_novel_reasoning.py` and `jarvis_transfer_learning.py` were **read
+  in full and annotated in pass 62** — not the same pattern as the four
+  deleted files, so kept rather than removed: none of the three reports a
+  result it did not compute. `structural_match()` is genuinely real
+  (Jaccard over relation-name sets; 1.0 for equivalent schemas, 0.0 for
+  unrelated), as is the physics/belief bookkeeping in
+  `jarvis_common_sense.py`. One outright false claim was fixed:
+  `MetaLearner.adapt_to_new_domain()` returned `{"status": "adapted"}`
+  while adapting nothing. The remaining stubs (`generate_hypotheses` ->
+  `[]`, `counterfactual_test` -> `0`, `is_physically_possible` -> `True`,
+  `infer_intention` -> `"unknown"`, `transfer_knowledge` -> `[]`) now say
+  plainly that they are not implemented. All three are unwired — nothing in
+  `saleha/` imports them. The audio/C++ files in the same directory were
+  **not** read and are not covered by this finding either way — still open.
 - `saleha/specs/` — `saleha/specs/agent_specs/*.md` (spec docs paired with
   `saleha/skills/agent_*.md` below) and `saleha/specs/v5_files/`.
 - `saleha/skills/` — `agent_*.md` (persona prompts, 20+ files) and

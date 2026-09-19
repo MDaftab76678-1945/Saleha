@@ -1,11 +1,33 @@
 """
-GAP 2 REMEDIATION: Abductive Discovery Engine + Counterfactual Simulation
-Generates genuinely novel hypotheses, not retrieved knowledge recombination.
+Abductive discovery: scaffold only. It generates no hypotheses.
+
+Unwired -- nothing in `saleha/` imports this module.
+
+## What actually runs
+
+`generate_hypotheses()` returns `[]` unconditionally; the LLM call its
+docstring describes was never written. Everything downstream inherits that:
+`on_anomaly()` returns `[]` for any input, `rank_by_novelty()` ranks an empty
+list, and `hypothesis_pool` never fills. Probed with a real anomaly
+(`observed X` vs `predicted Y`): 0 hypotheses, pool size 0.
+
+`counterfactual_test()` returns the literal `0`, so `explanatory_power` is
+always 0 and therefore `novelty` -- its product -- is always 0 too. The
+scoring arithmetic in `Hypothesis.compute_novelty()` is correct, but nothing
+ever supplies it a non-zero term.
+
+`AnomalyDetector.compute_surprise()` is a string equality check returning
+0.0 or 1.0, not the `-log P(observation | model)` its class docstring names.
+
+The earlier header claimed this "generates genuinely novel hypotheses, not
+retrieved knowledge recombination". It generates nothing. Four sibling files
+making comparable claims were deleted in pass 44; this one is kept because
+its structure is a usable starting point, but the header must not describe
+work it does not do.
 """
 
-import numpy as np
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from dataclasses import dataclass
+from typing import List
 from collections import deque
 
 
@@ -32,11 +54,14 @@ class AnomalyDetector:
         self.prediction_history = deque(maxlen=200)
 
     def compute_surprise(self, predicted: str, observed: str) -> float:
-        """Surprise signal: 0 (expected) to 1 (completely unexpected)."""
+        """String equality, not the -log P() in this class's docstring.
+
+        Returns 0.0 on an exact match and 1.0 otherwise -- there is no
+        intermediate value, so this cannot rank two different misses.
+        """
         if predicted == observed:
             return 0.0
-        # Semantic distance as surprise proxy
-        return 1.0  # simplified; use embedding distance in production
+        return 1.0
 
 
 class AbductiveDiscoveryEngine:
@@ -62,27 +87,23 @@ class AbductiveDiscoveryEngine:
         return []
 
     def generate_hypotheses(self, observation: str, predicted: str) -> List[Hypothesis]:
+        """Not implemented: always returns an empty list.
+
+        The intended design was a model call constrained to produce
+        statements absent from the existing transition model. No such call
+        was written, so every caller of this method gets nothing.
         """
-        Synthesize candidate explanations.
-        In production: call qwen2.5:7b with abduction prompt +
-        constraint that output must NOT match any existing transition_model entry.
-        """
-        # Placeholder for LLM-backed synthesis with novelty constraint
-        candidates = []
-        # ... LLM generates N hypotheses ...
-        return candidates
+        return []
 
     def counterfactual_test(self, hypothesis: Hypothesis) -> float:
+        """Not implemented: always returns 0.
+
+        The intended test was "if H were true, what else would we observe?",
+        counting the new predictions H enables via world-model simulation. No
+        simulation is run, so every hypothesis scores 0 explanatory power and
+        every resulting novelty score is 0.
         """
-        CORE NOVELTY TEST:
-        'If H were true, what ELSE would we observe?'
-        Checks if hypothesis makes NEW testable predictions.
-        A hypothesis that only explains the original anomaly (no new
-        predictions) is post-hoc fitting, not genuine insight.
-        """
-        # Count new predictions the hypothesis enables
-        new_predictions = 0  # computed via world model simulation
-        return new_predictions
+        return 0.0
 
     def rank_by_novelty(self, candidates: List[Hypothesis]) -> List[Hypothesis]:
         for h in candidates:

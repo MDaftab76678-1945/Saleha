@@ -1,11 +1,35 @@
 """
-GAP 4 REMEDIATION: Structure-Mapping Analogy + Meta-Learning
-Enables generalization across arbitrary, unregistered domains.
+Structure-mapping analogy: one real scorer, and two stubs beside it.
+
+Unwired -- nothing in `saleha/` imports this module.
+
+## What is real
+
+`StructureMappingEngine.extract_schema()` and `structural_match()` genuinely
+work. The match is a Jaccard index over the two domains' relation-name sets.
+Probed: a solar-system schema (`orbits`, `attracts`) against an equivalent
+atom schema scores **1.0**; against an unrelated cooking schema, **0.0**.
+
+Note the limit that implies -- it compares relation *names* only. Two domains
+using the same vocabulary score 1.0 even if their connectivity differs, and
+two structurally identical domains using different words score 0.0. Gentner's
+Structure-Mapping Engine, which the class is named after, aligns the
+connectivity graph; this does not.
+
+## What does not run
+
+`transfer_knowledge()` returns `[]` for every input, including a perfect 1.0
+match -- the projection step was never written, so the "genuine cross-domain
+transfer" its old docstring promised never happens.
+
+`MetaLearner.adapt_to_new_domain()` returned `{"status": "adapted"}` while
+adapting nothing: no MAML init, no LoRA selection, no use of the examples
+passed in. That string was the one outright false claim in this file and is
+now `"not_implemented"`.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional
-from itertools import permutations
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 
 @dataclass
@@ -67,18 +91,15 @@ class StructureMappingEngine:
         return len(common) / len(union) if union else 0.0
 
     def transfer_knowledge(self, source: str, target: str) -> List[str]:
-        """
-        If structural match is strong, project source-domain inferences
-        onto target domain. This is genuine cross-domain transfer.
-        """
-        score = self.structural_match(source, target)
-        if score < 0.5:
-            return []  # no valid analogy
+        """Not implemented: returns an empty list even on a perfect match.
 
-        # Project source relations onto mapped target entities
-        transferred = []
-        # ... mapping projection logic ...
-        return transferred
+        The gate below is real -- a weak analogy is correctly rejected -- but
+        the projection that would run for a strong one was never written, so
+        the two branches are indistinguishable to a caller.
+        """
+        if self.structural_match(source, target) < 0.5:
+            return []
+        return []
 
 
 class MetaLearner:
@@ -91,10 +112,17 @@ class MetaLearner:
         self.adaptation_strategies: List[str] = []
 
     def adapt_to_new_domain(self, domain_name: str,
-                           few_examples: List[Dict]) -> Dict:
+                            few_examples: List[Dict]) -> Dict:
+        """Not implemented: adapts nothing and ignores `few_examples`.
+
+        Reported `"adapted"` regardless of input, which is the one claim in
+        this file a caller could have acted on. Real few-shot adaptation
+        needs a MAML-style gradient init or LoRA adapter selection; neither
+        is wired up here.
         """
-        Few-shot domain adaptation.
-        Uses prior adaptation experience to accelerate new-domain learning.
-        """
-        # In production: MAML-style gradient init or LoRA adapter selection
-        return {"domain": domain_name, "status": "adapted"}
+        return {
+            "domain": domain_name,
+            "status": "not_implemented",
+            "examples_seen": len(few_examples),
+            "reason": "no adaptation backend (MAML/LoRA) is wired up",
+        }

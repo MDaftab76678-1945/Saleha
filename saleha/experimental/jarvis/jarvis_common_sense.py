@@ -1,6 +1,25 @@
 """
-GAP 3 REMEDIATION: Intuitive Physics Engine + Theory of Mind
-Provides everyday physical and social intuition via internal simulation.
+Naive physics and belief tracking over hand-registered facts.
+
+Unwired -- nothing in `saleha/` imports this module.
+
+## What is real
+
+The support, containment and belief logic genuinely computes over whatever
+objects and agents a caller registers: `will_fall()` reads the support link,
+`will_spill()` composes containment with it, `simulate("remove_support", x)`
+mutates the object and re-derives the outcome, and `false_belief_check()`
+implements the Sally-Anne comparison correctly. None of this is fabricated --
+but none of it is inferred either. It is bookkeeping over facts you supply.
+
+## What does not run
+
+`is_physically_possible()` returns `True` for every scenario, including
+impossible ones, so it cannot do the hallucination-catching its docstring
+described. `infer_intention()` returns `"unknown"` for every action.
+
+Both are flagged in place rather than deleted: unlike the four sibling files
+removed in pass 44, nothing here reports a result it did not compute.
 """
 
 from dataclasses import dataclass, field
@@ -50,12 +69,14 @@ class IntuitivePhysicsEngine:
         return False
 
     def is_physically_possible(self, scenario: str) -> bool:
+        """Not implemented: returns True for every scenario, including
+        impossible ones.
+
+        Do not use this as a hallucination filter -- it rejects nothing. The
+        intended design was a rule-based constraint check (e.g. an object
+        passing through a solid wall should be False).
         """
-        Sanity-check a scenario against naive physics.
-        Used to catch LLM hallucinations that violate physical law.
-        """
-        # Rule-based filter: e.g., "object passes through solid wall" -> False
-        return True  # expand with constraint checks
+        return True
 
     def simulate(self, action: str, target: str) -> str:
         """Mental simulation: predict outcome of action."""
@@ -109,6 +130,9 @@ class TheoryOfMindModule:
         return holds_belief and not belief_matches_reality
 
     def infer_intention(self, agent: str, observed_action: str) -> str:
-        """Inverse reasoning: action -> likely intention."""
-        # Map observed actions to goal hypotheses
+        """Not implemented: returns "unknown" for every action.
+
+        The intended design was inverse reasoning from an observed action to
+        a goal hypothesis. No action-to-goal mapping exists.
+        """
         return "unknown"

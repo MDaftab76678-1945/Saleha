@@ -775,6 +775,8 @@ deleting the wiring fails the suite instead of silently restoring
 always-healthy.
 
 **Still open from the 2026-09-06 audit:** `silicon-build` and `causal-eval`.
+**(Closed in pass 62 — both were already honest by then; this note was
+stale. See "Sixty-second pass".)**
 
 
 ## Twelfth pass — the orchestrator family, and a fabricated PR (2026-09-07)
@@ -6045,3 +6047,103 @@ the new `test_doom_group_honesty.py`; the 6 tests in
 working tree and so were counted in the 1927 baseline too. 14 tests across
 the two files in total. Quality gate: `doom_group.py` 100.0, both test files
 100.0, `doom_workspace_engine.py` 90.0, `incremental_ast_cache.py` 88.0.
+
+## Sixty-second pass — two open items closed, and a correction to my own report (2026-09-20)
+
+Picked up the two items left open after pass 61: `silicon-build` (flagged
+"still open" in this ledger since the 2026-09-06 audit) and the three
+unaudited `saleha/experimental/jarvis/` files flagged in `ORCHESTRATOR.md`
+section 8.3.
+
+### I reported `silicon-build` wrong, and the correction matters more than the finding
+
+I told the user this command was a live fabrication. It is not. I had probed
+the *engine* and seen two unrelated specs return RTL differing by one comment
+line -- true -- and reported that as a fabrication without running the CLI.
+The CLI prints, unprompted, on every invocation:
+
+```
+- The same fixed 32-bit ALU is emitted for every specification; only the
+  module name and a description comment change.
+- No synthesis or simulation tool was run (no Yosys, Verilator or iverilog),
+  so there is no LUT count, timing result or synthesizability verdict.
+```
+
+`SiliconCircuitDesign` carries `is_template=True`, `estimated_lut_count=None`
+and `is_synthesizable=None`, and the module docstring opens with "It does not
+design anything from the specification". An earlier pass had already made
+this honest. A template that says it is a template is a scaffold, not a
+fabrication -- the whole distinction this ledger exists to draw. The
+"still open" note was stale, and my probe reproduced the known behaviour
+rather than finding anything new.
+
+`causal-eval`, flagged beside it, is likewise fine: two targets give
+genuinely different output (`latency_ms` 150.0 -> 78.0 at confidence 0.95;
+`defect_rate` 0.02 -> 0.02 at 0.65), and it states its graph is hand-written.
+
+### Two real defects in the same file, which nobody had looked for
+
+Reading it in full found bugs in the one thing the spec *does* control:
+
+| spec | before | after |
+| --- | --- | --- |
+| `""` / `"   "` | **`IndexError`** | `saleha_module` |
+| `"the AXI bridge"` | `saleha_the` | `saleha_axi_bridge` |
+| `"UART transmitter at 115200 baud"` | `saleha_uart` | `saleha_uart_transmitter_baud` |
+| `"UART receiver with parity"` | `saleha_uart` | `saleha_uart_receiver_parity` |
+| `"4-bit counter"` | `saleha_4_bit` | `saleha_bit_counter_4` |
+
+`spec_goal.lower().split()[0]` raised `IndexError` on an empty spec --
+reachable from the CLI, which accepts any string. And naming from word one
+collapsed every UART spec to one identifier, so writing a transmitter and a
+receiver to the same `--output-dir` silently overwrote both the `.v` and the
+testbench. The `4_bit` case was additionally illegal Verilog: an identifier
+cannot begin with a digit.
+
+Five tests added. Teeth-checked by stashing the engine alone: **8 failures**
+against the unfixed version, 16/16 once restored.
+
+### The three `jarvis/` files: not the pass-44 pattern, one false claim
+
+Pass 44 deleted four files from this directory for confident claims with
+nothing behind them. These three are a different case, and the honest
+outcome was to annotate rather than delete -- none of them reports a result
+it did not compute. Probed all three:
+
+- **`jarvis_transfer_learning.py` -- one genuinely real component.**
+  `structural_match()` is a working Jaccard index over relation-name sets:
+  a solar-system schema against an equivalent atom schema scores **1.0**,
+  against an unrelated cooking schema **0.0**. Documented the limit this
+  implies (it compares relation *names*, not connectivity, so it is not the
+  Gentner SME its class name claims).
+- **The one outright false claim, fixed:** `MetaLearner.adapt_to_new_domain()`
+  returned `{"status": "adapted"}` while adapting nothing -- ignoring the
+  `few_examples` passed in, with no MAML init or LoRA selection behind it.
+  Now `"not_implemented"` with the real reason and `examples_seen`.
+- **`jarvis_novel_reasoning.py` -- a scaffold that generates nothing.**
+  `generate_hypotheses()` returns `[]` unconditionally, so `on_anomaly()`
+  returns `[]` for any input and `hypothesis_pool` never fills (probed: 0
+  hypotheses, pool 0). `counterfactual_test()` returns literal 0, so every
+  novelty score is 0 by construction. Header claimed it "generates genuinely
+  novel hypotheses"; corrected. `import numpy as np` was never used --
+  removed, along with three other dead imports.
+- **`jarvis_common_sense.py` -- real bookkeeping, two dead stubs.** The
+  support/containment/belief logic genuinely computes (`simulate
+  ("remove_support", cup)` -> "cup falls", then `will_spill` -> True;
+  Sally-Anne `false_belief_check` -> True). But `is_physically_possible()`
+  returns `True` for every scenario including impossible ones, so it cannot
+  be the hallucination filter its docstring described, and
+  `infer_intention()` returns `"unknown"` always. Both now say so.
+
+### A pre-existing gate failure, fixed rather than excused
+
+`test_specialized_orchestrators.py` scored **48.0** before this pass and
+**32.0** after my five tests enlarged it -- 0 of 17 methods had a return
+annotation (TYPE-001 x17). Confirmed pre-existing via `git stash` (0/13
+typed before my changes) and fixed the whole file rather than the part I
+added: **100.0/100**.
+
+**Measured:** suite 1935 -> **1939 passed**, 13 skipped, 80 subtests (+4
+tests, +8 subtests). Quality gate: `silicon_circuit_orchestrator.py` 96.0,
+`test_specialized_orchestrators.py` 100.0, the three `jarvis/` files 84.0 /
+84.0 / 92.0.

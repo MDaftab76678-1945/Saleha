@@ -33,6 +33,22 @@ Three further claims that were in this module and are now removed:
 What is real: the emitted Verilog is syntactically valid, the testbench
 instantiates the module correctly, and the SDC is well-formed. As a scaffold
 that is useful. As a design for your specification it is nothing.
+
+## Module naming (the one thing the spec does affect)
+
+The name is derived from the whole spec rather than its first word, which
+fixed two real defects:
+
+- `spec_goal.lower().split()[0]` raised `IndexError` on an empty or
+  whitespace-only spec -- reachable from the CLI, which accepts any string.
+- Word one alone collapsed every UART spec to `saleha_uart`, so writing a
+  transmitter and a receiver to one `--output-dir` silently overwrote both
+  the RTL and the testbench; and "the AXI bridge" was named `saleha_the`.
+
+Filler words are dropped, component words are kept ahead of bare widths, and
+a leading digit is prefixed, since a Verilog identifier cannot start with
+one ("4-bit counter" -> `saleha_bit_counter_4`). This changes the name only;
+the RTL behind it is the same fixed ALU either way.
 """
 
 from __future__ import annotations
@@ -78,13 +94,46 @@ class SiliconCircuitOrchestrator:
     def __init__(self):
         pass
 
+    # Words that carry no hardware meaning. Taking the spec's first word
+    # verbatim named "the AXI bridge" -> saleha_the, and collapsed every UART
+    # spec to saleha_uart regardless of direction, so a transmitter and a
+    # receiver written to one directory silently overwrote each other.
+    _SKIP_WORDS = frozenset({
+        "a", "an", "the", "design", "build", "make", "create", "generate",
+        "implement", "write", "synthesize", "for", "with", "and", "of", "to",
+        "at", "in", "on", "using", "that", "which", "please", "module",
+    })
+
+    @staticmethod
+    def _module_name_from_spec(spec_goal: str) -> str:
+        """Derive a Verilog-legal identifier from the whole spec, not word one.
+
+        A Verilog identifier cannot start with a digit, so "4-bit counter"
+        yields `bit_counter_4` rather than an illegal leading `4`.
+        """
+        words = re.findall(r"[a-zA-Z0-9]+", spec_goal.lower())
+        meaningful = [w for w in words if w not in SiliconCircuitOrchestrator._SKIP_WORDS]
+        candidates = meaningful or words
+        if not candidates:
+            return "module"
+
+        # Keep the words that name the component ahead of bare widths and baud
+        # rates: "Design a 32-bit pipelined ALU" should read alu_pipelined_32,
+        # not lose "alu" to the length cap behind "32".
+        named = [w for w in candidates if not w.isdigit()]
+        numeric = [w for w in candidates if w.isdigit()]
+        chosen = (named + numeric)[:3] if named else numeric[:3]
+
+        name = "_".join(chosen)
+        return name if not name[0].isdigit() else f"m_{name}"
+
     def synthesize_hardware_circuit(
         self,
         spec_goal: str,
         module_name: Optional[str] = None
     ) -> SiliconCircuitDesign:
         """Generates synthesizable Verilog RTL, testbench, and SDC timing constraints."""
-        clean_name = module_name or re.sub(r"[^a-zA-Z0-9_]", "_", spec_goal.lower().split()[0])
+        clean_name = module_name or self._module_name_from_spec(spec_goal)
         if not clean_name.startswith("saleha_"):
             clean_name = f"saleha_{clean_name}"
 

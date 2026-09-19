@@ -1198,6 +1198,56 @@ Measured: suite 1927 → **1935 passed**, 13 skipped. Quality gate 100.0 on
 `doom_group.py` and both test files.
 Detail: `NOTEBOOK_IMPORT.md`, "Sixty-first pass."
 
+**Two stale "still open" notes closed, and a correction to my own report
+(pass 62).** Picked up the last two open items in the docs.
+
+**`silicon-build` is not a fabrication — I reported it as one and was
+wrong.** I probed the engine, saw two unrelated specs return RTL differing
+by one comment line, and called it a live fabrication without running the
+CLI. The CLI prints, unprompted, every run: *"The same fixed 32-bit ALU is
+emitted for every specification"* and *"No synthesis or simulation tool was
+run"*. `is_template=True`, `estimated_lut_count=None`,
+`is_synthesizable=None`. An earlier pass had already made it honest. **A
+template that says it is a template is a scaffold, not a fabrication** —
+that is the whole distinction this project draws. `causal-eval`, flagged
+beside it, is likewise real (different targets give genuinely different
+output; it states its graph is hand-written). Both notes were stale.
+
+**Two real defects found in that file anyway**, in the one thing the spec
+does control — the module name. `spec_goal.lower().split()[0]` raised
+`IndexError` on an empty or whitespace-only spec, reachable from the CLI
+which accepts any string. And naming from word one collapsed every UART
+spec to `saleha_uart`, so writing a transmitter and a receiver to one
+`--output-dir` silently overwrote both the RTL and the testbench;
+`"the AXI bridge"` became `saleha_the`, and `"4-bit counter"` produced
+`saleha_4_bit` — illegal Verilog, since an identifier cannot start with a
+digit. Now derived from the whole spec: `saleha_uart_transmitter_baud` vs
+`saleha_uart_receiver_parity`, `saleha_axi_bridge`, `saleha_bit_counter_4`.
+Five tests; teeth-checked at **8 failures** against the unfixed engine.
+
+**The three unaudited `saleha/experimental/jarvis/` files are not the
+pass-44 pattern.** Read in full and probed. Kept and annotated rather than
+deleted, because none of them reports a result it did not compute —
+`structural_match()` is a genuinely working Jaccard index (1.0 for
+equivalent schemas, 0.0 for unrelated), and the physics/belief bookkeeping
+in `jarvis_common_sense.py` really computes (`simulate("remove_support",
+cup)` → "cup falls" → `will_spill` True; Sally-Anne `false_belief_check`
+True). One outright false claim fixed: `MetaLearner.adapt_to_new_domain()`
+returned `{"status": "adapted"}` while adapting nothing, ignoring the
+examples passed in. The remaining stubs (`generate_hypotheses` → `[]`,
+`counterfactual_test` → `0`, `is_physically_possible` → `True`,
+`infer_intention` → `"unknown"`) now say plainly they are not implemented.
+An unused `import numpy as np` — implying numerical work that never
+happens — was removed. All three are unwired; nothing imports them.
+
+Also fixed a pre-existing gate failure rather than excusing it:
+`test_specialized_orchestrators.py` was 48.0/100 with 0 of 13 methods
+annotated (confirmed pre-existing via `git stash`), and my five new tests
+pushed it to 32.0. Annotated the whole file → **100.0**.
+
+Measured: suite 1935 → **1939 passed**, 13 skipped, 80 subtests.
+Detail: `NOTEBOOK_IMPORT.md`, "Sixty-second pass."
+
 ---
 
 ## Environment facts worth knowing
@@ -1226,8 +1276,8 @@ Detail: `NOTEBOOK_IMPORT.md`, "Sixty-first pass."
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1935 passed, 13 skipped,
-  72 subtests, ~115-200s (as of pass 61). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1939 passed, 13 skipped,
+  80 subtests, ~105-200s (as of pass 62). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once
