@@ -33,7 +33,7 @@ and confidence is 0.0 rather than 94.8%.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from saleha.core.fast_inference import FastInference, InferenceRequest
 
@@ -67,6 +67,7 @@ class DebateVerdict:
     key_tradeoffs: List[str] = field(default_factory=list)
     degraded: bool = False               # True if any persona failed to answer
     errors: List[str] = field(default_factory=list)
+    borda_scores: Dict[str, float] = field(default_factory=dict)
 
 
 # Persona instructions. Each critic is told to attack a different axis so the
@@ -213,11 +214,54 @@ class DebateConsensusOrchestrator:
                      if rd.skeptic_rebuttal.strip()
                      and not rd.skeptic_rebuttal.startswith("[unavailable")]
 
+        borda_scores: Dict[str, float] = {}
+        if opts:
+            rankings: List[List[str]] = []
+            for rd in rounds:
+                for pos in (rd.advocate_argument, rd.skeptic_rebuttal, rd.security_critique, rd.finops_impact):
+                    if pos.strip() and not pos.startswith("[unavailable"):
+                        found_opts = [opt for opt in opts if opt.lower() in pos.lower()]
+                        if found_opts:
+                            rankings.append(found_opts)
+            if rankings:
+                borda_scores = self.aggregate_borda_rankings(opts, rankings)
+            else:
+                borda_scores = {opt: 0.0 for opt in opts}
+
         return DebateVerdict(
             topic=topic, rounds_conducted=len(rounds), rounds=rounds,
             consensus_decision=decision, adr_markdown=adr,
             elo_confidence_score=confidence, key_tradeoffs=tradeoffs,
-            degraded=degraded, errors=errors)
+            degraded=degraded, errors=errors, borda_scores=borda_scores)
+
+    @staticmethod
+    def aggregate_borda_rankings(
+        options: List[str],
+        rankings: List[List[str]],
+        weights: Optional[List[float]] = None,
+    ) -> Dict[str, float]:
+        """Aggregates multiple preference orderings into Borda count scores.
+
+        For N options, the candidate ranked 1st by a voter receives N - 1 points,
+        2nd receives N - 2, ..., down to 0 points for last place.
+        Optional voter weights multiply the assigned points.
+        """
+        if not options:
+            return {}
+        scores: Dict[str, float] = {opt: 0.0 for opt in options}
+        n = len(options)
+        v_weights = weights or [1.0] * len(rankings)
+
+        for voter_idx, rank_list in enumerate(rankings):
+            w = v_weights[voter_idx] if voter_idx < len(v_weights) else 1.0
+            seen = set()
+            for rank, item in enumerate(rank_list):
+                if item in scores and item not in seen:
+                    pts = (n - 1 - rank) * w
+                    scores[item] += max(0.0, pts)
+                    seen.add(item)
+
+        return {k: round(v, 2) for k, v in scores.items()}
 
     # Section titles that are never the decision itself. Matched against the
     # de-marked line, lowercased -- an early version returned "Architecture

@@ -67,15 +67,14 @@ class IncrementalASTCache:
         Audits a single file using cache if unchanged, or running Gamma AST if modified.
         """
         rel_key = str(file_path)
-        mtime = file_path.stat().st_mtime
-
         try:
+            mtime = file_path.stat().st_mtime
             content = file_path.read_text(encoding="utf-8")
         except Exception as e:
             return False, CachedFileEntry(
                 filepath=rel_key,
                 content_hash="",
-                mtime=mtime,
+                mtime=0.0,
                 passed=False,
                 violations_count=1,
                 diagnostics=[{"rule": "READ_ERROR", "line": 1, "msg": str(e), "hint": "Fix permissions"}],

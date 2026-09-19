@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from saleha.agents.coder import CoderAgent
+from saleha.core.formal_smt_verifier import FormalSMTVerifier
 from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
 from saleha.core.security_scanner import ASTSecurityScanner
 
@@ -52,6 +53,8 @@ class GRPORollout:
     ast_valid: bool
     security_findings_unresolved: int  # HIGH severity findings
     composite_score: float  # from neuro_symbolic_engine, 0.0-1.0
+    formal_verification_passed: bool = False
+    formal_verification_details: str = ""
     total_reward: float = 0.0
     normalized_advantage: float = 0.0
 
@@ -93,9 +96,73 @@ class GRPOReasoningTrainer:
     def __init__(self, group_size: int = 4, work_dir: Optional[str] = None):
         self.group_size = max(2, group_size)
         self.work_dir = work_dir or os.path.expanduser("~/.saleha/grpo_scoring")
-        os.makedirs(self.work_dir, exist_ok=True)
+        # Do not create directory on disk at initialization time to avoid ambient side-effects
         self._coder = CoderAgent(model="auto")
         self._scanner = ASTSecurityScanner()
+        self._verifier = FormalSMTVerifier()
+
+    def _ensure_work_dir(self) -> str:
+        """Lazily creates and returns the working directory on demand."""
+        os.makedirs(self.work_dir, exist_ok=True)
+        return self.work_dir
+
+    def score_candidate(
+        self,
+        code: str,
+        rollout_id: str = "candidate_1",
+        model_used: str = "direct_eval",
+    ) -> GRPORollout:
+        """Scores candidate code directly against AST security, invariants, and SMT verification."""
+        if not code or not code.strip():
+            return GRPORollout(
+                rollout_id=rollout_id,
+                code=code,
+                model_used=model_used,
+                generation_succeeded=False,
+                ast_valid=False,
+                security_findings_unresolved=0,
+                composite_score=0.0,
+                formal_verification_passed=False,
+                formal_verification_details="Empty code snippet.",
+                total_reward=0.0,
+            )
+
+        vulns = self._scanner.scan_code(code, filename="candidate.py")
+        unresolved = sum(1 for v in vulns if v.severity == "HIGH")
+        inv = neuro_symbolic_engine.score_code(code)
+        security_factor = 1.0 if unresolved == 0 else max(0.0, 1.0 - 0.25 * unresolved)
+
+        contract = self._verifier.verify_function_contract(code)
+        total_obligations = contract.divisions_found + contract.index_accesses_found
+        proven_safe = contract.divisions_proven_safe + contract.index_accesses_proven_safe
+
+        if total_obligations > 0:
+            formal_score = proven_safe / total_obligations
+            formal_passed = (proven_safe == total_obligations)
+        else:
+            formal_score = 1.0 if inv.ast_valid else 0.0
+            formal_passed = inv.ast_valid
+
+        # Reward = invariant quality (55%) + security factor (25%) + formal proof score (20%).
+        total_r = round(
+            (0.55 * inv.composite_score)
+            + (0.25 * security_factor)
+            + (0.20 * formal_score),
+            4,
+        )
+
+        return GRPORollout(
+            rollout_id=rollout_id,
+            code=code,
+            model_used=model_used,
+            generation_succeeded=True,
+            ast_valid=inv.ast_valid,
+            security_findings_unresolved=unresolved,
+            composite_score=inv.composite_score,
+            formal_verification_passed=formal_passed,
+            formal_verification_details=contract.mathematical_certificate,
+            total_reward=total_r,
+        )
 
     def _sample_group_rollouts(self, prompt: str) -> List[GRPORollout]:
         """Generates G real candidate solutions and scores each for real."""
@@ -114,31 +181,19 @@ class GRPOReasoningTrainer:
                         ast_valid=False,
                         security_findings_unresolved=0,
                         composite_score=0.0,
+                        formal_verification_passed=False,
+                        formal_verification_details="Generation failed or produced empty code.",
                         total_reward=0.0,
                     )
                 )
-                continue
-
-            vulns = self._scanner.scan_code(code_result.code, filename="candidate.py")
-            unresolved = sum(1 for v in vulns if v.severity == "HIGH")
-            inv = neuro_symbolic_engine.score_code(code_result.code)
-            security_factor = 1.0 if unresolved == 0 else max(0.0, 1.0 - 0.25 * unresolved)
-
-            # Reward = invariant quality weighted with a security penalty.
-            total_r = round((0.7 * inv.composite_score) + (0.3 * security_factor), 4)
-
-            rollouts.append(
-                GRPORollout(
-                    rollout_id=f"rollout_{i + 1}",
-                    code=code_result.code,
-                    model_used=code_result.model_used,
-                    generation_succeeded=True,
-                    ast_valid=inv.ast_valid,
-                    security_findings_unresolved=unresolved,
-                    composite_score=inv.composite_score,
-                    total_reward=total_r,
+            else:
+                rollouts.append(
+                    self.score_candidate(
+                        code=code_result.code,
+                        rollout_id=f"rollout_{i + 1}",
+                        model_used=code_result.model_used,
+                    )
                 )
-            )
 
         rewards = [r.total_reward for r in rollouts]
         mean_r = sum(rewards) / len(rewards)

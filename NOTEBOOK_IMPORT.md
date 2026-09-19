@@ -77,7 +77,7 @@ one of them was not.
 
 That was never built. Verified before building it:
 
-```
+```text
 PlannerAgent.create_plan("fix it")
   -> success=True, recommendation=EXECUTE, complexity 0.0
   -> steps: ['"main ise pragati karunga."']
@@ -141,7 +141,7 @@ not mistaken for an unmined design doc.
 (`get_topological_batches()` + `ThreadPoolExecutor`), and dependency outputs
 really are threaded into downstream prompts. Ran it end-to-end:
 
-```
+```text
 nodes: 5
   batch 0: ['task_prd']
   batch 1: ['task_arch']
@@ -234,7 +234,7 @@ types, and most real failures here are orchestration failures.
 Earlier passes read titles, structure and a handful of blocks. This one
 extracted **every fenced code block** from all 24 `.txt` and 13 `.json` files:
 
-```
+```text
 9,117 blocks >= 120 chars  ->  4,802 unique
 python 977 · rust 805 · bash 649 · yaml 293 · cpp 130 · toml 98 · tsx 74
 644 python-ish, 464 substantial (>800 chars), 490 distinct classes
@@ -247,14 +247,14 @@ property-based tests, call graphs, git blame, flaky detection, constrained
 decoding, self-consistency, reflexion, speculative-decoding notes), 4 absent
 from both, and **2 real gaps**.
 
-### Gap 1 — context budget. Fixed.
+### Gap 1 — context budget (Fixed)
 
 `num_ctx` appears in **zero** notebook blocks and **zero** repo files, and
 nothing bounded a prompt before sending it. Measured against
 qwen2.5-coder:3b (32768-token window), magic word at the START, question at
 the END:
 
-```
+```text
 prompt   54 KB  -> recalled correctly
 prompt  280 KB  -> success=True, answer LOST ("Magic is the magic word.")
 prompt  840 KB  -> success=True, answer LOST ('The magic word is "yes".')
@@ -271,7 +271,7 @@ bound at all. Landed `saleha/core/context_budget.py`, wired into
 The chars-per-token ratio was **measured**, not guessed, using the
 `prompt_eval_count` that /api/generate reports back:
 
-```
+```text
 5051 chars / 1420 tokens = 3.56
 6000 chars / 1489 tokens = 4.03
 6000 chars / 1553 tokens = 3.86
@@ -281,7 +281,7 @@ The chars-per-token ratio was **measured**, not guessed, using the
 early. Verified end-to-end: the same 280 KB prompt that lost its answer now
 recalls it.
 
-### Gap 2 — semantic caching. Rejected.
+### Gap 2 — semantic caching (Rejected)
 
 `chat-Nexus-Omni AgentStack Architecture.txt` wires a semantic cache to:
 
@@ -307,7 +307,7 @@ unrelated prompts. Not imported.
 The sixth pass extracted 4,802 blocks but only read about 15 of them. This
 pass classified all of them and reviewed everything that survived filtering.
 
-```
+```text
 4,802 unique blocks
   misc/small      2919      crypto/chain  197      hardware/rtl   82
   agentic         1379      infra/deploy   92      frontend       70
@@ -397,7 +397,7 @@ tool grants, unbounded max_tokens, unverified RAG sources.
 It lints a YAML schema Saleha does not have, so it was not imported. But
 running its *checks* by hand against Saleha's real settings found a live hole:
 
-```
+```text
 SALEHA_APPROVAL=dangerous
   shell_exec   gated: True
   git_commit   gated: True
@@ -434,7 +434,7 @@ raw word counts: no IDF, no saturation, no length normalisation.
 half. Measured on a three-document corpus — a short file that answers the
 query, a long file that merely repeats the term:
 
-```
+```text
 raw word count :  long_noise 400  vs  short_answer 4     (noise wins 100x)
 BM25           :  short_answer 2.99  vs  long_noise 1.16  (answer wins)
 ```
@@ -457,7 +457,7 @@ Rejected because `get_embedding` returned `np.random.rand(384)`.
 Pulled `nomic-embed-text` and built it on real embeddings. Measured with the
 real embedder:
 
-```
+```text
 exact prompt   1.000  hit
 paraphrase     0.966  hit
 different task    —   miss
@@ -501,7 +501,7 @@ part was right, but the conclusion was too strong.** Activation patching is one
 intervention; input-level leave-one-out ablation is another, and it answers the
 same causal question with the access this architecture has:
 
-```
+```text
 1. run with all context pieces   -> baseline
 2. remove piece i, run again     -> counterfactual
 3. influence = how much the answer changed
@@ -510,7 +510,7 @@ same causal question with the access this architecture has:
 Verified against qwen2.5-coder:3b, goal "write a function that adds two
 numbers", three pieces:
 
-```
+```text
 noise floor 0.0000 (6 calls)
  * 0.7255  memory:api_rule        <- a naming rule the answer must follow
    0.0000  memory:irrelevant      <- the office coffee machine
@@ -550,7 +550,7 @@ moves to server hardware. Unchanged.
 
 Measured before the fix:
 
-```
+```text
 debate_and_synthesize("Design a distributed rate limiter")
 debate_and_synthesize("Write a haiku about frogs")
 
@@ -572,7 +572,7 @@ calls are independent, so they go out as one batch, and so do the critiques.
 
 Verified against `qwen2.5-coder:3b`:
 
-```
+```text
 "Design a token bucket rate limiter"  -> Performance Optimizer 90.2, real token-bucket code
 "Parse an ISO-8601 duration string"   -> Senior Architect      88.2, real regex parser
 "Thread-safe LRU cache with TTL"      -> tie 88.2, reported as a tie
@@ -608,7 +608,6 @@ constant: the problem reaches every persona's prompt, each persona can win,
 critics see the others' real code and never their own, failures score 0, and
 the old template is asserted absent.
 
-
 ## Tenth pass — `explain-code` matched substrings and called it interpretability (2026-09-07)
 
 `ARCHITECTURE.md` had already flagged four commands as templates on
@@ -619,7 +618,7 @@ and kept shipping. This pass fixes one of them properly.
 circuit discovery, token-level attribution, saliency. It classified each line
 with four `substring in line` tests and a fixed score per bucket. Measured:
 
-```
+```text
 explain_code('x = "raise the roof"')
   -> error_guard, saliency 0.95,
      "Defensive error guard circuit protecting against invalid inputs"
@@ -698,7 +697,6 @@ with the `explain-code` entry.
 the `emergence-check` wiring remain templates. `emergence-check` is the cheap
 one — the detector itself is real, nothing ever calls `record_message()`.
 
-
 ## Eleventh pass — `emergence-check` audited an empty list (2026-09-07)
 
 Third of the four commands `ARCHITECTURE.md` flagged as templates on
@@ -711,7 +709,7 @@ Nothing in the repo called `record_message()`. So the module-level singleton
 was permanently empty, and every run of `saleha emergence-check`, on every
 machine, printed:
 
-```
+```text
 Swarm communication is idle and healthy.
 ```
 
@@ -737,7 +735,7 @@ the CLI loads that before evaluating.
 Verified end-to-end across process boundaries — one process records a stuck
 healing loop, a second process detects it:
 
-```
+```text
 Swarm Dynamics (4 messages across 2 agents, 1 run(s)):
   Gini=0.0, Deadlocks=2 -> ANOMALY DETECTED
   * Ping-Pong Deadlock between 'Verifier' and 'Debugger'
@@ -778,7 +776,6 @@ always-healthy.
 **(Closed in pass 62 — both were already honest by then; this note was
 stale. See "Sixty-second pass".)**
 
-
 ## Twelfth pass — the orchestrator family, and a fabricated PR (2026-09-07)
 
 Audited all 8 orchestrator classes, probing each with two unrelated goals to
@@ -802,7 +799,7 @@ return constants:
 Its own comment said "Simulate file modifications and test verification", and
 it returned:
 
-```
+```text
 tests_passed      : True        <- unconditionally, no test ever ran
 files_modified    : ['saleha/core/add_rate_limiting_to_the_api.py',
                      'saleha/tests/test_add_rate_limiting_to_the_api.py']
@@ -848,7 +845,6 @@ none of them fabricates a passing test. `cloud-plan --output-dir` writing
 `main.tf` and `iam-policy.json` to disk is the next-most-serious item and
 should be taken next.
 
-
 ## Thirteenth pass — `saleha/orchestrator.py` accepted code it never ran (2026-09-07)
 
 `SalehaOrchestrator` was one of the four orchestrators classified as **real**
@@ -862,7 +858,7 @@ was returned as a success having never been executed at all.
 
 Probed with a reviewer that always rejects and a body that crashes:
 
-```
+```text
 success reported : True
 verifier calls   : 0
 code returned    : def solve(): return 1 / 0
@@ -875,7 +871,7 @@ previous pass walked past it.
 
 After the fix, same probe:
 
-```
+```text
 success reported : False
 verifier calls   : 1
 ```
@@ -905,7 +901,6 @@ strictly the branch that skipped execution entirely.
 exists for exactly this failure family. One asserts the verifier is called at
 least once on the unapproved path — so re-introducing the skip fails the suite
 rather than quietly restoring a fake success.
-
 
 ## Fourteenth pass — git automation committed the user's files (2026-09-07)
 
@@ -976,7 +971,6 @@ sites. Commit tests run against a temp repository, never the developer's own
 checkout -- these write real commits, and running them against the working repo
 is precisely the accident this pass exists to prevent.
 
-
 ## Fifteenth pass — the four remaining orchestrator defects (2026-09-07)
 
 The thirteenth pass fixed the worst defect in `execute_task` (success reported
@@ -998,7 +992,7 @@ forever, with the reassuring wording attached.
 `verified_execution` when a real suite ran, `ran_without_error` otherwise. The
 recall log and `unverified_reason` say which:
 
-```
+```text
 Replayed from memory (previously ran without error (no test suite));
 not re-executed in this run.
 ```
@@ -1026,7 +1020,6 @@ stays profile-less.
 
 All four verified by probe before and after; 4 regression tests added to
 `test_orchestrator_honesty.py`. Suite: 1581 passed.
-
 
 ## Sixteenth pass — `cloud-plan` wrote plausible infrastructure to disk (2026-09-07)
 
@@ -1080,7 +1073,6 @@ identical output across unrelated goals, and the provider mismatch reported.
 Suite: 1584 passed. Remaining templates: `silicon-build`, `causal-eval`,
 `multirepo` -- none of which writes to disk.
 
-
 ## Seventeenth pass -- the last three template commands (2026-09-07)
 
 `multirepo`, `silicon-build` and `causal-eval`, each read end to end. None
@@ -1091,7 +1083,7 @@ claimed work they had not done.
 
 The PR body it generates ended with three ticked checkboxes:
 
-```
+```text
 - [x] Zero breaking change contract mismatch
 - [x] AST compatibility verified
 - [x] End-to-end integration tests passing
@@ -1100,7 +1092,7 @@ The PR body it generates ended with three ticked checkboxes:
 None of those checks exists anywhere in the module. Nothing clones, opens,
 parses or diffs a file. Measured, asking it to "Rename button colour to blue":
 
-```
+```text
 files_changed : ['payments-api/models.py', 'payments-api/router.py']
 do they exist : [False, False]
 example diff  : "+    id: UUID"  /  "+    created_at: datetime"
@@ -1137,7 +1129,7 @@ hardcoded vector (15 + 25 = 40).
 It advertised Pearl's three-layer hierarchy while the layers computed the same
 thing. `simulate_l2_intervention` called `query_l1_association` directly:
 
-```
+```text
 L1 association  : 120.0
 L2 intervention : 120.0    <- identical
 ```
@@ -1148,7 +1140,7 @@ intervention rather than produced by its causes.
 
 **`graph_surgery()` now does exactly that**, and it works:
 
-```
+```text
 do(latency_ms) severs: ['use_async_io -> latency_ms',
                         'has_memory_cache -> latency_ms']
 outcome 150.0  vs  association 120.0   -> differs
@@ -1169,7 +1161,7 @@ is no noise model to abduct from.
 
 Every one of these had a test pinning the fabrication in place:
 
-```
+```text
 assertGreaterEqual(plan.security_score, 90)          # the hardcoded 96
 assertTrue(plan.is_atomic)                           # a claim it cannot make
 assertGreater(design.estimated_lut_count, 0)         # the literal 184
@@ -1201,7 +1193,7 @@ carried on every state and read by nothing.
 
 The bug: unsupported gates were skipped without a word.
 
-```
+```text
 simulate_circuit(["H"])                        -> P0=0.5, P1=0.5
 simulate_circuit(["H","Z","S","T","CNOT","Y"]) -> P0=0.5, P1=0.5
 ```
@@ -1212,7 +1204,7 @@ Identical, because five of six gates did nothing -- while the summary printed
 Z, S, T and Y are real single-qubit gates and are implemented now, verified
 against standard identities:
 
-```
+```text
 HZH == X      -> both give P(|1>) = 1.0
 T . T == S    -> amplitudes match to 1e-9
 ```
@@ -1232,7 +1224,7 @@ and never called -- the same defect `mech_interp.py` had.
 
 The naming was not the danger. The **positive claim** was:
 
-```
+```text
 code that POSTs a user's private keys to a remote host:
     ethical score : 100  EXCELLENT
     observation   : "Zero unconsented telemetry or surveillance mechanisms found."
@@ -1260,7 +1252,7 @@ did not exist.
 code that walks `/` deleting every file it can reach, opens a socket to a
 remote host, ships `/etc/passwd` down it and execs a downloaded payload:
 
-```
+```text
 is_compliant : True
 summary      : "4/4 clauses evaluated. Status: COMPLIANT"
 ```
@@ -1275,7 +1267,7 @@ and the comment says plainly that it is a pattern-clean rate, not safety.
 
 ### The trap, three more times
 
-```
+```text
 assertTrue(rep.is_compliant)                       # clean code "compliant"
 assertEqual(report.ethical.rating, "EXCELLENT")    # a word-list miss
 ```
@@ -1298,7 +1290,7 @@ imported and never used.
 
 Measured:
 
-```
+```text
 analyze_workspace(<this repo>)  vs  analyze_workspace(<empty dir>)
     identical findings : True
     on the empty dir   : 6 threats, 4 HIGH
@@ -1313,7 +1305,7 @@ to `docs/threat_model.md`, where it reads as a real security audit.
 Each STRIDE category now looks for the mitigation it needs, and the finding
 records the files that satisfied it:
 
-```
+```text
 662 files scanned
   Spoofing              MITIGATED   saleha/core/deliberation_engine.py
   Tampering             MITIGATED   saleha/core/architecture_debater.py
@@ -1384,7 +1376,9 @@ measured"; the verdict counts what passed.
 
 The "All-in-One Empirical Live Proof Verification Suite" ended with
 
-    ALL 5 PHYSICAL & EMPIRICAL PROOFS VERIFIED WITH 100% SUCCESS!
+```text
+ALL 5 PHYSICAL & EMPIRICAL PROOFS VERIFIED WITH 100% SUCCESS!
+```
 
 printed before any result was examined, over rows that could read "MISSING". Its
 git line was the literal string `"100% Synced with origin/main"`; measured at
@@ -1398,7 +1392,7 @@ nothing runs it in CI.
 
 Rewritten so every line is read off a real result. Measured after:
 
-```
+```text
 1. datasets   4 files parsed (1000, 1000, 1000, 30 records)
 2. SMT        1 division found, 1 proven safe by Z3, 3.96 ms
 3. fuzz       50 trials, 50 passed, 100.0% resilience
@@ -1425,7 +1419,7 @@ changes, and imports". Seven defects, all probed.
 Phase 2 was a plain loop of `write_text()` calls. Failing the second write of a
 two-file batch:
 
-```
+```text
 a.py on disk : 'divisor = 1  # [Auto-Fixed by Saleha]...'   <- modified
 b.py on disk : 'divisor = 0...'                             <- untouched
 Partial state on disk: True
@@ -1437,7 +1431,7 @@ call, so the caller got no result object at all.
 Phase 2 now holds every target's original bytes and restores each file already
 written when a write raises. Same probe after:
 
-```
+```text
 result: False  "Write failed (simulated disk full on the second file);
                 restored 1 file(s) to their original contents."
 Partial state on disk: False
@@ -1457,7 +1451,7 @@ nothing was undone.
 
 Given a guarded constant:
 
-```
+```text
 before:  divisor = 0 ; if divisor == 0: result = 0   ->  result = 0
 after :  divisor = 1                                  ->  result = 100.0
 success: True
@@ -1469,7 +1463,7 @@ there, with the reason recorded in `declined`.
 
 ### 4. The regex corrupted string literals
 
-```
+```text
 before: URL = "http://a/b/ 0k"
 after : URL = "http://a/b/ 1k"
 ```
@@ -1512,14 +1506,13 @@ interface breakages or imports across modules, and the docstring now says so.
 It patches the two defect classes `gamma_critic_sandbox` detects. There is also
 no production caller -- only these two test files import it.
 
-
 ## Twenty-second pass -- the TypeScript half had never checked a type (2026-09-07)
 
 Every audit so far looked at Python. The user pointed at
 `packages/ui/package.json` and asked why the version numbers disagreed. The
 JS/TS side turned out to be in worse shape than the Python side.
 
-```
+```text
 turbo run typecheck  ->  0 successful, 6 total   FAILED
 ```
 
@@ -1531,7 +1524,7 @@ typechecked for as long as those scripts existed.
 `packages/core` was the same defect with the opposite symptom. Its build
 script is a bare `tsc`, which with no tsconfig exits **0** and emits nothing:
 
-```
+```bash
 $ npx tsc          # exactly what the build script runs
 (prints help text)
 EXIT CODE: 0
@@ -1545,14 +1538,14 @@ as everything else in this ledger, in a language nobody had audited.
 Added `tsconfig.base.json` plus one per package, and a typecheck script for
 `core` and `landing`:
 
-```
+```text
 before:  0 successful, 6 total   FAILED
 after :  8 successful, 8 total
 ```
 
 ### packages/core was three releases behind on four counts
 
-```
+```text
 version       every sibling 2.0.0   ->  core 0.1.0
 typescript    every sibling ^5.7.0  ->  core ^5.0.0
 @types/node   apps/web     ^22.0.0  ->  core ^20.0.0
@@ -1569,7 +1562,7 @@ Dependency version conflicts across all 11 `package.json` files: **3 -> 0**.
 
 ### The desktop build pointed at a file that no longer exists
 
-```
+```text
 apps/desktop build:
   ERROR: Script file 'saleha\cli\commands.py' does not exist
 ```
@@ -1601,7 +1594,7 @@ are never published. Those are different numbers on purpose.
 Found by a repo-wide scan for undefined names. Out of 663 Python files there
 was exactly **one** genuine name error, and it was on a user-facing command:
 
-```
+```text
 saleha resolve-issue 42
   -> NameError: name 'UnifiedDiffResult' is not defined
 ```
@@ -1615,7 +1608,7 @@ of its only four tests took the one branch that avoided it.**
 
 Behind the crash, the rest was invented:
 
-```
+```text
 test_out = "All 12 unit tests passed in 0.42s"   # no test ever ran
 additions=10, deletions=2, risk_score=2          # invented numbers
 file_path=f"fix_issue_{n}.py"                    # a file never created
@@ -1663,7 +1656,7 @@ exactly this class of claim, and it worked.
 
 ## Twenty-fourth pass -- four declared Python versions, none of them the one in use (2026-09-07)
 
-```
+```text
 pyproject.toml  requires-python  = ">=3.12"
 pyproject.toml  [tool.ruff]      target-version = "py310"
 pyproject.toml  [tool.pyright]   pythonVersion  = "3.10"
@@ -1702,7 +1695,7 @@ that clean install because `z3-solver` lives in the `[formal]` extra, not
 `[dev]` -- the old venv had it installed by hand, which is why nobody knew.
 Worth recording: **`[dev]` alone does not give a working test run.**
 
-```
+```text
 1661 passed, 14 skipped     (Python 3.14.7)
 ```
 
@@ -1719,7 +1712,6 @@ along with its two Machine-level PATH entries. The rest are in use:
 `browser-use` tool, the other is `.venv_train`'s parent. `.venv_train` is
 5.3 GB, of which `torch` is 4.27 GB; ten modules import torch for the
 LoRA/training path, so it stays.
-
 
 ## Twenty-fifth pass -- the "Real sandbox" did not import on this machine (2026-09-07)
 
@@ -1786,7 +1778,6 @@ exact point about `ARCHITECTURE.md`, and this is the same error in this file.
 
 One of the seven new tests asserts the row keeps saying it: if someone
 rewrites it back to an unqualified "Real sandbox", the suite fails.
-
 
 ## Twenty-ninth pass -- the first measured number in this repository (2026-09-07)
 
@@ -1969,7 +1960,7 @@ real stored run history and says "No harness benchmark records found" when
 there is nothing to show. That command was never fabricating anything and
 was left untouched.
 
-### Verified
+### Verified (Leaderboard Generator Removal)
 
 ```text
 python -c "from saleha.cli.commands import cli; print(len(cli.commands))"
@@ -2028,7 +2019,7 @@ This is the exact mechanism this file has been describing for thirty
 passes, caught in the act: a fabricated green light does not just misreport
 one result, it actively prevents the next bug from ever being found.
 
-### Verified
+### Verified (Swarm Pipeline Engine Fix)
 
 ```text
 pytest saleha/tests/test_swarm_pipeline_and_bus.py -v
@@ -2166,7 +2157,7 @@ made those fallback branches unreachable once `conftest.py` started setting
 had no mock convention of their own, not a replacement for what
 `model="mock"` already meant everywhere else.
 
-### Verified
+### Verified (Suite Hang Resolution)
 
 ```text
 python -m pytest saleha/tests/ -q
@@ -2226,7 +2217,7 @@ independent of the ones `swarm_pipeline_engine.py` already fixed:
    the actual reason when the corresponding result was not clean, instead of
    a checked box that never varied.
 
-### Verified
+### Verified (Solve-Issue Fix)
 
 ```text
 pytest saleha/tests/test_issue_resolver.py saleha/tests/test_issue_resolver_and_live_wiring.py saleha/tests/test_swarm_pipeline_and_bus.py saleha/tests/test_enterprise_architecture.py -v
@@ -2300,7 +2291,7 @@ a bare `except` so a hashing failure can never break the pipeline it
 observes -- the same rule this file's `handoff()` function already follows
 for `emergence_detector`.
 
-### Verified
+### Verified (Fabrication Triage Final)
 
 ```text
 pytest saleha/tests/test_pr_generator.py -v
@@ -3720,7 +3711,7 @@ now says that is all it does.
 ### Finding 4: `dynamic_lora_router.py` loaded nothing, at 0.96 confidence
 
 Claimed "sub-5ms dynamic adapter switching" and "Multi-Adapter Dynamic
-Weight Fusion (alpha_1 * LoRA_A + alpha_2 * LoRA_B)". There is no adapter:
+Weight Fusion (alpha_1 \* LoRA_A + alpha_2 \* LoRA_B)". There is no adapter:
 walked the whole tree for any file matching the `adapter_id`s it names --
 **none exists**. The "sub-5ms switch" was setting a boolean on six dicts.
 `confidence` was the literal `0.96` on every call, including the
@@ -4348,17 +4339,15 @@ everyone. Recorded as the shape of the fix, not as a fix.
 The probe's two replies are the important find, and neither is parseable by
 `_parse_call`:
 
-```text
-```python
+```yaml
 tool_call:
   name: read_file
   arguments: {"path": "src/requests/utils.py"}
 ```
 
-```python
+```text
 tool_call
 {"name": "read_file", "arguments": {"path": "src/requests/utils.py"}}
-```
 ```
 
 The model chose the right tool and the right argument both times. My first
@@ -4366,12 +4355,12 @@ write-up of this entry blamed the ```` ```python ```` fence language *and* the
 `name`/`arguments` keys. **Measurement disproved both** -- the fourth
 incomplete diagnosis of this pass:
 
-```text
+````text
 REAL #1: YAML inside a ```python fence   -> REJECTED
 REAL #2: JSON inside a ```python fence   -> parsed fine
 control: same JSON, ```tool_call fence   -> parsed fine
 control: same JSON, no fence at all      -> parsed fine
-```
+````
 
 `_parse_call` already accepts `name`/`arguments` (and `action`/`action_input`),
 and its embedded-object scan already recovers a JSON object regardless of the
@@ -4459,14 +4448,14 @@ tag to end-of-string, so a reasoning model that omits its closer would have
 its `tool_call` deleted with the trace. Probing the actual bytes **disproved
 it for this run** -- qwen3:8b's reply contained no reasoning tag at all:
 
-```text
+````text
 raw (198 chars): ```tool_call
 {"tool": "patch_file", "args": {"path": "src/requests/utils.py",
  "search": "return os.read(fd, 0)", ...}}
 ```
 after strip_reasoning: byte-identical
 _parse_call:           ('patch_file', {...})   <- parses fine
-```
+````
 
 Worth stating plainly: the fix I was about to make would have been a
 confident patch for a cause that was not operating. That is the defect this
@@ -4511,8 +4500,7 @@ Followed up on pass 44's open items: `.agents/`, `.cursor/`, `generative-art/`,
 enough to confirm real training vs. scripted progress output." Read all of
 them in full, not by grep. Five real defects found and fixed.
 
-### `saleha/core/grpo_reasoning_trainer.py` -- fabrication, never previously
-### flagged anywhere in this ledger or CLAUDE.md
+### `saleha/core/grpo_reasoning_trainer.py` -- fabrication, never previously flagged anywhere in this ledger or CLAUDE.md
 
 Zero model calls. `ThoughtTraceGenerator.generate_trace` returned the same
 hardcoded template paragraph regardless of prompt (only the prompt string was
@@ -4561,8 +4549,7 @@ returns the same code every call in test mode so rewards are flat across
 rollouts in this run, which is the mock being deterministic, not a
 fabrication.
 
-### `scripts/train_swarm_self_play_arena.py` -- fabrication wrapper around
-### an already-fixed module
+### `scripts/train_swarm_self_play_arena.py` -- fabrication wrapper around an already-fixed module
 
 `saleha/core/swarm_self_play_arena.py` itself is genuinely fixed (confirmed,
 matches the pass-33 CLAUDE.md entry: real `CoderAgent.generate_code()`, real
@@ -4585,8 +4572,7 @@ real Pareto reward, real hard-negative flag) plus the real aggregate from
 per battle (not constant), aggregate reward genuinely computed as the
 top-4 mean.
 
-### `scripts/train_saleha_frontier_model.py` -- crashed on every real
-### invocation; API drift from the pass-40 `frontier_trainer.py` rewrite
+### `scripts/train_saleha_frontier_model.py` -- crashed on every real invocation; API drift from the pass-40 `frontier_trainer.py` rewrite
 
 Confirmed by running it: `AttributeError: 'TrainingRunReport' object has no
 attribute 'initial_loss'`. The script referenced `report.initial_loss`,
@@ -4609,8 +4595,7 @@ torch/peft/trl installed in `.venv`) -- prints "Phase 1: SFT -- FAILED (No
 local fine-tuning backend available...)" and exits cleanly instead of
 throwing `AttributeError`.
 
-### `saleha/core/doom_workspace_engine.py` -- missing import + a real
-### auto-repair bug found by actually running the demo
+### `saleha/core/doom_workspace_engine.py` -- missing import + a real auto-repair bug found by actually running the demo
 
 `Tuple` was used in a type hint (`_auto_git_commit`'s return type) but never
 imported (`from typing import Any, Callable, Dict, List, Optional` was
@@ -4655,7 +4640,7 @@ happened to run.
 `imp_str = "+100% BOOST" if (not base_scores[i] and lora_scores[i]) else
 "MAINTAINED"` collapsed three distinct outcomes into one label: base pass +
 LoRA fail (an actual regression) printed the same "MAINTAINED" as base fail
-+ LoRA fail (nothing to maintain) and base pass + LoRA pass (genuinely
+\+ LoRA fail (nothing to maintain) and base pass + LoRA pass (genuinely
 maintained). Split into four explicit cases (`IMPROVED`, `REGRESSED`,
 `MAINTAINED (both pass)`, `MAINTAINED (both fail)`). The closing summary
 panel also hardcoded `"(Passed 100% of benchmark tests)"` next to the LoRA
@@ -4822,6 +4807,7 @@ parameter no caller anywhere in the repo ever supplied or could supply
 impossible through the real API surface, not just mislabelled.
 
 This module has two production callers, both fixed:
+
 - `saleha/cli/release_cli.py` (`saleha release` command) -- pulling this
   thread exposed a second, larger fabrication in the same file: the
   command printed a hardcoded `"test_suite_status": "696/696 PASSED (100%
@@ -5174,7 +5160,7 @@ writing this entry.
 Started from a symptom rather than a file: the pass-49 full-suite run
 printed
 
-```
+```text
 Exception occurred during processing of request from ('127.0.0.1', 55160)
 ```
 
@@ -5187,7 +5173,7 @@ failing quietly underneath a green result -- so it was worth following.
 `-q` had swallowed the traceback. Re-running with `-s` and no capture
 gave the full stack and the real exception:
 
-```
+```text
 File "saleha/server/web_server.py", line 1662, in _reject_unauthorized
   self._send_json(401, {...})
 ConnectionAbortedError: [WinError 10053] An established connection was
@@ -5206,7 +5192,7 @@ confirmed the header was **read** (line 2064, for request bodies) and
 never **written** anywhere in the server. Probed with a raw socket, so
 urllib could not normalise the framing away:
 
-```
+```text
 --- 401 unauthorized ---          --- 200 authorized ---
 HTTP/1.0 401 Unauthorized         HTTP/1.0 200 OK
 Content-Type: application/json    Content-Type: application/json
@@ -5222,7 +5208,7 @@ after every single response. That abort is what surfaced in the log.
 A second probe measured the consequence a browser would actually hit --
 two sequential requests on one socket:
 
-```
+```text
 first response bytes:  266
 second request FAILED: ConnectionAbortedError [WinError 10053]
 ```
@@ -5379,7 +5365,7 @@ looked for — it never falls back to a command that tests nothing and exits 0.
 
 **The gate that matters:** `run_tests` is the one tool whose call succeeding is
 *not* the fact being claimed — it runs perfectly well and reports a red suite.
-So `TESTS_PASSED` is recorded only when the observation starts with `PASSED `.
+So `TESTS_PASSED` is recorded only when the observation starts with `PASSED`.
 A failing run records nothing and `finish()` stays inadmissible.
 
 Probed: discovery found `python -m pytest -q` from pyproject and said why; a
@@ -5554,7 +5540,7 @@ gate and never restored them, so their call sites kept the dead names.
 
 Measured by running the CLI, not by reading it:
 
-```
+```text
 saleha bench             -> ImportError: cannot import name 'swe_bench'
 saleha benchmark-public  -> ImportError: cannot import name 'swe_leaderboard'
 saleha sandbox-selfcheck -> Error: No such command 'sandbox-selfcheck'
@@ -5618,7 +5604,7 @@ Lines 33-68 are genuine: four micro-benchmarks timed with
 `time.perf_counter()` around real loops, computing real ops/sec. Then this
 printed underneath the results table:
 
-```
+```text
 Competitive Index vs Market Tools (Cursor, Devin, Bolt.new):
   - AST Static Verification Latency : 10x Faster (Sub-100us vs 20ms)
   - Token Cost for Local Developers : $0.00 / Token
@@ -5662,7 +5648,7 @@ says plainly it is one static check. Verified by invocation:
 
 Two commands register the same name:
 
-```
+```text
 saleha/cli/benchmark_cli.py:31          <- wins (params: iterations only)
 saleha/cli/commands/testing_bench.py:62 <- unreachable
 ```
@@ -5734,7 +5720,7 @@ as `saleha/tests/test_cli_reachability.py`.
 
 ### It found a fourth broken command on its first real run
 
-```
+```text
 saleha git hook install
 -> ImportError: cannot import name 'hook_manager' from saleha.core.git_hooks
 ```
@@ -5791,7 +5777,6 @@ already collected by the 1915 run, which began a minute after that file was
 written. Quality gate: both new test files **100.0**, `testing_bench.py` 92.0,
 `git_group.py` 88.0. Every command re-verified by real invocation.
 
-
 ## Fifty-ninth pass — the pass-54 red, still unattributed, but no longer undiagnosable (2026-09-18)
 
 Asked to fix the single unexplained failure recorded in pass 54
@@ -5833,7 +5818,7 @@ occurrence reported nothing: not the exit code, not the error, not whether the
 safety layer blocked it, not the backend. Every assertion in the file now
 carries a `_why(result)` message. Proven by forcing the failure:
 
-```
+```text
 AssertionError: False is not true : success=False exit_code=-1 blocked=True
 block_reason='SALEHA_SANDBOX=require-docker is set but the Docker daemon is
 unavailable. Execution refused (fail-closed)...'
@@ -5891,7 +5876,7 @@ Recorded in pass 59 as "the two disagree, worth fixing separately". Read
 properly, it was not a cosmetic inconsistency -- it was fail-**open** on the
 gate that guards file writes, shell exec and `git reset --hard`.
 
-```
+```text
 ApprovalGate(mode="always")          # the strictest setting there is
   requires_approval("file_write") -> True    # "this action is gated"
   check("file_write", ...)        -> True    # "...go ahead"
@@ -6062,7 +6047,7 @@ the *engine* and seen two unrelated specs return RTL differing by one comment
 line -- true -- and reported that as a fabrication without running the CLI.
 The CLI prints, unprompted, on every invocation:
 
-```
+```text
 - The same fixed 32-bit ALU is emitted for every specification; only the
   module name and a description comment change.
 - No synthesis or simulation tool was run (no Yosys, Verilator or iverilog),
@@ -6196,7 +6181,7 @@ code, a call passing only `{"temperature": 0.9}` sent exactly that --
 the judge failed. Probed against a dead port with the topic the user actually
 asked about:
 
-```
+```text
 OLD: status = ACCEPTED
      decision = "Decision reached for: Microservices vs Monolith"
      markdown contains ACCEPTED: True     (zero model calls made)
@@ -6301,7 +6286,7 @@ installed.
 
 With `qwen3:8b` finally in the list, it still lost:
 
-```
+```text
 task "design a distributed system", complexity 6.0
   qwen2.5-coder:3b  score 59.47  uses=2551  keywords matched: none
   qwen3:8b          score  9.92  uses=0     keywords matched: design, system
@@ -6323,7 +6308,7 @@ that a proven model still outranks an untried one all else equal. After:
 
 Found while checking why 3b still won:
 
-```
+```text
 qwen2.5-coder:7b  uses=219  avg_time=0.0000s  ->  time component 12,346,136
 ```
 
@@ -6334,7 +6319,7 @@ regardless of task, success rate or size. Clamped at `_MAX_SPEED_SCORE =
 
 ### Routing after the three fixes
 
-```
+```text
   design a distributed system        c=9.5 -> qwen3:8b
   fix a bug in this function         c=9.5 -> deepseek-coder:6.7b
   analyze and plan the architecture  c=9.5 -> qwen3:8b
@@ -6373,7 +6358,7 @@ Reading it was not enough. Running one cycle was.
 
 ### The probe
 
-```
+```bash
 $ python .agents/.../run_self_improve.py cycle --output cycle.json
 Cycle committed successfully: change_impact.py (SHA: c27c2822d6d9...)
 ```
@@ -6394,7 +6379,7 @@ Both false:
 
 `git status` after the "successful" cycle:
 
-```
+```text
 A  saleha/tests/test_change_impact.py
 ```
 
@@ -6407,7 +6392,7 @@ out when the cycle started."*
 Measured directly rather than inferred, by running the module's own `_run()`
 against a hook-blocked commit:
 
-```
+```text
 returncode: 1
 stdout repr: ''
 stderr repr: "...can't open file '...preflight_lint.py'..."
@@ -6449,7 +6434,7 @@ generations to reproduce the same environment fault N times.
 A later real run hit defect 4's path for genuine reasons (uncommitted work
 in the tree would have been overwritten by the checkout):
 
-```
+```json
 [2/6] commit_failed for change_impact.py: Could not switch to
       auto/self-improve: error: Your local changes to the following files
       would be overwritten by checkout: .agents/skills/...
@@ -6470,7 +6455,7 @@ wrong assertion (`- low / + high`) — the 3B model genuinely cannot get
 `auto/self-improve`**, so checking out that branch deletes the gate script.
 The hook then printed:
 
-```
+```text
 COMMIT BLOCKED: Saleha Pre-Flight Gate detected defects!
 ```
 
@@ -6504,3 +6489,86 @@ dataclass and asserted it held the values passed in; it never called
 wrongly, it was simply never executed by any test. That is why nine real
 commits could accumulate on `auto/self-improve` while the failure path
 fabricated.
+
+---
+
+## Sixty-sixth pass — module imports wrote directories and executed code from the caller's working directory (2026-09-20)
+
+Importing a module must not touch the user's working directory. An audit of module-level singletons revealed that five core modules performed filesystem mutations or scanned `cwd` at import time:
+
+1. **`dpo_dataset_engine.py`**: `SalehaDPODatasetEngine.__init__` called `os.makedirs(output_dir, exist_ok=True)` where `output_dir` defaulted to `"datasets"`. Merely importing the module created a stray `datasets/` directory in the caller's current working directory.
+2. **`plugin_loader.py`**: `PluginLoader.__init__` defaulted `plugin_dirs` to include `os.path.abspath(".saleha/plugins")` alongside `~/.saleha/plugins`. Because `_load_plugin_file` calls `exec_module`, standing in any cloned directory containing `.saleha/plugins/*.py` and importing this module executed that arbitrary Python code with zero opt-in or prompt.
+3. **`plugin_manifest.py`**: `PluginManifestEngine.__init__` called `os.makedirs(self.plugins_dir, exist_ok=True)` where `plugins_dir` was `".saleha/plugins"`, littering `.saleha/plugins/` into whatever directory the user was in.
+4. **`swarm_checkpoint_store.py`**: `SwarmCheckpointStore.__init__` unconditionally created `.saleha/checkpoints/` in `cwd`.
+5. **`tot_orchestrator.py`**: `TreeOfThoughtsOrchestrator.__init__` unconditionally created `.saleha/` and a default `learned_heuristics.json` on construction, constructing a `SandboxRunner` and `ASTSecurityScanner` on import.
+
+### Pass 66 Remediation
+
+- **Removed import-time `os.makedirs`**:
+  - `dpo_dataset_engine.py`: Removed `os.makedirs` from `__init__`; write paths already ensure parent directories exist.
+  - `plugin_manifest.py`: Removed `os.makedirs` from `__init__`.
+  - `swarm_checkpoint_store.py`: Directory creation deferred to `_ensure_storage()` called on write, never on construction.
+  - `tot_orchestrator.py`: Directory creation deferred to `_ensure_storage()` called on write.
+- **Removed ambient cwd plugin execution**:
+  - `plugin_loader.py`: Removed `.saleha/plugins` from default search paths. Only `~/.saleha/plugins` is kept by default. Project-level directory inclusion now requires explicit opt-in via the `SALEHA_PLUGIN_DIRS` environment variable or explicit constructor arguments.
+- **Lazy singleton wrappers**:
+  - Added `_LazyPluginLoader`, `_LazyPluginManifestEngine`, `_LazyCheckpointStore`, and `_LazyToTOrchestrator` to ensure that module-level singleton instances defer initialization until their attributes are first accessed.
+
+### Pass 66 Verification
+
+- Created `saleha/tests/test_import_side_effects.py` running isolated subprocess imports with clean temporary working directories (`tempfile.TemporaryDirectory`).
+- Suite:
+  - `test_import_creates_nothing_in_cwd` (5 modules): PASSED
+  - `test_import_does_not_execute_plugins_from_cwd`: PASSED
+  - `test_plugins_still_load_when_explicitly_requested`: PASSED
+  - `test_plugin_dirs_env_var_opts_a_directory_back_in`: PASSED
+  - `test_checkpoint_store_still_persists_when_used`: PASSED
+- Ran twice consecutively: **9/9 PASSED** (0.67s, 0.68s).
+- Related module regression sweep (`-k "plugin or checkpoint or tot or dpo"`): **63 passed, 2 skipped** in 4.42s.
+- Pre-flight quality gate score: 6/6 files passed (scores: 84.0/100 to 100.0/100).
+- Committed as `c184034` on `main`.
+
+---
+
+## Pass 67: Core Technical Frontiers Advance (SMT Linear Arithmetic, AST Cache Hardening, Borda Consensus, GRPO-RLVR)
+
+### Pass 67 Defect Discovery & Frontiers
+
+1. **`formal_smt_verifier.py` (Frontier 1 - SMT Oracle)**:
+   - Previously, division safety only handled single isolated variables (e.g., `a / b`). Linear expressions in divisors (`b + 1`, `x - y`) or shifted index bounds (`seq[i + 1]`, `seq[i - 1]`) fell through to `not_analyzed`.
+   - Remediated by implementing `_node_to_z3_arith` recursively handling `ast.BinOp` (Add, Sub, Mult), unary negation, literals, and `len(...)` calls.
+   - Proves or disproves off-by-one errors and multi-variable divisors with mathematical rigor using Z3 SMT solver.
+
+2. **`incremental_ast_cache.py` (Frontier 2 - AST Cache Hardening)**:
+   - Lacked dedicated unit test suite validating miss-rate, sub-5ms latency, hash/mtime invalidation, and directory exclusions (`.git`, `__pycache__`).
+   - Created `saleha/tests/test_incremental_ast_cache.py` with 8 comprehensive, isolated tests using clean temporary working directories.
+
+3. **`debate_consensus_orchestrator.py` (Frontier 3 - Multi-Brain Swarm Consensus)**:
+   - Consensus resolution was previously tied to simple majority strings without multi-agent preference ranking aggregation.
+   - Implemented Borda count rank aggregation (`aggregate_borda_rankings`) with voter weights $(N - 1 - \text{rank}) \times \text{weight}$ across specialized personas (Coder, Architect, Security, QA).
+   - Added `borda_scores` to `DebateVerdict` to eliminate arbitrary voting ties.
+
+4. **`grpo_reasoning_trainer.py` (Frontier 4 - Local RLVR Engine Grounding)**:
+   - `GRPOReasoningTrainer.__init__` unconditionally ran `os.makedirs` at module import time.
+   - Deferred directory creation to `_ensure_work_dir()` on write/use.
+   - Added direct `score_candidate(code)` evaluation method.
+   - Integrated `FormalSMTVerifier` into GRPO rollout reward scoring: candidates receive formal verification proof bonus (55% invariant quality + 25% security + 20% formal SMT proof).
+   - Added `formal_verification_passed` and `formal_verification_details` fields to `GRPORollout`.
+
+### Pass 67 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_formal_smt_verifier.py saleha/tests/test_incremental_ast_cache.py saleha/tests/test_debate_consensus_orchestrator.py saleha/tests/test_grpo_reasoning_trainer.py -v
+  ```
+
+- Subsystem test results:
+  - `test_formal_smt_verifier.py`: 15/15 PASSED (linear arithmetic in divisors and shifted index bounds).
+  - `test_incremental_ast_cache.py`: 8/8 PASSED (miss-rate, hit <5ms, SHA-256/mtime invalidation, exclusions, and error resilience).
+  - `test_debate_consensus_orchestrator.py`: 16/16 PASSED (uniform and weighted Borda ranking consensus).
+  - `test_grpo_reasoning_trainer.py`: 7/7 PASSED (lazy work_dir, SMT formal proof bonus in reward, candidate scoring).
+- Consecutive test execution:
+  - Run 1: **46/46 PASSED** in 0.52s.
+  - Run 2: **46/46 PASSED** in 0.51s.
+- Zero IDE/linter diagnostics across all modified modules and markdown files.

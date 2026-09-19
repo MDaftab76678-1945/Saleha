@@ -6,6 +6,7 @@ performs neither (see saleha/core/grpo_reasoning_trainer.py docstring).
 """
 
 import os
+import tempfile
 import unittest
 
 from saleha.core.grpo_reasoning_trainer import (
@@ -18,11 +19,71 @@ from saleha.core.grpo_reasoning_trainer import (
 
 
 class TestGRPOReasoningTrainer(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = os.path.join("scratch", "test_grpo_work")
+    def setUp(self) -> None:
+        self._temp_dir_obj = tempfile.TemporaryDirectory()
+        self.temp_dir = self._temp_dir_obj.name
         self.trainer = GRPOReasoningTrainer(group_size=3, work_dir=self.temp_dir)
 
-    def test_train_step_generates_real_rollouts_and_advantages(self):
+    def tearDown(self) -> None:
+        self._temp_dir_obj.cleanup()
+
+    def test_lazy_work_dir_initialization(self) -> None:
+        target_dir = os.path.join(self.temp_dir, "uncreated_subdir")
+        trainer = GRPOReasoningTrainer(group_size=2, work_dir=target_dir)
+        self.assertFalse(os.path.exists(target_dir))
+        ensured = trainer._ensure_work_dir()
+        self.assertEqual(ensured, target_dir)
+        self.assertTrue(os.path.exists(target_dir))
+
+    def test_score_candidate_with_formal_smt_division_guarantee(self) -> None:
+        safe_code = (
+            "def safe_div(a: int, b: int) -> float:\n"
+            "    assert b != 0\n"
+            "    return a / b\n"
+        )
+        unsafe_code = (
+            "def unsafe_div(a: int, b: int) -> float:\n"
+            "    return a / 0\n"
+        )
+
+        safe_rollout = self.trainer.score_candidate(safe_code, rollout_id="safe_1")
+        unsafe_rollout = self.trainer.score_candidate(unsafe_code, rollout_id="unsafe_1")
+
+        self.assertTrue(safe_rollout.generation_succeeded)
+        self.assertTrue(safe_rollout.formal_verification_passed)
+        self.assertIn("divisions proven safe", safe_rollout.formal_verification_details)
+
+        self.assertTrue(unsafe_rollout.generation_succeeded)
+        self.assertFalse(unsafe_rollout.formal_verification_passed)
+        self.assertGreater(safe_rollout.total_reward, unsafe_rollout.total_reward)
+
+    def test_score_candidate_with_formal_smt_index_bounds_guarantee(self) -> None:
+        safe_index_code = (
+            "def safe_access(items: list, i: int) -> int:\n"
+            "    assert 0 <= i < len(items)\n"
+            "    return items[i]\n"
+        )
+        unguarded_index_code = (
+            "def unguarded_access(items: list, i: int) -> int:\n"
+            "    return items[i]\n"
+        )
+
+        safe_rollout = self.trainer.score_candidate(safe_index_code, rollout_id="safe_idx")
+        unguarded_rollout = self.trainer.score_candidate(unguarded_index_code, rollout_id="unguarded_idx")
+
+        self.assertTrue(safe_rollout.formal_verification_passed)
+        self.assertIn("proven in-bounds", safe_rollout.formal_verification_details)
+
+        self.assertFalse(unguarded_rollout.formal_verification_passed)
+        self.assertGreater(safe_rollout.total_reward, unguarded_rollout.total_reward)
+
+    def test_score_candidate_empty_code(self) -> None:
+        empty_rollout = self.trainer.score_candidate("", rollout_id="empty_1")
+        self.assertFalse(empty_rollout.generation_succeeded)
+        self.assertEqual(empty_rollout.total_reward, 0.0)
+        self.assertFalse(empty_rollout.formal_verification_passed)
+
+    def test_train_step_generates_real_rollouts_and_advantages(self) -> None:
         step_res: GRPOTrainingStepResult = self.trainer.train_step(
             step=1,
             prompt="Implement a thread-safe FIFO queue",
@@ -48,7 +109,7 @@ class TestGRPOReasoningTrainer(unittest.TestCase):
         advantages = [r.normalized_advantage for r in step_res.rollouts]
         self.assertAlmostEqual(sum(advantages), 0.0, places=2)
 
-    def test_run_full_grpo_training_reports_real_rollout_count(self):
+    def test_run_full_grpo_training_reports_real_rollout_count(self) -> None:
         summary: GRPOTrainingSummary = self.trainer.run_full_grpo_training(target_steps=2)
         self.assertEqual(summary.total_steps, 2)
         self.assertEqual(summary.total_rollouts, 2 * 3)
@@ -57,9 +118,10 @@ class TestGRPOReasoningTrainer(unittest.TestCase):
         self.assertFalse(hasattr(summary, "deployed_model_name"))
         self.assertFalse(hasattr(summary, "red_team_vulnerabilities_neutralized"))
 
-    def test_module_singleton_constructs(self):
+    def test_module_singleton_constructs(self) -> None:
         self.assertIsInstance(grpo_reasoning_trainer, GRPOReasoningTrainer)
 
 
 if __name__ == "__main__":
     unittest.main()
+

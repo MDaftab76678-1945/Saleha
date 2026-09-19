@@ -74,10 +74,71 @@ class IndexBoundsProofTests(unittest.TestCase):
         self.assertEqual(proof.index_checks[0].status, "not_proven")
 
     @_skip_without_z3
-    def test_expression_index_is_not_analyzed(self) -> None:
+    def test_unguarded_expression_index_is_not_proven(self) -> None:
         code = "def get_item(seq, i):\n    return seq[i + 1]\n"
         proof = self.verifier.verify_function_contract(code, function_name="get_item")
+        self.assertEqual(proof.index_checks[0].status, "not_proven")
+
+    @_skip_without_z3
+    def test_shifted_index_expression_proven_safe(self) -> None:
+        code = (
+            "def get_item(seq, i):\n"
+            "    assert 0 <= i < len(seq) - 1\n"
+            "    return seq[i + 1]\n"
+        )
+        proof = self.verifier.verify_function_contract(code, function_name="get_item")
+        self.assertEqual(proof.index_accesses_proven_safe, 1)
+        self.assertEqual(proof.index_checks[0].status, "proven_safe")
+
+    @_skip_without_z3
+    def test_negative_shifted_index_expression_proven_safe(self) -> None:
+        code = (
+            "def get_item(seq, i):\n"
+            "    assert 1 <= i < len(seq)\n"
+            "    return seq[i - 1]\n"
+        )
+        proof = self.verifier.verify_function_contract(code, function_name="get_item")
+        self.assertEqual(proof.index_accesses_proven_safe, 1)
+        self.assertEqual(proof.index_checks[0].status, "proven_safe")
+
+    @_skip_without_z3
+    def test_shifted_index_without_margin_guard_is_not_proven(self) -> None:
+        code = (
+            "def get_item(seq, i):\n"
+            "    assert 0 <= i < len(seq)\n"
+            "    return seq[i + 1]\n"
+        )
+        proof = self.verifier.verify_function_contract(code, function_name="get_item")
+        self.assertEqual(proof.index_accesses_proven_safe, 0)
+        self.assertEqual(proof.index_checks[0].status, "not_proven")
+
+    @_skip_without_z3
+    def test_unsupported_function_call_index_is_not_analyzed(self) -> None:
+        code = "def get_item(seq, i):\n    return seq[calc(i)]\n"
+        proof = self.verifier.verify_function_contract(code, function_name="get_item")
         self.assertEqual(proof.index_checks[0].status, "not_analyzed")
+
+    @_skip_without_z3
+    def test_linear_divisor_expression_proven_safe(self) -> None:
+        code = (
+            "def safe_div(a, b):\n"
+            "    assert b >= 0\n"
+            "    return a / (b + 1)\n"
+        )
+        proof = self.verifier.verify_function_contract(code, function_name="safe_div")
+        self.assertEqual(proof.divisions_proven_safe, 1)
+        self.assertEqual(proof.checks[0].status, "proven_safe")
+
+    @_skip_without_z3
+    def test_multi_variable_divisor_expression_proven_safe(self) -> None:
+        code = (
+            "def safe_div(a, x, y):\n"
+            "    assert x > y\n"
+            "    return a / (x - y)\n"
+        )
+        proof = self.verifier.verify_function_contract(code, function_name="safe_div")
+        self.assertEqual(proof.divisions_proven_safe, 1)
+        self.assertEqual(proof.checks[0].status, "proven_safe")
 
     @_skip_without_z3
     def test_attribute_sequence_is_not_analyzed_not_silently_skipped(self) -> None:
