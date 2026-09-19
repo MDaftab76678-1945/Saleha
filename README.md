@@ -3,15 +3,15 @@
 ![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)
 ![Runtime](https://img.shields.io/badge/runtime-Ollama%20local--first-orange.svg)
-![Tests](https://img.shields.io/badge/tests-1714%20passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-1939%20passing-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-purple.svg)
 
 **Saleha** is a local-first, multi-agent AI coding assistant written in Python. It
 runs against local models through **Ollama** (or a cloud provider, if you
 configure one) and ships a CLI, an interactive TUI, and a REST/SSE web server.
 
-It is a large, actively evolving codebase — **248 modules under `saleha/core/`**,
-a Click-based CLI with **156 registered subcommands**, and **1,714 passing tests**
+It is a large, actively evolving codebase — **241 modules under `saleha/core/`**,
+a Click-based CLI with **159 registered subcommands**, and **1,939 passing tests**
 (7 opt-in skips). Not every module is equally mature. **This README describes what
 is real and working today**; speculative and future work lives in
 [ROADMAP.md](ROADMAP.md), and how the pieces fit is in
@@ -74,7 +74,7 @@ flowchart TB
         TEAM["Team orchestrator<br/>planner · coder · tester · debugger"]
     end
 
-    subgraph core["Core services — saleha/core/ (248 modules)"]
+    subgraph core["Core services — saleha/core/ (241 modules)"]
         INDEX["AST index & patcher"]
         EXEC["Sandboxed executor"]
         SAST["Security scanner"]
@@ -205,7 +205,7 @@ the agentic loop needs a reachable model.
 
 ## CLI command reference (selected)
 
-The CLI exposes 156 registered subcommands; run `saleha --help` for the full,
+The CLI exposes 159 registered subcommands; run `saleha --help` for the full,
 current list. Core workflow commands:
 
 | Command | Description |
@@ -257,7 +257,7 @@ The suite covers the CLI, core modules, the web-server API, and integration
 points. A full local run (no Ollama / Docker needed for the default set):
 
 ```text
-1714 passed, 7 skipped, 60 subtests passed in ~90s
+1939 passed, 13 skipped, 80 subtests passed in ~110s
 ```
 
 The 7 skips are all genuinely opt-in — real GPU fine-tuning runs, a multi-minute

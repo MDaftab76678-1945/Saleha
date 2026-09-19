@@ -462,10 +462,14 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
     git_detail = f'Found at {git_bin}' if git_bin else 'Git not found in PATH'
     checks.append({'component': 'Git Binary', 'status': git_status, 'detail': git_detail})
     installed_models = get_installed_ollama_models()
+    # That set carries a bare base name alongside every tagged one, so the
+    # router can match "qwen3.5" to qwen3.5:9b. Counting it reported 15
+    # models on a box with 8. Count only what Ollama actually lists.
+    real_models = sorted(m for m in installed_models if ':' in m)
     if installed_models:
         ollama_status = 'PASS'
-        models_sample = list(installed_models)[:4]
-        ollama_detail = f"Online ({len(installed_models)} models: {', '.join(models_sample)})"
+        models_sample = real_models[:4]
+        ollama_detail = f"Online ({len(real_models)} models: {', '.join(models_sample)})"
     else:
         ollama_status = 'WARN'
         ollama_detail = "Offline or no models pulled yet (run 'ollama serve' / 'ollama pull qwen2.5-coder:3b')"
@@ -475,8 +479,9 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
                 installed_models = get_installed_ollama_models()
                 if installed_models:
                     ollama_status = 'PASS'
-                    models_sample = list(installed_models)[:4]
-                    ollama_detail = f"Auto-pulled qwen2.5-coder:3b ({len(installed_models)} models: {', '.join(models_sample)})"
+                    real_models = sorted(m for m in installed_models if ':' in m)
+                    models_sample = real_models[:4]
+                    ollama_detail = f"Auto-pulled qwen2.5-coder:3b ({len(real_models)} models: {', '.join(models_sample)})"
             except Exception:
                 pass
     checks.append({'component': 'Ollama LLM Service', 'status': ollama_status, 'detail': ollama_detail})
