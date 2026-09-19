@@ -47,10 +47,10 @@ class MemoryStore:
         self.vector_store = VectorStore()
         self._load()
 
-    def _sync_vector_store(self):
-        """FULL rebuild -- sirf initial load par use hota hai. Incremental
-        updates (remember/delete) ab directly vector_store ko mutate karte
-        hain; pehle har _save() par poora store re-embed hota tha (O(N^2))."""
+    def _sync_vector_store(self) -> None:
+        """Full rebuild of the vector index from in-memory entries.
+        Used only during initial load. Incremental modifications (remember/delete)
+        directly mutate vector_store without re-embedding the entire collection."""
         self.vector_store.clear()
         docs = []
         for entry in self._entries.values():
@@ -61,7 +61,7 @@ class MemoryStore:
     def _doc_text(self, entry: MemoryEntry) -> str:
         return f"{entry.goal}\n{' '.join(entry.tags)}\n{entry.code}"
 
-    def _load(self):
+    def _load(self) -> None:
         self._entries.clear()
         if not os.path.isfile(self.storage_path):
             return
@@ -70,7 +70,7 @@ class MemoryStore:
                 data = json.load(f)
             for item in data.get("entries", []):
                 entry = MemoryEntry(
-                    id=item.get("id", str(uuid.uuid4().hex[:8])),
+                    id=item.get("id", uuid.uuid4().hex[:8]),
                     goal=item.get("goal", ""),
                     code=item.get("code", ""),
                     tags=item.get("tags", []),
@@ -82,11 +82,11 @@ class MemoryStore:
                 )
                 self._entries[entry.id] = entry
             self._sync_vector_store()
-        except (json.JSONDecodeError, OSError) as e:
+        except (json.JSONDecodeError, OSError):
             # Corrupted store file; resetting
             self._entries = {}
 
-    def _save(self):
+    def _save(self) -> None:
         """Atomic disk persistence -- writes to tmp file then replaces atomically."""
         if self.storage_path and self.storage_path != ":memory:":
             dirname = os.path.dirname(self.storage_path)
@@ -144,10 +144,57 @@ class MemoryStore:
             return True
         return False
 
-    def clear(self):
+    def clear(self) -> None:
         self._entries.clear()
         self.vector_store.clear()
         self._save()
+
+    def export_json(self, target_path: str) -> bool:
+        """Exports all memories to a standalone JSON file for backup or sharing."""
+        try:
+            target = os.path.abspath(target_path)
+            dirname = os.path.dirname(target)
+            if dirname:
+                os.makedirs(dirname, exist_ok=True)
+            data = {
+                "version": "1.0.0",
+                "exported_at": datetime.now(timezone.utc).isoformat(),
+                "total_entries": len(self._entries),
+                "entries": [asdict(e) for e in self._entries.values()],
+            }
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception:
+            return False
+
+    def import_json(self, source_path: str, overwrite: bool = False) -> int:
+        """Imports memories from an external JSON file, returning count of imported entries."""
+        if not os.path.isfile(source_path):
+            return 0
+        try:
+            with open(source_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            count = 0
+            for item in data.get("entries", []):
+                goal = str(item.get("goal", "")).strip()
+                code = str(item.get("code", "")).strip()
+                if not goal or not code:
+                    continue
+                if not overwrite and any(e.goal.strip().lower() == goal.lower() for e in self._entries.values()):
+                    continue
+                self.remember(
+                    goal=goal,
+                    code=code,
+                    tags=item.get("tags", []),
+                    model=item.get("model", "auto"),
+                    source_type=item.get("source_type", "imported"),
+                    metadata=item.get("metadata", {}),
+                )
+                count += 1
+            return count
+        except Exception:
+            return 0
 
     def remember(self, goal: str, code: str, tags: Optional[List[str]] = None,
                  model: str = "auto", source_type: str = "verified_execution",
@@ -291,7 +338,7 @@ class MemoryStore:
         older = transcript_steps[:-4]
         recent = transcript_steps[-4:]
 
-        compact_lines = ["### 📜 Compacted Prior Investigation Context:"]
+        compact_lines = ["### [CONTEXT] Compacted Prior Investigation Context:"]
         for s in older:
             action = s.get("action", "")
             step_no = s.get("step", "?")
@@ -299,7 +346,7 @@ class MemoryStore:
             first_line = obs.strip().splitlines()[0] if obs.strip() else "done"
             compact_lines.append(f"- Step {step_no} ({action}): {first_line[:120]}")
 
-        compact_lines.append("\n### ⚡ Recent Detailed Trace:")
+        compact_lines.append("\n### [TRACE] Recent Detailed Trace:")
         for s in recent:
             step_no = s.get("step", "?")
             action = s.get("action", "")

@@ -67,6 +67,51 @@ class AuditLogTests(unittest.TestCase):
         self.assertEqual(len(entries), 1)
         self.assertIn("good_entry", entries[0]["code_preview"])
 
+    def test_filter_by_status(self) -> None:
+        self.log.record(code="a = 1", allowed=True, executed=True, success=True)
+        self.log.record(code="b = 2", allowed=True, executed=True, success=False)
+        self.log.record(code="c = 3", allowed=False, executed=False)
+
+        allowed_entries = self.log.filter_by_status(allowed=True)
+        self.assertEqual(len(allowed_entries), 2)
+
+        successful_entries = self.log.filter_by_status(success=True)
+        self.assertEqual(len(successful_entries), 1)
+        self.assertIn("a = 1", successful_entries[0]["code_preview"])
+
+        failed_entries = self.log.filter_by_status(success=False)
+        self.assertEqual(len(failed_entries), 1)
+        self.assertIn("b = 2", failed_entries[0]["code_preview"])
+
+    def test_stats(self) -> None:
+        self.log.record(code="p1()", allowed=True, executed=True, success=True)
+        self.log.record(code="p2()", allowed=True, executed=True, success=False)
+        self.log.record(code="p3()", allowed=False, executed=False)
+
+        stats = self.log.stats()
+        self.assertEqual(stats["total_entries"], 3)
+        self.assertEqual(stats["allowed_count"], 2)
+        self.assertEqual(stats["blocked_count"], 1)
+        self.assertEqual(stats["executed_count"], 2)
+        self.assertEqual(stats["success_count"], 1)
+        self.assertEqual(stats["failed_count"], 1)
+
+    def test_verify_integrity(self) -> None:
+        self.log.record(code="valid_code()", allowed=True)
+        is_valid, count, errors = self.log.verify_integrity()
+        self.assertTrue(is_valid)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(errors), 0)
+
+        # Inject malformed line
+        with open(self.path, "a", encoding="utf-8") as f:
+            f.write("corrupted line json\n")
+
+        is_valid_corrupt, count_corrupt, errors_corrupt = self.log.verify_integrity()
+        self.assertFalse(is_valid_corrupt)
+        self.assertGreater(len(errors_corrupt), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
+
