@@ -1248,6 +1248,47 @@ pushed it to 32.0. Annotated the whole file → **100.0**.
 Measured: suite 1935 → **1939 passed**, 13 skipped, 80 subtests.
 Detail: `NOTEBOOK_IMPORT.md`, "Sixty-second pass."
 
+**Architecture support: invented decisions and unrunnable models (pass 63).**
+Asked where to improve, then asked specifically about Transformer /
+microservices / monolithic architecture. Four defects, two in the shipped
+path for exactly that question.
+
+- **Reasoning models returned an empty answer at small budgets.** Ollama
+  bills a model's chain of thought against the same `num_predict` budget as
+  its answer. At `num_predict=32` (what `action_menu.py` uses for a
+  single-integer choice): `qwen2.5-coder:3b` → `'2'`; `qwen3.5:4b` →
+  **`''`**, `done='length'`, 107 chars spent thinking. The same model
+  answers fine at 2048, so it was a budget problem, not a capability limit.
+  Four of the eight installed models are reasoning models and ~17 call sites
+  hardcode a budget without knowing the model, so `budget_for_model()` grows
+  it in the provider once; non-reasoning models are unchanged (32 → 32), so
+  no prior measurement moves. **A wrong hypothesis first:** I reported these
+  models "effectively unusable" off a probe whose `num_predict:16` I had set
+  myself. The real cost is speed — **9.6 tok/s vs 57.2**.
+- **The ADR engine wrote ACCEPTED after zero model calls.** Probed against a
+  dead port on the user's own topic: status `ACCEPTED`, advising "Adopt
+  Microservices vs Monolith" — not even a coherent choice. Now `UNDECIDED`
+  with `model_backed=False` and the real reason. Two more in the same
+  function: a reply with no `## Status:` line defaulted to `ACCEPTED` (a
+  parse failure is not an approval — now `PROPOSED`), and `.decision` was
+  the topic echoed back, identical for or against. Verified live: it now
+  returns the model's actual recommendation ("start with a monolithic
+  architecture...").
+- **The Transformer designer emitted models that cannot be constructed.**
+  `d_model=512, n_heads=7` reported 41,158,656 params and generated
+  `nn.MultiheadAttention(512, 7)`, which raises on construction; `d_model=-512`
+  reported **-24,381,440 params**. The divisibility check lived in the CLI
+  only, and zero/negative dimensions were unchecked even there. Now
+  validated in the engine; valid specs byte-identical.
+- **`saleha jarvis` crashed on every invocation** — `NameError: voice_cmd`,
+  a name that moved when `commands.py` was split. Caught by the repo's own
+  quality gate, not the suite: the command registers fine, so counting
+  commands stays green; only calling it fails. Added a registry-wide sweep
+  over all 159 callbacks plus a direct test.
+
+Measured: suite 1939 → **1966 passed**, 13 skipped, 110 subtests.
+Detail: `NOTEBOOK_IMPORT.md`, "Sixty-third pass."
+
 ---
 
 ## Environment facts worth knowing
@@ -1276,8 +1317,8 @@ Detail: `NOTEBOOK_IMPORT.md`, "Sixty-second pass."
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1939 passed, 13 skipped,
-  80 subtests, ~105-200s (as of pass 62). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1966 passed, 13 skipped,
+  110 subtests, ~110-300s (as of pass 63). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once

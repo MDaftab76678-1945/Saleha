@@ -6147,3 +6147,119 @@ added: **100.0/100**.
 tests, +8 subtests). Quality gate: `silicon_circuit_orchestrator.py` 96.0,
 `test_specialized_orchestrators.py` 100.0, the three `jarvis/` files 84.0 /
 84.0 / 92.0.
+
+## Sixty-third pass — architecture work that invented decisions and unrunnable models (2026-09-20)
+
+Asked where Saleha could be improved, then asked specifically about
+Transformer / microservices / monolithic architecture support. Read the two
+modules that serve those questions in full, plus the provider underneath
+them. Four defects, two of them in the shipped path for exactly the question
+asked.
+
+### A reasoning model returned an empty answer at small budgets
+
+Ollama bills a model's chain of thought against the same `num_predict`
+budget as its answer, returning it in a separate `thinking` field. Measured,
+prompt "Reply with only the number 2." at `num_predict=32` -- the budget
+`action_menu.py` uses for a single-integer choice:
+
+| model | done_reason | answer | thinking |
+| --- | --- | --- | --- |
+| `qwen2.5-coder:3b` | `stop` | `'2'` | 0 chars |
+| `qwen3.5:4b` | **`length`** | **`''`** | 107 chars |
+
+The same model answers correctly at 2048 (`done='stop'`, 1299 chars), so it
+was a budget problem, not a capability limit. Four of the eight models
+installed here are reasoning models and ~17 call sites hardcode a budget
+without knowing which model they will be routed to, so the growth belongs in
+the provider once: `budget_for_model()` grows a reasoning model's budget and
+returns everything else unchanged (32 -> 32), so no prior measurement in this
+repo moves. Verified through the real provider against live Ollama: the same
+32-token call now returns `'2'`.
+
+**A hypothesis I had to discard first.** I initially measured
+`qwen3.5:4b` at 118s returning 0 characters and reported it as "reasoning
+models are effectively unusable". That was wrong -- the probe had
+`num_predict:16`, which I had set myself. Re-measured at 2048: `done='stop'`,
+1299 chars, correct code. The real cost is speed, not capability: **9.6 tok/s
+vs 57.2** for `qwen2.5-coder:3b` on the same prompt.
+
+Found in the same file: `stream_generate()` still had the `options or {...}`
+substitution bug that `generate()` had fixed in pass 53. Measured on the old
+code, a call passing only `{"temperature": 0.9}` sent exactly that --
+`num_predict`, `repeat_penalty` and `top_p` all dropped.
+
+### The ADR engine wrote ACCEPTED after zero model calls
+
+`ArchitectureDebater.debate()` fell back to a hardcoded
+`"## Status: ACCEPTED\n## Decision\nAdopt {topic} with monitoring."` whenever
+the judge failed. Probed against a dead port with the topic the user actually
+asked about:
+
+```
+OLD: status = ACCEPTED
+     decision = "Decision reached for: Microservices vs Monolith"
+     markdown contains ACCEPTED: True     (zero model calls made)
+NEW: status = UNDECIDED, model_backed = False
+     decision = "No decision reached -- the debate did not run."
+     failure_reason = "round 1 advocate: ...; round 1 skeptic: ...; judge: ..."
+```
+
+Note the old text advised the reader to "Adopt Microservices vs Monolith" --
+not even a coherent choice, which is what a template pasted over a real
+question looks like.
+
+Two more in the same function. A judge reply that parsed but carried no
+`## Status:` line defaulted to `ACCEPTED`; that is a parse failure, not an
+approval, and is now `PROPOSED`. And `.decision` was the literal
+f-string `"Decision reached for: {topic}"` -- the topic echoed back,
+identical whether the debate concluded for or against. Now extracted from
+the ADR body. Verified with a live model on the user's own question:
+
+> "For a 5-person startup team, we recommend starting with a monolithic
+> architecture due to its simplicity, ease of management, and reduced
+> operational overhead..."
+
+(advocate 2050 chars, skeptic 3320 chars, `model_backed=True`) -- where the
+old code would have returned the topic string.
+
+Also made the module-level singleton lazy: it built three `BaseAgent`s for
+every process that merely imported the module.
+
+### The Transformer designer emitted models that cannot be constructed
+
+`NeuralDesigner.design_transformer()` validated nothing, and the spec values
+land directly in the generated PyTorch source:
+
+| spec | before | after |
+| --- | --- | --- |
+| `d_model=512, n_heads=7` | 41,158,656 params + `nn.MultiheadAttention(512, 7)` | refused |
+| `d_model=0` | 0 params, still "designed" | refused |
+| `n_heads=0` | accepted | refused |
+| `d_model=-512` | **-24,381,440 params** | refused |
+
+512/7 = 73.14, so the emitted module raises "embed_dim must be divisible by
+num_heads" the moment anyone runs it -- after the report has already printed
+a confident parameter count for it. The divisibility check existed in the
+`design-model` CLI only, so any other caller got nothing, and zero/negative
+dimensions were unchecked even there. Now `NeuralArchitectureSpec.validate()`
+raises `InvalidArchitectureError`; the CLI reports it. Valid specs are
+byte-identical (57,939,968 params for the 512/8/6 case, unchanged).
+
+### `saleha jarvis` crashed on every invocation
+
+Found by the repo's own quality gate while committing the above:
+`research_experimental.py:35` forwarded to `voice_cmd`, a name that moved to
+`voice_vision.py` when the monolithic `commands.py` was split. Every
+`saleha jarvis` run raised `NameError: name 'voice_cmd' is not defined`.
+
+The suite could not see it -- the command registers fine, so importing the
+CLI and counting commands stays green; only calling it fails. Added a
+registry-wide static sweep over all 159 commands' callbacks for unresolvable
+`LOAD_GLOBAL` names alongside the direct test, since the sweep alone would
+not have caught this one (the name sat inside a `ctx.forward` argument).
+
+**Measured:** suite 1941 -> **1966 passed**, 13 skipped, 110 subtests.
+Quality gate: `architecture_debater.py` 96.0, `neural_designer.py` 96.0,
+`research_experimental.py` 71.0 -> **96.0**, `model_provider.py` 84.0, test
+files 96-100.

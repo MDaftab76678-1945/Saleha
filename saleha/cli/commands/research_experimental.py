@@ -32,6 +32,11 @@ from saleha import __version__
 @click.pass_context
 def jarvis_cmd(ctx) -> None:
     """Alias for 'saleha voice' assistant mode."""
+    # `voice_cmd` moved to voice_vision.py when the monolithic commands.py was
+    # split, and this forward was left pointing at a name that no longer
+    # exists here -- so every `saleha jarvis` invocation raised NameError.
+    # Imported inside the callback to keep the module-import order unchanged.
+    from saleha.cli.commands.voice_vision import voice_cmd
     ctx.forward(voice_cmd)
 
 @cli.command(name='cognitive')
@@ -128,11 +133,8 @@ def design_model_cmd(name: str, d_model: int, n_layers: int, n_heads: int,
       saleha design-model Small --d-model 256 --layers 4
       saleha design-model Large --d-model 4096 --layers 32 --heads 32
     """
-    if d_model % n_heads != 0:
-        console.print(f'[red]--d-model ({d_model}) must be divisible by --heads ({n_heads}).[/red]')
-        raise SystemExit(1)
-
-    from saleha.core.neural_designer import neural_designer, NeuralArchitectureSpec
+    from saleha.core.neural_designer import (
+        neural_designer, NeuralArchitectureSpec, InvalidArchitectureError)
     spec = NeuralArchitectureSpec(
         model_name=name,
         d_model=d_model,
@@ -141,7 +143,15 @@ def design_model_cmd(name: str, d_model: int, n_layers: int, n_heads: int,
         vocab_size=vocab_size,
         max_seq_len=max_seq_len,
     )
-    rep = neural_designer.design_transformer(spec)
+    # The divisibility check used to live here alone, so anything else calling
+    # the designer got no validation at all -- and zero/negative dimensions
+    # were unchecked even here (d_model=-512 reported -24,381,440 parameters).
+    # The engine validates now; report whatever it rejects.
+    try:
+        rep = neural_designer.design_transformer(spec)
+    except InvalidArchitectureError as exc:
+        console.print(f'[red]{exc}[/red]')
+        raise SystemExit(1)
     body = (
         f'{rep.summary}\n'
         f'Parameters      : {rep.total_parameters:,}\n'

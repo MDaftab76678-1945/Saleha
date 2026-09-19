@@ -12,6 +12,17 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 
 
+class InvalidArchitectureError(ValueError):
+    """Raised for a spec that cannot describe a model that would actually run.
+
+    The alternative is worse than an exception: the generated source embeds
+    these values directly, so `n_heads=7` with `d_model=512` produced a file
+    whose `nn.MultiheadAttention(512, 7)` raises "embed_dim must be divisible
+    by num_heads" the moment anyone runs it -- after the report had already
+    printed a confident parameter count for it.
+    """
+
+
 @dataclass
 class NeuralArchitectureSpec:
     """Design specifications for a neural model."""
@@ -22,6 +33,31 @@ class NeuralArchitectureSpec:
     vocab_size: int = 32000
     max_seq_len: int = 2048
     activation: str = "silu"
+
+    def validate(self) -> None:
+        """Reject specs that cannot produce a runnable model.
+
+        Every one of these was previously accepted: d_model=-512 reported
+        -24,381,440 parameters, d_model=0 reported 0, and n_heads=0 passed
+        straight through into the generated source.
+        """
+        for name, value in (("d_model", self.d_model), ("n_heads", self.n_heads),
+                            ("n_layers", self.n_layers), ("vocab_size", self.vocab_size),
+                            ("max_seq_len", self.max_seq_len)):
+            if value <= 0:
+                raise InvalidArchitectureError(
+                    f"{name} must be positive, got {value}")
+        if self.d_model % self.n_heads != 0:
+            raise InvalidArchitectureError(
+                f"d_model ({self.d_model}) must be divisible by n_heads "
+                f"({self.n_heads}); head dimension would be "
+                f"{self.d_model / self.n_heads:.2f}, and PyTorch's "
+                f"MultiheadAttention rejects a non-integer head dimension")
+
+    @property
+    def head_dim(self) -> int:
+        """Per-head dimension. Only meaningful once `validate()` has passed."""
+        return self.d_model // self.n_heads
 
 
 @dataclass
@@ -46,6 +82,7 @@ class NeuralDesigner:
     def design_transformer(self, spec: Optional[NeuralArchitectureSpec] = None) -> NeuralModelReport:
         """Synthesizes a clean, modular PyTorch Transformer architecture with exact metrics."""
         cfg = spec or NeuralArchitectureSpec(model_name="SalehaTransformerTiny")
+        cfg.validate()
 
         # 1. Parameter calculation
         d = cfg.d_model
