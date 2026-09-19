@@ -1,22 +1,31 @@
 """
-Saleha Core: Human-In-The-Loop Approval Gate (B2)
+Saleha Core: Human-In-The-Loop Approval Gate
 
-Purana permission_manager kabhi wired hi nahi hua tha (dead code ban gaya,
-delete karna pada). Ye minimal, asli wired version hai:
+Enforces physical boundaries on autonomous actions:
 
-    SALEHA_APPROVAL=off        (default) sab auto-approve -- legacy behavior
-    SALEHA_APPROVAL=dangerous  sirf khatarnak actions poochhe
-                               (shell_exec, git_commit, vault_write, file_delete)
-    SALEHA_APPROVAL=always     har gated action poochhe
+    SALEHA_APPROVAL=off        (default) Auto-approve all actions (unrestricted legacy mode)
+    SALEHA_APPROVAL=dangerous  Require interactive confirmation for high-risk actions
+                               (shell_exec, git_commit, vault_write, file_delete, file_write, etc.)
+    SALEHA_APPROVAL=always     Require interactive confirmation for every gated action
 
-Non-TTY environments (CI/scripts) mein confirm possible nahi -- wahan deny
-hota hai jab approval required ho (fail-closed), jab tak SALEHA_APPROVAL=off
-na ho. Isse automation tootti nahi, par surprise bhi nahi hota.
+In non-TTY environments (CI/headless scripts without active stdin), actions that require
+approval fail closed (denied, returning False) unless SALEHA_APPROVAL=off is explicitly set.
 """
+
+from __future__ import annotations
 
 import os
 import sys
-from typing import Callable, Optional, Set
+import time
+from dataclasses import dataclass, field
+from typing import Callable, List, Optional, Set
+
+CRITICAL_ACTIONS: Set[str] = {
+    "git_reset_hard",
+    "vault_write",
+    "vault_export",
+    "file_delete",
+}
 
 DANGEROUS_ACTIONS: Set[str] = {
     "shell_exec",
@@ -24,19 +33,8 @@ DANGEROUS_ACTIONS: Set[str] = {
     "vault_write",
     "vault_export",
     "file_delete",
-    # file_write and file_patch were MISSING here while agentic_loop.py called
-    # approve("file_write") / approve("file_patch") and its own docstring
-    # claimed "write_file approval_gate se gated (SALEHA_APPROVAL=dangerous)".
-    # Because the names were absent, requires_approval() returned False and
-    # `dangerous` mode gated deletes but let the agent silently overwrite any
-    # file in the repo. Verified before the fix: shell_exec/git_commit/
-    # file_delete -> True, file_write/file_patch -> False.
     "file_write",
     "file_patch",
-    # `git reset --hard` discards every uncommitted change in the working tree
-    # with no way back -- strictly more destructive than file_delete, which at
-    # least targets a named path. It was ungated: `saleha undo --hard` ran it
-    # straight through.
     "git_reset_hard",
 }
 
@@ -50,6 +48,35 @@ _MODE_ALIASES = {
 VALID_MODES = ("off", "dangerous", "always")
 
 
+@dataclass
+class ApprovalDecision:
+    action_type: str
+    description: str
+    approved: bool
+    reason: str
+    timestamp: float = field(default_factory=time.time)
+
+
+def normalize_action(action_type: str) -> str:
+    """Normalizes namespaced or prefixed action types (e.g. 'fs:file_delete' -> 'file_delete')."""
+    clean = action_type.strip().lower()
+    if ":" in clean:
+        clean = clean.split(":")[-1]
+    if "." in clean:
+        clean = clean.split(".")[-1]
+    return clean
+
+
+def get_action_risk_level(action_type: str) -> str:
+    """Classifies an action into 'critical', 'dangerous', or 'standard' risk tier."""
+    norm = normalize_action(action_type)
+    if norm in CRITICAL_ACTIONS or action_type in CRITICAL_ACTIONS:
+        return "critical"
+    if norm in DANGEROUS_ACTIONS or action_type in DANGEROUS_ACTIONS:
+        return "dangerous"
+    return "standard"
+
+
 def get_mode() -> str:
     raw = (os.getenv("SALEHA_APPROVAL") or "off").strip().lower()
     mode = _MODE_ALIASES.get(raw, raw)
@@ -61,52 +88,41 @@ def requires_approval(action_type: str) -> bool:
     if mode == "always":
         return True
     if mode == "dangerous":
-        return action_type in DANGEROUS_ACTIONS
+        norm = normalize_action(action_type)
+        return norm in DANGEROUS_ACTIONS or action_type in DANGEROUS_ACTIONS
     return False
 
 
 def _cli_confirm(prompt: str) -> bool:
-    """TTY confirm; non-TTY pe fail-closed (False)."""
+    """Interactive TTY confirmation; fails closed (False) in headless/non-TTY environments."""
     if not sys.stdin or not sys.stdin.isatty():
         return False
     try:
         import click
-        return bool(click.confirm(prompt, default=False))
+        return click.confirm(prompt, default=False)
     except Exception:
         return False
 
 
-def _ask(action_type: str, description: str,
-         confirmer: Optional[Callable[[str], bool]]) -> bool:
-    """Run the confirmer for an action already known to need approval.
-
-    Split out of `approve()` so `ApprovalGate.check()` can share it without
-    going back through the module-level mode lookup -- see the note on that
-    method.
-    """
+def _ask(
+    action_type: str,
+    description: str,
+    confirmer: Optional[Callable[[str], bool]],
+) -> bool:
+    """Executes the confirmation callback for an action requiring explicit permission."""
     confirm = confirmer or _cli_confirm
     try:
-        return bool(confirm(f"[Saleha {action_type}] {description} -- approve?"))
+        return confirm(f"[Saleha {action_type}] {description} -- approve?")
     except Exception:
         return False
-
-
-def approve(action_type: str, description: str,
-            confirmer: Optional[Callable[[str], bool]] = None) -> bool:
-    """Gated action ke liye permission. Approval required na ho -> True.
-
-    `confirmer` injectable hai (tests / studio UI apna dialog laga sakte hain).
-    """
-    if not requires_approval(action_type):
-        return True
-    return _ask(action_type, description, confirmer)
 
 
 class ApprovalGate:
     """Object-oriented interface for human-in-the-loop permission checking."""
 
-    def __init__(self, mode: Optional[str] = None):
+    def __init__(self, mode: Optional[str] = None) -> None:
         self._override_mode = mode
+        self.history: List[ApprovalDecision] = []
 
     def get_mode(self) -> str:
         return self._override_mode or get_mode()
@@ -116,32 +132,55 @@ class ApprovalGate:
             if self._override_mode == "always":
                 return True
             if self._override_mode == "dangerous":
-                return action_type in DANGEROUS_ACTIONS
+                norm = normalize_action(action_type)
+                return norm in DANGEROUS_ACTIONS or action_type in DANGEROUS_ACTIONS
             return False
         return requires_approval(action_type)
 
-    def check(self, action_type: str, description: str,
-              confirmer: Optional[Callable[[str], bool]] = None) -> bool:
-        """Permission for a gated action, honouring this instance's mode.
+    def record_decision(
+        self, action_type: str, description: str, approved: bool, reason: str
+    ) -> ApprovalDecision:
+        decision = ApprovalDecision(
+            action_type=action_type,
+            description=description,
+            approved=approved,
+            reason=reason,
+            timestamp=time.time(),
+        )
+        self.history.append(decision)
+        return decision
 
-        This used to delegate straight to the module-level `approve()`, which
-        reads SALEHA_APPROVAL and therefore ignored `mode=` entirely. The
-        failure was fail-OPEN, which is the dangerous direction: an instance
-        built as `ApprovalGate(mode="always")` -- explicitly the strictest
-        setting -- reported `requires_approval(...) -> True` while
-        `check(...)` returned True, auto-approving every action, whenever the
-        environment was unset (its default). The two halves of the same object
-        disagreed about whether an action was gated.
+    def get_history(self) -> List[ApprovalDecision]:
+        return list(self.history)
 
-        Nothing in production passes `mode=` (the singleton below is built
-        with none), so this tightens a latent trap rather than changing
-        current behaviour: with `_override_mode` None it resolves through
-        `requires_approval()` exactly as before.
-        """
+    def clear_history(self) -> None:
+        self.history.clear()
+
+    def check(
+        self,
+        action_type: str,
+        description: str,
+        confirmer: Optional[Callable[[str], bool]] = None,
+    ) -> bool:
+        """Permission check for a gated action, honouring instance-level mode override and tracking history."""
         if not self.requires_approval(action_type):
+            self.record_decision(action_type, description, True, "mode_bypassed")
             return True
-        return _ask(action_type, description, confirmer)
+        approved = _ask(action_type, description, confirmer)
+        reason = "user_confirmed" if approved else "user_denied_or_non_tty"
+        self.record_decision(action_type, description, approved, reason)
+        return approved
+
+
+def approve(
+    action_type: str,
+    description: str,
+    confirmer: Optional[Callable[[str], bool]] = None,
+) -> bool:
+    """Request permission for a gated action. Auto-approves if gating is not required."""
+    return approval_gate.check(action_type, description, confirmer)
 
 
 approval_gate = ApprovalGate()
+
 

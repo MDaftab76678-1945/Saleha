@@ -116,3 +116,55 @@ def test_check_still_accepts_an_injected_confirmer() -> None:
             os.environ.pop('SALEHA_APPROVAL', None)
         else:
             os.environ['SALEHA_APPROVAL'] = prev
+
+
+def test_normalize_action() -> None:
+    from saleha.core.approval_gate import normalize_action
+
+    assert normalize_action("file_delete") == "file_delete"
+    assert normalize_action("fs:file_delete") == "file_delete"
+    assert normalize_action("tools.file_write") == "file_write"
+    assert normalize_action("tool_call:git.git_reset_hard") == "git_reset_hard"
+
+
+def test_get_action_risk_level() -> None:
+    from saleha.core.approval_gate import get_action_risk_level
+
+    assert get_action_risk_level("git_reset_hard") == "critical"
+    assert get_action_risk_level("vault_write") == "critical"
+    assert get_action_risk_level("fs:file_delete") == "critical"
+    assert get_action_risk_level("shell_exec") == "dangerous"
+    assert get_action_risk_level("tools.file_write") == "dangerous"
+    assert get_action_risk_level("read_file") == "standard"
+    assert get_action_risk_level("list_dir") == "standard"
+
+
+def test_approval_decision_history() -> None:
+    gate = ApprovalGate(mode="always")
+    gate.clear_history()
+
+    # Confirmed action
+    gate.check("file_write", "create a test file", confirmer=lambda _p: True)
+    # Denied action
+    gate.check("shell_exec", "run bash script", confirmer=lambda _p: False)
+
+    history = gate.get_history()
+    assert len(history) == 2
+    assert history[0].action_type == "file_write"
+    assert history[0].approved is True
+    assert history[0].reason == "user_confirmed"
+
+    assert history[1].action_type == "shell_exec"
+    assert history[1].approved is False
+    assert history[1].reason == "user_denied_or_non_tty"
+
+    gate.clear_history()
+    assert len(gate.get_history()) == 0
+
+
+def test_namespaced_requires_approval() -> None:
+    gate = ApprovalGate(mode="dangerous")
+    assert gate.requires_approval("fs:file_delete") is True
+    assert gate.requires_approval("tools.file_write") is True
+    assert gate.requires_approval("tools.read_file") is False
+

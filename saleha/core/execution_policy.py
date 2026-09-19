@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 VALID_MODES = ("auto", "local", "docker", "require-docker")
@@ -40,6 +41,15 @@ _MODE_ALIASES = {
 }
 
 _probe_cache: Dict[str, object] = {"done": False, "available": False}
+
+
+@dataclass
+class PolicyDecision:
+    backend: str             # "docker" | "subprocess" | "none"
+    sandbox_mode: str        # "auto" | "local" | "docker" | "require-docker"
+    docker_available: bool
+    reason: str
+    command: Optional[List[str]] = None
 
 
 def _reset_probe_cache() -> None:
@@ -124,45 +134,13 @@ def ensure_image(image: Optional[str] = None, auto_pull: bool = True) -> Tuple[b
         return (False, f"docker pull error: {err}")
 
 
-def resolve_backend() -> Tuple[str, str]:
-    """Resolves effective execution backend based on environment policy.
-
-    Returns:
-        ("docker" | "subprocess" | "none", human_readable_reason)
-        "none" indicates require-docker mode was set but Docker is unavailable (fail-closed).
-    """
-    mode = get_sandbox_mode()
-
-    if mode in ("auto", "local"):
-        return ("subprocess", f"sandbox mode '{mode}' uses local subprocess")
-
-    daemon_up = docker_available()
-
-    if mode == "docker":
-        if daemon_up:
-            return ("docker", "sandbox mode 'docker': containerized execution")
-        return (
-            "subprocess",
-            "sandbox mode 'docker' but Docker unavailable -- degraded to "
-            "subprocess. Set SALEHA_SANDBOX=require-docker to forbid this."
-        )
-
-    # require-docker
-    if daemon_up:
-        return ("docker", "sandbox mode 'require-docker': containerized execution enforced")
-    return (
-        "none",
-        "SALEHA_SANDBOX=require-docker is set but the Docker daemon is "
-        "unavailable. Execution refused (fail-closed) instead of silently "
-        "running with full host privileges."
-    )
-
-
 def build_docker_command(
     host_script_path: str,
     image: str = DEFAULT_DOCKER_IMAGE,
     memory: str = "512m",
     cpus: str = "1.0",
+    pids_limit: int = 128,
+    custom_args: Optional[List[str]] = None,
 ) -> List[str]:
     """Constructs hardened `docker run` command for a host script.
 
@@ -171,18 +149,118 @@ def build_docker_command(
     """
     chosen_image = os.getenv("SALEHA_DOCKER_IMAGE") or image
     normalized = host_script_path.replace("\\", "/")
-    host_dir = os.path.dirname(os.path.abspath(normalized)) or "."
+    host_dir = os.path.dirname(os.path.abspath(normalized)).replace("\\", "/") or "."
     script_name = normalized.rsplit("/", 1)[-1]
 
-    return [
+    cmd = [
         "docker", "run", "--rm",
         "--network", "none",
         "--memory", memory,
         "--cpus", cpus,
-        "--pids-limit", "128",
+        "--pids-limit", str(pids_limit),
         "--security-opt", "no-new-privileges",
         "-v", f"{host_dir}:/sandbox",
         "-w", "/sandbox",
         chosen_image,
         "python", f"/sandbox/{script_name}",
     ]
+    if custom_args:
+        cmd.extend(custom_args)
+    return cmd
+
+
+class ExecutionPolicy:
+    """Manages execution backend selection, security policies, and command construction."""
+
+    def __init__(
+        self,
+        mode: Optional[str] = None,
+        docker_image: Optional[str] = None,
+        memory: str = "512m",
+        cpus: str = "1.0",
+        pids_limit: int = 128,
+    ) -> None:
+        self._override_mode = mode
+        self.docker_image = docker_image or os.getenv("SALEHA_DOCKER_IMAGE", DEFAULT_DOCKER_IMAGE)
+        self.memory = memory
+        self.cpus = cpus
+        self.pids_limit = pids_limit
+
+    def get_mode(self) -> str:
+        if self._override_mode:
+            clean = _MODE_ALIASES.get(self._override_mode.strip().lower(), self._override_mode.strip().lower())
+            return clean if clean in VALID_MODES else "auto"
+        return get_sandbox_mode()
+
+    def is_docker_available(self, force_refresh: bool = False) -> bool:
+        return docker_available(force_refresh=force_refresh)
+
+    def resolve_backend(self) -> Tuple[str, str]:
+        """Resolves effective execution backend based on policy and environment."""
+        mode = self.get_mode()
+
+        if mode in ("auto", "local"):
+            return ("subprocess", f"sandbox mode '{mode}' uses local subprocess")
+
+        daemon_up = self.is_docker_available()
+
+        if mode == "docker":
+            if daemon_up:
+                return ("docker", "sandbox mode 'docker': containerized execution")
+            return (
+                "subprocess",
+                "sandbox mode 'docker' but Docker unavailable -- degraded to "
+                "subprocess. Set SALEHA_SANDBOX=require-docker to forbid this.",
+            )
+
+        # require-docker
+        if daemon_up:
+            return ("docker", "sandbox mode 'require-docker': containerized execution enforced")
+        return (
+            "none",
+            "SALEHA_SANDBOX=require-docker is set but the Docker daemon is "
+            "unavailable. Execution refused (fail-closed) instead of silently "
+            "running with full host privileges.",
+        )
+
+    def build_command(
+        self,
+        host_script_path: str,
+        custom_args: Optional[List[str]] = None,
+    ) -> List[str]:
+        backend, _ = self.resolve_backend()
+        if backend == "docker":
+            return build_docker_command(
+                host_script_path=host_script_path,
+                image=self.docker_image,
+                memory=self.memory,
+                cpus=self.cpus,
+                pids_limit=self.pids_limit,
+                custom_args=custom_args,
+            )
+        cmd = ["python", host_script_path]
+        if custom_args:
+            cmd.extend(custom_args)
+        return cmd
+
+    def evaluate_policy(self, host_script_path: Optional[str] = None) -> PolicyDecision:
+        backend, reason = self.resolve_backend()
+        daemon_up = self.is_docker_available()
+        mode = self.get_mode()
+        cmd = self.build_command(host_script_path) if host_script_path and backend != "none" else None
+        return PolicyDecision(
+            backend=backend,
+            sandbox_mode=mode,
+            docker_available=daemon_up,
+            reason=reason,
+            command=cmd,
+        )
+
+
+execution_policy = ExecutionPolicy()
+
+
+def resolve_backend() -> Tuple[str, str]:
+    """Resolves effective execution backend based on environment policy."""
+    return execution_policy.resolve_backend()
+
