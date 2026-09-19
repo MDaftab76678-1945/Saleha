@@ -11,6 +11,7 @@ Maintains double-entry accounting for agent token usage and compute economics:
 import os
 import json
 import time
+import uuid
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Any
 
@@ -53,7 +54,7 @@ class TokenLedger:
     ) -> LedgerEntry:
         """Records a new double-entry token and compute transaction."""
         entry = LedgerEntry(
-            entry_id=f"tx_{len(self.entries) + 1}_{int(time.time() * 1000) % 10000}",
+            entry_id=f"tx_{len(self.entries) + 1}_{uuid.uuid4().hex[:6]}",
             task_id=task_id,
             model=model,
             prompt_tokens_debit=prompt_tokens,
@@ -88,16 +89,78 @@ class TokenLedger:
             "token_roi_percent": roi_pct,
         }
 
-    def save(self):
-        """Persists ledger to disk."""
-        try:
-            os.makedirs(os.path.dirname(self.store_path), exist_ok=True)
-            with open(self.store_path, "w", encoding="utf-8") as f:
-                json.dump([asdict(e) for e in self.entries], f, indent=2)
-        except (OSError, IOError):
-            pass  # noqa
+    def filter_by_model(self, model: str) -> List[LedgerEntry]:
+        """Filters ledger entries produced by a specific model."""
+        target = model.strip().lower()
+        return [e for e in self.entries if e.model.strip().lower() == target]
 
-    def _load(self):
+    def filter_by_task(self, task_id: str) -> List[LedgerEntry]:
+        """Filters ledger entries matching a given task ID."""
+        return [e for e in self.entries if e.task_id == task_id]
+
+    def clear(self) -> None:
+        """Clears all transactions in memory and on disk."""
+        self.entries = []
+        self.save()
+
+    def export_json(self, target_path: str) -> bool:
+        """Exports ledger entries to an external JSON file."""
+        try:
+            target_dir = os.path.dirname(os.path.abspath(target_path))
+            if target_dir:
+                os.makedirs(target_dir, exist_ok=True)
+            with open(target_path, "w", encoding="utf-8") as f:
+                json.dump([asdict(e) for e in self.entries], f, indent=2)
+            return True
+        except (OSError, IOError):
+            return False
+
+    def import_json(self, source_path: str, overwrite: bool = False) -> int:
+        """Imports ledger transactions from an external JSON file."""
+        if not os.path.isfile(source_path):
+            return 0
+        try:
+            with open(source_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return 0
+            if overwrite:
+                self.entries = []
+            count = 0
+            existing_ids = {e.entry_id for e in self.entries}
+            for d in data:
+                entry = LedgerEntry(**d)
+                if entry.entry_id not in existing_ids:
+                    self.entries.append(entry)
+                    existing_ids.add(entry.entry_id)
+                    count += 1
+            if count > 0 or overwrite:
+                self.save()
+            return count
+        except Exception:
+            return 0
+
+    def save(self) -> bool:
+        """Persists ledger to disk atomically."""
+        tmp_path = None
+        try:
+            store_dir = os.path.dirname(os.path.abspath(self.store_path))
+            if store_dir:
+                os.makedirs(store_dir, exist_ok=True)
+            tmp_path = f"{self.store_path}.tmp.{os.getpid()}"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump([asdict(e) for e in self.entries], f, indent=2)
+            os.replace(tmp_path, self.store_path)
+            return True
+        except (OSError, IOError):
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            return False
+
+    def _load(self) -> None:
         """Loads ledger from disk if available."""
         if not os.path.exists(self.store_path):
             return
@@ -106,7 +169,7 @@ class TokenLedger:
                 data = json.load(f)
             self.entries = [LedgerEntry(**d) for d in data]
         except (OSError, IOError, json.JSONDecodeError):
-            pass  # noqa
+            pass
 
 
 token_ledger = TokenLedger()
