@@ -10,8 +10,8 @@ from __future__ import annotations
 import ast
 import os
 import re
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple, Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 @dataclass
@@ -22,6 +22,7 @@ class ImpactReport:
     blast_radius: int                 # 0-100 (100 = entire codebase affected)
     risk_level: str                   # "low" | "medium" | "high" | "critical"
     summary: str
+    impacted_dependents: List[str] = field(default_factory=list)
 
 
 class _ScopedSymbolExtractor(ast.NodeVisitor):
@@ -68,17 +69,49 @@ class _ScopedSymbolExtractor(ast.NodeVisitor):
 class ChangeImpactAnalyzer:
     """Estimates the blast radius of code changes using AST and symbol graph analysis."""
 
-    def analyze(self, old_content: str, new_content: str,
-                file_path: str, repo_root: str = ".") -> ImpactReport:
+    def analyze(
+        self,
+        old_content: str,
+        new_content: str,
+        file_path: str,
+        repo_root: str = ".",
+        dependency_graph: Optional[Any] = None,
+        ast_cache: Optional[Any] = None,
+    ) -> ImpactReport:
         """Compute change impact for a modified file."""
         changed_symbols = self._find_changed_symbols(old_content, new_content)
         affected_callers = self._find_callers(changed_symbols, repo_root, file_path)
         affected_tests = self._find_affected_tests(changed_symbols, repo_root)
 
+        impacted_dependents: List[str] = []
+        if dependency_graph is not None:
+            try:
+                impacted_dependents = sorted(list(set(dependency_graph.get_impacted_files(file_path))))
+            except Exception:
+                pass
+
+        if ast_cache is not None:
+            try:
+                ast_cache.invalidate(file_path)
+                if dependency_graph is not None:
+                    ast_cache.invalidate_dependents(file_path, dependency_graph)
+            except Exception:
+                pass
+
         # Blast radius: fraction of codebase affected
         total_files = sum(1 for _, _, fs in os.walk(repo_root) for f in fs if f.endswith(".py"))
-        affected_count = len(set(affected_callers)) + len(affected_tests)
-        blast = min(100, int((affected_count / max(total_files, 1)) * 100) + (10 if changed_symbols else 0))
+        affected_count = len(set(affected_callers)) + len(affected_tests) + len(impacted_dependents)
+
+        raw_blast = int((affected_count / max(total_files, 1)) * 100) + (10 if changed_symbols else 0)
+
+        # Private symbol damping: if all changed symbols are private (prefixed with _), lower the blast impact
+        has_only_private = bool(changed_symbols) and all(
+            s.split(".")[-1].startswith("_") for s in changed_symbols if not s.startswith("DELETED:")
+        )
+        if has_only_private:
+            raw_blast = max(5, int(raw_blast * 0.5))
+
+        blast = min(100, max(0, raw_blast))
 
         if blast >= 60:
             risk = "critical"
@@ -90,10 +123,13 @@ class ChangeImpactAnalyzer:
             risk = "low"
 
         sym_list = ", ".join(changed_symbols[:5]) or "none"
-        summary = (f"Changed symbols: [{sym_list}]. "
-                   f"{len(affected_callers)} caller(s) affected. "
-                   f"{len(affected_tests)} test file(s) affected. "
-                   f"Blast radius: {blast}/100.")
+        dep_str = f" {len(impacted_dependents)} dependent module(s) impacted." if impacted_dependents else ""
+        summary = (
+            f"Changed symbols: [{sym_list}]. "
+            f"{len(affected_callers)} caller(s) affected. "
+            f"{len(affected_tests)} test file(s) affected.{dep_str} "
+            f"Blast radius: {blast}/100."
+        )
 
         return ImpactReport(
             changed_symbols=changed_symbols,
@@ -102,6 +138,7 @@ class ChangeImpactAnalyzer:
             blast_radius=blast,
             risk_level=risk,
             summary=summary,
+            impacted_dependents=impacted_dependents,
         )
 
     def _find_changed_symbols(self, old_content: str, new_content: str) -> List[str]:

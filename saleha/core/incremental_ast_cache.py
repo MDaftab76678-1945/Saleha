@@ -6,12 +6,14 @@ code analysis on repositories with 10,000+ files by skipping unchanged modules.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.core.gamma_critic_sandbox import GammaReport, GammaSandboxEngine
 
@@ -24,6 +26,7 @@ class CachedFileEntry:
     passed: bool
     violations_count: int
     diagnostics: List[Dict[str, Any]] = field(default_factory=list)
+    public_symbols: List[str] = field(default_factory=list)
     last_scanned: float = field(default_factory=time.time)
 
 
@@ -31,36 +34,107 @@ class IncrementalASTCache:
     """
     High-Speed Incremental AST Cache:
     Tracks file modification times & SHA-256 hashes on disk (.saleha/ast_cache.json).
+    Provides atomic disk persistence, bounded LRU eviction, and cross-file invalidation.
     """
 
-    def __init__(self, cache_file_path: str = ".saleha/ast_cache.json"):
+    def __init__(self, cache_file_path: str = ".saleha/ast_cache.json", max_entries: int = 10000) -> None:
         self.cache_file = Path(cache_file_path)
+        self.max_entries = max_entries
         self.cache: Dict[str, CachedFileEntry] = {}
         self.gamma = GammaSandboxEngine()
         self._load_cache()
 
-    def _load_cache(self):
+    def _load_cache(self) -> None:
         if not self.cache_file.exists():
             return
         try:
             with open(self.cache_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 for k, v in data.items():
-                    self.cache[k] = CachedFileEntry(**v)
+                    if isinstance(v, dict):
+                        # Ensure backward-compatibility with older cache records
+                        v.setdefault("public_symbols", [])
+                        v.setdefault("last_scanned", time.time())
+                        self.cache[k] = CachedFileEntry(**v)
         except Exception:
             pass
 
-    def _save_cache(self):
+    def _save_cache(self) -> None:
+        self.prune()
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_file = self.cache_file.with_suffix(self.cache_file.suffix + ".tmp")
         try:
-            with open(self.cache_file, "w", encoding="utf-8") as f:
+            with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump({k: asdict(v) for k, v in self.cache.items()}, f, indent=2)
+            os.replace(tmp_file, self.cache_file)
+        except Exception:
+            if tmp_file.exists():
+                try:
+                    tmp_file.unlink()
+                except OSError:
+                    pass
+
+    def prune(self) -> int:
+        """Evicts oldest entries based on last_scanned when cache exceeds max_entries."""
+        if len(self.cache) <= self.max_entries:
+            return 0
+        excess = len(self.cache) - self.max_entries
+        sorted_keys = sorted(self.cache.keys(), key=lambda k: self.cache[k].last_scanned)
+        evicted = 0
+        for k in sorted_keys[:excess]:
+            del self.cache[k]
+            evicted += 1
+        return evicted
+
+    def invalidate(self, file_path: str | Path) -> bool:
+        """Explicitly purges a file entry from cache."""
+        rel_key = str(file_path)
+        if rel_key in self.cache:
+            del self.cache[rel_key]
+            return True
+        norm_key = str(Path(file_path))
+        if norm_key in self.cache:
+            del self.cache[norm_key]
+            return True
+        return False
+
+    def invalidate_dependents(
+        self, changed_path: str | Path, dependency_graph: Optional[Any] = None
+    ) -> List[str]:
+        """Invalidates downstream dependent files using the CodebaseDependencyGraph."""
+        invalidated: List[str] = []
+        if dependency_graph is None:
+            return invalidated
+
+        try:
+            impacted = dependency_graph.get_impacted_files(str(changed_path))
+            for imp in impacted:
+                for key in list(self.cache.keys()):
+                    if key == imp or key.endswith("/" + imp) or key.endswith("\\" + imp):
+                        del self.cache[key]
+                        invalidated.append(key)
         except Exception:
             pass
+
+        return invalidated
 
     @staticmethod
     def _compute_hash(content: str) -> str:
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _extract_public_symbols(content: str) -> List[str]:
+        """Extracts top-level public functions and classes."""
+        symbols: List[str] = []
+        try:
+            tree = ast.parse(content)
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    if not node.name.startswith("_"):
+                        symbols.append(node.name)
+        except SyntaxError:
+            pass
+        return symbols
 
     def audit_file_incremental(self, file_path: Path, force: bool = False) -> Tuple[bool, CachedFileEntry]:
         """
@@ -78,6 +152,8 @@ class IncrementalASTCache:
                 passed=False,
                 violations_count=1,
                 diagnostics=[{"rule": "READ_ERROR", "line": 1, "msg": str(e), "hint": "Fix permissions"}],
+                public_symbols=[],
+                last_scanned=time.time(),
             )
 
         content_hash = self._compute_hash(content)
@@ -86,6 +162,7 @@ class IncrementalASTCache:
         if not force and rel_key in self.cache:
             entry = self.cache[rel_key]
             if entry.content_hash == content_hash and abs(entry.mtime - mtime) < 1e-4:
+                entry.last_scanned = time.time()
                 return True, entry  # Instant Cache Hit (< 0.05 ms)
 
         # Cache Miss: Run Gamma AST Inspection
@@ -98,6 +175,8 @@ class IncrementalASTCache:
             for v in report.violations
         ]
 
+        public_syms = self._extract_public_symbols(content) if ext == ".py" else []
+
         entry = CachedFileEntry(
             filepath=rel_key,
             content_hash=content_hash,
@@ -105,6 +184,8 @@ class IncrementalASTCache:
             passed=report.passed,
             violations_count=len(report.violations),
             diagnostics=diagnostics,
+            public_symbols=public_syms,
+            last_scanned=time.time(),
         )
 
         self.cache[rel_key] = entry
@@ -122,9 +203,6 @@ class IncrementalASTCache:
         flawed_files = []
         clean_files = 0
 
-        # A file target used to fall through every rglob and report "0 files
-        # scanned, all clean" -- a green result for an audit that examined
-        # nothing. Auditing the one file is what the caller asked for.
         _EXTS = (".py", ".c", ".cpp", ".rs", ".js", ".ts")
         if target_path.is_file():
             candidates = [target_path] if target_path.suffix in _EXTS else []

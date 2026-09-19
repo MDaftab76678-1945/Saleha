@@ -137,6 +137,78 @@ class IncrementalASTCacheTests(unittest.TestCase):
         self.assertEqual(res["cache_hits"], 1)
         self.assertEqual(res["cache_misses"], 0)
 
+    def test_atomic_disk_save_and_cleanup(self) -> None:
+        file_path = self.root / "atomic_check.py"
+        file_path.write_text("z = 1000\n", encoding="utf-8")
+        self.cache.audit_file_incremental(file_path)
+        self.cache._save_cache()
+
+        self.assertTrue(self.cache_file.exists())
+        tmp_file = self.cache_file.with_suffix(self.cache_file.suffix + ".tmp")
+        self.assertFalse(tmp_file.exists())
+
+    def test_cache_pruning_lru(self) -> None:
+        bounded_cache = IncrementalASTCache(cache_file_path=str(self.cache_file), max_entries=2)
+        for i in range(5):
+            fp = self.root / f"mod_{i}.py"
+            fp.write_text(f"val = {i}\n", encoding="utf-8")
+            bounded_cache.audit_file_incremental(fp)
+
+        # Before save or explicit prune, cache may have 5 entries
+        self.assertEqual(len(bounded_cache.cache), 5)
+        evicted = bounded_cache.prune()
+        self.assertEqual(evicted, 3)
+        self.assertEqual(len(bounded_cache.cache), 2)
+
+    def test_explicit_invalidation(self) -> None:
+        file_path = self.root / "invalidate_me.py"
+        file_path.write_text("x = 42\n", encoding="utf-8")
+        self.cache.audit_file_incremental(file_path)
+        self.assertIn(str(file_path), self.cache.cache)
+
+        removed = self.cache.invalidate(file_path)
+        self.assertTrue(removed)
+        self.assertNotIn(str(file_path), self.cache.cache)
+
+        # Invalidate nonexistent file
+        self.assertFalse(self.cache.invalidate(file_path))
+
+    def test_public_symbol_extraction(self) -> None:
+        file_path = self.root / "symbols.py"
+        code = (
+            "def public_func() -> None:\n    pass\n\n"
+            "def _private_func() -> None:\n    pass\n\n"
+            "class PublicClass:\n    pass\n\n"
+            "class _PrivateClass:\n    pass\n"
+        )
+        file_path.write_text(code, encoding="utf-8")
+        is_hit, entry = self.cache.audit_file_incremental(file_path)
+        self.assertFalse(is_hit)
+        self.assertIn("public_func", entry.public_symbols)
+        self.assertIn("PublicClass", entry.public_symbols)
+        self.assertNotIn("_private_func", entry.public_symbols)
+        self.assertNotIn("_PrivateClass", entry.public_symbols)
+
+    def test_invalidate_dependents_with_dependency_graph(self) -> None:
+        class MockDepGraph:
+            def get_impacted_files(self, file_path: str) -> list[str]:
+                return ["dependent_a.py", "dependent_b.py"]
+
+        f1 = self.root / "dependent_a.py"
+        f1.write_text("import foo\n", encoding="utf-8")
+        f2 = self.root / "dependent_b.py"
+        f2.write_text("import foo\n", encoding="utf-8")
+        self.cache.audit_file_incremental(f1)
+        self.cache.audit_file_incremental(f2)
+
+        self.assertIn(str(f1), self.cache.cache)
+        self.assertIn(str(f2), self.cache.cache)
+
+        invalidated = self.cache.invalidate_dependents("foo.py", MockDepGraph())
+        self.assertEqual(len(invalidated), 2)
+        self.assertNotIn(str(f1), self.cache.cache)
+        self.assertNotIn(str(f2), self.cache.cache)
+
 
 if __name__ == "__main__":
     unittest.main()

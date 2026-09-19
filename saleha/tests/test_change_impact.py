@@ -155,6 +155,84 @@ class TestTokenizer(unittest.TestCase):
         )
         self.assertEqual(len(no_change_report.changed_symbols), 0)
 
+    def test_dependency_graph_coupling(self) -> None:
+        """Verify that passing dependency_graph detects impacted dependents."""
+        class MockDepGraph:
+            def get_impacted_files(self, file_path: str) -> list[str]:
+                return ["client_a.py", "client_b.py"]
+
+        old_code = "def serve() -> None:\n    pass\n"
+        new_code = "def serve() -> None:\n    print('v2')\n"
+        file_p = self._write_file("server.py", new_code)
+
+        report: ImpactReport = self.analyzer.analyze(
+            old_code, new_code, file_path=file_p, repo_root=self.tmp_dir, dependency_graph=MockDepGraph()
+        )
+
+        self.assertEqual(report.impacted_dependents, ["client_a.py", "client_b.py"])
+        self.assertIn("2 dependent module(s) impacted", report.summary)
+
+    def test_ast_cache_coupling(self) -> None:
+        """Verify that passing ast_cache triggers invalidation on analyzed files."""
+        class MockASTCache:
+            def __init__(self) -> None:
+                self.invalidated_files: list[str] = []
+                self.invalidated_deps: list[str] = []
+
+            def invalidate(self, file_path: str) -> bool:
+                self.invalidated_files.append(file_path)
+                return True
+
+            def invalidate_dependents(self, file_path: str, dep_graph: object) -> list[str]:
+                self.invalidated_deps.append(file_path)
+                return ["dep.py"]
+
+        mock_cache = MockASTCache()
+        old_code = "def run() -> None:\n    pass\n"
+        new_code = "def run() -> None:\n    return None\n"
+        file_p = self._write_file("runner.py", new_code)
+
+        self.analyzer.analyze(
+            old_code, new_code, file_path=file_p, repo_root=self.tmp_dir, ast_cache=mock_cache
+        )
+
+        self.assertIn(file_p, mock_cache.invalidated_files)
+
+    def test_private_symbol_damping(self) -> None:
+        """Verify that modifying only private symbols yields lower blast radius than public symbols."""
+        old_pub = "def calculate() -> int:\n    return 1\n"
+        new_pub = "def calculate() -> int:\n    return 2\n"
+        pub_file = self._write_file("public_mod.py", new_pub)
+
+        old_priv = "def _internal_helper() -> int:\n    return 1\n"
+        new_priv = "def _internal_helper() -> int:\n    return 2\n"
+        priv_file = self._write_file("private_mod.py", new_priv)
+
+        pub_report: ImpactReport = self.analyzer.analyze(
+            old_pub, new_pub, file_path=pub_file, repo_root=self.tmp_dir
+        )
+        priv_report: ImpactReport = self.analyzer.analyze(
+            old_priv, new_priv, file_path=priv_file, repo_root=self.tmp_dir
+        )
+
+        self.assertLessEqual(priv_report.blast_radius, pub_report.blast_radius)
+
+    def test_empty_content_edge_cases(self) -> None:
+        """Verify handling of new files (empty old content) and deleted files (empty new content)."""
+        file_p = self._write_file("new_mod.py", "def brand_new(): pass\n")
+
+        # Addition of new file
+        add_report: ImpactReport = self.analyzer.analyze(
+            "", "def brand_new() -> None:\n    pass\n", file_path=file_p, repo_root=self.tmp_dir
+        )
+        self.assertIn("brand_new", add_report.changed_symbols)
+
+        # Deletion of file
+        del_report: ImpactReport = self.analyzer.analyze(
+            "def brand_new() -> None:\n    pass\n", "", file_path=file_p, repo_root=self.tmp_dir
+        )
+        self.assertIn("DELETED:brand_new", del_report.changed_symbols)
+
 
 if __name__ == "__main__":
     unittest.main()
