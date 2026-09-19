@@ -6988,3 +6988,42 @@ Hardened encrypted credential storage, cryptographic key rotation, and zero-trus
   - Multi-module regression suite: **58/58 PASSED** in 1.21s.
 - Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
 - Committed cleanly on `main` as `9ff06a3`.
+
+## Pass 79: Token Economics Ledger & Cloud Cost Analytics Engine (Round 24)
+
+Hardened token accounting, double-entry compute economics, latency percentiles, and cloud cost analytics:
+
+1. **`token_ledger.py` (Double-Entry Token Economics & ROI Ledger)**:
+   - Replaced direct file write in `save()` with atomic `.tmp.{pid}` staging and `os.replace` to safeguard against corruption on mid-write crashes.
+   - Replaced timestamp-modulo IDs with collision-free `uuid.uuid4().hex[:6]` identifiers (`tx_{len}_{uuid4()}`).
+   - Added `filter_by_model(model)` and `filter_by_task(task_id)` for targeted ledger audits.
+   - Implemented `clear()`, `export_json(target_path)`, and `import_json(source_path, overwrite=False)` with deduplication.
+   - Complete strict type annotations across all helper methods (`save`, `_load`, `clear`).
+
+2. **`token_analytics.py` (Token Economics & Cloud Cost Analytics Engine)**:
+   - Removed artificial `max(1, ...)` token clamping to accurately record 0-token measurements.
+   - Implemented `get_latency_percentiles() -> Dict[str, float]` computing p50, p90, and p95 inference speeds (tokens/sec) across invocations, integrated into `get_summary()`.
+   - Added `clear()` method for resetting analytics in memory and on disk.
+   - Added strict `-> None:` return type annotations on `_load()` and `_save()`.
+
+3. **Unit Tests**:
+   - `saleha/tests/test_token_ledger.py`: 5 tests (+4 new tests covering model/task filtering, clearing, atomic persistence reload, and export/import roundtrips).
+   - `saleha/tests/test_token_analytics.py`: 5 tests (+3 new tests covering zero-token accuracy, latency percentiles calculation, and clearing).
+   - 100% typed test methods (`def test_xxx(self) -> None:`) across all test classes adhering to Rule TYPE-001.
+
+### Pass 79 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_token_ledger.py saleha/tests/test_token_analytics.py -v
+  ```
+
+- Subsystem test results:
+  - `test_token_ledger.py`: 5/5 PASSED.
+  - `test_token_analytics.py`: 5/5 PASSED.
+  - Total: **10/10 PASSED** in 0.18s.
+- Regression test results:
+  - Multi-module regression suite: **50/50 PASSED** in 1.27s.
+- Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
+- Committed cleanly on `main` as `d26cb2a`.
