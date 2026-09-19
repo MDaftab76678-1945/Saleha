@@ -43,7 +43,15 @@ class DoomWorkspaceEngine:
         auto_git_commit: bool = True,
         max_repair_passes: int = 3,
     ):
-        self.workspace_dir = Path(workspace_dir).resolve()
+        target = Path(workspace_dir).resolve()
+        # `saleha doom audit <file>` is a natural thing to type, and the CLI
+        # argument accepts any path. Treating a file as a directory here made
+        # the cache path `<file>/.saleha/ast_cache.json`, so _save_cache()'s
+        # mkdir -- which sits outside its own try/except -- died with
+        # FileExistsError [WinError 183] on every such invocation. Anchor the
+        # workspace at the containing directory instead; the audit itself
+        # handles a single-file target.
+        self.workspace_dir = target.parent if target.is_file() else target
         self.auto_heal = auto_heal
         self.auto_git_commit = auto_git_commit
         self.max_repair_passes = max_repair_passes

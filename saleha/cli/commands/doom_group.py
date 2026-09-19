@@ -48,11 +48,12 @@ def doom_dev_cmd(path: str, no_auto_commit: bool, no_heal: bool) -> None:
     """
     from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
     engine = DoomWorkspaceEngine(workspace_dir=path, auto_heal=not no_heal, auto_git_commit=not no_auto_commit)
-    console.print(Panel(f"[bold cyan]🚀 DooM Autonomous Workspace Active[/]\n • Target Path: [yellow]{engine.workspace_dir}[/]\n • Gamma AST Sandbox: [green]ENABLED (Zero-Broken Code Guarantee)[/]\n • Auto-Heal Loop: [green]{('ENABLED' if not no_heal else 'DISABLED')}[/]\n • Git Auto-Commit: [green]{('ENABLED' if not no_auto_commit else 'DISABLED')}[/]\n\n[dim]Listening for file saves (Ctrl+S). Save any source file to trigger auto-verify & heal...[/]", title='DooM Workspace Controller', border_style='cyan'))
+    console.print(Panel(f"[bold cyan]DooM Autonomous Workspace Active[/]\n • Target Path: [yellow]{engine.workspace_dir}[/]\n • Gamma AST Sandbox: [green]ENABLED[/] [dim](one static AST check, not a guarantee)[/]\n • Auto-Heal Loop: [green]{('ENABLED' if not no_heal else 'DISABLED')}[/]\n • Git Auto-Commit: [green]{('ENABLED' if not no_auto_commit else 'DISABLED')}[/]\n\n[dim]Listening for file saves (Ctrl+S). Save any source file to trigger auto-verify & heal...[/]", title='DooM Workspace Controller', border_style='cyan'))
     console.print('[dim]Press Ctrl+C to exit workspace loop.[/]')
     try:
         audit_res = engine.run_full_audit()
-        console.print(f"[bold green]✓ Initial scan clean:[/] {audit_res['clean_files']} files verified safe.")
+        console.print(f"[bold green]Initial scan clean:[/] {audit_res['clean_files']} of "
+                      f"{audit_res['total_files_scanned']} files passed the AST check.")
         if audit_res['flawed_files'] > 0:
             console.print(f"[bold red]! Detected {audit_res['flawed_files']} flawed files needing attention.[/]")
         while True:
@@ -70,7 +71,7 @@ def doom_audit_cmd(path: str) -> None:
     """
     from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
     engine = DoomWorkspaceEngine(workspace_dir=path)
-    console.print(f'[bold cyan]🔍 Running Gamma Deterministic AST Audit on:[/] {path}...\n')
+    console.print(f'[bold cyan]Running Gamma Deterministic AST Audit on:[/] {path}...\n')
     res = engine.run_full_audit(path)
     table = Table(title='Gamma AST Sandbox Audit Report', border_style='cyan')
     table.add_column('Metric', style='bold white')
@@ -84,7 +85,7 @@ def doom_audit_cmd(path: str) -> None:
         for item in res['diagnostics']:
             console.print(f" • [bold yellow]{item['file']}[/]")
             for v in item['violations']:
-                console.print(f"    └─ [{v['rule']}] Line {v['line']}: {v['msg']}")
+                console.print(f"    - [{v['rule']}] Line {v['line']}: {v['msg']}")
                 console.print(f"       [dim]Fix Hint: {v['hint']}[/]")
     else:
         # The scan itself is real (audit_directory_incremental returns real
@@ -109,7 +110,7 @@ def doom_swarm_cmd(prompt: str, complexity: int) -> None:
     from saleha.core.saleha_swarm_topology import SalehaSwarmTopology
     swarm = SalehaSwarmTopology()
     agent, is_fast_path, experts = swarm.route_task(prompt, complexity_score=complexity)
-    console.print(Panel(f"[bold cyan]🤖 Saleha Swarm Dispatch[/]\n • Task: [white]{prompt}[/]\n • Assigned Agent: [bold green]Agent #{agent.agent_id} ({agent.role.value})[/]\n • Department: [yellow]{agent.department.value}[/]\n • 1:1 Private Shadow Model: [magenta]Model #{agent.private_model_id}[/]\n • Execution Route: [bold]{('FAST-PATH (0 Latency Private Binding)' if is_fast_path else 'SWARM CONSENSUS (Global MoE)')}[/]\n" + (f' • Attached Swarm Experts: [dim]{experts}[/]\n' if experts else ''), title='Swarm Task Allocation', border_style='green'))
+    console.print(Panel(f"[bold cyan]Saleha Swarm Dispatch[/]\n • Task: [white]{prompt}[/]\n • Assigned Agent: [bold green]Agent #{agent.agent_id} ({agent.role.value})[/]\n • Department: [yellow]{agent.department.value}[/]\n • 1:1 Private Shadow Model: [magenta]Model #{agent.private_model_id}[/]\n • Execution Route: [bold]{('FAST-PATH (0 Latency Private Binding)' if is_fast_path else 'SWARM CONSENSUS (Global MoE)')}[/]\n" + (f' • Attached Swarm Experts: [dim]{experts}[/]\n' if experts else ''), title='Swarm Task Allocation', border_style='green'))
 
 @doom_group.command(name='memory')
 @click.argument('query', default='', required=False)
@@ -130,15 +131,15 @@ def doom_memory_cmd(query: str) -> None:
         console.print(f' • Episodic Log Records: [cyan]{len(episodes)}[/]')
         console.print(f' • Semantic Graph Triples: [magenta]{len(triples)}[/]')
         return
-    console.print(f"[bold cyan]🧠 Querying Tri-Tier Memory for:[/] '{query}'...\n")
+    console.print(f"[bold cyan]Querying Tri-Tier Memory for:[/] '{query}'...\n")
     res = mem.recall_context(query)
     console.print(f"[bold green]1. Working Memory Recent Context:[/] {len(res['working_memory'])} turns")
     console.print(f"[bold cyan]2. Episodic History Matches:[/] {len(res['episodic_history'])} episodes")
     for ep in res['episodic_history']:
-        console.print(f"   └─ [#{ep['id']}] {ep['summary']} ({ep['status']})")
+        console.print(f"   - [#{ep['id']}] {ep['summary']} ({ep['status']})")
     console.print(f"[bold magenta]3. Semantic Graph Facts:[/] {len(res['semantic_facts'])} facts")
     for fact in res['semantic_facts']:
-        console.print(f'   └─ {fact}')
+        console.print(f'   - {fact}')
 
 @doom_group.command(name='top')
 @click.option('--duration', '-d', default=0, type=int, help='Auto-exit after N seconds (0 for infinite)')
@@ -163,7 +164,7 @@ def doom_mesh_cmd(node_id: str, port: int) -> None:
     from saleha.core.p2p_mesh import P2PMeshNode
     node = P2PMeshNode(node_id=node_id, port=port)
     node.start()
-    console.print(Panel(f"[bold cyan]🌐 Saleha Distributed P2P Swarm Mesh Active[/]\n • Node ID: [bold green]{node.node_id}[/]\n • Port: [yellow]{node.port}[/]\n • Hosted Swarm Departments: [magenta]{node.get_mesh_status()['hosted_departments']}[/]\n • Broadcast Mode: [green]LAN UDP Heartbeat (Zero Cloud Required)[/]\n • Status: [bold white]READY TO STEAL / OFFLOAD TASKS[/]", title='P2P Mesh Controller', border_style='magenta'))
+    console.print(Panel(f"[bold cyan]Saleha P2P Swarm Mesh Node Started[/]\n • Node ID: [bold green]{node.node_id}[/]\n • Port: [yellow]{node.port}[/]\n • Hosted Swarm Departments: [magenta]{node.get_mesh_status()['hosted_departments']}[/]\n • Broadcast Mode: [green]LAN UDP Heartbeat (Zero Cloud Required)[/]\n • Status: [bold white]READY TO STEAL / OFFLOAD TASKS[/]", title='P2P Mesh Controller', border_style='magenta'))
 
 @doom_group.command(name='voice')
 @click.argument('command', default='Saleha, check this code for bugs', required=False)
@@ -176,7 +177,7 @@ def doom_voice_cmd(command: str) -> None:
     from saleha.core.saleha_multimodal import SalehaMultimodalHub
     hub = SalehaMultimodalHub()
     res = hub.fuse_inputs(voice_command=command)
-    console.print(Panel(f'[bold cyan]🎙️ Saleha Local Voice Ingress[/]\n • Transcribed Voice Command: [bold green]"{res.voice_intent}"[/]\n • Active Screen Target: [yellow]{res.active_window}[/]\n • Latency: [dim]{res.latency_ms:.2f} ms[/]\n\n[bold white]Fused Multimodal Payload Dispatched to Swarm Agent #05[/]', title='Voice-to-Code Pipeline', border_style='cyan'))
+    console.print(Panel(f'[bold cyan]Saleha Local Voice Ingress[/]\n • Voice Command (text in, no audio captured): [bold green]"{res.voice_intent}"[/]\n • Active Screen Target: [yellow]{res.active_window}[/] [dim](sample value, not a real window)[/]\n • Fusion Latency: [dim]{res.latency_ms:.2f} ms[/]\n\n[dim]Built the fused multimodal prompt below. Nothing was dispatched to an agent.[/]\n[white]{res.fused_prompt}[/]', title='Voice-to-Code Pipeline', border_style='cyan'))
 
 @doom_group.command(name='screen')
 def doom_screen_cmd() -> None:
@@ -188,7 +189,7 @@ def doom_screen_cmd() -> None:
     from saleha.core.saleha_multimodal import SalehaMultimodalHub
     hub = SalehaMultimodalHub()
     res = hub.fuse_inputs()
-    console.print(Panel(f'[bold cyan]👁️ Screen-Aware OCR Diagnostics[/]\n • Active Target Window: [bold yellow]{res.active_window}[/]\n • Detected Screen Context:\n[red]{res.screen_error_context}[/]\n\n[bold green]✓ Diagnosis Prepared: Auto-Patch ready for execution.[/]', title='Screen-Aware Visual Ingress', border_style='yellow'))
+    console.print(Panel(f'[bold cyan]Screen Context Fusion[/]\n • Target Window: [bold yellow]{res.active_window}[/]\n • Screen Error Context:\n[red]{res.screen_error_context}[/]\n\n[dim]No screen was captured and no OCR ran -- these are this engine\'s built-in sample values. No patch was generated.[/]', title='Screen Context Ingress (sample data)', border_style='yellow'))
 
 @doom_group.command(name='wasm')
 @click.argument('plugin_name', default='crypto_tools.wasm', required=False)
@@ -203,9 +204,9 @@ def doom_wasm_cmd(plugin_name: str, func_name: str) -> None:
     runtime = SalehaWasmRuntime()
     res = runtime.invoke_plugin(plugin_name, func_name, 'sample_data_payload')
     if res.success:
-        console.print(Panel(f'[bold cyan]⚡ Wasm Micro-Plugin Executed[/]\n • Plugin: [bold green]{res.plugin_name}[/]\n • Function: [yellow]{res.func_name}()[/]\n • Gas Used: [magenta]{res.gas_used:,} units[/] (Remaining: {res.gas_remaining:,})\n • Execution Latency: [green]{res.execution_time_ms:.2f} ms[/]\n • Output: [white]{res.output}[/]', title='Wasm Sandbox Host (1MB Cap)', border_style='green'))
+        console.print(Panel(f'[bold cyan]Wasm Micro-Plugin Executed[/]\n • Plugin: [bold green]{res.plugin_name}[/]\n • Function: [yellow]{res.func_name}()[/]\n • Gas Used: [magenta]{res.gas_used:,} units[/] (Remaining: {res.gas_remaining:,})\n • Execution Latency: [green]{res.execution_time_ms:.2f} ms[/]\n • Output: [white]{res.output}[/]', title='Wasm Sandbox Host (1MB Cap)', border_style='green'))
     else:
-        console.print(f'[bold red]✗ Wasm Execution Failed:[/] {res.security_reason}')
+        console.print(f'[bold red]Wasm Execution Failed:[/] {res.security_reason}')
 
 @doom_group.command(name='watchdog')
 def doom_watchdog_cmd() -> None:
@@ -220,7 +221,8 @@ def doom_watchdog_cmd() -> None:
     dog.register_worker(1, 'Saleha-Agent-05 (Systems)')
     dog.register_worker(2, 'Saleha-Agent-110 (Security)')
     status = dog.get_status()
-    console.print(Panel(f"[bold cyan]🛡️ Saleha Hardware Watchdog Sentinel Active[/]\n • Monitored Workers: [bold green]{status['total_monitored_workers']}[/]\n • Healthy & Active: [green]{status['healthy_workers']}[/]\n • Quarantined / Frozen: [green]0 (Zero OS Freeze Guarantee)[/]\n • Heartbeat Interval: [yellow]100 ms (Sub-15ms Deadlock Isolation)[/]", title='Kernel Self-Preservation Sentinel', border_style='green'))
+    quarantined = status['total_monitored_workers'] - status['healthy_workers']
+    console.print(Panel(f"[bold cyan]Saleha Hardware Watchdog Sentinel[/]\n • Monitored Workers: [bold green]{status['total_monitored_workers']}[/]\n • Healthy & Active: [green]{status['healthy_workers']}[/]\n • Quarantined / Frozen: [{'red' if quarantined else 'green'}]{quarantined}[/]\n • Heartbeat Interval: [yellow]100 ms[/]\n\n[dim]Three workers were just registered for this snapshot; none have missed a heartbeat yet.[/]", title='Kernel Self-Preservation Sentinel', border_style='green'))
 
 @doom_group.command(name='hyperbolic')
 def doom_hyperbolic_cmd() -> None:
@@ -235,7 +237,7 @@ def doom_hyperbolic_cmd() -> None:
     sum_uv = u.mobius_addition(v)
     controller = SAMHAttractorController()
     healed_state, was_healed, dist = controller.apply_self_healing_step(sum_uv)
-    console.print(Panel(f"[bold cyan]🌌 Non-Euclidean Hyperbolic Poincaré Engine (||u|| < 1.0)[/]\n • Vector U Norm²: [green]{u.norm_squared():.6f}[/]\n • Vector V Norm²: [green]{v.norm_squared():.6f}[/]\n • Möbius Gyroaddition (u ⊕ v) Norm²: [bold green]{sum_uv.norm_squared():.6f}[/]\n • S.A.M.H. Attractor Distance: [yellow]{dist:.4f}[/]\n • Self-Healing Steering Applied: [bold]{('YES (Trajectory Collapsed to Attractor)' if was_healed else 'NO (Within Canonical Bounds)')}[/]\n • Theoretical Advantage: [magenta]100M Hyperbolic Params ≈ 70B Euclidean Params[/]", title='Poincaré Ball & S.A.M.H. Attractor', border_style='cyan'))
+    console.print(Panel(f"[bold cyan]Non-Euclidean Hyperbolic Poincaré Engine (||u|| < 1.0)[/]\n • Vector U Norm²: [green]{u.norm_squared():.6f}[/]\n • Vector V Norm²: [green]{v.norm_squared():.6f}[/]\n • Mobius Gyroaddition (u (+) v) Norm^2: [bold green]{sum_uv.norm_squared():.6f}[/]\n • S.A.M.H. Attractor Distance: [yellow]{dist:.4f}[/]\n • Self-Healing Steering Applied: [bold]{('YES (Trajectory Collapsed to Attractor)' if was_healed else 'NO (Within Canonical Bounds)')}[/]\n\n[dim]Real Poincaré-ball arithmetic on two sample vectors. No model, no parameter-efficiency claim measured here.[/]", title='Poincaré Ball & S.A.M.H. Attractor', border_style='cyan'))
 
 @doom_group.command(name='padic')
 def doom_padic_cmd() -> None:
@@ -250,7 +252,9 @@ def doom_padic_cmd() -> None:
     node_c = PadicValuationNode.from_raw([75, 375, 15, 0, 30, 150, 0, 0])
     validator = PadicIsolationValidator(prime=5)
     report = validator.validate_compartment_isolation([node_a, node_b, node_c])
-    console.print(Panel(f"[bold cyan]🔷 Non-Archimedean p-Adic Ultrametric Quantization (p=5)[/]\n • Strong Triangle Invariant: [bold green]d(x, y) ≤ max(d(x, z), d(y, z))[/]\n • Clopen Compartments Verified: [green]{report['checks_passed']} / {report['total_checks']}[/]\n • Cross-Agent Memory Isolation: [bold green]100% HARDLOCKED[/]\n • Semantic Bleeding Risk: [bold green]{report['semantic_bleeding_risk']}[/]", title='p-Adic Clopen Memory Isolation', border_style='magenta'))
+    all_passed = report['checks_passed'] == report['total_checks']
+    iso_color = 'green' if all_passed else 'red'
+    console.print(Panel(f"[bold cyan]Non-Archimedean p-Adic Ultrametric Quantization (p=5)[/]\n • Strong Triangle Invariant: [bold green]d(x, y) <= max(d(x, z), d(y, z))[/]\n • Clopen Compartments Verified: [{iso_color}]{report['checks_passed']} / {report['total_checks']}[/]\n • Semantic Bleeding Risk: [bold {iso_color}]{report['semantic_bleeding_risk']}[/]\n\n[dim]The ultrametric inequality is checked over three sample nodes. This says nothing about the running swarm's real memory isolation.[/]", title='p-Adic Clopen Memory Isolation', border_style='magenta'))
 
 @doom_group.command(name='sheaf')
 def doom_sheaf_cmd() -> None:
@@ -279,33 +283,46 @@ def doom_sheaf_cmd() -> None:
     sheaf = SheafCohomologyConsensus()
     res = sheaf.verify_mesh_consensus(reports)
     status_color = 'green' if res['synchronized'] else 'red'
-    console.print(Panel(f"[bold cyan]🌐 Topological Sheaf Cohomology Consensus Engine[/]\n • Čech Boundary Differential: [bold {status_color}]δ¹c = 0 ⟹ H¹ = 0: {res['synchronized']}[/]\n • Regional Triplet Checks: [green]{res['total_triplet_checks']}[/]\n • Anomalous Triplets: [{'green' if not res['anomalous_triplet_indices'] else 'red'}]{res['anomalous_triplet_indices']}[/]\n • Cohomology Invariant: [bold {status_color}]{res['cohomology_group']}[/]\n • Split-Brain Risk: [bold {status_color}]{res['split_brain_risk']}[/]", title='Sheaf Cohomology Consensus', border_style=status_color))
+    console.print(Panel(f"[bold cyan]Topological Sheaf Cohomology Consensus Engine[/]\n • Cech Boundary Differential: [bold {status_color}]d1(c) = 0 implies H1 = 0: {res['synchronized']}[/]\n • Regional Triplet Checks: [green]{res['total_triplet_checks']}[/]\n • Anomalous Triplets: [{'green' if not res['anomalous_triplet_indices'] else 'red'}]{res['anomalous_triplet_indices']}[/]\n • Cohomology Invariant: [bold {status_color}]{res['cohomology_group']}[/]\n • Split-Brain Risk: [bold {status_color}]{res['split_brain_risk']}[/]", title='Sheaf Cohomology Consensus', border_style=status_color))
 
 @doom_group.command(name='jitter')
 def doom_jitter_cmd() -> None:
     """
-    Run Real-Time Nanosecond Latency & Hardware Jitter Telemetry Benchmark.
-    
+    Measure this machine's real dict-lookup latency distribution, in nanoseconds.
+
     Example: saleha doom jitter
     """
-    import random
+    import time
     from saleha.core.latency_histogram import NanosecondLatencyHistogram
+
+    # This used to fill the histogram with random.randint() values and present
+    # them as "Hardware Latency" and an "L1 Cache Hit" minimum -- invented
+    # numbers under a measurement heading. Time a real operation instead: the
+    # dict lookup below is genuinely executed and genuinely timed, so the
+    # percentiles and the jitter tail describe this machine.
     hist = NanosecondLatencyHistogram()
-    for _ in range(10000):
-        lat = random.randint(80, 250) if random.random() > 0.01 else random.randint(300, 1200)
-        hist.record(lat)
+    probe = {i: i for i in range(64)}
+    for i in range(10000):
+        start = time.perf_counter_ns()
+        probe[i & 63]
+        hist.record(time.perf_counter_ns() - start)
+
     rep = hist.get_report()
-    table = Table(title='⏱️ Hardware Nanosecond Jitter & Latency Audit', border_style='cyan')
+    table = Table(title='Measured dict-lookup latency (10,000 real samples)',
+                  border_style='cyan')
     table.add_column('Percentile Metric', style='bold white')
-    table.add_column('Hardware Latency', style='bold green')
-    table.add_row('Total Operations Processed', f"{rep['total_samples']:,}")
-    table.add_row('Minimum Latency (L1 Cache Hit)', f"{rep['min_ns']} ns")
-    table.add_row('p50 Median Latency', f"{rep['p50_ns']} ns (< 0.2 μs)")
+    table.add_column('Measured Latency', style='bold green')
+    table.add_row('Total Operations Timed', f"{rep['total_samples']:,}")
+    table.add_row('Minimum Latency', f"{rep['min_ns']} ns")
+    table.add_row('p50 Median Latency', f"{rep['p50_ns']} ns")
     table.add_row('p90 Latency', f"{rep['p90_ns']} ns")
-    table.add_row('p99 Latency (Worst-Case Bound)', f"{rep['p99_ns']} ns")
+    table.add_row('p99 Latency', f"{rep['p99_ns']} ns")
     table.add_row('p99.99 Latency', f"{rep['p99_99_ns']} ns")
     table.add_row('Maximum Peak Jitter', f"{rep['max_peak_jitter_ns']} ns")
     console.print(table)
+    console.print('[dim]Timed with time.perf_counter_ns(), which includes its own '
+                  'call overhead -- these are real samples from this machine, not a '
+                  'hardware-level or cache-level measurement.[/]')
 
 @doom_group.command(name='web')
 @click.option('--port', default=8000, help='Port to run Web Studio on (default: 8000)')

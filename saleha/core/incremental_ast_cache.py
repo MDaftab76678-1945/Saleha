@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
 from saleha.core.gamma_critic_sandbox import GammaReport, GammaSandboxEngine
 
@@ -124,24 +123,36 @@ class IncrementalASTCache:
         flawed_files = []
         clean_files = 0
 
-        for ext in [".py", ".c", ".cpp", ".rs", ".js", ".ts"]:
-            for fpath in target_path.rglob(f"*{ext}"):
-                if any(part.startswith(".") or part in {"build", "dist", "venv", "__pycache__"} for part in fpath.parts):
-                    continue
-                total_files += 1
-                is_hit, entry = self.audit_file_incremental(fpath)
-                if is_hit:
-                    cache_hits += 1
-                else:
-                    cache_misses += 1
+        # A file target used to fall through every rglob and report "0 files
+        # scanned, all clean" -- a green result for an audit that examined
+        # nothing. Auditing the one file is what the caller asked for.
+        _EXTS = (".py", ".c", ".cpp", ".rs", ".js", ".ts")
+        if target_path.is_file():
+            candidates = [target_path] if target_path.suffix in _EXTS else []
+        else:
+            candidates = [
+                fpath
+                for ext in _EXTS
+                for fpath in target_path.rglob(f"*{ext}")
+            ]
 
-                if entry.passed:
-                    clean_files += 1
-                else:
-                    flawed_files.append({
-                        "file": str(fpath),
-                        "violations": entry.diagnostics,
-                    })
+        for fpath in candidates:
+            if any(part.startswith(".") or part in {"build", "dist", "venv", "__pycache__"} for part in fpath.parts):
+                continue
+            total_files += 1
+            is_hit, entry = self.audit_file_incremental(fpath)
+            if is_hit:
+                cache_hits += 1
+            else:
+                cache_misses += 1
+
+            if entry.passed:
+                clean_files += 1
+            else:
+                flawed_files.append({
+                    "file": str(fpath),
+                    "violations": entry.diagnostics,
+                })
 
         self._save_cache()
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0

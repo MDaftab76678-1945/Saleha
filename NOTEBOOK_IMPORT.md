@@ -5943,3 +5943,105 @@ untrue.
 
 **Measured:** suite 1918 -> **1921 passed**, 13 skipped (+3, the new tests).
 Quality gate: `approval_gate.py` 96.0, `test_approval_gate.py` 100.0.
+
+## Sixty-first pass — `doom audit <file>` crashed, and the group printed five claims nothing produced (2026-09-19)
+
+Started from the uncommitted working tree: a half-finished fix to
+`doom_workspace_engine.py` / `incremental_ast_cache.py` with a test file
+already written beside it. Finishing it meant reading the CLI that calls
+them, and that read found considerably more than the crash.
+
+### The original defect: two bugs stacked, the second hidden by the first
+
+`saleha doom audit <file>` is a natural thing to type -- the Click argument
+accepts any path. Both halves failed:
+
+1. `DoomWorkspaceEngine(workspace_dir=<file>)` anchored the cache at
+   `<file>/.saleha/ast_cache.json`. `_save_cache()`'s `mkdir` sits outside
+   its own try/except, so every such run died with
+   `FileExistsError [WinError 183]`.
+2. Behind that crash, `audit_directory_incremental` walked the target with
+   `rglob`, which yields nothing for a file. Had the write succeeded, the
+   command would have reported **0 files scanned, 0 violations** -- a clean
+   bill of health for an audit that examined nothing. The crash was the only
+   thing preventing a fake green.
+
+Probed with the fix stashed, then restored:
+
+| | before | after |
+| --- | --- | --- |
+| `run_full_audit(<file>)` | `FileExistsError [WinError 183]` | **`1 files scanned`** |
+| real CLI on one file | crash | `Total Files Scanned: 1`, `Verified Clean: 1` |
+
+### Reading the caller found five more claims, and a live demonstration of rule 3
+
+`doom_group.py` carried decorative emoji on 15 lines. This is not cosmetic:
+a scan script written to *list* the offending characters crashed printing
+its own findings (`UnicodeEncodeError: 'charmap' codec can't encode
+character '\U0001f680'`) -- the exact failure mode CLAUDE.md rule 3 exists
+to prevent, demonstrated by accident. Seven further characters (`Č δ ≤ ⊕ ⟹
+└ ─`) broke cp1252 too, including the `└─` in the **violation-reporting
+path**, which would only ever crash when the audit found a real bug.
+
+Behind the emoji sat five unconditional claims no engine produced:
+
+- **"Zero-Broken Code Guarantee"** (`doom dev`) -- the same claim already
+  corrected 40 lines below in the *same file* by an earlier pass. One
+  instance fixed, the other left standing.
+- **"Zero OS Freeze Guarantee"** printed as a hardcoded `0` quarantined
+  workers, ignoring `status` entirely. Now derived:
+  `total_monitored_workers - healthy_workers`.
+- **"100% HARDLOCKED"** cross-agent memory isolation (`doom padic`),
+  printed regardless of `checks_passed`. Now reports the real ratio and
+  says plainly that three sample nodes imply nothing about the running
+  swarm.
+- **"Auto-Patch ready for execution"** (`doom screen`) under a
+  "Screen-Aware OCR Diagnostics" heading. `FusedMultimodalPayload` has no
+  patch field; `capture_screen_context()` returns a hardcoded sample error
+  string and no screen is captured. Relabelled to say so.
+- **"100M Hyperbolic Params ≈ 70B Euclidean Params"** -- an invented
+  benchmark figure beside real Poincaré-ball arithmetic. Removed; the
+  arithmetic itself is genuine and kept.
+
+### `doom jitter` was `random.randint` presented as hardware telemetry
+
+The worst of them. The command's docstring read "Run Real-Time Nanosecond
+Latency & Hardware Jitter Telemetry Benchmark"; the body was:
+
+```python
+lat = random.randint(80, 250) if random.random() > 0.01 else random.randint(300, 1200)
+```
+
+rendered under a column headed **Hardware Latency** with a row labelled
+**Minimum Latency (L1 Cache Hit)**. No operation was timed.
+
+Fixed by timing a real one -- 10,000 genuine `time.perf_counter_ns()`-bracketed
+dict lookups. Two consecutive runs:
+
+| run | peak jitter |
+| --- | --- |
+| 1 | 3,100 ns |
+| 2 | 9,500 ns |
+
+Real OS scheduling variance. The old version drew from a fixed 80-250 ns
+band capped at 1200 and could not produce this. The disclaimer now states
+that `perf_counter_ns` includes its own call overhead (~100 ns granularity
+on Windows), so the p50 is not claimed as a hardware figure.
+
+### Teeth-checked, because a test that cannot fail is the trap this repo keeps hitting
+
+Stashed `doom_group.py` alone, keeping the test file, and re-ran:
+**6 of 8 failed** against the unfixed source; 8/8 once restored. Two
+assertions initially failed against the *fixed* file because they matched
+text inside my own comment describing the removed fabrication -- corrected
+to check executable lines only, which is the honest scope.
+
+All 9 runnable `doom` subcommands were then invoked on a real `cp1252`
+console: 9/9 clean, 0 breaking characters remain.
+
+**Measured:** suite 1927 -> **1935 passed**, 13 skipped. The `+8` is exactly
+the new `test_doom_group_honesty.py`; the 6 tests in
+`test_doom_audit_file_target.py` were already sitting untracked in the
+working tree and so were counted in the 1927 baseline too. 14 tests across
+the two files in total. Quality gate: `doom_group.py` 100.0, both test files
+100.0, `doom_workspace_engine.py` 90.0, `incremental_ast_cache.py` 88.0.

@@ -1149,6 +1149,55 @@ prompt tuning. What is established: ten real defects stood between the loop
 and a fix, and round 7's 0/3 was never a pure model limitation.
 Detail: `NOTEBOOK_IMPORT.md`, "Fifty-third pass."
 
+**`saleha doom` — a crash, a fake green behind it, and five invented claims
+in the CLI that calls it (pass 61).** `doom audit <file>` — a natural thing
+to type, since the Click argument accepts any path — died with
+`FileExistsError [WinError 183]` because `DoomWorkspaceEngine` anchored its
+cache at `<file>/.saleha/ast_cache.json`. Behind that crash sat the quieter
+half: `audit_directory_incremental` walked the target with `rglob`, which
+yields nothing for a file, so a successful run would have reported **0 files
+scanned, 0 violations** — a clean bill of health for an audit that examined
+nothing. The crash was the only thing preventing the fake green. Both fixed;
+probed before/after (crash → `1 files scanned`).
+
+Reading the caller (`saleha/cli/commands/doom_group.py`, in full) found more
+than the crash:
+
+- **Decorative emoji on 15 lines, plus 7 other cp1252-breaking characters.**
+  Not cosmetic, and demonstrated by accident: a scan script written to *list*
+  the offending characters crashed printing its own findings
+  (`UnicodeEncodeError` on `\U0001f680`) — the exact failure mode rule 3
+  exists to prevent. One of the breaking characters (`└─`) sat in the
+  **violation-reporting path**, so it would only ever crash when the audit
+  found a real bug. All 9 runnable `doom` subcommands now verified on a real
+  cp1252 console: 9/9 clean.
+- **`doom jitter` was `random.randint` presented as hardware telemetry.**
+  Docstring: "Real-Time Nanosecond Latency & Hardware Jitter Telemetry
+  Benchmark"; body: `random.randint(80, 250)`, rendered under a column headed
+  **Hardware Latency** with a row labelled **Minimum Latency (L1 Cache Hit)**.
+  Nothing was timed. Now times 10,000 real `perf_counter_ns()`-bracketed dict
+  lookups — two runs gave peak jitter 3,100 ns vs 9,500 ns (real scheduling
+  variance the old fixed 80-250 band could not produce), with the
+  ~100 ns Windows granularity stated rather than hidden.
+- **Four more unconditional claims removed**: "Zero-Broken Code Guarantee"
+  (the *same* claim an earlier pass had already corrected 40 lines below in
+  this same file — one instance fixed, the other left standing), "Zero OS
+  Freeze Guarantee" printed as a hardcoded `0` ignoring `status` (now derived
+  from `total_monitored_workers - healthy_workers`), "100% HARDLOCKED" memory
+  isolation printed regardless of `checks_passed`, and "Auto-Patch ready for
+  execution" for a payload with no patch field under a "Screen-Aware OCR"
+  heading that captures no screen. Also removed an invented
+  "100M Hyperbolic Params ≈ 70B Euclidean Params" figure (the Poincaré-ball
+  arithmetic beside it is genuine and kept).
+
+Teeth-checked: stashing `doom_group.py` alone (keeping the tests) made **6 of
+8 new tests fail**; 8/8 once restored. Two assertions initially passed
+falsely against the fixed file by matching text inside my own comment
+describing the removed fabrication — narrowed to executable lines only.
+Measured: suite 1927 → **1935 passed**, 13 skipped. Quality gate 100.0 on
+`doom_group.py` and both test files.
+Detail: `NOTEBOOK_IMPORT.md`, "Sixty-first pass."
+
 ---
 
 ## Environment facts worth knowing
@@ -1177,8 +1226,8 @@ Detail: `NOTEBOOK_IMPORT.md`, "Fifty-third pass."
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1714 passed, 7 skipped,
-  60 subtests, ~80-130s. Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1935 passed, 13 skipped,
+  72 subtests, ~115-200s (as of pass 61). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once
