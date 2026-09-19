@@ -6,13 +6,15 @@ resolves dependencies via topological sorting, and executes independent tasks in
 parallel using ThreadPoolExecutor while coordinating multi-agent swarms.
 """
 
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import List, Dict, Set, Optional, Any
+from typing import Any, Callable, Dict, List, Optional, Set
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
-from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
+from saleha.agents.base_agent import AgentResponse, BaseAgent
+from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 
 
 @dataclass
@@ -22,7 +24,7 @@ class TaskNode:
     role_profile: str  # Profile ID (e.g. 'agent_software_designer', 'agent_sde')
     prompt: str
     depends_on: List[str] = field(default_factory=list)
-    status: str = "PENDING"  # PENDING, RUNNING, COMPLETED, FAILED
+    status: str = "PENDING"  # PENDING, RUNNING, COMPLETED, FAILED, SKIPPED
     result: str = ""
     error: str = ""
     duration: float = 0.0
@@ -36,22 +38,34 @@ class DAGResult:
     completed_tasks: int
     failed_tasks: int
     total_time: float
+    skipped_tasks: int = 0
     nodes: Dict[str, TaskNode] = field(default_factory=dict)
     mermaid_graph: str = ""
 
 
 class TaskDAG:
-    def __init__(self, goal: str = "", model: str = "auto"):
+    def __init__(self, goal: str = "", model: str = "auto") -> None:
         self.goal = goal
         self.model = model
         self.nodes: Dict[str, TaskNode] = {}
 
-    def add_task(self, node: TaskNode):
+    def add_task(self, node: TaskNode) -> None:
         self.nodes[node.id] = node
 
     def get_topological_batches(self) -> List[List[TaskNode]]:
-        """Groups tasks into parallel execution stages (batches) based on dependencies."""
-        in_degree = {task_id: len(node.depends_on) for task_id, node in self.nodes.items()}
+        """
+        Groups tasks into parallel execution stages (batches) based on dependencies.
+        Validates that all dependency references exist and detects circular graphs.
+        """
+        # Validate that all referenced dependencies exist in the DAG
+        for task_id, node in self.nodes.items():
+            for dep in node.depends_on:
+                if dep not in self.nodes:
+                    raise KeyError(
+                        f"Task '{task_id}' depends on unknown task ID '{dep}'. "
+                        f"All dependencies must exist in the DAG before resolution."
+                    )
+
         completed: Set[str] = set()
         batches: List[List[TaskNode]] = []
 
@@ -74,11 +88,22 @@ class TaskDAG:
         return batches
 
     def to_mermaid(self) -> str:
-        """Exports DAG structure in Mermaid syntax."""
-        lines = ["flowchart TD", f'    Goal["🎯 {self.goal or "Software Delivery"}"]']
+        """
+        Exports DAG structure in Mermaid syntax.
+        Uses safe ASCII text badges to ensure cp1252 console safety.
+        """
+        lines = ["flowchart TD", f'    Goal["[GOAL] {self.goal or "Software Delivery"}"]']
         for node in self.nodes.values():
-            status_emoji = "✅" if node.status == "COMPLETED" else ("❌" if node.status == "FAILED" else "⏳")
-            lines.append(f'    {node.id}["{status_emoji} {node.title} ({node.role_profile})"]')
+            if node.status == "COMPLETED":
+                status_badge = "[DONE] "
+            elif node.status == "FAILED":
+                status_badge = "[FAILED] "
+            elif node.status == "SKIPPED":
+                status_badge = "[SKIPPED] "
+            else:
+                status_badge = "[PENDING] "
+
+            lines.append(f'    {node.id}["{status_badge}{node.title} ({node.role_profile})"]')
             if not node.depends_on:
                 lines.append(f"    Goal --> {node.id}")
             for dep in node.depends_on:
@@ -92,9 +117,27 @@ class TaskDAG:
             return ProfileAgent(profile=profile, model=self.model)
         return BaseAgent(role=profile_id, model=self.model)
 
-    def _execute_node(self, node: TaskNode, context: Dict[str, str]) -> TaskNode:
+    def _execute_node(
+        self,
+        node: TaskNode,
+        context: Dict[str, str],
+        executor_fn: Optional[Callable[[TaskNode, Dict[str, str]], str]] = None,
+    ) -> TaskNode:
         node.status = "RUNNING"
         start = time.time()
+
+        if executor_fn is not None:
+            try:
+                out = executor_fn(node, context)
+                node.duration = round(time.time() - start, 3)
+                node.status = "COMPLETED"
+                node.result = out
+            except Exception as e:
+                node.duration = round(time.time() - start, 3)
+                node.status = "FAILED"
+                node.error = f"Execution error: {str(e)}"
+            return node
+
         agent = self._get_agent_for_node(node.role_profile)
 
         # Build context from dependencies
@@ -119,19 +162,45 @@ class TaskDAG:
 
         return node
 
-    def execute_parallel(self, max_workers: int = 4) -> DAGResult:
-        """Executes independent topological batches concurrently."""
+    def execute_parallel(
+        self,
+        max_workers: int = 4,
+        executor_fn: Optional[Callable[[TaskNode, Dict[str, str]], str]] = None,
+    ) -> DAGResult:
+        """
+        Executes independent topological batches concurrently.
+        Supports dependency failure cascading (marking downstream tasks as SKIPPED)
+        and optional offline custom executor hooks for deterministic testing.
+        """
         batches = self.get_topological_batches()
         context: Dict[str, str] = {}
         start_dag = time.time()
         completed_count = 0
         failed_count = 0
+        skipped_count = 0
 
         for batch in batches:
-            with ThreadPoolExecutor(max_workers=min(max_workers, len(batch) or 1)) as executor:
+            runnable_nodes: List[TaskNode] = []
+            for node in batch:
+                # Check if any prerequisite dependency failed or was skipped
+                broken_deps = [
+                    dep for dep in node.depends_on
+                    if self.nodes[dep].status in ("FAILED", "SKIPPED")
+                ]
+                if broken_deps:
+                    node.status = "SKIPPED"
+                    node.error = f"Skipped due to broken upstream dependencies: {', '.join(broken_deps)}"
+                    skipped_count += 1
+                else:
+                    runnable_nodes.append(node)
+
+            if not runnable_nodes:
+                continue
+
+            with ThreadPoolExecutor(max_workers=min(max_workers, len(runnable_nodes) or 1)) as executor:
                 future_to_node = {
-                    executor.submit(self._execute_node, node, context): node
-                    for node in batch
+                    executor.submit(self._execute_node, node, context, executor_fn): node
+                    for node in runnable_nodes
                 }
                 for future in as_completed(future_to_node):
                     try:
@@ -148,11 +217,12 @@ class TaskDAG:
 
         total_time = round(time.time() - start_dag, 3)
         return DAGResult(
-            success=(failed_count == 0),
+            success=(failed_count == 0 and skipped_count == 0),
             goal=self.goal,
             total_tasks=len(self.nodes),
             completed_tasks=completed_count,
             failed_tasks=failed_count,
+            skipped_tasks=skipped_count,
             total_time=total_time,
             nodes=self.nodes,
             mermaid_graph=self.to_mermaid()
@@ -208,3 +278,4 @@ class TaskDAG:
         ))
 
         return dag
+

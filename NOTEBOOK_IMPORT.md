@@ -6759,3 +6759,35 @@ Importing a module must not touch the user's working directory. An audit of modu
   - Total: **20/20 PASSED** in 2.19s.
 - Zero diagnostics across all modified and test files.
 - Committed cleanly on `main` as `6bf10ea`.
+
+## Pass 73: Task DAG Parallel Engine & Bilingual Complexity Decomposition (Round 18)
+
+Hardened parallel task graph coordination and bilingual complexity estimation:
+
+1. **`dag_engine.py` (Parallel Multi-Agent Task Graph Engine)**:
+   - Eradicated non-ASCII decorative emojis from Mermaid graph visualization and node statuses, replacing them with cp1252-safe ASCII badges (`[GOAL]`, `[DONE]`, `[FAILED]`, `[SKIPPED]`, `[PENDING]`) in adherence to Rule 2.4.
+   - Added pre-validation for missing or unregistered task dependencies in `get_topological_batches()`, raising an explicit `KeyError` before cycle resolution to prevent misleading circular dependency errors.
+   - Implemented dependency failure cascading in `execute_parallel()`: automatically marks downstream tasks as `SKIPPED` when any prerequisite node fails or is skipped, eliminating redundant/failing agent calls.
+   - Added pluggable `executor_fn` hook to `execute_parallel()` allowing deterministic offline test execution and custom tool dispatch without live LLM calls.
+   - Added `skipped_tasks: int = 0` to `DAGResult` while maintaining 100% backward compatibility.
+   - Added 100% strict type hints across all dataclasses and methods.
+
+2. **`math_logic.py` (Bilingual Complexity Estimator & Autonomous DAG Trigger)**:
+   - Expanded bilingual `TASK_WEIGHTS` with high-complexity architectural patterns (microservices, distributed systems, database schema migrations, full-stack workflows, and security audits).
+   - Added `suggested_stages: List[str]` to `ComplexityResult` to recommend architectural execution stages based on user intent.
+   - Implemented `decompose_to_dag(user_input, goal, model) -> TaskDAG` method to automatically construct a customized, topologically ordered `TaskDAG` with parallel execution stages.
+   - Added 100% strict type hints across all classes and functions.
+
+### Pass 73 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_dag_engine.py saleha/tests/test_math_logic.py -v
+  ```
+
+- Subsystem test results:
+  - `test_dag_engine.py`: 8/8 PASSED.
+  - `test_math_logic.py`: 15/15 PASSED.
+  - Total: **23/23 PASSED** in 0.48s.
+- Zero diagnostics across all modified and test files.

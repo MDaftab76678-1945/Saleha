@@ -1,5 +1,5 @@
 """
-Saleha Core: Math Logic & Complexity Estimator (v1.1 - Bilingual & Smart)
+Saleha Core: Math Logic & Complexity Estimator (v1.2 - Bilingual & Smart)
 
 Purpose: measure the complexity of a mixed Hindi/English task numerically, so
 the agent is not overloaded and large tasks are split into smaller pieces (a
@@ -11,35 +11,53 @@ matched against that raw input -- they are data the estimator reads, not
 prose. Everything else in this file is English.
 """
 
+from __future__ import annotations
+
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Pattern
+
+if TYPE_CHECKING:
+    from saleha.core.dag_engine import TaskDAG, TaskNode
 
 # ==============================================================================
 # 1. Bilingual mathematical configuration
 # ==============================================================================
 
-TASK_WEIGHTS = {
+TASK_WEIGHTS: Dict[str, float] = {
     # 1. High complexity (massive scope -- stop or break down immediately)
     r"(पूरे|पूरा|सारे|सभी|सब|entire|whole|all|full).*?(प्रोजेक्ट|कोड|फाइल|फोल्डर|project|code|files|folder|codebase)": 8.0,
 
     # 2. High complexity (refactoring everything)
     r"(refactor|rewrite|optimize|debug|दोबारा\s+लिखो|सुधार).*?(पूरे|पूरा|सारे|सभी|सब|entire|whole|all)": 7.0,
 
-    # 3. Medium complexity (multiple tests or integrations)
+    # 3. High complexity (full-stack or end-to-end applications)
+    r"(frontend\s+and\s+backend|full\s*stack|फुल\s*स्टैक|end\s*to\s*end|एंड\s*टू\s*एंड)": 6.0,
+
+    # 4. Medium-high complexity (distributed systems, microservices, pipeline engines)
+    r"\b(microservice|microservices|distributed\s+system|cluster\s+node|pipeline\s+engine|माइक्रोसर्विस|डिस्ट्रिब्यूटेड)\b": 4.5,
+
+    # 5. Medium complexity (database migration or schema design)
+    r"\b(database\s+migration|schema\s+migration|db\s+migration|माइग्रेशन|डेटाबेस\s+स्कीमा)\b": 4.0,
+
+    # 6. Medium complexity (security audits & penetration testing)
+    r"\b(security\s+audit|vulnerability\s+scan|penetration\s+test|auth\s+system|सुरक्षा\s+ऑडिट)\b": 4.0,
+
+    # 7. Medium complexity (multiple tests or integrations)
     r"(सभी|सारे|सब|all).*?(tests|टेस्ट|जांच|check)": 5.0,
     r"(integrate|जोड़ो|merge).*?(app|application|main|सिस्टम)": 4.0,
 
-    # 4. Medium-low complexity (reading multiple files)
+    # 8. Medium-low complexity (reading multiple files)
     r"(सभी|सारे|सब|all).*?(फाइल|फोल्डर|files|folder)": 3.0,
 
-    # 5. Low complexity (single file creation)
+    # 9. Low complexity (single file creation)
     r"(create|build|write|generate|बनाओ|लिखो).*?(एक|a|an|one|single).*?(file|script|function|फाइल|स्क्रिप्ट|component)": 2.0,
 
-    # 6. Base testing keyword
+    # 10. Base testing keyword
     r"\b(tests|टेस्ट|जांच|check|verify)\b": 2.0,
 }
 
-FILE_EXTENSION_WEIGHTS = {
+FILE_EXTENSION_WEIGHTS: Dict[str, float] = {
     ".py": 1.0,
     ".js": 1.0,
     ".cpp": 2.0,
@@ -51,8 +69,8 @@ FILE_EXTENSION_WEIGHTS = {
 }
 
 # Thresholds
-MAX_SAFE_COMPLEXITY = 5.0  # above this, the task must be broken down
-CRITICAL_COMPLEXITY = 9.0  # above this, stop and confirm with the user
+MAX_SAFE_COMPLEXITY: float = 5.0  # above this, the task must be broken down
+CRITICAL_COMPLEXITY: float = 9.0  # above this, stop and confirm with the user
 
 # ==============================================================================
 # 2. Data structures
@@ -64,15 +82,16 @@ class ComplexityResult:
     complexity_score: float
     estimated_files: int
     recommendation: str  # "EXECUTE", "BREAK_DOWN", "REQUIRES_APPROVAL"
+    suggested_stages: List[str] = field(default_factory=list)
 
 # ==============================================================================
 # 3. Core Logic
 # ==============================================================================
 
 class MathLogicEngine:
-    def __init__(self):
+    def __init__(self) -> None:
         # Pre-compile the regex patterns for performance (O(1) lookup time).
-        self.compiled_task_weights = {
+        self.compiled_task_weights: Dict[Pattern[str], float] = {
             re.compile(pattern, re.IGNORECASE): weight
             for pattern, weight in TASK_WEIGHTS.items()
         }
@@ -80,8 +99,11 @@ class MathLogicEngine:
     def estimate_complexity(self, user_input: str) -> ComplexityResult:
         if not user_input or not user_input.strip():
             return ComplexityResult(
-                is_safe_to_run=True, complexity_score=0.0,
-                estimated_files=1, recommendation="EXECUTE"
+                is_safe_to_run=True,
+                complexity_score=0.0,
+                estimated_files=1,
+                recommendation="EXECUTE",
+                suggested_stages=["core_implementation"],
             )
 
         score = 0.0
@@ -118,44 +140,132 @@ class MathLogicEngine:
             recommendation = "EXECUTE"
             is_safe = True
 
+        # 5. Extract suggested architectural stages
+        suggested_stages: List[str] = []
+        user_lower = user_input.lower()
+        if re.search(r"frontend\s+and\s+backend|full\s*stack|फुल\s*स्टैक|end\s*to\s*end", user_lower):
+            suggested_stages.append("full_stack")
+        if re.search(r"microservice|distributed|cluster|माइक्रोसर्विस|डिस्ट्रिब्यूटेड", user_lower):
+            suggested_stages.append("distributed_architecture")
+        if re.search(r"migration|schema|database|माइग्रेशन|डेटाबेस", user_lower):
+            suggested_stages.append("database_migration")
+        if re.search(r"security|vulnerability|audit|सुरक्षा", user_lower):
+            suggested_stages.append("security_hardening")
+        if re.search(r"tests|टेस्ट|verify|जांच", user_lower):
+            suggested_stages.append("test_automation")
+
+        if not suggested_stages:
+            suggested_stages = ["core_implementation", "test_automation"]
+
         return ComplexityResult(
             is_safe_to_run=is_safe,
             complexity_score=round(score, 2),
             estimated_files=estimated_files,
-            recommendation=recommendation
+            recommendation=recommendation,
+            suggested_stages=suggested_stages,
         )
 
-# ==============================================================================
-# 4. Testing
-# ==============================================================================
+    def decompose_to_dag(
+        self,
+        user_input: str,
+        goal: Optional[str] = None,
+        model: str = "auto",
+    ) -> TaskDAG:
+        """
+        Constructs a customized, topologically ordered TaskDAG based on the detected
+        complexity components in the user input.
+        """
+        from saleha.core.dag_engine import TaskDAG, TaskNode
 
-if __name__ == "__main__":
-    engine = MathLogicEngine()
+        effective_goal = goal or user_input.strip()[:120]
+        dag = TaskDAG(goal=effective_goal, model=model)
 
-    # Inputs stay in Hindi/mixed on purpose: this is what the estimator sees
-    # in production, and the patterns above are what match it.
-    test_cases = [
-        "मुझे एक simple Python script बनाकर दो जो hello world print करे।",
-        "पूरे प्रोजेक्ट को refactor करो, सभी 50 फाइलों में जाकर database connections को async बनाओ और नए tests लिखो।",
-        "इस folder में सभी .txt फाइलें पढ़ो और उनका summary बनाओ।",
-        "एक नया React component बनाओ और उसे main app में integrate करो, साथ ही इसके लिए unit tests भी लिख दो।",
-        "मेरे सीने में दर्द है, क्या करूँ?",  # safety_guard's job; here we only look at the score
-    ]
+        res = self.estimate_complexity(user_input)
+        stages = set(res.suggested_stages)
 
-    print("="*70)
-    print("SALEHA MATH LOGIC ENGINE - COMPLEXITY ESTIMATION TEST (v1.1)")
-    print("="*70)
+        # Always start with requirements / specification
+        dag.add_task(TaskNode(
+            id="task_spec",
+            title="Requirements & Interface Specifications",
+            role_profile="agent_product_manager",
+            prompt=f"Define specifications, interfaces, and acceptance criteria for: {effective_goal}",
+        ))
 
-    for i, test_input in enumerate(test_cases, 1):
-        print(f"\n[Test {i}] Input: '{test_input}'")
-        result = engine.estimate_complexity(test_input)
-        print(f"  -> Score      : {result.complexity_score}")
-        print(f"  -> Est. Files : {result.estimated_files}")
-        print(f"  -> Action     : {result.recommendation}")
+        # Architecture design
+        dag.add_task(TaskNode(
+            id="task_arch",
+            title="System Architecture & Data Contracts",
+            role_profile="agent_software_designer",
+            prompt=f"Design modular architecture, schemas, and contract interfaces for: {effective_goal}",
+            depends_on=["task_spec"],
+        ))
 
-        if result.recommendation == "BREAK_DOWN":
-            print("  Advice: this task is large; splitting it into smaller, "
-                  "manageable steps via the Planner Agent.")
-        elif result.recommendation == "REQUIRES_APPROVAL":
-            print("  Advice: this task is very large and risky; please break "
-                  "it into smaller pieces.")
+        # Determine implementation nodes
+        impl_deps: List[str] = ["task_arch"]
+        core_deps: List[str] = []
+
+        if "database_migration" in stages:
+            dag.add_task(TaskNode(
+                id="task_db",
+                title="Database Schema & Persistence Layer",
+                role_profile="agent_software_designer",
+                prompt=f"Implement database models, migration scripts, and persistence layer for: {effective_goal}",
+                depends_on=["task_arch"],
+            ))
+            impl_deps.append("task_db")
+
+        if "full_stack" in stages:
+            dag.add_task(TaskNode(
+                id="task_backend",
+                title="Backend APIs & Domain Services",
+                role_profile="agent_sde",
+                prompt=f"Implement backend services, routing, and business logic for: {effective_goal}",
+                depends_on=list(impl_deps),
+            ))
+            dag.add_task(TaskNode(
+                id="task_frontend",
+                title="Frontend UI & Client Components",
+                role_profile="agent_sde",
+                prompt=f"Implement responsive client UI components for: {effective_goal}",
+                depends_on=["task_arch"],
+            ))
+            core_deps = ["task_backend", "task_frontend"]
+        elif "distributed_architecture" in stages:
+            dag.add_task(TaskNode(
+                id="task_core",
+                title="Distributed Protocol & Node Cluster Engine",
+                role_profile="agent_sde",
+                prompt=f"Implement distributed protocols, pipeline stages, and concurrent engine for: {effective_goal}",
+                depends_on=list(impl_deps),
+            ))
+            core_deps = ["task_core"]
+        else:
+            dag.add_task(TaskNode(
+                id="task_core",
+                title="Core Module Implementation",
+                role_profile="agent_sde",
+                prompt=f"Implement core logic, algorithms, and modules for: {effective_goal}",
+                depends_on=list(impl_deps),
+            ))
+            core_deps = ["task_core"]
+
+        # Security audit stage
+        dag.add_task(TaskNode(
+            id="task_security",
+            title="Security & Vulnerability Audit",
+            role_profile="agent_security_engineer",
+            prompt=f"Audit codebase for injection, authorization, and resource limit vulnerabilities for: {effective_goal}",
+            depends_on=list(core_deps),
+        ))
+
+        # QA & Test Automation stage
+        dag.add_task(TaskNode(
+            id="task_qa",
+            title="Automated Test Suite & Verification",
+            role_profile="agent_test_automation_engineer",
+            prompt=f"Author comprehensive pytest test suite validating all interfaces for: {effective_goal}",
+            depends_on=list(core_deps),
+        ))
+
+        return dag
+

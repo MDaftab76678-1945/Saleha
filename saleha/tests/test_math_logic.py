@@ -2,7 +2,8 @@
 Tests for Saleha Core MathLogicEngine (saleha/core/math_logic.py).
 
 Verifies bilingual complexity estimation, keyword scoring, file extension
-weights, word-count penalties, and threshold-based recommendations.
+weights, word-count penalties, threshold-based recommendations, suggested
+architectural stages, and automated DAG decomposition.
 """
 
 from __future__ import annotations
@@ -109,5 +110,47 @@ class BilingualKeywordsTests(unittest.TestCase):
         self.assertTrue(res.is_safe_to_run)
 
 
+class ArchitectureAndDAGDecompositionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.engine = MathLogicEngine()
+
+    def test_microservice_pattern_complexity_and_stages(self) -> None:
+        res = self.engine.estimate_complexity("Build a distributed microservice cluster node")
+        self.assertGreaterEqual(res.complexity_score, 4.5)
+        self.assertIn("distributed_architecture", res.suggested_stages)
+
+    def test_full_stack_pattern_complexity_and_stages(self) -> None:
+        res = self.engine.estimate_complexity("Design a full stack app with frontend and backend")
+        self.assertGreaterEqual(res.complexity_score, 6.0)
+        self.assertIn("full_stack", res.suggested_stages)
+
+    def test_database_migration_pattern_complexity_and_stages(self) -> None:
+        res = self.engine.estimate_complexity("Execute database migration for schema")
+        self.assertGreaterEqual(res.complexity_score, 4.0)
+        self.assertIn("database_migration", res.suggested_stages)
+
+    def test_decompose_to_dag_full_stack(self) -> None:
+        dag = self.engine.decompose_to_dag("Build a full stack dashboard with frontend and backend")
+        self.assertIn("task_spec", dag.nodes)
+        self.assertIn("task_arch", dag.nodes)
+        self.assertIn("task_backend", dag.nodes)
+        self.assertIn("task_frontend", dag.nodes)
+        self.assertIn("task_security", dag.nodes)
+        self.assertIn("task_qa", dag.nodes)
+
+        batches = dag.get_topological_batches()
+        self.assertGreaterEqual(len(batches), 4)
+        # Verify that task_backend and task_frontend run in parallel stage
+        batch_ids = [{n.id for n in b} for b in batches]
+        self.assertTrue(any({"task_backend", "task_frontend"}.issubset(b) for b in batch_ids))
+
+    def test_decompose_to_dag_database_migration(self) -> None:
+        dag = self.engine.decompose_to_dag("Run database migration for authentication")
+        self.assertIn("task_db", dag.nodes)
+        batches = dag.get_topological_batches()
+        self.assertGreaterEqual(len(batches), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
+
