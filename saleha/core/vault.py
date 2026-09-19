@@ -41,12 +41,17 @@ class EncryptedVault:
         self._derived_key = self._derive_key(self.passphrase, self._salt)
 
     def _get_or_create_salt(self) -> bytes:
-        os.makedirs(os.path.dirname(self.vault_path), exist_ok=True)
-        salt_file = os.path.join(os.path.dirname(self.vault_path), ".vault_salt")
+        vault_dir = os.path.dirname(os.path.abspath(self.vault_path))
+        salt_file = os.path.join(vault_dir, ".vault_salt") if vault_dir else DEFAULT_SALT_PATH
+        if vault_dir:
+            os.makedirs(vault_dir, exist_ok=True)
+
         if os.path.isfile(salt_file):
             try:
                 with open(salt_file, "rb") as f:
-                    return f.read()
+                    content = f.read()
+                    if content:
+                        return content
             except Exception:
                 pass
         salt = secrets.token_bytes(32)
@@ -154,13 +159,77 @@ class EncryptedVault:
         }
         return self._save_vault(vault)
 
-    def get_secret(self, key: str) -> Optional[str]:
+    def has_secret(self, key: str, check_env: bool = False) -> bool:
+        """Returns True if the given key is present in the vault (or optionally in os.environ)."""
+        vault = self._load_vault()
+        if key in vault:
+            return True
+        if check_env and key in os.environ:
+            return True
+        return False
+
+    def get_secret(self, key: str, allow_env_fallback: bool = True) -> Optional[str]:
         """Retrieves and decrypts a secret value."""
         vault = self._load_vault()
         if key in vault:
             return vault[key]["value"]
-        # Fallback to os.environ if not in vault
-        return os.getenv(key)
+        if allow_env_fallback:
+            return os.getenv(key)
+        return None
+
+    def rekey(self, new_passphrase: str) -> bool:
+        """Rotates the vault master key by decrypting with current key and re-encrypting with new key and salt."""
+        if not new_passphrase:
+            return False
+        vault_data = self._load_vault()
+
+        new_salt = secrets.token_bytes(32)
+        new_key = self._derive_key(new_passphrase, new_salt)
+
+        old_passphrase = self.passphrase
+        old_salt = self._salt
+        old_derived_key = self._derived_key
+
+        try:
+            self.passphrase = new_passphrase
+            self._salt = new_salt
+            self._derived_key = new_key
+
+            saved = self._save_vault(vault_data)
+            if not saved:
+                self.passphrase = old_passphrase
+                self._salt = old_salt
+                self._derived_key = old_derived_key
+                return False
+
+            vault_dir = os.path.dirname(os.path.abspath(self.vault_path))
+            salt_file = os.path.join(vault_dir, ".vault_salt") if vault_dir else DEFAULT_SALT_PATH
+            with open(salt_file, "wb") as f:
+                f.write(new_salt)
+
+            return True
+        except Exception:
+            self.passphrase = old_passphrase
+            self._salt = old_salt
+            self._derived_key = old_derived_key
+            return False
+
+    def stats(self) -> Dict[str, Any]:
+        """Returns diagnostic statistics about the encrypted vault."""
+        vault = self._load_vault()
+        file_size = os.path.getsize(self.vault_path) if os.path.isfile(self.vault_path) else 0
+        vault_dir = os.path.dirname(os.path.abspath(self.vault_path))
+        salt_file = os.path.join(vault_dir, ".vault_salt") if vault_dir else DEFAULT_SALT_PATH
+        salt_exists = os.path.isfile(salt_file)
+
+        return {
+            "total_secrets": len(vault),
+            "vault_path": self.vault_path,
+            "vault_exists": os.path.isfile(self.vault_path),
+            "file_size_bytes": file_size,
+            "salt_exists": salt_exists,
+            "secret_keys": sorted(list(vault.keys())),
+        }
 
     def delete_secret(self, key: str) -> bool:
         """Deletes a secret from the vault."""

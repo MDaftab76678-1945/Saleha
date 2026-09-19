@@ -9,6 +9,7 @@ Implements granular execution permissions and safety policies for autonomous age
 """
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Set, Tuple
 
@@ -55,13 +56,59 @@ class PolicyEnforcementEngine:
     @staticmethod
     def validate_file_write(token: AgentCapabilityToken, target_path: str) -> Tuple[bool, str]:
         """Validates if the agent's capability token allows writing to the given path."""
+        # 1. Enforce blocked patterns against raw and normalized target path
         norm_target = os.path.abspath(target_path)
+        clean_target = target_path.replace("\\", "/")
+        clean_norm = norm_target.replace("\\", "/")
+
+        for pattern in token.fs_policy.blocked_patterns:
+            if re.search(pattern, clean_target) or re.search(pattern, clean_norm):
+                return False, f"Zero-Trust Policy Violation: Write to '{target_path}' matches blocked pattern '{pattern}'."
+
+        # 2. Enforce workspace root containment
+        is_within_root = False
         for root in token.fs_policy.allowed_write_roots:
             norm_root = os.path.abspath(root)
-            if norm_target.startswith(norm_root):
-                return True, "Authorized"
+            try:
+                common = os.path.commonpath([norm_root, norm_target])
+                if common == norm_root:
+                    is_within_root = True
+                    break
+            except ValueError:
+                # Different drives on Windows
+                continue
 
-        return False, f"Zero-Trust Policy Violation: Write to '{target_path}' is outside authorized workspace root."
+        if not is_within_root:
+            return False, f"Zero-Trust Policy Violation: Write to '{target_path}' is outside authorized workspace root."
+
+        return True, "Authorized"
+
+    @staticmethod
+    def validate_tool_access(token: AgentCapabilityToken, tool_name: str) -> Tuple[bool, str]:
+        """Validates if the agent's capability token allows executing the requested tool."""
+        if tool_name not in token.granted_tools:
+            return False, f"Zero-Trust Policy Violation: Tool '{tool_name}' is not in granted capabilities."
+        return True, "Authorized"
+
+    @staticmethod
+    def validate_process_execution(
+        token: AgentCapabilityToken,
+        command: str,
+        requested_timeout: Optional[int] = None,
+    ) -> Tuple[bool, str]:
+        """Validates if process execution is permitted under process boundaries."""
+        if not token.proc_policy.allow_shell:
+            shell_indicators = [";", "&&", "||", "|", ">", "<", "`", "$("]
+            if any(indicator in command for indicator in shell_indicators):
+                return False, "Zero-Trust Policy Violation: Shell metacharacters not permitted when allow_shell is False."
+
+        if requested_timeout is not None and requested_timeout > token.proc_policy.max_timeout_seconds:
+            return False, (
+                f"Zero-Trust Policy Violation: Requested timeout ({requested_timeout}s) "
+                f"exceeds maximum allowed limit ({token.proc_policy.max_timeout_seconds}s)."
+            )
+
+        return True, "Authorized"
 
     @staticmethod
     def validate_network_access(token: AgentCapabilityToken, domain: str) -> Tuple[bool, str]:
