@@ -1,16 +1,20 @@
 """
-Saleha Core: Cross-File Dependency Graph & Atomic Multi-File Refactoring Engine
+Saleha Core: Cross-File Dependency Graph & Atomic Multi-File Refactoring Engine.
 
 Constructs an Abstract Syntax Tree (AST) symbol call hierarchy across the entire workspace,
-tracks cross-file imports, discovers callers/callees, and performs safe atomic multi-file edits.
+tracks cross-file imports, discovers callers/callees, detects circular dependencies,
+computes topological build ordering, and performs safe atomic multi-file edits.
 """
+
+from __future__ import annotations
 
 import ast
 import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional, Any
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 from saleha.core.path_utils import safe_relpath
 
 
@@ -32,76 +36,108 @@ class SymbolReference:
 
 
 class _ASTGraphVisitor(ast.NodeVisitor):
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         self.definitions: List[SymbolLocation] = []
         self.references: List[SymbolReference] = []
         self.imports: List[str] = []
-        self._current_context = "module"
+        self._current_context: str = "module"
+        self._scope_stack: List[str] = []
 
-    def visit_Import(self, node: ast.Import):
+    def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
             self.imports.append(alias.name)
         self.generic_visit(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom):
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         mod = node.module or ""
         for alias in node.names:
-            self.imports.append(f"{mod}.{alias.name}")
+            if mod:
+                self.imports.append(f"{mod}.{alias.name}")
+            else:
+                self.imports.append(alias.name)
         self.generic_visit(node)
 
-    def visit_ClassDef(self, node: ast.ClassDef):
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
         doc = ast.get_docstring(node) or ""
-        self.definitions.append(SymbolLocation(
-            symbol_name=node.name,
-            kind="class",
-            file_path=self.file_path,
-            line_number=node.lineno,
-            docstring=doc
-        ))
+        self.definitions.append(
+            SymbolLocation(
+                symbol_name=node.name,
+                kind="class",
+                file_path=self.file_path,
+                line_number=node.lineno,
+                docstring=doc,
+            )
+        )
+        self._scope_stack.append(node.name)
         old_ctx = self._current_context
         self._current_context = f"class {node.name}"
         self.generic_visit(node)
         self._current_context = old_ctx
+        self._scope_stack.pop()
 
-    def visit_FunctionDef(self, node: ast.FunctionDef):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         doc = ast.get_docstring(node) or ""
-        kind = "method" if "class " in self._current_context else "function"
-        self.definitions.append(SymbolLocation(
-            symbol_name=node.name,
-            kind=kind,
-            file_path=self.file_path,
-            line_number=node.lineno,
-            docstring=doc
-        ))
+        is_method = len(self._scope_stack) > 0
+        kind = "method" if is_method else "function"
+
+        # Flat symbol definition (backward-compatible)
+        self.definitions.append(
+            SymbolLocation(
+                symbol_name=node.name,
+                kind=kind,
+                file_path=self.file_path,
+                line_number=node.lineno,
+                docstring=doc,
+            )
+        )
+
+        # Class-scoped method symbol definition
+        if is_method:
+            scoped_name = f"{'.'.join(self._scope_stack)}.{node.name}"
+            self.definitions.append(
+                SymbolLocation(
+                    symbol_name=scoped_name,
+                    kind="method",
+                    file_path=self.file_path,
+                    line_number=node.lineno,
+                    docstring=doc,
+                )
+            )
+
         old_ctx = self._current_context
         self._current_context = f"func {node.name}"
+        self._scope_stack.append(node.name)
         self.generic_visit(node)
+        self._scope_stack.pop()
         self._current_context = old_ctx
 
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
-        self.visit_FunctionDef(node)
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.visit_FunctionDef(node)  # type: ignore[arg-type]
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call) -> None:
         func_name = ""
         if isinstance(node.func, ast.Name):
             func_name = node.func.id
         elif isinstance(node.func, ast.Attribute):
             func_name = node.func.attr
+
         if func_name:
-            self.references.append(SymbolReference(
-                symbol_called=func_name,
-                caller_file=self.file_path,
-                caller_line=node.lineno,
-                caller_context=self._current_context
-            ))
+            self.references.append(
+                SymbolReference(
+                    symbol_called=func_name,
+                    caller_file=self.file_path,
+                    caller_line=node.lineno,
+                    caller_context=self._current_context,
+                )
+            )
         self.generic_visit(node)
 
 
 class CodebaseDependencyGraph:
     """Builds and queries cross-file symbol call hierarchies and dependency maps."""
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
         self.definitions: Dict[str, List[SymbolLocation]] = {}
         self.references: Dict[str, List[SymbolReference]] = {}
@@ -120,7 +156,11 @@ class CodebaseDependencyGraph:
 
         for root, _, files in os.walk(self.root_dir):
             rel_parts = safe_relpath(root, self.root_dir).split(os.sep)
-            if any((p.startswith(".") and p not in (".", "..")) or p in ("node_modules", "venv", "__pycache__", "build", "dist", ".git") for p in rel_parts):
+            if any(
+                (p.startswith(".") and p not in (".", ".."))
+                or p in ("node_modules", "venv", "__pycache__", "build", "dist", ".git")
+                for p in rel_parts
+            ):
                 continue
 
             for f in files:
@@ -132,10 +172,10 @@ class CodebaseDependencyGraph:
         return {
             "total_files": len(self.files_indexed),
             "total_definitions": sum(len(v) for v in self.definitions.values()),
-            "total_references": sum(len(v) for v in self.references.values())
+            "total_references": sum(len(v) for v in self.references.values()),
         }
 
-    def _index_file(self, full_path: str, rel_path: str):
+    def _index_file(self, full_path: str, rel_path: str) -> None:
         try:
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
                 code = f.read()
@@ -161,6 +201,103 @@ class CodebaseDependencyGraph:
     def find_definitions(self, symbol_name: str) -> List[SymbolLocation]:
         """Finds where a symbol is defined in the codebase."""
         return self.definitions.get(symbol_name, [])
+
+    def _resolve_import_to_file(self, import_str: str) -> Optional[str]:
+        """Resolves an import name to a registered file in the workspace."""
+        parts = import_str.split(".")
+        for i in range(len(parts), 0, -1):
+            candidate = "/".join(parts[:i])
+            f_cand = f"{candidate}.py"
+            init_cand = f"{candidate}/__init__.py"
+            for indexed in self.files_indexed:
+                if indexed == f_cand or indexed == init_cand or indexed.endswith("/" + f_cand) or indexed.endswith("/" + init_cand):
+                    return indexed
+        return None
+
+    def get_file_dependency_graph(self) -> Dict[str, Set[str]]:
+        """Returns direct file-to-file dependency mapping (file -> set of imported workspace files)."""
+        graph: Dict[str, Set[str]] = {f: set() for f in self.files_indexed}
+        for file_path, imports in self.file_imports.items():
+            for imp in imports:
+                resolved = self._resolve_import_to_file(imp)
+                if resolved and resolved != file_path:
+                    graph[file_path].add(resolved)
+        return graph
+
+    def detect_cycles(self) -> List[List[str]]:
+        """
+        Detects circular dependencies in the file import graph using DFS cycle traversal.
+        Returns a list of cycle paths, e.g. [['a.py', 'b.py', 'a.py']].
+        """
+        adj = self.get_file_dependency_graph()
+        visited: Dict[str, int] = {}  # 0: unvisited, 1: visiting, 2: visited
+        cycles: List[List[str]] = []
+        path: List[str] = []
+
+        def dfs(node: str) -> None:
+            visited[node] = 1
+            path.append(node)
+            for neighbor in sorted(adj.get(node, set())):
+                if visited.get(neighbor, 0) == 1:
+                    cycle_start = path.index(neighbor)
+                    cycles.append(path[cycle_start:] + [neighbor])
+                elif visited.get(neighbor, 0) == 0:
+                    dfs(neighbor)
+            path.pop()
+            visited[node] = 2
+
+        for f in sorted(self.files_indexed):
+            if visited.get(f, 0) == 0:
+                dfs(f)
+
+        return cycles
+
+    def get_topological_order(self) -> List[str]:
+        """
+        Returns a topologically sorted order of workspace files.
+        Files with no dependencies on other workspace files appear first.
+        In the presence of cycles, cycle nodes are placed gracefully at the end.
+        """
+        adj = self.get_file_dependency_graph()
+        # Calculate in-degree: number of workspace files a file depends on
+        in_degree: Dict[str, int] = {f: len(adj.get(f, set())) for f in self.files_indexed}
+        # Build reverse mapping: who depends on f?
+        dependents: Dict[str, Set[str]] = {f: set() for f in self.files_indexed}
+        for u, neighbors in adj.items():
+            for v in neighbors:
+                dependents.setdefault(v, set()).add(u)
+
+        queue = sorted([f for f, deg in in_degree.items() if deg == 0])
+        ordered: List[str] = []
+
+        while queue:
+            node = queue.pop(0)
+            ordered.append(node)
+            for dep in sorted(dependents.get(node, set())):
+                in_degree[dep] -= 1
+                if in_degree[dep] == 0:
+                    queue.append(dep)
+            queue.sort()
+
+        # If cycles exist, append any remaining nodes
+        remaining = sorted([f for f in self.files_indexed if f not in ordered])
+        ordered.extend(remaining)
+        return ordered
+
+    def get_unresolved_imports(self) -> Dict[str, List[str]]:
+        """Returns internal imports from workspace files that cannot be resolved."""
+        unresolved: Dict[str, List[str]] = {}
+        for f, imps in self.file_imports.items():
+            missing = []
+            for imp in imps:
+                # Check if it looks like an internal project import (starts with workspace top-level names)
+                first_part = imp.split(".")[0]
+                has_prefix = any(idx.startswith(first_part + "/") or idx == f"{first_part}.py" for idx in self.files_indexed)
+                if has_prefix and not self._resolve_import_to_file(imp):
+                    missing.append(imp)
+            if missing:
+                unresolved[f] = missing
+        return unresolved
 
     def get_impacted_files(self, file_path: str) -> List[str]:
         """Identifies downstream files that import or reference symbols defined in this file."""
@@ -192,7 +329,11 @@ class CodebaseDependencyGraph:
                     errors[file_path] = f"SyntaxError at line {e.lineno}: {e.msg}"
 
         if errors:
-            return {"success": False, "error": "Atomic patch aborted: Syntax validation failed.", "details": errors}
+            return {
+                "success": False,
+                "error": "Atomic patch aborted: Syntax validation failed.",
+                "details": errors,
+            }
 
         # Step 2: Backup and apply
         backups = {}
@@ -209,16 +350,18 @@ class CodebaseDependencyGraph:
             return {
                 "success": True,
                 "patched_files": list(patches.keys()),
-                "count": len(patches)
+                "count": len(patches),
             }
         except Exception as e:
             # Rollback all changes
             for abs_path, old_content in backups.items():
                 with open(abs_path, "w", encoding="utf-8") as f:
                     f.write(old_content)
-            return {"success": False, "error": f"Atomic patch failed and rolled back: {str(e)}"}
+            return {
+                "success": False,
+                "error": f"Atomic patch failed and rolled back: {str(e)}",
+            }
 
 
-# Global instance
+# Global singleton instance
 dependency_graph = CodebaseDependencyGraph()
-

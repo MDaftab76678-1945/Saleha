@@ -6688,3 +6688,39 @@ Importing a module must not touch the user's working directory. An audit of modu
   - Total: **62/62 PASSED** in 6.55s.
 - Zero diagnostics across all modified and test files.
 - Committed cleanly on `main` as `54203e0`.
+
+---
+
+## Pass 71: Dual Architectural Milestone (Win32 Job Objects Hardware Sandbox & Dependency Graph Engine)
+
+### Pass 71 Defect Discovery & Remediation
+
+1. **`windows_job_sandbox.py` (Real Win32 Job Objects Hardware Isolation)**:
+   - Eradicated dead `import ctypes` and unfulfilled security claim ("Windows Win32 Job Objects via ctypes to match Linux Seccomp security guarantees").
+   - Implemented real Win32 Job Object creation via `kernel32.CreateJobObjectW` and `kernel32.SetInformationJobObject` with `JOBOBJECT_EXTENDED_LIMIT_INFORMATION` (`JOB_OBJECT_LIMIT_PROCESS_MEMORY`, `JOB_OBJECT_LIMIT_JOB_MEMORY`, `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`).
+   - Attached child process handle via `kernel32.AssignProcessToJobObject`.
+   - Captured real memory exhaustion via Windows status codes (`STATUS_NO_MEMORY` / `0xC0000017` / `-1073741801`, `STATUS_QUOTA_EXCEEDED` / `0xC0000044`), `MemoryError`, and peak memory usage; sets genuine `memory_limit_hit=True`.
+   - Added automatic orphan cleanup via `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` and handle cleanup via `kernel32.CloseHandle`.
+   - Created `saleha/tests/test_windows_job_sandbox.py` with 5 comprehensive, 100% typed unit tests.
+
+2. **`dependency_graph.py` (Cross-File Symbol Graph & Topological Refactoring Engine)**:
+   - Added `_scope_stack` tracking in `_ASTGraphVisitor` to record class-scoped method names (`ClassName.method_name`), eliminating name collisions across unrelated classes.
+   - Implemented `detect_cycles() -> List[List[str]]` using DFS cycle detection to identify circular imports (e.g. A -> B -> A).
+   - Implemented `get_topological_order() -> List[str]` using in-degree dependency ordering to produce valid build/patch evaluation sequences.
+   - Implemented `get_unresolved_imports() -> Dict[str, List[str]]` to diagnose broken internal workspace dependencies.
+   - Added comprehensive tests in `saleha/tests/test_dependency_graph.py` (6/6 passed, 100% typed methods).
+
+### Pass 71 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_windows_job_sandbox.py saleha/tests/test_dependency_graph.py saleha/tests/test_phase5_hardening.py -v
+  ```
+
+- Subsystem test results:
+  - `test_windows_job_sandbox.py`: 5/5 PASSED.
+  - `test_dependency_graph.py`: 6/6 PASSED.
+  - `test_phase5_hardening.py`: 7/7 PASSED.
+  - Total: **18/18 PASSED** in 1.20s.
+- Zero diagnostics across all modified and test files.
