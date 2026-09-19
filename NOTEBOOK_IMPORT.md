@@ -6828,3 +6828,44 @@ Hardened repository context mapping and context window protection for local SLM 
   - Total: **46/46 PASSED** in 0.68s.
 - Zero diagnostics across all modified and test files.
 - Committed cleanly on `main` as `48b95e5`.
+
+## Pass 75: Persistent Incremental AST Cache & Change Impact Analysis (Round 20)
+
+Hardened persistent incremental AST caching and blast-radius change impact estimation:
+
+1. **`incremental_ast_cache.py` (Persistent Incremental AST Engine)**:
+   - Implemented atomic disk persistence in `_save_cache()` writing serialized JSON to a temporary file (`.tmp`) before atomic `os.replace` swap-in, eliminating race conditions or corruption from abrupt process termination.
+   - Added bounded LRU cache eviction policy (`prune()`, `max_entries=10000`) based on `last_scanned` timestamps to prevent unbounded memory and disk bloat in 10,000+ file monorepos.
+   - Added `public_symbols: List[str]` to `CachedFileEntry` to track exported public classes and functions, allowing fine-grained distinction between internal private refactoring and breaking interface changes.
+   - Added explicit cache invalidation (`invalidate(file_path) -> bool`) and cross-file dependent invalidation hook (`invalidate_dependents(changed_path, dependency_graph) -> List[str]`) coupled with `CodebaseDependencyGraph`.
+   - Added 100% strict type hints across all methods and dataclasses.
+
+2. **`change_impact.py` (AST-Based Change Impact Analyzer)**:
+   - Added direct coupling with `CodebaseDependencyGraph`: accepts optional `dependency_graph` in `analyze(...)` to track downstream architecture-level module cascades via `impacted_dependents` on `ImpactReport`.
+   - Added direct integration with `IncrementalASTCache`: automatically purges changed files and downstream dependents from the persistent cache upon change analysis.
+   - Implemented private symbol damping: modifies blast-radius calculation to reduce blast severity when diffs only touch private internal symbols (prefixed with `_`) rather than public API surfaces.
+   - Hardened edge-case handling for entirely new files (`old_content == ""`) and completely deleted files (`new_content == ""`).
+   - Added 100% strict type hints across all methods and dataclasses.
+
+3. **Unit Tests**:
+   - `saleha/tests/test_incremental_ast_cache.py`: 13 tests (+5 new tests covering atomic disk saves, LRU eviction pruning, explicit invalidation, public symbol extraction, and dependent graph invalidation).
+   - `saleha/tests/test_change_impact.py`: 9 tests (+4 new tests covering dependency graph coupling, AST cache invalidation, private symbol damping, and new/deleted file edge cases).
+   - 100% typed test methods (`def test_xxx(self) -> None:`).
+
+### Pass 75 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_incremental_ast_cache.py saleha/tests/test_change_impact.py -v
+  ```
+
+- Subsystem test results:
+  - `test_incremental_ast_cache.py`: 13/13 PASSED.
+  - `test_change_impact.py`: 9/9 PASSED.
+  - Total: **22/22 PASSED** in 0.35s.
+- Regression test results:
+  - 6-module regression suite: **59/59 PASSED** in 0.84s.
+  - Full repo test suite: **2099/2099 PASSED** (2098 passed, 29 skipped, 153 subtests passed).
+- Zero diagnostics and 100% AST contract security verification (`True, []`) across all modified modules and tests.
+- Committed cleanly on `main` as `aa8330e`.
