@@ -6572,3 +6572,43 @@ Importing a module must not touch the user's working directory. An audit of modu
   - Run 1: **46/46 PASSED** in 0.52s.
   - Run 2: **46/46 PASSED** in 0.51s.
 - Zero IDE/linter diagnostics across all modified modules and markdown files.
+- Committed as `a4816db` on `main`.
+
+---
+
+## Pass 68: AST Semantic Hypergraph & Blast Radius Hardening (`hypergraph_indexer.py`, `change_impact.py`)
+
+### Pass 68 Defect Discovery & Remediation
+
+1. **`hypergraph_indexer.py` (Scope-Blind AST & Defect Graveyard Item 12 Elimination)**:
+   - Previously iterated with flat `ast.walk`, causing methods inside classes to overwrite top-level functions or each other with the same name.
+   - Did not extract module imports (`ast.Import`, `ast.ImportFrom`), missed attribute-based class inheritance (e.g. `unittest.TestCase`), and defined `callers: Set[str]` without ever populating it.
+   - Remediated by implementing `_HypergraphASTVisitor` with scope stack tracking (`ClassName.method_name`), full base-class inheritance resolution, import dictionary indexing, and outgoing call tracking (`ast.Call`).
+   - Added second pass in `scan_directory` linking cross-symbol callers into `node.callers`.
+   - Upgraded `find_impacted_files` to traverse callers, dependencies, scoped class methods, and file import mappings.
+
+2. **`change_impact.py` (Crude Substring & False-Positive Caller Elimination)**:
+   - Previously used crude `any(name in content for name in clean_names)` substring search. Modifying common identifiers like `add` or `run` falsely matched words like "address", "additional", or "runner".
+   - Remediated by adding `_ScopedSymbolExtractor` to isolate method diffs without scope collisions.
+   - Replaced substring matching in `_find_callers` and `_find_affected_tests` with `_matches_symbols_in_file` using AST identifier/attribute token intersection and strict word-boundary regex (`\b{name}\b`) fallback, reducing false-positive caller detections to 0.
+
+3. **New Test Suites**:
+   - Created `saleha/tests/test_hypergraph_indexer.py` with 5 comprehensive unit tests (scoped indexing, inheritance, caller linking, impact search, syntax resilience).
+   - Created `saleha/tests/test_change_impact.py` with 5 unit tests (false positive resistance, caller detection, scoped method diffing, deleted symbol detection, blast radius boundaries).
+   - 100% typed test methods (`def test_xxx(self) -> None:`) satisfying preflight quality gates.
+
+### Pass 68 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_hypergraph_indexer.py saleha/tests/test_change_impact.py saleha/tests/test_nextgen_hyper_suite.py saleha/tests/test_diff_engine.py -v
+  ```
+
+- Subsystem test results:
+  - `test_hypergraph_indexer.py`: 5/5 PASSED.
+  - `test_change_impact.py`: 5/5 PASSED.
+  - `test_nextgen_hyper_suite.py`: 3/3 PASSED.
+  - `test_diff_engine.py`: 18/18 PASSED.
+  - Total: **31/31 PASSED** in 0.79s.
+- Zero diagnostics across all modified and test files.
