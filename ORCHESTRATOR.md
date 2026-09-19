@@ -368,11 +368,28 @@ re-open this question from scratch.
 
 ### 8.6 Smaller top-level items, unaudited
 
-- `.agents/rules/agents.md`, `.agents/skills/self-improve-engine/` (with
-  `run_self_improve.py`) — a "self-improve" script matching the user's
-  stated self-building vision (`CLAUDE.md`, "The user's vision for Saleha")
-  but not yet connected to that section or audited for whether it fabricates
-  results like earlier "orchestrator" components did.
+- `.agents/skills/self-improve-engine/` — **audited (pass 65). It did
+  fabricate, exactly as this entry suspected.** `run_self_improve.py` is a
+  thin CLI wrapper; the logic is `saleha/core/self_improve.py`. Reading it
+  in full was *not* enough — it looks genuinely real (real model calls, a
+  real `pytest` subprocess, real git, an honest audit log full of
+  `test_failed` entries, nine real commits on `auto/self-improve`).
+  **Running one cycle exposed it immediately:** it printed
+  `Cycle committed successfully: change_impact.py (SHA: c27c282)` while the
+  branch gained no commit, `c27c282` being the *previous* run's sha for an
+  unrelated module, and left the generated test staged on `main` — the one
+  branch its own docstring calls a non-negotiable safety rail. Cause: none
+  of `git checkout`/`git add`/`git commit` had its return code checked, and
+  `git rev-parse HEAD` was read regardless, so a hook-blocked commit
+  returned the pre-existing sha under a literal `detail="committed"`.
+  Fixed with a new `commit_failed` status carrying git's real stderr; each
+  failure path now unstages, deletes the generated file, and returns to the
+  starting branch. Teeth-checked (2 failed against the unfixed module).
+  Full evidence: `NOTEBOOK_IMPORT.md`, "Sixty-fifth pass."
+  Still unaudited in this directory: `.agents/rules/agents.md` and
+  `.agents/scripts/preflight_lint.py` (the latter read only in part, while
+  tracing why the commit was blocked — it is the repo's real AST quality
+  gate and was not the defect).
 - `.cursor/rules/agents.mdc` — Cursor-IDE-specific rules; check for drift
   against `CLAUDE.md`/`AGENTS.md`.
 - `editors/vscode/` — a VS Code extension (`build_extension.py`,

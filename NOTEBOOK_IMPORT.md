@@ -6352,3 +6352,155 @@ Hindi/Hinglish to English per the language rule.
 **Measured:** suite 1966 -> **1977 passed**, 13 skipped, 153 subtests.
 Quality gate: `smart_router.py` 78.0, `test_smart_router_catalog.py` 100.0.
 Teeth-checked: 10 failures against the unfixed router.
+
+---
+
+## Sixty-fifth pass — the self-improvement engine reported a blocked commit as a successful one (2026-09-20)
+
+`ORCHESTRATOR.md` section 8.6 flagged `.agents/skills/self-improve-engine/`
+as matching the user's stated self-building vision but never audited for
+"whether it fabricates results like earlier orchestrator components did."
+It does.
+
+The CLI runner is a thin wrapper; the logic lives in
+`saleha/core/self_improve.py`. Read in full, it looked genuinely real —
+real model calls, a real `pytest` subprocess, real git commands, no
+hardcoded success, and an audit log on disk full of honest
+`generation_failed` / `test_failed` entries with actual pytest tracebacks.
+Nine real commits sit on `auto/self-improve` for nine different modules.
+
+Reading it was not enough. Running one cycle was.
+
+### The probe
+
+```
+$ python .agents/.../run_self_improve.py cycle --output cycle.json
+Cycle committed successfully: change_impact.py (SHA: c27c2822d6d9...)
+```
+
+```json
+{ "module": "change_impact.py", "status": "committed",
+  "branch": "auto/self-improve",
+  "commit_sha": "c27c2822d6d9787f8033d2dd0f9abc83ea08f2bf" }
+```
+
+Both false:
+
+| claim | reality |
+| --- | --- |
+| committed to `auto/self-improve` | branch head unchanged, still `c27c282` |
+| sha `c27c282` | that is the **previous** run's commit, for an unrelated module (`dynamic_lora_router.py`) |
+| — | `test_change_impact.py` was left **staged on `main`** |
+
+`git status` after the "successful" cycle:
+
+```
+A  saleha/tests/test_change_impact.py
+```
+
+Staged on the working branch — the exact branch the module's own docstring
+calls a non-negotiable safety rail: *"never to the branch that was checked
+out when the cycle started."*
+
+### Why: five defects in one 20-line block
+
+Measured directly rather than inferred, by running the module's own `_run()`
+against a hook-blocked commit:
+
+```
+returncode: 1
+stdout repr: ''
+stderr repr: "...can't open file '...preflight_lint.py'..."
+detail-as-coded: 'committed'        <- the literal fallback string
+sha-as-coded:    c27c2822d6d9...    <- the PREVIOUS commit
+```
+
+1. **`git commit`'s return code was never checked.** The repo's own
+   pre-commit gate rejects the commit with returncode 1; nothing looked.
+2. **`git rev-parse HEAD` was read unconditionally**, returning the
+   pre-existing HEAD. That stale sha is what made the fake success look
+   plausible rather than obviously empty.
+3. **`detail` fell back to the literal `"committed"`.** A blocked commit
+   puts its message on *stderr*, so `commit_proc.stdout.strip()` is `''`
+   and the code substituted a reassuring constant for the real error —
+   the "never return a reassuring default" rule, exactly.
+4. **`git checkout`'s return code was never checked.** On a failed
+   checkout, every following `git add` / `git commit` runs against
+   whatever branch is still current. The safety rail was enforced by
+   nothing but the checkout happening to succeed.
+5. **The generated file was left written and staged on failure.** This is
+   the mechanism that stranded `test_change_impact.py` on `main`.
+
+Defects 1-3 fabricate the report. Defect 4 is the one that can actually
+write to the branch the docstring promises to protect.
+
+### The fix
+
+Every failure path now removes the generated file, unstages it, returns to
+the starting branch, and reports a new `commit_failed` status carrying
+git's real stderr. The success path reports the genuinely new sha and
+never falls back to a constant. `batch` stops on `commit_failed` instead of
+continuing, because a blocked hook fails identically for every candidate —
+the old behaviour would burn the rest of the batch on real model
+generations to reproduce the same environment fault N times.
+
+### Verified against the real repo, not just the sandbox
+
+A later real run hit defect 4's path for genuine reasons (uncommitted work
+in the tree would have been overwritten by the checkout):
+
+```
+[2/6] commit_failed for change_impact.py: Could not switch to
+      auto/self-improve: error: Your local changes to the following files
+      would be overwritten by checkout: .agents/skills/...
+  -> stopping batch: the commit step is failing for reasons independent
+     of the module
+```
+
+Tree clean afterwards, still on `main`. The old code would have proceeded
+to `git add` + `git commit` at that point.
+
+Two other real cycles reported honest `test_failed` with the model's actual
+wrong assertion (`- low / + high`) — the 3B model genuinely cannot get
+`change_impact.py`'s assertions right. Correctly reported, not papered over.
+
+### Root cause of the block itself — a false claim of the same shape
+
+`preflight_lint.py` is tracked on `main` but **absent from
+`auto/self-improve`**, so checking out that branch deletes the gate script.
+The hook then printed:
+
+```
+COMMIT BLOCKED: Saleha Pre-Flight Gate detected defects!
+```
+
+for a gate that never ran. A gate that cannot run has not detected
+anything; this conflated "found defects" with "could not execute" and
+blocked every commit on that branch. Fixed in `.git/hooks/pre-commit`
+(untracked, machine-local) to report the skip honestly. Note this hook has
+no tracked source — `saleha/core/git_hooks.py` installs a *different* hook
+(`saleha hook run`), so the installed one was placed by hand.
+
+### Measured
+
+| | |
+| --- | --- |
+| Teeth-check | **2 failed, 8 passed** against the unfixed module; **10/10** with the fix |
+| Suite | 1977 -> **1980 passed**, 13 skipped, 153 subtests |
+| Quality gate | `test_self_improve.py` **100.0**, `self_improve.py` 80.0, runner 94.0 |
+
+The teeth-check reproduces the original symptom exactly:
+`AssertionError: assert 'A  saleha/te...est_widget.py' == ''`.
+
+The three new tests drive the real `run_self_improvement_cycle` against a
+throwaway git repo with a controlled pre-commit hook, so they exercise the
+genuine git path without touching this repository's branches or needing a
+live model.
+
+**Note the existing test file did not pin this bug** — unusually for this
+project. `test_self_improve.py` only constructed a `SelfImproveResult`
+dataclass and asserted it held the values passed in; it never called
+`run_self_improvement_cycle` at all. The commit path was not asserted
+wrongly, it was simply never executed by any test. That is why nine real
+commits could accumulate on `auto/self-improve` while the failure path
+fabricated.

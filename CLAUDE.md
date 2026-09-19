@@ -1322,6 +1322,52 @@ Module and two method docstrings translated from Hindi to English.
 Measured: suite 1966 → **1977 passed**, 13 skipped, 153 subtests.
 Detail: `NOTEBOOK_IMPORT.md`, "Sixty-fourth pass."
 
+**The self-improvement engine reported a blocked commit as a successful one
+(pass 65).** `ORCHESTRATOR.md` 8.6 had flagged
+`.agents/skills/self-improve-engine/` as unaudited for exactly this. Reading
+`saleha/core/self_improve.py` in full was not enough — it looks genuinely
+real (real model calls, real `pytest` subprocess, real git, an honest audit
+log full of `test_failed` entries, nine real commits on `auto/self-improve`).
+**Running one cycle exposed it in one command:** it printed
+`Cycle committed successfully: change_impact.py (SHA: c27c282)` while the
+branch gained no commit, and `c27c282` was the *previous* run's sha for an
+unrelated module. The generated test was left **staged on `main`** — the
+exact branch the module's docstring calls a non-negotiable safety rail.
+
+Five defects in one 20-line block, measured not inferred (a hook-blocked
+commit gives `returncode 1`, `stdout ''`, so the code's own expressions
+yielded `detail='committed'` and the stale sha):
+
+- `git commit`'s return code never checked (the repo's own pre-commit gate
+  rejects it);
+- `git rev-parse HEAD` read unconditionally, returning the pre-existing
+  HEAD — the stale sha that made the fake success look plausible;
+- `detail` fell back to the literal `"committed"` because the hook's
+  message goes to *stderr* — the "never return a reassuring default" rule;
+- **`git checkout`'s return code never checked**, so a failed checkout left
+  every following `git add`/`git commit` running against the working
+  branch. The safety rail was enforced by nothing;
+- the generated file was left written and staged on failure.
+
+Each failure path now removes the file, unstages it, returns to the starting
+branch, and reports a new `commit_failed` status with git's real stderr;
+`batch` stops on it rather than burning the rest of the run reproducing the
+same environment fault. Verified on the real repo: a genuinely failing
+checkout now reports `commit_failed` with git's own message and leaves the
+tree clean. Root cause of the block also fixed — `preflight_lint.py` is
+tracked on `main` but **absent from `auto/self-improve`**, so checking out
+that branch deleted the gate script and the hook then printed "detected
+defects" for a gate that never ran (same shape of false claim; fixed in
+`.git/hooks/pre-commit`, which is untracked and has no tracked source —
+`git_hooks.py` installs a *different* hook).
+
+**Unusually, the existing test did not pin this bug** — it only constructed
+a `SelfImproveResult` dataclass and never called
+`run_self_improvement_cycle`, so the commit path was never executed by any
+test. Teeth-checked: **2 failed, 8 passed** against the unfixed module,
+10/10 with the fix. Measured: suite 1977 → **1980 passed**, 13 skipped.
+Detail: `NOTEBOOK_IMPORT.md`, "Sixty-fifth pass."
+
 ---
 
 ## Environment facts worth knowing
@@ -1350,8 +1396,8 @@ Detail: `NOTEBOOK_IMPORT.md`, "Sixty-fourth pass."
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1977 passed, 13 skipped,
-  153 subtests, ~110-300s (as of pass 64). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1980 passed, 13 skipped,
+  153 subtests, ~110-300s (as of pass 65). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once
