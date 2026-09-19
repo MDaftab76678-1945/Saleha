@@ -63,6 +63,49 @@ class ModelProvider(ABC):
 
 DEFAULT_GENERATE_TIMEOUT = int(os.environ.get("SALEHA_MODEL_TIMEOUT", "300"))
 
+# Models that emit a chain of thought before their answer. Ollama bills that
+# reasoning against the same `num_predict` budget as the answer and returns it
+# in a separate `thinking` field, so a budget sized for a direct-answering
+# model can be spent entirely on thinking, leaving `response` empty with
+# done_reason='length'.
+#
+# Measured on this box, prompt "Reply with only the number 2." at
+# num_predict=32 -- the budget `action_menu.py` uses for a single-integer
+# choice:
+#
+#     qwen2.5-coder:3b -> done='stop',   answer='2'
+#     qwen3.5:4b       -> done='length', answer='' , 107 chars of thinking
+#
+# The same model answers correctly at 2048 (done='stop', 1299 chars), so this
+# is a budget problem, not a capability limit.
+_REASONING_MODEL_MARKERS = ("qwen3", "deepseek-r1", "-r1:", "reasoning", "qwq")
+
+# Headroom for the thinking block, applied before the caller's budget is used
+# as the answer allowance.
+_REASONING_THINKING_HEADROOM = 1024
+
+
+def is_reasoning_model(model: str) -> bool:
+    """True when `model` emits a chain of thought that consumes num_predict.
+
+    Matches on the name because Ollama's /api/tags exposes no capability flag
+    for this -- the only alternative is a probe generation per model.
+    """
+    name = (model or "").lower()
+    return any(marker in name for marker in _REASONING_MODEL_MARKERS)
+
+
+def budget_for_model(model: str, requested: int) -> int:
+    """Grow a direct-answer budget so a reasoning model can still answer.
+
+    A caller asking for 32 tokens wants a 32-token *answer*; on a reasoning
+    model it must also pay for the thinking block first. Non-reasoning models
+    are returned unchanged, so no existing measurement shifts.
+    """
+    if not is_reasoning_model(model):
+        return requested
+    return max(requested + _REASONING_THINKING_HEADROOM, 2048)
+
 
 class OllamaProvider(ModelProvider):
     """Localhost Ollama server ($0 local inference)."""
@@ -103,6 +146,12 @@ class OllamaProvider(ModelProvider):
         }
         if options:
             merged_options.update(options)
+        # A reasoning model spends this budget on its thinking block before it
+        # writes any answer, so a budget sized for a direct answer yields an
+        # empty response. Grown here rather than at each of the ~17 call sites,
+        # which cannot know which model they will be routed to.
+        merged_options["num_predict"] = budget_for_model(
+            model, merged_options["num_predict"])
         payload = {
             "model": model,
             "prompt": prompt,
@@ -209,20 +258,27 @@ class OllamaProvider(ModelProvider):
         this is a genuine incremental stream, not `generate()` results replayed
         as one chunk.
         """
+        # Merged, not substituted -- `options or {...}` dropped every default
+        # for any caller passing a partial dict. That exact bug was fixed in
+        # generate() (pass 53) and left standing here.
+        merged_options = {
+            "temperature": 0.2,
+            "num_predict": 2048,
+            "repeat_penalty": 1.15,
+            "top_p": 0.9,
+        }
+        if options:
+            merged_options.update(options)
+        merged_options["num_predict"] = budget_for_model(
+            model, merged_options["num_predict"])
+        if merged_options.get("repeat_last_n", 0) < 0:
+            merged_options["repeat_last_n"] = 64
         payload = {
             "model": model,
             "prompt": prompt,
             "stream": True,
-            "options": options or {
-                "temperature": 0.2,
-                "num_predict": 2048,
-                "repeat_penalty": 1.15,
-                "top_p": 0.9,
-            },
+            "options": merged_options,
         }
-        opts = payload.get("options")
-        if isinstance(opts, dict) and opts.get("repeat_last_n", 0) < 0:
-            opts["repeat_last_n"] = 64
 
         start_time = time.time()
         accumulated = []
