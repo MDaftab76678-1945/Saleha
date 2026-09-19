@@ -6724,3 +6724,37 @@ Importing a module must not touch the user's working directory. An audit of modu
   - `test_phase5_hardening.py`: 7/7 PASSED.
   - Total: **18/18 PASSED** in 1.20s.
 - Zero diagnostics across all modified and test files.
+- Committed cleanly on `main` as `e4f0163`.
+
+---
+
+## Pass 72: Dual Architectural Milestone (Real MCTS Tree Search Engine & Traceback-Aware Self-Healing)
+
+### Pass 72 Defect Discovery & Remediation
+
+1. **`mcts_search_engine.py` (Real Monte Carlo Tree Search Engine)**:
+   - Eradicated dead code anti-pattern where `MCTSNode.ucb1()` was defined but never called, and `tree_depth` was hardcoded to 1 (single-level candidate scoring).
+   - Implemented real multi-depth tree expansion, UCB1 selection policy (`_select`) balancing exploitation with logarithmic parent visit exploration, candidate refinement mutations (`_expand_refinements`), rollout evaluations, and reward backpropagation (`_backpropagate`).
+   - Maintained 100% backward-compatibility for single-level search callers (`max_depth=1`).
+   - Created `saleha/tests/test_mcts_search_engine.py` with 5 comprehensive, 100% typed unit tests.
+
+2. **`self_healing.py` (Traceback Localization & Auto-Patching)**:
+   - Added `extract_traceback_frames` parsing structured stack frames (`file`, `line`, `symbol`, `code_line`) from multi-frame Python error tracebacks.
+   - Enriched `HealingResult` with `faulting_file`, `faulting_line`, and `faulting_symbol`, injecting exact `[File:Line]` pointers into `reflexion_prompt`.
+   - Expanded `auto_patch_code` to detect and prepend missing `from typing import ...` and `from pathlib import Path` imports.
+   - Updated `saleha/tests/test_self_healing.py` with 10 comprehensive, 100% typed unit tests.
+
+### Pass 72 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_mcts_search_engine.py saleha/tests/test_self_healing.py saleha/tests/test_ultimate_frontier_suite.py -v
+  ```
+
+- Subsystem test results:
+  - `test_mcts_search_engine.py`: 5/5 PASSED.
+  - `test_self_healing.py`: 10/10 PASSED.
+  - `test_ultimate_frontier_suite.py`: 5/5 PASSED.
+  - Total: **20/20 PASSED** in 2.19s.
+- Zero diagnostics across all modified and test files.

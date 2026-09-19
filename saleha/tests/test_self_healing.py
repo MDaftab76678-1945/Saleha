@@ -1,3 +1,10 @@
+"""
+Unit tests for SelfHealingEngine and Error Reflexion.
+Validates error classification, traceback frame parsing, defect localization, and import auto-patching.
+"""
+
+from __future__ import annotations
+
 import unittest
 
 from saleha.core.self_healing import SelfHealingEngine
@@ -11,7 +18,6 @@ class SelfHealingEngineTests(unittest.TestCase):
         result = self.engine.analyze_and_heal(
             "SyntaxError: invalid syntax", "Create a function"
         )
-
         self.assertTrue(result.error_detected)
         self.assertEqual(result.error_type, "SyntaxError")
         self.assertIn("Root Cause Hint", result.reflexion_prompt)
@@ -21,46 +27,26 @@ class SelfHealingEngineTests(unittest.TestCase):
         result = self.engine.analyze_and_heal(
             "ModuleNotFoundError: No module named 'pandas'", "Read a CSV"
         )
-
         self.assertEqual(result.error_type, "ImportError")
-        # Was assertIn("लाइब्रेरी", ...) -- this engine's output is embedded
-        # verbatim into DebuggerAgent's prompt to a code model, so its strings
-        # are English now (CLAUDE.md's language rule).
         self.assertIn("library", result.root_cause_hint)
         self.assertTrue(result.root_cause_hint.isascii())
 
     def test_known_error_type_is_reported_detected(self) -> None:
-        # RuntimeError used to be absent from ERROR_PATTERNS -- this exact
-        # input was the "unknown error" case. It is now a known pattern
-        # (pass 30), so this asserts the classified-and-detected path
-        # instead; test_truly_unknown_error_is_honestly_undetected below
-        # covers the actual "cannot classify" case that this test's old name
-        # claimed to.
         result = self.engine.analyze_and_heal("RuntimeError: failed", "Run task")
-
         self.assertTrue(result.error_detected)
         self.assertEqual(result.error_type, "RuntimeError")
         self.assertTrue(result.reflexion_prompt)
 
     def test_truly_unknown_error_is_honestly_undetected(self) -> None:
-        # error_detected used to be hardcoded True unconditionally (except
-        # for an empty log) -- so a log matching no known pattern still
-        # reported error_detected=True, alongside error_type="UnknownError".
-        # That is a contradiction: "detected" and "unknown" cannot both be
-        # true. Guidance is still generated (self-healing should not refuse
-        # to try just because it cannot name the error), but error_detected
-        # must honestly say classification failed.
         result = self.engine.analyze_and_heal(
             "FrobnicationFault: the widget could not be frobnicated", "Run task"
         )
-
         self.assertFalse(result.error_detected)
         self.assertEqual(result.error_type, "UnknownError")
         self.assertTrue(result.reflexion_prompt)
 
     def test_empty_error_log_is_a_noop(self) -> None:
         result = self.engine.analyze_and_heal("", "No error")
-
         self.assertFalse(result.error_detected)
         self.assertEqual(result.error_type, "None")
         self.assertEqual(result.reflexion_prompt, "")
@@ -77,6 +63,45 @@ class SelfHealingEngineTests(unittest.TestCase):
         self.assertNotIn("AtomicInteger", patched)
         self.assertNotIn("System.out.println", patched)
         self.assertIn("print('init')", patched)
+
+    def test_extract_traceback_frames(self) -> None:
+        tb = """
+Traceback (most recent call last):
+  File "saleha/core/math_logic.py", line 42, in compute_ratio
+    return a / b
+ZeroDivisionError: division by zero
+"""
+        frames = self.engine.extract_traceback_frames(tb)
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(frames[0]["file"], "saleha/core/math_logic.py")
+        self.assertEqual(frames[0]["line"], 42)
+        self.assertEqual(frames[0]["symbol"], "compute_ratio")
+        self.assertEqual(frames[0]["code_line"], "return a / b")
+
+    def test_traceback_localization_in_healing_result(self) -> None:
+        tb = """
+Traceback (most recent call last):
+  File "app/service.py", line 105, in run_service
+    res = helper()
+NameError: name 'helper' is not defined
+"""
+        result = self.engine.analyze_and_heal(tb, "Execute service pipeline")
+        self.assertTrue(result.error_detected)
+        self.assertEqual(result.error_type, "NameError")
+        self.assertEqual(result.faulting_file, "app/service.py")
+        self.assertEqual(result.faulting_line, 105)
+        self.assertEqual(result.faulting_symbol, "run_service")
+        self.assertIn("Faulting Location: app/service.py:105 (in run_service)", result.reflexion_prompt)
+        self.assertIn("Failing Code: res = helper()", result.reflexion_prompt)
+
+    def test_auto_patch_typing_and_pathlib(self) -> None:
+        code = "def process(items: List[str], mapping: Dict[str, Any]) -> Optional[Path]:\n    return Path('/tmp')"
+        patched = self.engine.auto_patch_code(code)
+        self.assertIn("from typing import", patched)
+        self.assertIn("List", patched)
+        self.assertIn("Dict", patched)
+        self.assertIn("Optional", patched)
+        self.assertIn("from pathlib import Path", patched)
 
 
 if __name__ == "__main__":
