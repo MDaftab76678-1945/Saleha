@@ -6869,3 +6869,44 @@ Hardened persistent incremental AST caching and blast-radius change impact estim
   - Full repo test suite: **2099/2099 PASSED** (2098 passed, 29 skipped, 153 subtests passed).
 - Zero diagnostics and 100% AST contract security verification (`True, []`) across all modified modules and tests.
 - Committed cleanly on `main` as `aa8330e`.
+
+## Pass 76: Approval Gate & Execution Sandbox Policy (Round 21)
+
+Hardened security boundaries, human-in-the-loop gating, and containerized execution sandbox policy:
+
+1. **`approval_gate.py` (Human-In-The-Loop Approval Gate)**:
+   - Eradicated all historical Hinglish comments and docstrings, replacing them with professional, rigorous English adhering strictly to Rule 2.4.
+   - Added `normalize_action(action_type: str) -> str` to handle namespaced/prefixed action identifiers (e.g. `fs:file_delete`, `tools.file_write`, `tool_call:git.git_reset_hard`).
+   - Introduced risk tier classification: `CRITICAL_ACTIONS` (`git_reset_hard`, `vault_write`, `vault_export`, `file_delete`) and `get_action_risk_level(action_type) -> "critical" | "dangerous" | "standard"`.
+   - Added in-memory decision audit trail via `ApprovalDecision` dataclass, `record_decision(...)`, `get_history()`, and `clear_history()`.
+   - Fixed redundant `bool()` conversions, achieving a 100.0/100 pre-flight AST score with zero IDE warnings.
+   - 100% strict type hints across all functions and classes.
+
+2. **`execution_policy.py` (Execution Backend Sandbox Policy)**:
+   - Added `PolicyDecision` dataclass capturing `backend`, `sandbox_mode`, `docker_available`, `reason`, and command list.
+   - Created `ExecutionPolicy` class supporting custom memory (`512m`), CPUs (`1.0`), pids limit (`128`), and image configuration.
+   - Implemented `evaluate_policy(host_script_path)` to generate structured pre-flight execution decisions.
+   - Hardened `build_docker_command` with cross-platform volume path normalization (forward slashes for Windows Docker compatibility) and optional custom arguments pass-through.
+   - Preserved 100% backward compatibility with module-level functions (`resolve_backend`, `build_docker_command`, `docker_available`).
+
+3. **Unit Tests**:
+   - `saleha/tests/test_approval_gate.py`: 12 tests (+4 tests covering action normalization, risk level classification, namespaced gating, and decision audit history).
+   - `saleha/tests/test_execution_policy.py` (New suite): 6 comprehensive unit tests covering mode parsing/aliases, Docker probe caching/reset, fail-closed safety on `require-docker`, container command limits (`--network none`, `--pids-limit`, `--security-opt`), and `ExecutionPolicy` decision evaluation.
+   - 100% typed test methods (`def test_xxx(self) -> None:`).
+
+### Pass 76 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_approval_gate.py saleha/tests/test_execution_policy.py -v
+  ```
+
+- Subsystem test results:
+  - `test_approval_gate.py`: 12/12 PASSED.
+  - `test_execution_policy.py`: 6/6 PASSED.
+  - Total: **18/18 PASSED** in 0.14s.
+- Regression test results:
+  - Security and core regression suite: **88/88 PASSED** (88 passed, 17 subtests passed in 1.06s).
+- Zero diagnostics and 100% AST contract security verification (`True, []`) across all modified modules and tests.
+- Committed cleanly on `main` as `9a26f67`.
