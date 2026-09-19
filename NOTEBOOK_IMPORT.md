@@ -6612,3 +6612,39 @@ Importing a module must not touch the user's working directory. An audit of modu
   - `test_diff_engine.py`: 18/18 PASSED.
   - Total: **31/31 PASSED** in 0.79s.
 - Zero diagnostics across all modified and test files.
+- Committed as `2fbf8de` on `main`.
+
+---
+
+## Pass 69: Dual Architectural Milestone (Sandbox Isolation Hardening & Dense Embedding Backends)
+
+### Pass 69 Defect Discovery & Remediation
+
+1. **`execution_policy.py` & `ephemeral_container_runner.py` (Sandbox Execution Isolation)**:
+   - Eradicated non-English Hinglish docstrings across `execution_policy.py`, restoring strict compliance with Rule 2.4.
+   - Retained `python:3.14-slim` container default to match host runtime (Python 3.14.7), avoiding syntax and annotation incompatibilities from down-versioning to 3.12, while adding `SALEHA_DOCKER_IMAGE` override support.
+   - Connected `ephemeral_container_runner.py` to cached `docker_available()` probe and added container isolation flags (`--pids-limit 128`, `--security-opt no-new-privileges`).
+   - Fixed timeout argument type mismatch in `run_in_sandbox` (`int(timeout_sec)`).
+   - Created `saleha/tests/test_ephemeral_container_runner.py` with 5 comprehensive, type-safe unit tests.
+
+2. **`embedding_backends.py` (Dense Semantic Embeddings Engine)**:
+   - Eradicated non-English docstrings and comments.
+   - Implemented `_normalize_ollama_url` to normalize `0.0.0.0:11434` and `localhost:11434` endpoints to `http://127.0.0.1:11434` per physical runtime Rule 6.
+   - Created `saleha/tests/test_embedding_backends.py` with 8 comprehensive unit tests covering L2 vector normalization, cosine dot similarity, URL normalization, and mocked Ollama error resilience.
+
+### Pass 69 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_ephemeral_container_runner.py saleha/tests/test_embedding_backends.py saleha/tests/test_quad_production_suite.py saleha/tests/test_market_upgrades.py saleha/tests/test_v06_features.py -v
+  ```
+
+- Subsystem test results:
+  - `test_ephemeral_container_runner.py`: 5/5 PASSED.
+  - `test_embedding_backends.py`: 8/8 PASSED.
+  - `test_quad_production_suite.py`: 4/4 PASSED.
+  - `test_market_upgrades.py`: 29/29 PASSED.
+  - `test_v06_features.py`: 18/18 PASSED.
+  - Total: **64/64 PASSED** in 2.88s.
+- Zero diagnostics across all modified and test files.

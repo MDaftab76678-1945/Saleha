@@ -1,24 +1,26 @@
 """
 Saleha Core: Execution Backend Policy
 
-Ek jagah decide hota hai ki generated code KAHAN chalega:
+Central configuration governing where generated code executes:
 
-  SALEHA_SANDBOX=auto            -> subprocess (legacy default, backward-compatible)
-  SALEHA_SANDBOX=local           -> subprocess explicitly
-  SALEHA_SANDBOX=docker          -> Docker sandbox prefer karo; unavailable ho
-                                    to subprocess pe degrade (warning ke saath)
-  SALEHA_SANDBOX=require-docker  -> SIRF Docker; unavailable ho to execution
-                                    fail-closed hogi (koi silent downgrade nahi)
+  SALEHA_SANDBOX=auto            -> Subprocess (legacy default, backward-compatible)
+  SALEHA_SANDBOX=local           -> Subprocess explicitly
+  SALEHA_SANDBOX=docker          -> Prefer Docker sandbox; if unavailable,
+                                    degrade to subprocess with warning
+  SALEHA_SANDBOX=require-docker  -> Strictly Docker; if unavailable, execution
+                                    fails closed (no silent downgrade)
 
-Docker backend har run ko isolate karta hai:
-  --network none            (no network access)
-  --memory / --cpus         (resource containment)
-  --pids-limit              (fork-bomb guard)
+Docker backend isolates each execution:
+  --network none            (No external network access)
+  --memory / --cpus         (Resource containment)
+  --pids-limit              (Fork-bomb protection)
   --security-opt no-new-privileges
-Image SALEHA_DOCKER_IMAGE env se override ho sakta hai.
+Image configurable via SALEHA_DOCKER_IMAGE environment variable.
 
-Ye module khud koi code execute nahi karta -- sirf policy + command builder.
+This module does not execute code directly; it serves as policy and command builder.
 """
+
+from __future__ import annotations
 
 import os
 import shutil
@@ -26,7 +28,7 @@ import subprocess
 from typing import Dict, List, Optional, Tuple
 
 VALID_MODES = ("auto", "local", "docker", "require-docker")
-DEFAULT_DOCKER_IMAGE = "python:3.12-slim"
+DEFAULT_DOCKER_IMAGE = os.getenv("SALEHA_DOCKER_IMAGE", "python:3.12-slim")
 
 _MODE_ALIASES = {
     "strict": "require-docker",
@@ -47,16 +49,16 @@ def _reset_probe_cache() -> None:
 
 
 def get_sandbox_mode() -> str:
-    """Env se effective sandbox mode resolve karta hai (invalid value -> auto)."""
+    """Resolves effective sandbox mode from environment (invalid value -> auto)."""
     raw = (os.getenv("SALEHA_SANDBOX") or "auto").strip().lower()
     mode = _MODE_ALIASES.get(raw, raw)
     return mode if mode in VALID_MODES else "auto"
 
 
 def docker_available(force_refresh: bool = False) -> bool:
-    """Docker daemon reachable hai? Result process-lifetime cache hota hai."""
+    """Determines whether Docker daemon is reachable. Result is cached per-process."""
     if _probe_cache["done"] and not force_refresh:
-        return bool(_probe_cache["available"])  # type: ignore[arg-type]
+        return bool(_probe_cache["available"])
 
     available = False
     if shutil.which("docker"):
@@ -77,7 +79,7 @@ def docker_available(force_refresh: bool = False) -> bool:
 
 
 def image_present(image: str) -> bool:
-    """Kya ye image locally available hai? (`docker images -q`)"""
+    """Checks whether the specified container image is locally available (`docker images -q`)."""
     if not docker_available():
         return False
     try:
@@ -93,11 +95,10 @@ def image_present(image: str) -> bool:
 
 
 def ensure_image(image: Optional[str] = None, auto_pull: bool = True) -> Tuple[bool, str]:
-    """Sandbox image preflight: present hai to OK, warna ek hi baar
-    `docker pull` karta hai (SALEHA_DOCKER_AUTO_PULL=0 se disable).
+    """Preflight check for sandbox image: returns OK if present, otherwise attempts pull.
 
     Returns:
-        (ok, message) -- ok=False ka matlab Docker run is image se fail hoga.
+        (ok, message) -- ok=False indicates Docker runs with this image will fail.
     """
     chosen = os.getenv("SALEHA_DOCKER_IMAGE") or image or DEFAULT_DOCKER_IMAGE
     if image_present(chosen):
@@ -124,12 +125,11 @@ def ensure_image(image: Optional[str] = None, auto_pull: bool = True) -> Tuple[b
 
 
 def resolve_backend() -> Tuple[str, str]:
-    """Effective backend decide karta hai.
+    """Resolves effective execution backend based on environment policy.
 
     Returns:
-        ("docker"|"subprocess"|"none", human-readable reason)
-        "none" ka matlab: require-docker mode me Docker nahi mila ->
-        caller ko fail-closed response dena chahiye.
+        ("docker" | "subprocess" | "none", human_readable_reason)
+        "none" indicates require-docker mode was set but Docker is unavailable (fail-closed).
     """
     mode = get_sandbox_mode()
 
@@ -164,14 +164,12 @@ def build_docker_command(
     memory: str = "512m",
     cpus: str = "1.0",
 ) -> List[str]:
-    """Host temp-script ke liye hardened `docker run` command banata hai.
+    """Constructs hardened `docker run` command for a host script.
 
-    Script apne parent directory ke saath read-write /sandbox par mount hota
-    hai taaki script khud sibling files likh sake (tests waghera), lekin
-    network band, resources capped, aur privilege-escalation blocked rehta hai.
+    Mounts script parent directory read-write to /sandbox, while blocking network,
+    capping resources, and preventing privilege escalation.
     """
     chosen_image = os.getenv("SALEHA_DOCKER_IMAGE") or image
-    # Backslash/forwardslash dono accept karo (Linux pe Windows-style input bhi)
     normalized = host_script_path.replace("\\", "/")
     host_dir = os.path.dirname(os.path.abspath(normalized)) or "."
     script_name = normalized.rsplit("/", 1)[-1]

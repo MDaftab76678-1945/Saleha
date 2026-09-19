@@ -3,7 +3,7 @@ Saleha Core: Ephemeral Container Sandbox Runner (EphemeralContainerRunner)
 
 Executes untrusted or generated code within ephemeral Docker containers:
 1. Hard CPU and memory cgroup boundaries (default: 256MB RAM, 1.0 CPU core).
-2. Ephemeral container lifecycle (--rm, read-only rootfs with temp volume).
+2. Ephemeral container lifecycle (--rm, no-network, pids-limit, no-new-privileges).
 3. Graceful fallback to localized SandboxRunner if Docker daemon is unreachable.
 """
 
@@ -13,11 +13,11 @@ import os
 import sys
 import time
 import subprocess
-import tempfile
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List
+from dataclasses import dataclass
+from typing import Optional
 
 from saleha.core.sandbox_runner import SandboxRunner, SandboxResult
+from saleha.core.execution_policy import docker_available
 
 
 @dataclass
@@ -34,19 +34,20 @@ class ContainerExecutionResult:
 class EphemeralContainerRunner:
     """Isolated Ephemeral Container and CGroup Execution Engine."""
 
-    def __init__(self, default_image: str = "python:3.14-slim", memory_limit: str = "256m", cpu_limit: str = "1.0"):
-        self.default_image = default_image
-        self.memory_limit = memory_limit
-        self.cpu_limit = cpu_limit
-        self.fallback_runner = SandboxRunner()
+    def __init__(
+        self,
+        default_image: str = "python:3.14-slim",
+        memory_limit: str = "256m",
+        cpu_limit: str = "1.0",
+    ) -> None:
+        self.default_image: str = os.getenv("SALEHA_DOCKER_IMAGE") or default_image
+        self.memory_limit: str = memory_limit
+        self.cpu_limit: str = cpu_limit
+        self.fallback_runner: SandboxRunner = SandboxRunner()
 
     def _is_docker_available(self) -> bool:
-        """Probes whether Docker CLI and daemon are reachable."""
-        try:
-            res = subprocess.run(["docker", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-            return res.returncode == 0
-        except Exception:
-            return False
+        """Probes whether Docker CLI and daemon are reachable via cached probe."""
+        return docker_available()
 
     def run_code(self, code_or_script: str, timeout_sec: float = 15.0) -> ContainerExecutionResult:
         """Executes code in Docker if available, otherwise safely inside SandboxRunner."""
@@ -58,12 +59,13 @@ class EphemeralContainerRunner:
                     "docker", "run", "--rm",
                     "-m", self.memory_limit,
                     "--cpus", self.cpu_limit,
+                    "--pids-limit", "128",
+                    "--security-opt", "no-new-privileges",
                     "--network", "none",
                     self.default_image,
-                    "python", "-c", code_or_script
+                    "python", "-c", code_or_script,
                 ]
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
-                # Check if failure was caused by Docker infrastructure (daemon down, image missing, permission)
                 stderr_lower = (proc.stderr or "").lower()
                 docker_infra_failure = proc.returncode != 0 and any(
                     err_msg in stderr_lower for err_msg in [
@@ -74,7 +76,7 @@ class EphemeralContainerRunner:
                         "repository does not exist",
                         "docker daemon is not running",
                         "failed to create shim task",
-                        "no space left on device"
+                        "no space left on device",
                     ]
                 )
                 if not docker_infra_failure:
@@ -103,7 +105,7 @@ class EphemeralContainerRunner:
                 pass  # Fallback to local sandbox runner
 
         # Local Sandboxed Fallback
-        res: SandboxResult = self.fallback_runner.run_in_sandbox(code_or_script, timeout=timeout_sec)
+        res: SandboxResult = self.fallback_runner.run_in_sandbox(code_or_script, timeout=int(timeout_sec))
         elapsed = round((time.time() - start_time) * 1000, 2)
         return ContainerExecutionResult(
             success=res.success,

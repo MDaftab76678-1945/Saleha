@@ -1,17 +1,16 @@
 """
-Saleha Core: Embedding Backends (B1 -- Local Semantic Upgrade)
+Saleha Core: Embedding Backends (Dense Semantic Vector Search)
 
-Pehle vector store sirf TF-IDF (sparse) tha -- "rate limiter" vs
-"throughput cap" jaise semantic matches miss hote the. Ab:
+Provides dense and sparse vector embedding capabilities:
+1. `OllamaEmbedder`: Generates dense embeddings via local Ollama `/api/embed`
+   (default model: nomic-embed-text, override via SALEHA_EMBED_MODEL).
+2. Sparse fallback: TF-IDF vector embedding when Ollama is unavailable.
 
-1. `OllamaEmbedder`: local Ollama `/api/embed` se dense embeddings
-   (default model: nomic-embed-text, SALEHA_EMBED_MODEL se override)
-2. TF-IDF SparseVectorEmbedder fallback (offline-safe, existing behavior)
-
-VectorStore lazily decide karta hai: first index/search par dense probe;
-fail ho to sparse pe graceful fallback. Dense vectors L2-normalized --
-cosine = simple dot product.
+Embeddings are L2-normalized, allowing cosine similarity to be computed
+via simple dot product.
 """
+
+from __future__ import annotations
 
 import json
 import math
@@ -20,22 +19,40 @@ import urllib.error
 import urllib.request
 from typing import List, Optional
 
+
+def _normalize_ollama_url(raw_url: str) -> str:
+    """Normalizes Ollama endpoint URL to prevent 0.0.0.0 or localhost DNS latency issues."""
+    url = (raw_url or "").strip()
+    if not url:
+        return "http://127.0.0.1:11434"
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = f"http://{url}"
+    url = url.replace("0.0.0.0:11434", "127.0.0.1:11434").replace("localhost:11434", "127.0.0.1:11434")
+    return url.rstrip("/")
+
+
 DEFAULT_EMBED_MODEL = os.getenv("SALEHA_EMBED_MODEL", "nomic-embed-text")
-DEFAULT_OLLAMA_BASE = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434")
+_raw_ollama_host = os.getenv("SALEHA_OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+DEFAULT_OLLAMA_BASE = _normalize_ollama_url(_raw_ollama_host)
 _EMBED_BATCH_SIZE = 32
 
 
 class OllamaEmbedder:
     """Dense embedding backend via local Ollama /api/embed."""
 
-    def __init__(self, model: str = DEFAULT_EMBED_MODEL,
-                 base_url: str = DEFAULT_OLLAMA_BASE, timeout: int = 30):
+    def __init__(
+        self,
+        model: str = DEFAULT_EMBED_MODEL,
+        base_url: Optional[str] = None,
+        timeout: int = 30,
+    ) -> None:
         self.model = model
-        self.embed_url = f"{base_url.rstrip('/')}/api/embed"
+        base = _normalize_ollama_url(base_url) if base_url else DEFAULT_OLLAMA_BASE
+        self.embed_url = f"{base}/api/embed"
         self.timeout = timeout
 
     def available(self) -> bool:
-        """Cheap probe: ek tiny embed request bhejo; 200 => usable."""
+        """Lightweight probe: sends single-word embed request; 200 => available."""
         try:
             vecs = self.embed_batch(["probe"])
             return bool(vecs and vecs[0])
@@ -43,7 +60,7 @@ class OllamaEmbedder:
             return False
 
     def embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
-        """Batch embed; normalized float vectors ya None (kisi bhi failure par)."""
+        """Batch embed texts; returns normalized float vectors or None on failure."""
         if not texts:
             return []
         out: List[List[float]] = []
@@ -68,6 +85,7 @@ class OllamaEmbedder:
 
     @staticmethod
     def _normalize(vec: List[float]) -> List[float]:
+        """Normalizes vector to unit L2 norm."""
         norm = math.sqrt(sum(x * x for x in vec))
         if norm <= 0:
             return vec
@@ -75,7 +93,7 @@ class OllamaEmbedder:
 
 
 def dense_dot(v1: List[float], v2: List[float]) -> float:
-    """Cosine similarity for (pre-normalized) dense vectors."""
+    """Cosine similarity for pre-normalized dense vectors."""
     if not v1 or not v2 or len(v1) != len(v2):
         return 0.0
     return sum(a * b for a, b in zip(v1, v2))
