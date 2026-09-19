@@ -6827,3 +6827,4 @@ Hardened repository context mapping and context window protection for local SLM 
   - `test_v06_features.py`: 5/5 PASSED.
   - Total: **46/46 PASSED** in 0.68s.
 - Zero diagnostics across all modified and test files.
+- Committed cleanly on `main` as `48b95e5`.
