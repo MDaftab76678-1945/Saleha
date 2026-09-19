@@ -1,36 +1,41 @@
 """
 Saleha Core: Repo Context Packer (Aider-style Repository Map)
 
-LLM ko poora repo bhejna impossible hai -- budget hota hai. Ye module:
+Packages a token-budgeted, task-relevant architectural slice of the repository
+to prepend into LLM coder and planner prompts:
 
-1. Repo scan karta hai (venv/node_modules/.git skip)
-2. Har file ko TASK ke against score karta hai:
-   - keyword overlap (task tokens vs path + content head + symbol names)
-   - path heuristics (src/app code > tests > docs > configs)
-   - symbol density (class/def names task se match)
-3. Budget ke andar ek structured context block pack karta hai:
-   project tree (trimmed) -> relevant symbol outlines -> key-file excerpts
-
-Output seedha Coder/Planner prompt me prepend hota hai taaki generated code
-real repo ke conventions, existing types, aur module structure ka respect kare.
-Ye Aider ke repo-map idea ka lightweight, zero-dependency version hai.
+1. Scans workspace files (pruning .git, build, venv, and cache artifacts).
+2. Scores each source file against task intent:
+   - Path keyword alignment.
+   - AST-extracted symbol name density (classes, functions, async methods).
+   - Docstring relevance matching.
+   - File-path architectural heuristics (core/lib/app prioritized over tests/mocks).
+   - Entry-point boosting (main.py, app.py, index.js).
+3. Packs a structured context block within model token boundaries:
+   - Project directory layout.
+   - Ranked symbol outlines.
+   - Key file excerpts (multi-file up to configured budget).
 """
+
+from __future__ import annotations
 
 import ast
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from saleha.core.context_budget import chars_budget_for
 from saleha.core.path_utils import safe_relpath
 
-# Skip dirs -- indexer conventions se aligned
-SKIP_DIRS = {
+# Standard directories to skip during scanning
+SKIP_DIRS: Set[str] = {
     ".git", ".hg", ".svn", "__pycache__", "node_modules", "venv", ".venv",
     "env", ".env", "dist", "build", ".idea", ".vscode", ".mypy_cache",
     ".pytest_cache", "site-packages", ".tox", "coverage", ".saleha",
 }
 
-CODE_EXTENSIONS = {
+CODE_EXTENSIONS: Set[str] = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".java", ".rs", ".rb",
     ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".swift", ".kt",
 }
@@ -42,9 +47,10 @@ _SYMBOL_RE = re.compile(
 
 
 def _python_symbols(path: str) -> List[Tuple[int, str, str, str]]:
-    """AST-accurate symbol extraction (A3 upgrade): (lineno, kind, name,
-    docstring-first-line). Regex fallback se better -- nested defs, async
-    functions, aur decorators sahi pakde jaate hain, line numbers milte hain."""
+    """
+    Extracts accurate symbols from Python files via the standard AST:
+    (lineno, kind, name, first_line_of_docstring).
+    """
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             tree = ast.parse(f.read())
@@ -64,7 +70,8 @@ def _python_symbols(path: str) -> List[Tuple[int, str, str, str]]:
         out.append((node.lineno, kind, node.name, doc_first))
     return out[:80]
 
-_STOPWORDS = {
+
+_STOPWORDS: Set[str] = {
     "the", "a", "an", "and", "or", "of", "to", "in", "for", "with", "on",
     "is", "are", "be", "this", "that", "it", "as", "at", "by", "from",
     "add", "create", "make", "build", "implement", "write", "update", "fix",
@@ -76,31 +83,35 @@ class ScoredFile:
     path: str
     score: float
     size_chars: int
-    symbols: List[str] = field(default_factory=list)          # display strings
-    symbol_tokens: set = field(default_factory=set)           # for scoring
-    doc_tokens: set = field(default_factory=set)              # docstring tokens
+    symbols: List[str] = field(default_factory=list)          # Display strings
+    symbol_tokens: Set[str] = field(default_factory=set)      # Normalized tokens for scoring
+    doc_tokens: Set[str] = field(default_factory=set)         # Docstring tokens
 
 
-def _tokenize(text: str) -> set:
-    words = re.findall(r"[a-zA-Z0-9_]{3,}", text.lower())
-    return {w for w in words if w not in _STOPWORDS} | {
-        # camelCase / snake_case split: "parseConfigFile" -> parse config file
-        part
-        for w in words
-        for part in re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])", w)
-        if len(part) >= 3
-    }
+def _tokenize(text: str) -> Set[str]:
+    """Extracts lowercase words and splits camelCase/snake_case tokens, filtering stopwords."""
+    if not text:
+        return set()
+
+    # Split camelCase before lowercasing, e.g. "parseConfigFile" -> "parse Config File"
+    split_camel = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    # Split on underscores and non-alphanumeric characters, keeping tokens >= 3 chars
+    words = re.findall(r"[a-zA-Z0-9]{3,}", split_camel.lower())
+    return {w for w in words if w not in _STOPWORDS}
+
 
 
 class RepoContextPacker:
-    def __init__(self, root_dir: str = ".", max_files: int = 400,
-                 excerpt_lines: int = 40,
-                 symbol_ranker: Optional[Any] = None):
+    def __init__(
+        self,
+        root_dir: str = ".",
+        max_files: int = 400,
+        excerpt_lines: int = 40,
+        symbol_ranker: Optional[Any] = None,
+    ) -> None:
         self.root_dir = os.path.abspath(root_dir)
         self.max_files = max_files
         self.excerpt_lines = excerpt_lines
-        # B1.5: tree-sitter ranker -- diya gaya to use karo, warna ek hi baar
-        # lazy probe (grammars installed na hon to None -> legacy path)
         self.ranker: Any = symbol_ranker if symbol_ranker is not None else self._default_ranker()
 
     @staticmethod
@@ -108,7 +119,7 @@ class RepoContextPacker:
         try:
             from saleha.core.tree_context_ranker import TreeContextRanker
             ranker = TreeContextRanker()
-            return ranker if ranker.available else None
+            return ranker if getattr(ranker, "available", False) else None
         except Exception:
             return None
 
@@ -116,6 +127,7 @@ class RepoContextPacker:
     # Scanning & scoring
     # ------------------------------------------------------------------
     def _iter_code_files(self) -> List[str]:
+        """Walks the workspace directory and collects readable source code files."""
         found: List[str] = []
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
@@ -125,7 +137,7 @@ class RepoContextPacker:
                     continue
                 full = os.path.join(dirpath, fname)
                 try:
-                    if os.path.getsize(full) > 200_000:  # huge generated files skip
+                    if os.path.getsize(full) > 200_000:  # Skip oversized generated artifacts
                         continue
                     with open(full, "r", encoding="utf-8", errors="replace") as f:
                         f.read(400_000)
@@ -136,7 +148,8 @@ class RepoContextPacker:
                     continue
         return found
 
-    def _score_file(self, path: str, task_tokens: set) -> Tuple[float, List[str]]:
+    def _score_file(self, path: str, task_tokens: Set[str]) -> Tuple[float, List[str]]:
+        """Calculates relevance score and extracts display symbols for a source file."""
         rel = safe_relpath(path, self.root_dir).replace("\\", "/")
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
@@ -144,10 +157,6 @@ class RepoContextPacker:
         except OSError:
             return 0.0, []
 
-        # A3+C: symbol extraction priority --
-        #   1) tree-sitter ranker (multi-lang, jab [codeintel] extra installed ho)
-        #   2) Python built-in ast
-        #   3) regex fallback (baaki languages)
         ext = os.path.splitext(path)[1].lower()
         display_symbols: List[str] = []
         symbol_name_list: List[str] = []
@@ -182,13 +191,13 @@ class RepoContextPacker:
         # 1. Path relevance
         path_tokens = _tokenize(rel)
         score += len(task_tokens & path_tokens) * 3.0
-        # 2. Symbol-name relevance (sabse strong signal -- AST-accurate ab)
+        # 2. Symbol-name relevance (strong signal from AST)
         score += len(task_tokens & symbol_tokens) * 2.5
-        # 2b. Docstring relevance (naya: "rate limiter" jaisa task docstring se match)
+        # 2b. Docstring relevance
         score += min(len(task_tokens & doc_tokens), 8) * 1.5
         # 3. Content-head overlap (bounded)
         score += min(len(task_tokens & _tokenize(content_head)), 12) * 1.0
-        # 4. Path heuristics: production code up, tests/docs down
+        # 4. Path heuristics: production code boosted, tests/fixtures downweighted
         lowered = rel.lower()
         if any(k in lowered for k in ("test", "spec", "fixture", "mock")):
             score *= 0.5
@@ -196,7 +205,7 @@ class RepoContextPacker:
             score *= 1.3
         if lowered.endswith("__init__.py") or lowered.endswith("setup.py"):
             score *= 0.8
-        # 5. Entry points get a small boost
+        # 5. Application entry points get a boost
         if os.path.basename(lowered) in ("main.py", "index.js", "app.py", "server.py"):
             score += 2.0
 
@@ -205,12 +214,29 @@ class RepoContextPacker:
     # ------------------------------------------------------------------
     # Packing
     # ------------------------------------------------------------------
-    def pack(self, task: str, budget_chars: int = 6000) -> str:
-        """Task-relevant repo context block return karta hai (budget-bound).
-        Empty repo par empty string."""
+    def pack(
+        self,
+        task: str,
+        budget_chars: Optional[int] = None,
+        model: str = "qwen2.5-coder:3b",
+        max_excerpts: int = 3,
+    ) -> str:
+        """
+        Packs a task-relevant repository context block bounded by character budget.
+        If budget_chars is None, automatically computes a safe character budget
+        scaled to the targeted model's context window.
+        """
         files = self._iter_code_files()
         if not files:
             return ""
+
+        effective_budget: int
+        if budget_chars is not None:
+            effective_budget = max(1000, budget_chars)
+        else:
+            effective_budget = chars_budget_for(model, fraction=0.20)
+            # Bound dynamic budget between 4,000 and 32,000 characters
+            effective_budget = max(4000, min(32000, effective_budget))
 
         task_tokens = _tokenize(task or "")
         scored: List[ScoredFile] = []
@@ -225,8 +251,7 @@ class RepoContextPacker:
 
         scored.sort(key=lambda sf: sf.score, reverse=True)
 
-        # C+: tree-sitter hub-popularity boost (jab ranker available ho) --
-        # shared symbols define karne wali "hub" files ko up-rank karta hai.
+        # Apply popularity boost when ranker is active
         if self.ranker and hasattr(self.ranker, "popularity_boost"):
             try:
                 boosts = self.ranker.popularity_boost()
@@ -245,13 +270,13 @@ class RepoContextPacker:
             for sf in scored
         })[:20]
         tree_block = "### Project Layout\n" + "\n".join(f"- {t}" for t in tree_entries)
-        if used + len(tree_block) < budget_chars:
+        if used + len(tree_block) < effective_budget:
             lines.append(tree_block)
             lines.append("")
             used += len(tree_block) + 2
 
         # --- Section 2: ranked symbol outlines ---
-        outline_budget = int(budget_chars * 0.45)
+        outline_budget = int(effective_budget * 0.45)
         outline = ["### Task-Relevant Symbols (ranked)"]
         outline_used = len(outline[0])
         shown = 0
@@ -270,35 +295,39 @@ class RepoContextPacker:
             lines.append("")
             used += outline_used + 1
 
-        # --- Section 3: excerpt of the single most relevant file ---
+        # --- Section 3: excerpts of top relevant files ---
+        excerpts_added = 0
         for sf in scored:
-            if sf.score <= 0:
+            if sf.score <= 0 or excerpts_added >= max_excerpts:
                 break
-            remaining = budget_chars - used - 64
-            if remaining <= 200:
+            remaining = effective_budget - used - 64
+            if remaining <= 250:
                 break
             try:
                 with open(os.path.join(self.root_dir, sf.path), "r",
                           encoding="utf-8", errors="replace") as f:
                     excerpt_lines = [
-                        ln.rstrip() for i, ln in zip(range(self.excerpt_lines), f)
+                        ln.rstrip() for _, ln in zip(range(self.excerpt_lines), f)
                     ]
                 excerpt = "\n".join(excerpt_lines)[:remaining]
+                lang = "python" if sf.path.endswith(".py") else ""
                 section = (
                     f"### Key File Excerpt: {sf.path}\n"
-                    f"```{'python' if sf.path.endswith('.py') else ''}\n"
+                    f"```{lang}\n"
                     f"{excerpt}\n```"
                 )
-                if used + len(section) < budget_chars:
+                if used + len(section) < effective_budget:
                     lines.append(section)
+                    lines.append("")
+                    used += len(section) + 2
+                    excerpts_added += 1
             except OSError:
                 pass
-            break  # sirf top-1 file ka excerpt (budget discipline)
 
-        if len(lines) == 2:  # sirf header bana
+        if len(lines) <= 2:  # Only header was generated
             return ""
 
-        return "\n".join(lines)
+        return "\n".join(lines).strip()
 
     def stats(self) -> Dict[str, object]:
         files = self._iter_code_files()

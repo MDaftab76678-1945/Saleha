@@ -6792,3 +6792,38 @@ Hardened parallel task graph coordination and bilingual complexity estimation:
   - Total: **23/23 PASSED** in 0.48s.
 - Zero diagnostics across all modified and test files.
 - Committed cleanly on `main` as `eb3ea40`.
+
+## Pass 74: Repo Context Packing & Dynamic Model Budgeting (Round 19)
+
+Hardened repository context mapping and context window protection for local SLM operations:
+
+1. **`repo_context_packer.py` (Aider-style Repository Context Map)**:
+   - Eradicated all historical Hinglish comments and docstrings, replacing them with professional, idiomatic English in compliance with Rule 2.4.
+   - Replaced static 6,000-character budgeting with dynamic model-adaptive character scaling via `ContextBudgetGuard`, providing models like `qwen2.5-coder:3b` and `qwen3:8b` optimal context without overflowing or under-utilizing their windows.
+   - Expanded excerpt packing to support multi-file extraction up to `max_excerpts` (default 3) when remaining budget allows, rather than unconditionally truncating on the single first file.
+   - Fixed tokenization to properly split camelCase (`parseConfigFile` -> `parse`, `config`, `file`) and snake_case tokens while cleanly filtering stopwords.
+   - Added 100% strict type hints across all functions and dataclasses (`Set[str]`, `List[str]`, `Tuple[float, List[str]]`).
+
+2. **`context_budget.py` (Context Budget & Window Protection Guard)**:
+   - Registered modern local model context windows (`qwen3.5:9b`: 40960, `deepseek-r1:7b`: 32768).
+   - Added `chars_budget_for(model, fraction, reserve_output_tokens) -> int` helper function to provide safe character allocations for prompt components.
+   - Added return type annotations on `fit()` (`tuple[str, BudgetCheck]`).
+   - Hardened `saleha/tests/test_context_budget.py` with 100% typed test methods (`-> None:`).
+
+3. **New Test Suite (`saleha/tests/test_repo_context_packer.py`)**:
+   - Added 9 comprehensive unit tests covering camelCase/snake_case tokenization, stopword filtering, AST symbol extraction (classes, sync defs, async defs), heuristic path scoring, dynamic model budgeting, and multi-file excerpts.
+
+### Pass 74 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_context_budget.py saleha/tests/test_repo_context_packer.py saleha/tests/test_v06_features.py -k "RepoContextPacker" -v
+  ```
+
+- Subsystem test results:
+  - `test_context_budget.py`: 32/32 PASSED.
+  - `test_repo_context_packer.py`: 9/9 PASSED.
+  - `test_v06_features.py`: 5/5 PASSED.
+  - Total: **46/46 PASSED** in 0.68s.
+- Zero diagnostics across all modified and test files.

@@ -73,7 +73,9 @@ KNOWN_CONTEXT_WINDOWS = {
     "qwen2.5-coder:3b": 32768,
     "qwen2.5-coder:7b": 32768,
     "qwen3:8b": 40960,
+    "qwen3.5:9b": 40960,
     "deepseek-coder:6.7b": 16384,
+    "deepseek-r1:7b": 32768,
     "llama3.1:8b": 131072,
 }
 DEFAULT_CONTEXT_WINDOW = 8192
@@ -148,6 +150,22 @@ def token_budget(model: str, reserve_output_tokens: int = 0,
     return max(256, usable - max(0, reserve_output_tokens))
 
 
+def chars_budget_for(
+    model: str,
+    fraction: float = 0.20,
+    reserve_output_tokens: int = 512,
+) -> int:
+    """
+    Computes a safe character limit for a prompt sub-component (e.g. repository map
+    or RAG context) based on the target model's available token budget.
+    Clamps the fraction between 0.05 and 0.50.
+    """
+    safe_fraction = max(0.05, min(0.50, fraction))
+    total_tokens = token_budget(model, reserve_output_tokens=reserve_output_tokens)
+    allocated_tokens = int(total_tokens * safe_fraction)
+    return max(500, int(allocated_tokens * CHARS_PER_TOKEN))
+
+
 def check(prompt: str, model: str, reserve_output_tokens: int = 0) -> BudgetCheck:
     """Measure a prompt against the budget without changing it."""
     est = estimate_tokens(prompt)
@@ -162,7 +180,7 @@ def check(prompt: str, model: str, reserve_output_tokens: int = 0) -> BudgetChec
     )
 
 
-def fit(prompt: str, model: str, reserve_output_tokens: int = 0):
+def fit(prompt: str, model: str, reserve_output_tokens: int = 0) -> tuple[str, BudgetCheck]:
     """
     Trim a prompt to fit, keeping the head and tail.
 
