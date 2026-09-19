@@ -6263,3 +6263,92 @@ not have caught this one (the name sat inside a `ctx.forward` argument).
 Quality gate: `architecture_debater.py` 96.0, `neural_designer.py` 96.0,
 `research_experimental.py` 71.0 -> **96.0**, `model_provider.py` 84.0, test
 files 96-100.
+
+## Sixty-fourth pass — the router could not route (2026-09-20)
+
+Flagged at the end of pass 63: the router's catalog did not match the
+machine. Reading `smart_router.py` in full found that, plus two scoring
+defects that made the catalog fix insufficient on its own.
+
+### The catalog described a different machine
+
+| problem | detail |
+| --- | --- |
+| 5 of 10 entries not installed | `qwen3-coder:30b`, `devstral:24b`, `deepseek-r1:8b`, `qwen2.5-coder:7b`, `qwen3:4b` |
+| 1 installed model missing | **`qwen3:8b`** -- the most capable general model here, in no candidate list at all |
+| every overlapping size wrong | see below |
+
+Sizes are not cosmetic: `_score_model()` adds `10.0 / size_gb`.
+
+| model | catalog | measured | effect |
+| --- | --- | --- | --- |
+| `qwen3.5:4b` | 0.8 GB | **3.4 GB** | size score 12.50 vs 2.94 -- **4.2x inflation** |
+| `deepseek-coder:6.7b` | 6.7 GB | 3.8 GB | understated |
+| `deepseek-r1:7b` | 7.0 GB | 4.7 GB | understated |
+| `qwen3.5:9b` | 9.0 GB | 6.6 GB | understated |
+
+The three understated-the-other-way entries all recorded the **parameter
+count** rather than the on-disk size of the quantized weights. Every size is
+now read from `/api/tags` and pinned by a test. Uninstalled entries are kept
+deliberately (another machine may have them, and `_filter_installed()` drops
+them when probing) but are now labelled as unverified estimates.
+
+Consequence on this box: every complexity>=5 candidate list resolved to
+`["qwen2.5-coder:3b"]` alone, so mid-tier work went to the smallest model
+installed.
+
+### Fixing the catalog was not enough: an unused model could never be chosen
+
+With `qwen3:8b` finally in the list, it still lost:
+
+```
+task "design a distributed system", complexity 6.0
+  qwen2.5-coder:3b  score 59.47  uses=2551  keywords matched: none
+  qwen3:8b          score  9.92  uses=0     keywords matched: design, system
+```
+
+An unused model scored 0 for history while the incumbent collected up to 40
+(success) + 30 (speed). With **all seven** of its keywords present, `qwen3:8b`
+still only reached 29.92. That is self-reinforcing: `qwen2.5-coder:3b` was
+the default, so it has 2551 runs, so it wins, so nothing else is ever tried.
+A "smart router" that can only ever pick its incumbent is not routing.
+
+Fixed with priors for an unobserved model -- scored average-until-observed
+rather than as failing (`0.75` success, `2.0` speed, both decaying as real
+results arrive). Deliberately mid-range, not optimistic: the test suite pins
+that a proven model still outranks an untried one all else equal. After:
+9.92 -> **45.92**.
+
+### And the speed term was unbounded
+
+Found while checking why 3b still won:
+
+```
+qwen2.5-coder:7b  uses=219  avg_time=0.0000s  ->  time component 12,346,136
+```
+
+219 cached or mocked runs recorded as real timings. `10.0 / avg_time` has no
+ceiling, so the moment that model were installed it would win every route
+regardless of task, success rate or size. Clamped at `_MAX_SPEED_SCORE =
+10.0` (a 1-second average earns the full nudge): **12,346,136 -> 30.00**.
+
+### Routing after the three fixes
+
+```
+  design a distributed system        c=9.5 -> qwen3:8b
+  fix a bug in this function         c=9.5 -> deepseek-coder:6.7b
+  analyze and plan the architecture  c=9.5 -> qwen3:8b
+```
+
+Selection now varies with the task. Complexity 6 still routes to
+`qwen2.5-coder:3b`, and that is now a legitimate outcome rather than a
+structural one: it has 2551 real runs at 90.8% success against an untried
+challenger. The difference is that the challenger can now win once it has a
+record -- before, it could not win at any score.
+
+Also translated the module docstring and two method docstrings from
+Hindi/Hinglish to English per the language rule.
+
+**Measured:** suite 1966 -> **1977 passed**, 13 skipped, 153 subtests.
+Quality gate: `smart_router.py` 78.0, `test_smart_router_catalog.py` 100.0.
+Teeth-checked: 10 failures against the unfixed router.

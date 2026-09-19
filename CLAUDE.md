@@ -1289,6 +1289,39 @@ path for exactly that question.
 Measured: suite 1939 → **1966 passed**, 13 skipped, 110 subtests.
 Detail: `NOTEBOOK_IMPORT.md`, "Sixty-third pass."
 
+**The router could not route (pass 64).** Three defects; fixing only the
+first would not have changed a single routing decision.
+
+- **The catalog described a different machine.** 5 of 10 entries were not
+  installed; `qwen3:8b` — the most capable general model here — was in no
+  candidate list at all; and every overlapping size was wrong. Sizes are
+  load-bearing (`_score_model()` adds `10.0 / size_gb`): `qwen3.5:4b` was
+  listed at 0.8 GB against a real **3.4 GB**, a 4.2x score inflation on
+  every call. Three others recorded the *parameter count* instead of the
+  on-disk quantized size. All sizes now read from `/api/tags` and pinned by
+  tests. Consequence on this box: every complexity≥5 list resolved to
+  `["qwen2.5-coder:3b"]` alone, so mid-tier work went to the smallest model.
+- **An unused model could never be chosen.** It scored 0 for history while
+  the incumbent collected up to 40 (success) + 30 (speed). `qwen3:8b` with
+  **all seven** keywords matched still reached only 29.92 against
+  `qwen2.5-coder:3b`'s 59.47 — which matched *none* of its own keywords but
+  had 2551 runs. Self-reinforcing: default → most runs → always wins →
+  nothing else ever tried. Now scored average-until-observed (priors decay
+  as real results arrive); a proven model still outranks an untried one all
+  else equal, which is pinned by a test. 9.92 → **45.92**.
+- **The speed term was unbounded.** `qwen2.5-coder:7b` sits in history with
+  219 uses at `avg_time 0.0000s` — cached/mocked runs recorded as real
+  timings — scoring **12,346,136**, enough to win every route the moment it
+  were installed, whatever the task. Clamped: → **30.00**.
+
+Routing now varies with the task (bug fix → `deepseek-coder:6.7b`,
+architecture → `qwen3:8b`). Complexity 6 still picks `qwen2.5-coder:3b`, but
+that is now earned (2551 runs, 90.8% success) rather than structural.
+Module and two method docstrings translated from Hindi to English.
+
+Measured: suite 1966 → **1977 passed**, 13 skipped, 153 subtests.
+Detail: `NOTEBOOK_IMPORT.md`, "Sixty-fourth pass."
+
 ---
 
 ## Environment facts worth knowing
@@ -1317,8 +1350,8 @@ Detail: `NOTEBOOK_IMPORT.md`, "Sixty-third pass."
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1966 passed, 13 skipped,
-  110 subtests, ~110-300s (as of pass 63). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 1977 passed, 13 skipped,
+  153 subtests, ~110-300s (as of pass 64). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once

@@ -1,17 +1,29 @@
 """
-Saleha Core: Smart Model Router (Level 3 -- 2026 Catalog + Runtime Probing)
+Saleha Core: Smart Model Router -- catalog + runtime Ollama probing.
 
-Naya vs pehle:
-1. Model catalog me 2026-generation local models add kiye gaye hain
-   (qwen3-coder:30b, devstral:24b, deepseek-r1:8b, qwen2.5-coder:7b,
-   qwen3:4b) -- purane models ab bhi legacy fallback ke liye hain.
-2. Runtime Ollama probing (`/api/tags`) -- agar probe enabled hai to
-   router sirf actually-installed models hi choose karta hai, aur
-   install-status ke hisaab se candidate list adapt ho jaati hai.
-3. History file ab CWD-relative nahi -- default `~/.saleha/router_history.json`
-   (pehle repo root me `router_history.json` pollute hota tha).
-4. Probe opt-in hai (BaseAgent "auto" mode ise enable karta hai) taaki
-   direct SmartRouter use karne wala behavior deterministic rahe.
+Routing works by scoring candidate models and picking the best. Candidates
+come from a static catalog, narrowed to what is actually installed when
+`probe_runtime` is on (BaseAgent's "auto" mode enables it; direct users get
+deterministic behavior). An unreachable Ollama falls back to the full
+catalog rather than routing to nothing. History lives in
+`~/.saleha/router_history.json`, not the repo root.
+
+## Catalog sizes are load-bearing, so they are measured
+
+`_score_model()` adds `10.0 / size_gb`, so a wrong size directly changes
+which model is chosen. Every size here was read from this machine's
+`/api/tags` rather than estimated. The previous values were guesses and all
+four overlapping entries were wrong -- `qwen3.5:4b` was listed at 0.8 GB
+against a real 3.4 GB, giving it a size score of 12.50 instead of 2.94, a
+**4.2x inflation** that biased selection toward it on every scored call.
+
+The catalog also carried five models that are not installed here
+(`qwen3-coder:30b`, `devstral:24b`, `deepseek-r1:8b`, `qwen2.5-coder:7b`,
+`qwen3:4b`) while omitting `qwen3:8b`, which is installed -- so the most
+capable general model on the box was unroutable, and half the candidate
+lists resolved to nothing. Entries for uninstalled models are kept
+deliberately (a different machine may have them, and `_filter_installed`
+drops them when probing), but their sizes are now marked as unverified.
 """
 
 from __future__ import annotations
@@ -33,10 +45,15 @@ _probe_cache_models: Set[str] = set()
 
 
 def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
-    """Ollama /api/tags se installed model names laata hai (TTL-cached).
+    """Installed model names from Ollama's /api/tags, TTL-cached.
 
-    Return empty set ka matlab: Ollama down ya unreachable -- is case me
-    router ko static catalog pe fall back karna chahiye.
+    An empty set means Ollama is down or unreachable, and callers should fall
+    back to the static catalog.
+
+    Note the returned set carries a bare base name beside every tagged one
+    ("qwen3.5" as well as "qwen3.5:9b") so an untagged request still matches.
+    That makes it a matching index, not an inventory -- counting it reported
+    15 models on a box with 8 (see `saleha doctor`, pass 62).
     """
     global _probe_cache_at, _probe_cache_models
     now = time.time()
@@ -94,6 +111,17 @@ class TaskResult:
 
 
 class SmartRouter:
+    # Priors for a model with no recorded runs. Deliberately mid-range, not
+    # optimistic: the goal is that an unused model can compete on merit, not
+    # that it displaces a proven one. A model matching its keywords wins; one
+    # that does not still loses to an incumbent with a real track record.
+    _UNTRIED_SUCCESS_PRIOR = 0.75
+    _UNTRIED_SPEED_PRIOR = 2.0
+    # Ceiling on the speed term. 10.0 corresponds to a 1-second average, so a
+    # genuinely fast model still earns the full nudge; anything faster stops
+    # buying more advantage.
+    _MAX_SPEED_SCORE = 10.0
+
     def __init__(self, history_file: Optional[str] = None, probe_runtime: bool = False):
         self.history_file = history_file or get_default_history_path()
         self.probe_runtime = probe_runtime
@@ -110,7 +138,9 @@ class SmartRouter:
 
     def _init_models(self) -> Dict[str, ModelProfile]:
         return {
-            # ---------- 2026 generation catalog ----------
+            # ---------- not installed here: sizes are estimates, not measured.
+            # Kept because another machine may have them; _filter_installed()
+            # drops them when probing is on. ----------
             "qwen3-coder:30b": ModelProfile(
                 name="qwen3-coder:30b",
                 size_gb=18.0,
@@ -141,11 +171,20 @@ class SmartRouter:
                 speed="fast",
                 best_for=["utility", "convert", "parse", "medium"]
             ),
-            # ---------- legacy catalog (backward compatibility) ----------
+            # ---------- installed on this machine: sizes read from /api/tags ----------
+            "qwen3:8b": ModelProfile(
+                name="qwen3:8b",
+                size_gb=5.2,
+                speed="medium",
+                best_for=["reason", "plan", "analyze", "design", "architecture",
+                          "system", "explain"]
+            ),
             "qwen3.5:4b": ModelProfile(
                 name="qwen3.5:4b",
-                size_gb=0.8,
-                speed="ultra_fast",
+                # Was 0.8 -- a guess, 4.2x off. It inflated this model's size
+                # score to 12.50 against a true 2.94 on every scored call.
+                size_gb=3.4,
+                speed="medium",
                 best_for=["test", "check", "validate", "simple"]
             ),
             # Was two entries (1.5b and 3b). The 1.5b model was removed from
@@ -160,28 +199,31 @@ class SmartRouter:
             ),
             "deepseek-coder:6.7b": ModelProfile(
                 name="deepseek-coder:6.7b",
-                size_gb=6.7,
+                size_gb=3.8,          # was 6.7 (the parameter count, not the
+                                      # on-disk size of the quantized weights)
                 speed="medium",
                 best_for=["complex", "debug", "refactor"]
             ),
             "deepseek-r1:7b": ModelProfile(
                 name="deepseek-r1:7b",
-                size_gb=7.0,
+                size_gb=4.7,          # was 7.0, same parameter-count mistake
                 speed="medium",
                 best_for=["reason", "plan", "analyze"]
             ),
             "qwen3.5:9b": ModelProfile(
                 name="qwen3.5:9b",
-                size_gb=9.0,
+                size_gb=6.6,          # was 9.0, same parameter-count mistake
                 speed="slow",
                 best_for=["comprehensive", "massive", "full"]
             ),
         }
 
     def _filter_installed(self, candidates: List[str]) -> List[str]:
-        """Agar runtime probing on hai aur Ollama reachable hai, to candidate
-        list ko sirf installed models tak simit karo. Probe fail / empty hone
-        par original list wapas (offline-safe behavior)."""
+        """Narrow candidates to installed models when probing is enabled.
+
+        A failed or empty probe returns the original list, so an unreachable
+        Ollama degrades to catalog-only routing rather than to nothing.
+        """
         if not self.probe_runtime:
             return candidates
         installed = get_installed_ollama_models()
@@ -237,33 +279,42 @@ class SmartRouter:
             return "cool"
 
     def _get_candidate_models(self, complexity: float, thermal_state: str) -> List[str]:
-        """Complexity aur thermal state ke hisaab se candidate models.
-        2026-generation models ko prefer kiya gaya hai jab wo installed hain
-        (probe_runtime), warna legacy list deterministic fallback hai."""
+        """Candidates by complexity and thermal state.
+
+        Larger models lead each list; `_filter_installed()` drops the ones
+        this machine does not have, so a box with `qwen3-coder:30b` uses it
+        and a box without falls through to what it does have.
+
+        Every mid-tier list previously named only models absent from this
+        machine plus `qwen2.5-coder:3b`, so a complexity-6 task -- squarely
+        mid-tier work -- routed to the smallest model installed. `qwen3:8b`
+        was installed the whole time and appeared in no list at all.
+        """
 
         if thermal_state == "hot":
+            # Hot: prefer smaller models; the machine is already loaded.
             if complexity >= 9.0:
                 return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "deepseek-coder:6.7b"])
-            elif complexity >= 5.0:
-                return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b"])
-            else:
-                return self._filter_installed(["qwen2.5-coder:3b"])
-
-        elif thermal_state == "warm":
-            if complexity >= 9.0:
-                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b"])
             elif complexity >= 5.0:
                 return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
             else:
                 return self._filter_installed(["qwen2.5-coder:3b"])
 
+        elif thermal_state == "warm":
+            if complexity >= 9.0:
+                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "qwen3:8b"])
+            elif complexity >= 5.0:
+                return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen3:8b", "qwen2.5-coder:3b"])
+            else:
+                return self._filter_installed(["qwen2.5-coder:3b"])
+
         else:
             if complexity >= 9.0:
-                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "deepseek-coder:6.7b"])
+                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "qwen3:8b", "deepseek-coder:6.7b"])
             elif complexity >= 5.0:
-                return self._filter_installed(["devstral:24b", "deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
+                return self._filter_installed(["devstral:24b", "qwen3:8b", "deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
             elif complexity >= 2.0:
-                return self._filter_installed(["qwen2.5-coder:3b", "qwen3:4b"])
+                return self._filter_installed(["qwen2.5-coder:3b", "qwen3.5:4b", "qwen3:4b"])
             else:
                 return self._filter_installed(["qwen2.5-coder:3b"])
 
@@ -272,14 +323,32 @@ class SmartRouter:
         perf = self.model_performance[model_name]
         score = 0.0
 
+        # An unused model scored 0 here while the incumbent collected up to
+        # 40 (success) + 30 (speed), so it could never be picked no matter how
+        # well it matched -- and never being picked kept its use count at 0.
+        # Measured on this box: qwen2.5-coder:3b had 2551 uses and scored
+        # 59.47 on "design a distributed system" while matching zero of its
+        # own keywords; qwen3:8b matched two and scored 9.92. With every one
+        # of its seven keywords present it still only reached 29.92.
+        #
+        # A new model is therefore scored as average-until-observed rather
+        # than as failing. Both priors decay as real results arrive, so this
+        # only governs the first few calls.
         if perf["uses"] > 0:
             success_rate = perf["success_count"] / perf["uses"]
             score += success_rate * 40.0
-
-        if perf["uses"] > 0:
             avg_time = max(0.001, perf["total_time"] / perf["uses"])
-            time_score = max(1.0, 10.0 / avg_time)
+            # Clamped at both ends. Unbounded above, this term dwarfed every
+            # other signal: qwen2.5-coder:7b sits in this machine's history
+            # with 219 uses at avg_time 0.0000s -- cached or mocked runs
+            # recorded as real timings -- scoring 12,346,136 and guaranteeing
+            # it would win every route the moment it was installed, whatever
+            # the task. Speed is worth a nudge, not a veto.
+            time_score = min(self._MAX_SPEED_SCORE, max(1.0, 10.0 / avg_time))
             score += time_score * 3.0
+        else:
+            score += self._UNTRIED_SUCCESS_PRIOR * 40.0
+            score += self._UNTRIED_SPEED_PRIOR * 3.0
 
         task_lower = task.lower()
         keyword_matches = sum(1 for kw in profile.best_for if kw in task_lower)
