@@ -11,7 +11,6 @@ import argparse
 import json
 import os
 import sys
-from typing import Optional
 
 # Ensure repository root is on sys.path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,10 +20,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from saleha.core.self_improve import (
-    find_untested_module,
     run_self_improvement_cycle,
     read_log,
-    SelfImproveResult,
     BRANCH_NAME,
     LOG_PATH,
     CORE_DIR,
@@ -123,6 +120,13 @@ def cmd_batch(args: argparse.Namespace) -> None:
         elif res.status == "no_candidate":
             print(f"[{i}/{attempts}] No remaining untested candidate modules.")
             break
+        elif res.status == "commit_failed":
+            # Not the module's fault -- a blocked hook or unusable branch fails
+            # identically for every candidate, so burning the rest of the batch
+            # on real model generations would just repeat it.
+            print(f"[{i}/{attempts}] commit_failed for {res.module}: {res.detail[:160]}")
+            print("  -> stopping batch: the commit step is failing for reasons independent of the module")
+            break
         elif res.status in ("generation_failed", "test_failed"):
             print(f"[{i}/{attempts}] {res.status} for {res.module}")
             if res.module:
@@ -183,7 +187,8 @@ def main() -> None:
     # logs
     p_logs = subparsers.add_parser("logs", help="Inspect execution audit log")
     p_logs.add_argument("--limit", type=int, default=20, help="Number of log entries to fetch")
-    p_logs.add_argument("--status", choices=["committed", "test_failed", "generation_failed", "no_candidate"],
+    p_logs.add_argument("--status",
+                        choices=["committed", "test_failed", "generation_failed", "commit_failed", "no_candidate"],
                         help="Filter by outcome status")
     p_logs.add_argument("--output", required=True, help="Path to write JSON log entries")
     p_logs.set_defaults(func=cmd_logs)

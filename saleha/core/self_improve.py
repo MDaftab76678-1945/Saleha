@@ -44,7 +44,7 @@ class SelfImproveResult:
     timestamp: str
     module: str
     goal: str
-    status: str  # "committed" | "test_failed" | "generation_failed" | "no_candidate"
+    status: str  # "committed" | "test_failed" | "generation_failed" | "commit_failed" | "no_candidate"
     detail: str
     branch: Optional[str] = None
     commit_sha: Optional[str] = None
@@ -398,11 +398,57 @@ def run_self_improvement_cycle(skip: Optional[set] = None, max_repairs: int = 2)
         f.write(test_source)
 
     original_branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+
+    def _abandon(detail: str) -> SelfImproveResult:
+        """Removes the generated file and returns to the starting branch.
+
+        Leaving the file behind is what previously stranded a generated test
+        staged on the branch the cycle started from -- the exact branch the
+        module's safety rails promise never to touch."""
+        try:
+            os.remove(test_path)
+        except OSError:
+            pass
+        _run(["git", "reset", "HEAD", "--", os.path.relpath(test_path, REPO_ROOT)])
+        current = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+        if original_branch and current != original_branch:
+            _run(["git", "checkout", original_branch])
+        res = SelfImproveResult(
+            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+            module=module,
+            goal=goal,
+            status="commit_failed",
+            detail=detail,
+        )
+        _log(res)
+        return res
+
     branch_exists = _run(["git", "show-ref", "--verify", "--quiet", f"refs/heads/{BRANCH_NAME}"]).returncode == 0
-    _run(["git", "checkout", BRANCH_NAME] if branch_exists else ["git", "checkout", "-b", BRANCH_NAME])
-    _run(["git", "add", os.path.relpath(test_path, REPO_ROOT)])
+    checkout = _run(["git", "checkout", BRANCH_NAME] if branch_exists else ["git", "checkout", "-b", BRANCH_NAME])
+    if checkout.returncode != 0:
+        # Continuing here would run `git add` + `git commit` against whatever
+        # branch is still checked out, i.e. commit to the working branch.
+        return _abandon(f"Could not switch to {BRANCH_NAME}: {(checkout.stderr or checkout.stdout).strip()[:600]}")
+
+    on_branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+    if on_branch != BRANCH_NAME:
+        return _abandon(f"Expected to be on {BRANCH_NAME} after checkout, but HEAD is {on_branch!r}.")
+
+    add_proc = _run(["git", "add", os.path.relpath(test_path, REPO_ROOT)])
+    if add_proc.returncode != 0:
+        return _abandon(f"git add failed: {(add_proc.stderr or add_proc.stdout).strip()[:600]}")
+
     commit_msg = f"test: autonomous test for saleha/core/{module}\n\nGenerated and verified passing by saleha's self-improvement engine."
     commit_proc = _run(["git", "commit", "-m", commit_msg])
+    if commit_proc.returncode != 0:
+        # A pre-commit hook rejects the commit here. Reading HEAD regardless
+        # yields the *previous* commit's sha, which is how a blocked commit
+        # used to be reported as a successful one.
+        return _abandon(
+            "git commit failed (returncode "
+            f"{commit_proc.returncode}): {(commit_proc.stderr or commit_proc.stdout).strip()[:600]}"
+        )
+
     sha = _run(["git", "rev-parse", "HEAD"]).stdout.strip()
     if original_branch and original_branch != BRANCH_NAME:
         _run(["git", "checkout", original_branch])
@@ -412,7 +458,7 @@ def run_self_improvement_cycle(skip: Optional[set] = None, max_repairs: int = 2)
         module=module,
         goal=goal,
         status="committed",
-        detail=commit_proc.stdout.strip() or "committed",
+        detail=commit_proc.stdout.strip() or commit_proc.stderr.strip() or f"committed {sha[:8]}",
         branch=BRANCH_NAME,
         commit_sha=sha,
     )
