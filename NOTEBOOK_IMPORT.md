@@ -6949,3 +6949,42 @@ Hardened execution audit logging, forensic verification, and persistent long-ter
   - Multi-module regression suite: **63/63 PASSED** in 1.01s.
 - Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
 - Committed cleanly on `main` as `6b1202a`.
+
+## Pass 78: Encrypted Secret Vault & Zero-Trust Agent Permissions (Round 23)
+
+Hardened encrypted credential storage, cryptographic key rotation, and zero-trust capability boundary enforcement:
+
+1. **`agent_permissions.py` (Zero-Trust Capability Boundary & AgentShield)**:
+   - **Critical Security Enforcement (Hinton-Amodei Rule)**: Enforced `blocked_patterns` (`.env`, `id_rsa`, `.git`, `passwd`, `shadow`) in `validate_file_write()`, eliminating the historical defect where blocked patterns were defined in dataclasses but never checked in code.
+   - Upgraded workspace boundary verification using `os.path.commonpath` containment preventing prefix bypasses.
+   - Added `validate_tool_access(token, tool_name)` checking against `token.granted_tools`.
+   - Added `validate_process_execution(token, command, requested_timeout)` validating process execution timeouts and preventing complex shell metacharacters (`&&`, `;`, `|`, etc.) when `allow_shell=False`.
+
+2. **`vault.py` (Encrypted Secret & Knowledge Vault)**:
+   - Added `has_secret(key, check_env=False)` allowing callers to check whether a secret is stored directly in the vault without ambient environment ambiguity.
+   - Added `allow_env_fallback=True` to `get_secret(key)` allowing strict queries that isolate vault secrets from OS environment variables.
+   - Implemented safe cryptographic master passphrase rotation (`rekey(new_passphrase)`) that decrypts current vault data and re-encrypts under a fresh PBKDF2 salt and derived key atomically with rollback protection.
+   - Added `stats()` returning secret counts, file size, vault and salt existence, and sorted key lists.
+   - Unified salt path resolution with `DEFAULT_SALT_PATH` fallback and empty-file protection.
+
+3. **Unit Tests**:
+   - `saleha/tests/test_agent_permissions.py`: 7 tests (+3 new tests covering `.env`/`id_rsa`/`.git` write blocking, tool capabilities, and process execution limits).
+   - `saleha/tests/test_vault.py`: 10 tests (+4 new tests covering `has_secret`, `allow_env_fallback`, atomic `rekey` rotation, and `stats`).
+   - 100% typed test methods (`def test_xxx(self) -> None:`) across all test classes adhering to Rule TYPE-001.
+
+### Pass 78 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_vault.py saleha/tests/test_agent_permissions.py -v
+  ```
+
+- Subsystem test results:
+  - `test_vault.py`: 10/10 PASSED.
+  - `test_agent_permissions.py`: 7/7 PASSED.
+  - Total: **17/17 PASSED** in 0.52s.
+- Regression test results:
+  - Multi-module regression suite: **58/58 PASSED** in 1.21s.
+- Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
+- Committed cleanly on `main` as `9ff06a3`.
