@@ -385,7 +385,10 @@ class SalehaDPODatasetEngine:
 
     def __init__(self, output_dir: str = "datasets"):
         self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
+        # No mkdir here: `output_dir` is relative to the caller's cwd and the
+        # module-level singleton below is built at import time, so this
+        # created a stray `datasets/` directory on import. Every write path
+        # already creates its own parent directory before writing.
         self.dpo_pairs: List[DPOPreferencePair] = []
         self.sft_samples: List[SFTInstructionSample] = []
 

@@ -31,6 +31,13 @@ class SwarmCheckpointStore:
 
     def __init__(self, storage_dir: Optional[str] = None):
         self.storage_dir = storage_dir or os.path.join(".saleha", "checkpoints")
+
+    def _ensure_storage(self) -> None:
+        """Creates the checkpoint directory. Called before a write, never on
+        construction: the module-level singleton below is built at import
+        time, so doing this in __init__ made merely importing this module
+        create `.saleha/checkpoints/` in the caller's current directory --
+        in any repository the user happened to be standing in."""
         os.makedirs(self.storage_dir, exist_ok=True)
 
     def _get_path(self, execution_id: str) -> str:
@@ -38,6 +45,7 @@ class SwarmCheckpointStore:
 
     def save_checkpoint(self, checkpoint: SwarmCheckpoint) -> None:
         checkpoint.updated_at = time.time()
+        self._ensure_storage()
         file_path = self._get_path(checkpoint.execution_id)
         data = {
             "execution_id": checkpoint.execution_id,
@@ -100,5 +108,23 @@ class SwarmCheckpointStore:
         return False
 
 
+class _LazyCheckpointStore:
+    """Defers construction until the singleton is actually used, so importing
+    this module does not bind a storage path relative to the importer's cwd."""
+
+    __slots__ = ("_impl",)
+
+    def __init__(self) -> None:
+        self._impl: Optional[SwarmCheckpointStore] = None
+
+    def _get(self) -> SwarmCheckpointStore:
+        if self._impl is None:
+            self._impl = SwarmCheckpointStore()
+        return self._impl
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
 # Global Singleton Instance
-checkpoint_store = SwarmCheckpointStore()
+checkpoint_store = _LazyCheckpointStore()

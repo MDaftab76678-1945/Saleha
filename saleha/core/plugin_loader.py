@@ -25,10 +25,22 @@ class PluginLoader:
     """Discovers and orchestrates lifecycle hooks and custom third-party plugins."""
 
     def __init__(self, plugin_dirs: Optional[List[str]] = None):
-        self.plugin_dirs = plugin_dirs or [
-            os.path.join(os.path.expanduser("~"), ".saleha", "plugins"),
-            os.path.abspath(".saleha/plugins")
-        ]
+        # The working directory is deliberately NOT a default plugin source.
+        # `_load_plugin_file` calls `exec_module`, so including it meant that
+        # standing in any directory containing `.saleha/plugins/*.py` and
+        # importing this module executed that code -- no prompt, no opt-in.
+        # A cloned repository could therefore run code merely by being the
+        # cwd. The user's own home directory stays, since it is theirs.
+        # Set SALEHA_PLUGIN_DIRS (os.pathsep-separated) to opt a project
+        # directory back in explicitly.
+        if plugin_dirs is None:
+            plugin_dirs = [os.path.join(os.path.expanduser("~"), ".saleha", "plugins")]
+            env_dirs = os.environ.get("SALEHA_PLUGIN_DIRS", "").strip()
+            if env_dirs:
+                plugin_dirs.extend(
+                    d for d in (p.strip() for p in env_dirs.split(os.pathsep)) if d
+                )
+        self.plugin_dirs = plugin_dirs
         self.plugins: Dict[str, PluginInfo] = {}
         self.hooks: Dict[str, List[Callable]] = {
             "on_task_start": [],
@@ -89,6 +101,28 @@ class PluginLoader:
         return list(self.plugins.values())
 
 
+class _LazyPluginLoader:
+    """Defers plugin discovery until the loader is actually used.
+
+    Constructing it at import time ran `load_all_plugins()` -- and therefore
+    `exec_module` on every discovered file -- as a side effect of importing
+    this module.
+    """
+
+    __slots__ = ("_impl",)
+
+    def __init__(self) -> None:
+        self._impl: Optional[PluginLoader] = None
+
+    def _get(self) -> PluginLoader:
+        if self._impl is None:
+            self._impl = PluginLoader()
+        return self._impl
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
 # Global instance
-plugin_loader = PluginLoader()
+plugin_loader = _LazyPluginLoader()
 

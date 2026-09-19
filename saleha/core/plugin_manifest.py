@@ -40,7 +40,11 @@ class PluginManifestEngine:
     def __init__(self, plugins_dir: Optional[str] = None):
         self.plugins_dir = plugins_dir or os.path.join(".saleha", "plugins")
         self._plugins: Dict[str, SalehaPluginManifest] = {}
-        os.makedirs(self.plugins_dir, exist_ok=True)
+        # No mkdir here: this path is relative to the caller's cwd and the
+        # module-level singleton below is built at import time, so creating
+        # it on construction littered `.saleha/plugins/` into whatever
+        # directory the user happened to be in. `discover_plugins` already
+        # handles a missing directory.
         self.discover_plugins()
 
     def discover_plugins(self) -> List[SalehaPluginManifest]:
@@ -93,5 +97,23 @@ class PluginManifestEngine:
         return list(self._plugins.values())
 
 
+class _LazyPluginManifestEngine:
+    """Defers discovery until used, so importing this module does not scan
+    the caller's working directory."""
+
+    __slots__ = ("_impl",)
+
+    def __init__(self) -> None:
+        self._impl: Optional[PluginManifestEngine] = None
+
+    def _get(self) -> PluginManifestEngine:
+        if self._impl is None:
+            self._impl = PluginManifestEngine()
+        return self._impl
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
 # Global Singleton Instance
-plugin_engine = PluginManifestEngine()
+plugin_engine = _LazyPluginManifestEngine()

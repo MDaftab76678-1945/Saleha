@@ -66,13 +66,15 @@ class TreeOfThoughtsOrchestrator:
         self.heuristics_file = self.memory_dir / "learned_heuristics.json"
         self.sandbox = SandboxRunner()
         self.security = ASTSecurityScanner()
-        self._ensure_storage()
 
     def _ensure_storage(self):
+        """Creates the memory directory. Called before a write, never on
+        construction: the module-level singleton below is built at import
+        time, so doing this in __init__ made merely importing this module
+        create a .saleha/ directory in whatever the caller's cwd happened
+        to be."""
         if not self.memory_dir.exists():
             self.memory_dir.mkdir(parents=True, exist_ok=True)
-        if not self.heuristics_file.exists():
-            self.heuristics_file.write_text(json.dumps([], indent=2), encoding="utf-8")
 
     def get_learned_heuristics(self) -> List[Dict[str, Any]]:
         try:
@@ -90,6 +92,7 @@ class TreeOfThoughtsOrchestrator:
                 "rule": rule,
                 "context": context
             })
+            self._ensure_storage()
             with open(self.heuristics_file, "w", encoding="utf-8") as f:
                 json.dump(heuristics, f, indent=2)
 
@@ -311,5 +314,27 @@ class TreeOfThoughtsOrchestrator:
         return fixed if fixed.strip() else base_code
 
 
+class _LazyToTOrchestrator:
+    """Defers construction until the singleton is actually used.
+
+    Building it at import time constructed a SandboxRunner and an
+    ASTSecurityScanner for any process that merely imported
+    `saleha.core.loop`, which re-exports this name at module level.
+    """
+
+    __slots__ = ("_impl",)
+
+    def __init__(self) -> None:
+        self._impl: Optional[TreeOfThoughtsOrchestrator] = None
+
+    def _get(self) -> TreeOfThoughtsOrchestrator:
+        if self._impl is None:
+            self._impl = TreeOfThoughtsOrchestrator()
+        return self._impl
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
 # Global Singleton ToT Orchestrator
-tot_orchestrator = TreeOfThoughtsOrchestrator()
+tot_orchestrator = _LazyToTOrchestrator()
