@@ -634,3 +634,107 @@ def run_container_cli_cmd(code_or_file: str, timeout: float) -> None:
     if res.error:
         console.print(Panel(res.error, title='[bold red]Stderr / Diagnostic Output[/]', border_style='red'))
 
+@cli.command('solve')
+@click.argument('goal_or_issue')
+@click.option('--dir', 'root_dir', default='.', type=click.Path(exists=True, file_okay=False), help='Target repository root directory')
+@click.option('--model', '-m', default='auto', help='Model to use')
+@click.option('--max-steps', default=15, type=click.IntRange(1, 50), help='Maximum agent steps')
+@click.option('--branch', '-b', default=None, help='Custom fix branch name')
+@click.option('--test-command', '-t', default=None, help='Verification command, e.g. "pytest -q"')
+@click.option('--auto-pr', is_flag=True, help='Open a Pull Request on GitHub')
+@click.option('--json', 'as_json', is_flag=True, help='Print machine-readable JSON response')
+def solve_cmd(goal_or_issue: str, root_dir: str, model: str, max_steps: int,
+              branch: Optional[str], test_command: Optional[str],
+              auto_pr: bool, as_json: bool) -> None:
+    """Autonomously investigate, patch, test, and resolve a software issue or task.
+
+    Can take a numeric GitHub issue ('42'), issue URL, or natural language goal:
+        saleha solve 42 --test-command "pytest -q"
+        saleha solve "Fix division by zero in calc.py" --test-command "pytest tests/test_calc.py"
+    """
+    import shlex
+    from saleha.core.issue_resolver import IssueResolver
+
+    test_argv = shlex.split(test_command) if test_command else None
+
+    if not as_json:
+        console.print(Panel.fit(
+            f"[bold cyan]🎯 Task / Issue:[/] {goal_or_issue}\n"
+            f"[bold cyan]📁 Root:[/] {os.path.abspath(root_dir)}\n"
+            f"[bold cyan]🤖 Model:[/] {model}\n"
+            f"[bold cyan]🔁 Max Steps:[/] {max_steps}\n"
+            f"[bold cyan]🧪 Test Command:[/] {test_command or '(none)'}",
+            title="[bold green]Saleha Autonomous Software Engineer[/]",
+            border_style="green",
+        ))
+
+    resolver = IssueResolver(cwd=root_dir)
+
+    def _on_event(ev: Dict[str, Any]) -> None:
+        if not as_json:
+            step_num = ev.get("step", 0)
+            action = ev.get("action", "")
+            obs = _cmds._one_line(ev.get("observation", ""))
+            console.print(f"[dim]step {step_num}[/] [cyan]{action}[/] -> {obs}")
+
+    res = resolver.resolve_issue(
+        issue_ref=goal_or_issue,
+        branch_name=branch,
+        auto_pr=auto_pr,
+        test_command=test_argv,
+        autonomous=True,
+        model=model,
+        max_steps=max_steps,
+        on_event=_on_event,
+    )
+
+    if as_json:
+        payload = {
+            "success": res.success,
+            "issue_number": res.issue.issue_number,
+            "title": res.issue.title,
+            "branch_name": res.branch_name,
+            "diff": {
+                "file_path": res.diff_result.file_path,
+                "change_summary": res.diff_result.change_summary,
+                "risk_score": res.diff_result.risk_score,
+                "unified_diff": res.diff_result.unified_diff,
+            } if res.diff_result else None,
+            "tests_passed": res.tests_passed,
+            "test_output": res.test_output,
+            "summary": res.summary,
+            "error": res.error,
+            "pr_url": res.pr_result.pr_url if res.pr_result else "",
+            "caveats": res.caveats,
+        }
+        click.echo(json.dumps(payload, ensure_ascii=True))
+        if not res.success:
+            raise click.exceptions.Exit(1)
+        return
+
+    console.print()
+    colour = "green" if res.success else "red"
+    console.print(Panel(
+        f"[bold {colour}]{res.summary}[/]\n"
+        f"  • Branch : [cyan]{res.branch_name}[/]\n"
+        f"  • Tests  : [{'green' if res.tests_passed else ('red' if res.tests_passed is False else 'yellow')}]{'PASSED' if res.tests_passed else ('FAILED' if res.tests_passed is False else 'not run')}[/]"
+        + (f"\n  • Changes: [yellow]{res.diff_result.change_summary}[/] (Risk: {res.diff_result.risk_score}/10)" if res.diff_result else "\n  • Changes: (none)"),
+        title="[bold green]✅ Issue Resolution Result[/]" if res.success else "[bold red]❌ Resolution Incomplete[/]",
+        border_style=colour,
+    ))
+
+    if res.diff_result and res.diff_result.unified_diff:
+        console.print("\n[bold cyan]📄 Applied Unified Diff:[/]")
+        console.print(Syntax(res.diff_result.unified_diff, "diff", theme="monokai"))
+
+    if res.pr_result and res.pr_result.pr_url:
+        console.print(f"\n[bold blue]🔗 Pull Request Opened:[/] {res.pr_result.pr_url}")
+
+    if res.caveats:
+        console.print("\n[bold yellow]Not established by this run:[/]")
+        for c in res.caveats:
+            console.print(f"  - {c}")
+
+    if not res.success:
+        raise click.exceptions.Exit(1)
+

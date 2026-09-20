@@ -48,16 +48,16 @@ pretending otherwise is what the old version did.
 
 from __future__ import annotations
 
+import json
 import os
 import re
-import json
 import subprocess
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from saleha.core.github_integrator import GitHubIntegrator, GitHubPRResult
-from saleha.core.diff_engine import DiffEngine, DiffResult
 from saleha.core.change_impact import ChangeImpactAnalyzer
+from saleha.core.diff_engine import DiffEngine, DiffResult
+from saleha.core.github_integrator import GitHubIntegrator, GitHubPRResult
 
 
 @dataclass
@@ -111,7 +111,7 @@ class IssueResolver:
         fails, a placeholder is returned with `fetched=False` and the reason
         in `fetch_error` -- callers must not treat it as issue data.
         """
-        match = re.search(r"(\d+)$", str(issue_ref).strip())
+        match = re.search(r"(\d+)$", issue_ref.strip())
         if not match:
             return None
         issue_num = int(match.group(1))
@@ -130,7 +130,7 @@ class IssueResolver:
                     title=data.get("title", f"Issue #{issue_num}"),
                     body=data.get("body", ""),
                     author=(data.get("author") or {}).get("login", ""),
-                    labels=[l.get("name", "") for l in data.get("labels", [])],
+                    labels=[lbl.get("name", "") for lbl in data.get("labels", [])],
                     comments=[c.get("body", "") for c in data.get("comments", [])],
                     html_url=data.get("url", ""),
                     fetched=True,
@@ -154,7 +154,8 @@ class IssueResolver:
         )
 
     def create_fix_branch(self, issue_number: int,
-                          custom_name: Optional[str] = None) -> tuple[str, str]:
+                          custom_name: Optional[str] = None,
+                          title: str = "") -> tuple[str, str]:
         """
         Create (or switch to) the fix branch.
 
@@ -162,7 +163,14 @@ class IssueResolver:
         create and the fallback checkout, so a total failure to branch was
         indistinguishable from success.
         """
-        branch_name = custom_name or f"fix/issue-{issue_number}"
+        if custom_name:
+            branch_name = custom_name
+        elif issue_number > 0:
+            branch_name = f"fix/issue-{issue_number}"
+        else:
+            clean_title = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-")[:30]
+            suffix = clean_title if clean_title else "task"
+            branch_name = f"fix/{suffix}"
         created = subprocess.run(
             ["git", "checkout", "-b", branch_name],
             cwd=self.cwd, capture_output=True, text=True,
@@ -218,15 +226,16 @@ class IssueResolver:
         printed a hardcoded "All 12 unit tests passed in 0.42s" under a
         "Verification Proof" heading, on a run where no test existed.
         """
+        header_title = f"#{issue.issue_number}" if issue.issue_number > 0 else f"'{issue.title}'"
         body = [
-            f"## Saleha: fix branch for #{issue.issue_number}",
+            f"## Saleha: fix branch for {header_title}",
             "",
             "### Issue",
             f"**Title**: {issue.title}",
         ]
         if issue.html_url:
             body.append(f"**URL**: {issue.html_url}")
-        if not issue.fetched:
+        if not issue.fetched and issue.fetch_error != "local task, not a GitHub issue":
             body.append(
                 f"\n> Issue details could not be fetched "
                 f"({issue.fetch_error or 'reason not recorded'}). "
@@ -243,6 +252,13 @@ class IssueResolver:
                 f"- **Diff**: `{diff_res.change_summary}`",
                 f"- **Risk**: `{diff_res.risk_score}/10` ({diff_res.risk_reason})",
             ]
+            if diff_res.unified_diff:
+                body += [
+                    "",
+                    "```diff",
+                    diff_res.unified_diff[:2500].strip(),
+                    "```",
+                ]
         else:
             body.append(
                 "- No code change was produced by this run. The branch is "
@@ -266,6 +282,119 @@ class IssueResolver:
 
         return "\n".join(body) + "\n"
 
+    def _run_agent_solver(
+        self,
+        issue: GitHubIssue,
+        model: str = "auto",
+        max_steps: int = 15,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+        auto_commit: bool = True,
+        test_command: Optional[Sequence[str]] = None,
+    ) -> Optional[DiffResult]:
+        """
+        Run AgentLoop to autonomously diagnose and fix the issue.
+        Inspects git status to find modified files and computes a real DiffResult.
+        """
+        from saleha.agents.base_agent import BaseAgent
+        from saleha.core.agentic_loop import AgentLoop
+
+        goal_parts = [f"Goal: Resolve issue - {issue.title}"]
+        if issue.body:
+            goal_parts.append(f"Issue description:\n{issue.body}")
+        if test_command:
+            goal_parts.append(f"Target test command to pass: {' '.join(test_command)}")
+        goal_parts.append(
+            "Instructions:\n"
+            "1. Investigate the codebase using read tools (list_dir, read_file, get_file_outline, search_repo, find_symbols).\n"
+            "2. Locate the bug, defect, or missing implementation.\n"
+            "3. Apply minimal surgical patch using patch_file (or write_file if creating new file).\n"
+            "4. Verify the fix using run_tests or run_code.\n"
+            "5. Finish once verified."
+        )
+        goal = "\n\n".join(goal_parts)
+
+        agent = BaseAgent(role="SoftwareEngineer", model=model)
+        loop = AgentLoop(
+            agent=agent,
+            root_dir=self.cwd,
+            max_steps=max_steps,
+            allow_write=True,
+            min_actions_before_finish=1,
+        )
+
+        loop.run(goal, on_event=on_event)
+
+        # Query git status for modified or untracked files
+        status_proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if status_proc.returncode != 0:
+            return None
+
+        lines = [line.strip() for line in status_proc.stdout.splitlines() if line.strip()]
+        changed_files: List[str] = []
+        for line in lines:
+            parts = line.split(maxsplit=1)
+            if len(parts) == 2:
+                path_entry = parts[1].strip('"')
+                if not path_entry.startswith(".saleha") and not path_entry.endswith(".saleha.bak"):
+                    changed_files.append(path_entry)
+
+        if not changed_files:
+            return None
+
+        primary_file = changed_files[0]
+        abs_primary = os.path.join(self.cwd, primary_file)
+
+        # Fetch old content from HEAD (or index)
+        norm_file = primary_file.replace("\\", "/").lstrip("/")
+        show_proc = subprocess.run(
+            ["git", "show", f"HEAD:{norm_file}"],
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        old_content = show_proc.stdout if show_proc.returncode == 0 and show_proc.stdout else ""
+        if not old_content and show_proc.returncode != 0:
+            index_proc = subprocess.run(
+                ["git", "show", f":{norm_file}"],
+                cwd=self.cwd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if index_proc.returncode == 0 and index_proc.stdout:
+                old_content = index_proc.stdout
+
+        # Read new content from disk
+        new_content = ""
+        if os.path.exists(abs_primary):
+            try:
+                with open(abs_primary, "r", encoding="utf-8", errors="replace") as f:
+                    new_content = f.read()
+            except OSError:
+                new_content = ""
+
+        diff_res = self.diff_engine.compute_diff(primary_file, old_content, new_content)
+        if len(changed_files) > 1:
+            diff_res.file_path = f"{primary_file} (+{len(changed_files) - 1} other files)"
+
+        if auto_commit:
+            for cf in changed_files:
+                subprocess.run(["git", "add", cf], cwd=self.cwd, capture_output=True)
+            msg = f"fix: {issue.title}" if issue.title else f"fix: resolve issue #{issue.issue_number}"
+            subprocess.run(["git", "commit", "-m", msg], cwd=self.cwd, capture_output=True)
+
+        return diff_res
+
     def resolve_issue(
         self,
         issue_ref: str,
@@ -274,10 +403,16 @@ class IssueResolver:
         solver: Optional[Callable[[GitHubIssue], Optional[DiffResult]]] = None,
         test_command: Optional[Sequence[str]] = None,
         mock_solver: Optional[Callable[[GitHubIssue], Optional[DiffResult]]] = None,
+        autonomous: bool = False,
+        model: str = "auto",
+        max_steps: int = 15,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+        auto_commit: bool = True,
+        issue_title: Optional[str] = None,
     ) -> IssueResolutionResult:
         """
         Fetch the issue, create the branch, optionally apply a caller-supplied
-        solver and run a test command, and render a PR description.
+        solver or autonomous AgentLoop and run a test command, and render a PR description.
 
         `mock_solver` is the old name for `solver`, kept so existing callers
         keep working.
@@ -287,19 +422,37 @@ class IssueResolver:
 
         issue = self.fetch_issue(issue_ref)
         if not issue:
-            return IssueResolutionResult(
-                success=False,
-                issue=GitHubIssue(issue_number=0, title="", body=""),
-                branch_name="",
-                error=f"Could not parse an issue number from: {issue_ref}",
-            )
-        if not issue.fetched:
+            if issue_title:
+                issue = GitHubIssue(
+                    issue_number=0,
+                    title=issue_title,
+                    body=issue_ref if issue_ref != issue_title else "",
+                    fetched=False,
+                    fetch_error="local task, not a GitHub issue",
+                )
+            elif autonomous:
+                first_line = issue_ref.strip().splitlines()[0][:80] if issue_ref.strip() else "Task"
+                issue = GitHubIssue(
+                    issue_number=0,
+                    title=first_line,
+                    body=issue_ref.strip(),
+                    fetched=False,
+                    fetch_error="local task, not a GitHub issue",
+                )
+            else:
+                return IssueResolutionResult(
+                    success=False,
+                    issue=GitHubIssue(issue_number=0, title="", body=""),
+                    branch_name="",
+                    error=f"Could not parse an issue number from: {issue_ref}",
+                )
+        if not issue.fetched and issue.fetch_error != "local task, not a GitHub issue":
             caveats.append(
                 f"Issue #{issue.issue_number} was not fetched "
                 f"({issue.fetch_error}); its title and body are placeholders.")
 
         branch, branch_error = self.create_fix_branch(
-            issue.issue_number, custom_name=branch_name)
+            issue.issue_number, custom_name=branch_name, title=issue.title)
         if branch_error:
             return IssueResolutionResult(
                 success=False, issue=issue, branch_name=branch,
@@ -307,13 +460,31 @@ class IssueResolver:
                 summary=f"Failed before any change: {branch_error}",
             )
 
-        # No solver means no code change. The old version fabricated a diff
-        # here describing a file it never created.
-        diff_result = solver(issue) if solver else None
+        # Solver execution: caller-supplied solver takes priority; otherwise, if
+        # autonomous=True, run AgentLoop; otherwise produce no code changes.
+        if solver:
+            diff_result = solver(issue)
+        elif autonomous:
+            diff_result = self._run_agent_solver(
+                issue=issue,
+                model=model,
+                max_steps=max_steps,
+                on_event=on_event,
+                auto_commit=auto_commit,
+                test_command=test_command,
+            )
+        else:
+            diff_result = None
+
         if diff_result is None:
-            caveats.append(
-                "No solver was supplied, so no code change was produced. "
-                "The branch is empty.")
+            if autonomous:
+                caveats.append(
+                    "Autonomous solver ran but produced no code changes or modifications. "
+                    "The branch is empty.")
+            else:
+                caveats.append(
+                    "No solver was supplied, so no code change was produced. "
+                    "The branch is empty.")
 
         tests_passed: Optional[bool] = None
         test_out = ""
@@ -326,9 +497,13 @@ class IssueResolver:
                 "No test command was given, so nothing was verified. "
                 "Pass test_command= to run one.")
 
-        pr_title = f"fix: issue #{issue.issue_number}"
-        if issue.fetched and issue.title:
-            pr_title = f"fix: {issue.title} (#{issue.issue_number})"
+        if issue.issue_number > 0:
+            pr_title = f"fix: issue #{issue.issue_number}"
+            if issue.fetched and issue.title:
+                pr_title = f"fix: {issue.title} (#{issue.issue_number})"
+        else:
+            pr_title = f"fix: {issue.title}"
+
         pr_body = self.format_pr_body(
             issue, diff_result, test_out, tests_passed, caveats)
 

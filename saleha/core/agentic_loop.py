@@ -48,7 +48,10 @@ class ThinkingAgent(Protocol):
     `BaseAgent` satisfies this structurally.
     """
 
-    def think(self, prompt: str, **kwargs: Any) -> AgentResponse:
+    def think(self, prompt: str, previous_error_reflexion: Optional[str] = None,
+              complexity_score: float = 0.0,
+              disable_reasoning: bool = False,
+              **kwargs: Any) -> AgentResponse:
         ...
 
 MAX_OBSERVATION_CHARS = 3000

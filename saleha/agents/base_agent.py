@@ -10,7 +10,7 @@ import os
 import uuid
 import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from saleha.core.model_provider import default_provider, MockProvider, ModelProvider
 
@@ -84,7 +84,8 @@ class BaseAgent:
 
     def think(self, prompt: str, previous_error_reflexion: Optional[str] = None,
               complexity_score: float = 0.0,
-              disable_reasoning: bool = False) -> AgentResponse:
+              disable_reasoning: bool = False,
+              **kwargs: Any) -> AgentResponse:
         self.task_counter += 1
         start_time = time.time()
 

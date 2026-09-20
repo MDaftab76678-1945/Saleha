@@ -8588,6 +8588,7 @@ step 6  finish             -> admitted: "Bug in double() fixed by updating the r
 ```
 
 Outcome:
+
 - `success: True`, `error: ""`
 - Steps taken: 7 (well within the 12-step budget).
 - Verified against disk: `src/calc.py` genuinely contains `return x * 2`.
@@ -8599,3 +8600,40 @@ exploration, symbol grounding, code reading, surgical patching, and
 passing the sandbox test verification gate -- with zero human intervention
 and zero fake greens.
 
+## Pass 98: Step 1 of Master Vision -- Air-Gapped Autonomous Software Engineer (saleha solve / IssueResolver + AgentLoop integration) (2026-09-21)
+
+Wired the hardened `AgentLoop` into `IssueResolver` (`saleha/core/issue_resolver.py`) and exposed a first-class `saleha solve` CLI command, bringing Devin-equivalent local-first autonomous problem solving to Saleha.
+
+### 1. Engine wiring (`IssueResolver`)
+
+Added `_run_agent_solver` integrating `AgentLoop(allow_write=True, min_actions_before_finish=1)`. Extended `resolve_issue` with an `autonomous: bool = False` flag and support for natural language goals (when `issue_ref` is a descriptive task rather than an issue number).
+
+When `autonomous=True`:
+
+- Creates or checks out the target git fix branch.
+- Spins up `AgentLoop` directed at the goal and repository root.
+- Captures live events, streams progress, and auto-verifies with the configured test command.
+- Inspects `git status --porcelain`, extracts modified files, retrieves pre-fix content via `HEAD:{norm_file}` with a fallback to the git index `:{norm_file}`, and generates an honest `DiffResult`.
+- Makes an atomic git commit on the fix branch when `auto_commit=True`.
+- Preserves the clean non-autonomous default path (leaving the working tree clean, preserving Pass 23 invariants).
+
+### 2. Discovered and eradicated diff header newline defect in `diff_engine.py`
+
+During integration testing of single-line diffs, discovered that `difflib.unified_diff(lineterm="")` stripped newlines from unified diff header lines (`---`, `+++`, `@@`), which do not contain trailing newlines in their raw strings. This caused the first removed line to be concatenated directly onto the hunk header line without an intervening newline; `splitlines()` subsequently missed the removed line, causing `lines_removed == 0` for 1-line deletions. Fixed by supplying `lineterm="\n"`.
+
+Also resolved an uninitialized `backup_path` variable warning in `apply_diff` and eliminated unused imports (`Dict`, `Optional`, `Any`) and ambiguous variable naming.
+
+### 3. Protocol and typing alignment
+
+Added `**kwargs: Any` to `BaseAgent.think()` in `saleha/agents/base_agent.py` and aligned the `ThinkingAgent` Protocol in `saleha/core/agentic_loop.py`, eliminating Pyright structural subtyping assignment errors across all callers.
+
+### 4. CLI commands exposed
+
+- Added `saleha solve <goal_or_issue>` in `saleha/cli/commands/core_agentic.py` supporting `--dir`, `--model`, `--max-steps`, `--branch`, `--test-command`, `--auto-pr`, and `--json`, with live streaming execution steps.
+- Extended `saleha resolve-issue` in `saleha/cli/commands/testing_bench.py` with `--agent` and `--model` flags.
+
+### Verified
+
+- `test_issue_resolver.py`: Added 4 new end-to-end autonomous solver tests in `AutonomousSolverTests` (mock agent success, failing agent error reporting, issue number dispatch, and natural language goal dispatch).
+- `pytest saleha/tests/test_issue_resolver.py saleha/tests/test_diff_engine.py`: **42 passed** in 4.82s.
+- Full test suite: **2221 passed, 13 skipped, 172 subtests** in 197.92s (up from 2217, +4 new tests, zero regressions).

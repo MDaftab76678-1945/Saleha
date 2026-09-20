@@ -281,14 +281,17 @@ def swe_export_cmd(output: str, scorecard: str, model: str) -> None:
 @click.option('--test-command', default=None,
               help='Command to run as verification, e.g. "pytest -q". '
                    'Without it nothing is verified.')
-def resolve_issue_cmd(issue_ref: str, branch: str, auto_pr: bool, test_command: str) -> None:
+@click.option('--agent', is_flag=True, help='Run autonomous AgentLoop solver to write and verify the fix')
+@click.option('--model', '-m', default='auto', help='Model to use with --agent')
+def resolve_issue_cmd(issue_ref: str, branch: str, auto_pr: bool, test_command: str,
+                      agent: bool, model: str) -> None:
     """
     Fetch a GitHub issue and create a fix branch with a PR description.
 
-    This prepares the branch; it does not write the fix. Pass --test-command
-    to have the result reflect a real test run.
+    Pass --agent to have Saleha autonomously investigate, patch, and verify the fix.
+    Pass --test-command to have the result reflect a real test run.
 
-    Example: saleha resolve-issue 42 --test-command "pytest -q"
+    Example: saleha resolve-issue 42 --test-command "pytest -q" --agent
     """
     import shlex
     from saleha.core.issue_resolver import issue_resolver
@@ -299,6 +302,8 @@ def resolve_issue_cmd(issue_ref: str, branch: str, auto_pr: bool, test_command: 
         branch_name=branch,
         auto_pr=auto_pr,
         test_command=shlex.split(test_command) if test_command else None,
+        autonomous=agent,
+        model=model,
     )
 
     if not res.success and res.error:

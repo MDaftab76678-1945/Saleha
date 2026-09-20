@@ -11,7 +11,7 @@ from __future__ import annotations
 import difflib
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import List, Tuple
 
 
 @dataclass
@@ -63,15 +63,15 @@ class DiffEngine:
     def compute_diff(self, file_path: str, old_content: str,
                      new_content: str) -> DiffResult:
         """Compute full diff analysis between old and new content."""
-        old_lines = old_content.splitlines(keepends=True)
-        new_lines = new_content.splitlines(keepends=True)
+        old_lines = [line + "\n" for line in old_content.splitlines()]
+        new_lines = [line + "\n" for line in new_content.splitlines()]
 
         # Generate unified diff
         unified = "".join(difflib.unified_diff(
             old_lines, new_lines,
             fromfile=f"a/{file_path}",
             tofile=f"b/{file_path}",
-            lineterm="",
+            lineterm="\n",
             n=3
         ))
 
@@ -79,8 +79,8 @@ class DiffEngine:
         hunks = self._parse_hunks(old_lines, new_lines)
 
         # Count changes
-        added = sum(1 for l in unified.splitlines() if l.startswith("+") and not l.startswith("+++ "))
-        removed = sum(1 for l in unified.splitlines() if l.startswith("-") and not l.startswith("--- "))
+        added = sum(1 for line in unified.splitlines() if line.startswith("+") and not line.startswith("+++ "))
+        removed = sum(1 for line in unified.splitlines() if line.startswith("-") and not line.startswith("--- "))
 
         # Risk scoring
         risk_score, risk_reason = self._compute_risk(unified, added, removed, file_path)
@@ -120,10 +120,10 @@ class DiffEngine:
                 hunks.append(DiffHunk(
                     hunk_id=hunk_id,
                     old_start=old_start,
-                    old_lines=[l.rstrip("\n") for l in old_removed],
+                    old_lines=[line_text.rstrip("\n") for line_text in old_removed],
                     new_start=new_start,
-                    new_lines=[l.rstrip("\n") for l in new_added],
-                    context=[l.rstrip("\n") for l in context[:3]],
+                    new_lines=[line_text.rstrip("\n") for line_text in new_added],
+                    context=[line_text.rstrip("\n") for line_text in context[:3]],
                 ))
         return hunks
 
@@ -176,10 +176,10 @@ class DiffEngine:
         ]
         for hunk in diff.hunks[:10]:
             lines.append(f"\n--- Hunk {hunk.hunk_id} (old line {hunk.old_start}) ---")
-            for l in hunk.old_lines[:5]:
-                lines.append(f"  - {l}")
-            for l in hunk.new_lines[:5]:
-                lines.append(f"  + {l}")
+            for line_item in hunk.old_lines[:5]:
+                lines.append(f"  - {line_item}")
+            for line_item in hunk.new_lines[:5]:
+                lines.append(f"  + {line_item}")
         return "\n".join(lines)
 
     def apply_diff(self, file_path: str, new_content: str,
@@ -188,6 +188,7 @@ class DiffEngine:
         if not os.path.exists(file_path):
             return False, f"File not found: {file_path}"
         try:
+            backup_path = ""
             if backup:
                 backup_path = file_path + ".saleha.bak"
                 with open(file_path, "r", encoding="utf-8") as f:

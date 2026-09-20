@@ -19,11 +19,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import Any
 import unittest
 from unittest.mock import patch
 
-from saleha.core.issue_resolver import IssueResolver, GitHubIssue
-from saleha.core.diff_engine import DiffResult, DiffHunk
+from saleha.core.diff_engine import DiffHunk, DiffResult
+from saleha.core.issue_resolver import GitHubIssue, IssueResolver
 
 
 def _temp_git_repo() -> str:
@@ -56,10 +57,10 @@ def _sample_diff() -> DiffResult:
 
 class IssueParsingTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.resolver = IssueResolver()
 
-    def test_fetch_issue_from_number_and_url(self):
+    def test_fetch_issue_from_number_and_url(self) -> None:
         from_num = self.resolver.fetch_issue("105")
         self.assertIsNotNone(from_num)
         self.assertEqual(from_num.issue_number, 105)
@@ -69,10 +70,10 @@ class IssueParsingTests(unittest.TestCase):
         self.assertIsNotNone(from_url)
         self.assertEqual(from_url.issue_number, 42)
 
-    def test_fetch_issue_invalid_returns_none(self):
+    def test_fetch_issue_invalid_returns_none(self) -> None:
         self.assertIsNone(self.resolver.fetch_issue("invalid-non-numeric"))
 
-    def test_unfetched_issue_is_marked_not_fetched(self):
+    def test_unfetched_issue_is_marked_not_fetched(self) -> None:
         """
         The old code returned a placeholder issue indistinguishable from real
         data: title "Bug fix: Issue #N", a body it made up, and a github.com
@@ -89,14 +90,14 @@ class IssueParsingTests(unittest.TestCase):
 
 class ResolvePipelineTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.repo = _temp_git_repo()
         self.resolver = IssueResolver(cwd=self.repo)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.repo, ignore_errors=True)
 
-    def test_default_path_runs_without_a_solver(self):
+    def test_default_path_runs_without_a_solver(self) -> None:
         """
         The regression test this module never had. Without `mock_solver` the
         old code reached `UnifiedDiffResult(...)`, a name defined nowhere in
@@ -107,7 +108,7 @@ class ResolvePipelineTests(unittest.TestCase):
         self.assertIsNone(res.tests_passed)
         self.assertTrue(any("no code change" in c.lower() for c in res.caveats))
 
-    def test_no_diff_is_ever_fabricated(self):
+    def test_no_diff_is_ever_fabricated(self) -> None:
         """
         The old default produced a DiffResult for `fix_issue_999.py` claiming
         +10/-2 lines and risk 2. That file was never created and those numbers
@@ -118,14 +119,14 @@ class ResolvePipelineTests(unittest.TestCase):
         self.assertFalse(os.path.exists(
             os.path.join(self.repo, "fix_issue_999.py")))
 
-    def test_tests_passed_is_none_when_no_command_is_given(self):
+    def test_tests_passed_is_none_when_no_command_is_given(self) -> None:
         """`test_output` used to be the constant string
         "All 12 unit tests passed in 0.42s" on every run."""
         res = self.resolver.resolve_issue("999")
         self.assertIsNone(res.tests_passed)
         self.assertNotIn("12 unit tests", res.test_output)
 
-    def test_a_failing_test_command_makes_the_result_fail(self):
+    def test_a_failing_test_command_makes_the_result_fail(self) -> None:
         res = self.resolver.resolve_issue(
             "999", branch_name="fail-branch",
             test_command=[sys.executable, "-c", "import sys; sys.exit(1)"])
@@ -133,7 +134,7 @@ class ResolvePipelineTests(unittest.TestCase):
         self.assertFalse(res.tests_passed)
         self.assertIn("not resolved", res.summary)
 
-    def test_a_passing_test_command_is_reported_as_passing(self):
+    def test_a_passing_test_command_is_reported_as_passing(self) -> None:
         res = self.resolver.resolve_issue(
             "999", branch_name="pass-branch",
             test_command=[sys.executable, "-c", "print('2 passed')"])
@@ -141,21 +142,21 @@ class ResolvePipelineTests(unittest.TestCase):
         self.assertTrue(res.tests_passed)
         self.assertIn("2 passed", res.test_output)
 
-    def test_a_missing_test_command_is_reported_not_assumed(self):
+    def test_a_missing_test_command_is_reported_not_assumed(self) -> None:
         res = self.resolver.resolve_issue(
             "999", branch_name="missing-cmd",
             test_command=["definitely-not-a-real-binary-xyz"])
         self.assertIsNone(res.tests_passed)
         self.assertTrue(any("could not run" in c.lower() for c in res.caveats))
 
-    def test_branch_is_actually_created(self):
+    def test_branch_is_actually_created(self) -> None:
         res = self.resolver.resolve_issue("321", branch_name="fix/mine")
         branches = subprocess.check_output(
             ["git", "-C", self.repo, "branch"], text=True)
         self.assertIn("fix/mine", branches)
         self.assertEqual(res.branch_name, "fix/mine")
 
-    def test_branch_failure_is_reported_not_swallowed(self):
+    def test_branch_failure_is_reported_not_swallowed(self) -> None:
         """
         The old create_fix_branch caught everything and returned the branch
         name regardless, so a total failure to branch looked like success.
@@ -168,13 +169,13 @@ class ResolvePipelineTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertIn("could not switch", res.error)
 
-    def test_solver_result_is_carried_through(self):
+    def test_solver_result_is_carried_through(self) -> None:
         res = self.resolver.resolve_issue(
             "101", branch_name="with-solver", solver=lambda issue: _sample_diff())
         self.assertIsNotNone(res.diff_result)
         self.assertEqual(res.diff_result.file_path, "auth.py")
 
-    def test_mock_solver_alias_still_works(self):
+    def test_mock_solver_alias_still_works(self) -> None:
         """Kept so callers written against the old signature keep working."""
         res = self.resolver.resolve_issue(
             "101", branch_name="legacy", mock_solver=lambda issue: _sample_diff())
@@ -184,7 +185,7 @@ class ResolvePipelineTests(unittest.TestCase):
 
 class PRBodyTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.resolver = IssueResolver()
         self.issue = GitHubIssue(
             issue_number=99,
@@ -194,7 +195,7 @@ class PRBodyTests(unittest.TestCase):
             fetched=True,
         )
 
-    def test_body_includes_issue_context_and_diff(self):
+    def test_body_includes_issue_context_and_diff(self) -> None:
         body = self.resolver.format_pr_body(
             self.issue, _sample_diff(), "2 passed", tests_passed=True)
         self.assertIn("#99", body)
@@ -202,7 +203,7 @@ class PRBodyTests(unittest.TestCase):
         self.assertIn("auth.py", body)
         self.assertIn("2 passed", body)
 
-    def test_body_says_nothing_was_verified_when_nothing_ran(self):
+    def test_body_says_nothing_was_verified_when_nothing_ran(self) -> None:
         """
         The old body printed the hardcoded "All 12 unit tests passed in 0.42s"
         under a "Verification Proof" heading -- and with --auto-pr that went
@@ -215,12 +216,12 @@ class PRBodyTests(unittest.TestCase):
         self.assertNotIn("All unit tests passed", body)
         self.assertNotIn("12 unit tests", body)
 
-    def test_body_states_a_failing_test_run(self):
+    def test_body_states_a_failing_test_run(self) -> None:
         body = self.resolver.format_pr_body(
             self.issue, _sample_diff(), "1 failed", tests_passed=False)
         self.assertIn("failed", body.lower())
 
-    def test_body_flags_an_unfetched_issue(self):
+    def test_body_flags_an_unfetched_issue(self) -> None:
         stub = GitHubIssue(issue_number=7, title="(issue #7 - not fetched)",
                            body="", fetched=False,
                            fetch_error="gh is not installed")
@@ -228,7 +229,7 @@ class PRBodyTests(unittest.TestCase):
         self.assertIn("could not be fetched", body)
         self.assertIn("placeholder", body)
 
-    def test_caveats_are_rendered(self):
+    def test_caveats_are_rendered(self) -> None:
         body = self.resolver.format_pr_body(
             self.issue, None, "", tests_passed=None,
             caveats=["No solver was supplied"])
@@ -239,17 +240,20 @@ class PRBodyTests(unittest.TestCase):
 class FabricationRegressionTests(unittest.TestCase):
     """The specific strings and names that must never come back."""
 
-    def test_the_undefined_name_is_gone(self):
+    def test_the_undefined_name_is_gone(self) -> None:
         import saleha.core.issue_resolver as module
-        source = open(module.__file__, encoding="utf-8").read()
+        with open(module.__file__, encoding="utf-8") as f:
+            source = f.read()
         # It survives in the module docstring, which explains the defect.
         code = source.split('"""', 2)[-1]
         self.assertNotIn("UnifiedDiffResult(", code)
 
-    def test_the_hardcoded_test_string_is_gone(self):
+    def test_the_hardcoded_test_string_is_gone(self) -> None:
         import ast
+
         import saleha.core.issue_resolver as module
-        tree = ast.parse(open(module.__file__, encoding="utf-8").read())
+        with open(module.__file__, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
         docstrings = set()
         for node in ast.walk(tree):
             if isinstance(node, (ast.Module, ast.FunctionDef,
@@ -265,5 +269,75 @@ class FabricationRegressionTests(unittest.TestCase):
         self.assertNotIn("Verification Proof", literals)
 
 
+class AutonomousSolverTests(unittest.TestCase):
+    """Tests for the autonomous AgentLoop solver integrated into IssueResolver."""
+
+    def setUp(self) -> None:
+        self.repo = _temp_git_repo()
+        self.resolver = IssueResolver(cwd=self.repo)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.repo, ignore_errors=True)
+
+    def test_autonomous_solver_modifies_code_and_commits(self) -> None:
+        def fake_agent_run(goal: str, on_event: Any = None) -> None:
+            # Simulate agent applying a patch to seed.py
+            with open(os.path.join(self.repo, "seed.py"), "w", encoding="utf-8") as f:
+                f.write("x = 2\n")
+
+        with patch("saleha.core.agentic_loop.AgentLoop.run", side_effect=fake_agent_run):
+            res = self.resolver.resolve_issue("202", autonomous=True)
+
+        self.assertIsNotNone(res.diff_result)
+        self.assertEqual(res.diff_result.file_path, "seed.py")
+        self.assertGreaterEqual(res.diff_result.lines_added, 1)
+        self.assertGreaterEqual(res.diff_result.lines_removed, 1)
+
+        # File on disk has new content
+        with open(os.path.join(self.repo, "seed.py"), "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "x = 2\n")
+
+        # Git commit was created on fix branch
+        log = subprocess.check_output(
+            ["git", "-C", self.repo, "log", "-1", "--oneline"], text=True
+        )
+        self.assertIn("fix:", log)
+
+    def test_autonomous_solver_with_test_command_and_verification(self) -> None:
+        def fake_agent_run(goal: str, on_event: Any = None) -> None:
+            with open(os.path.join(self.repo, "seed.py"), "w", encoding="utf-8") as f:
+                f.write("x = 42\n")
+
+        with patch("saleha.core.agentic_loop.AgentLoop.run", side_effect=fake_agent_run):
+            res = self.resolver.resolve_issue(
+                "303",
+                autonomous=True,
+                test_command=[sys.executable, "-c", "import sys; sys.exit(0)"],
+            )
+
+        self.assertTrue(res.success)
+        self.assertTrue(res.tests_passed)
+        self.assertIsNotNone(res.diff_result)
+
+    def test_autonomous_solver_handles_natural_language_goal(self) -> None:
+        goal = "Fix divide by zero bug in math engine"
+        res = self.resolver.resolve_issue(goal, autonomous=True)
+
+        self.assertEqual(res.issue.issue_number, 0)
+        self.assertEqual(res.issue.title, goal)
+        self.assertTrue(res.branch_name.startswith("fix/fix-divide-by-zero"))
+
+    def test_autonomous_solver_no_modification_reports_clean_caveat(self) -> None:
+        def no_op_run(goal: str, on_event: Any = None) -> None:
+            pass
+
+        with patch("saleha.core.agentic_loop.AgentLoop.run", side_effect=no_op_run):
+            res = self.resolver.resolve_issue("404", autonomous=True)
+
+        self.assertIsNone(res.diff_result)
+        self.assertTrue(any("produced no code changes" in c.lower() for c in res.caveats))
+
+
 if __name__ == "__main__":
     unittest.main()
+
