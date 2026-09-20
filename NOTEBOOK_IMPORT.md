@@ -7027,3 +7027,43 @@ Hardened token accounting, double-entry compute economics, latency percentiles, 
   - Multi-module regression suite: **50/50 PASSED** in 1.27s.
 - Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
 - Committed cleanly on `main` as `d26cb2a`.
+
+## Pass 80: Shared Safety Patterns & Safety Guard Intent Parser (Round 25)
+
+Hardened AST static/dynamic code execution screening, English-only keyword compliance, and diagnostic risk breakdown:
+
+1. **`safety_patterns.py` (Unified Code Screening & Dynamic Import Guard)**:
+   - Eradicated 100% of Hinglish comments and docstrings, replacing with professional, technical English in strict adherence to Rule 2.4.
+   - Added `get_blocked_import_list() -> List[str]` returning sorted prohibited module names.
+   - Added `check_all_dangerous(code: str) -> List[DangerPattern]` returning all matching dangerous patterns and blocked imports.
+   - Enforced 100% strict type hints across AST helper functions and compile logic.
+   - Zero diagnostics.
+
+2. **`safety_guard.py` (Input Safety Guard & Intent Risk Analyzer)**:
+   - Enforced Rule 2.4 by eradicating all Devanagari Hindi text from `RISK_KEYWORDS`, `SAFE_KEYWORDS`, and smoke test cases, replacing with pure English equivalents (`chest pain`, `difficulty breathing`, `heavy bleeding`, `heart attack`, `suicide`, etc.).
+   - Added `explain_risk(user_input: str) -> Dict[str, Any]` providing granular diagnostic breakdowns of risk contributions and safe mitigations.
+   - Added `stats() -> Dict[str, Any]` reporting compiled pattern counts and threshold boundaries.
+   - Added 100% strict type annotations across class methods.
+   - Zero diagnostics.
+
+3. **Unit Tests**:
+   - `saleha/tests/test_safety_patterns.py`: 16 comprehensive unit tests covering builtins, destructive filesystem commands, static AST imports, dynamic AST imports (`__import__`, `importlib`), and `check_all_dangerous`.
+   - `saleha/tests/test_safety_guard.py`: 11 unit tests covering health emergencies, destructive commands, `explain_risk`, and `stats`.
+   - Enforced Rule TYPE-001 (`-> None:`) across 100% of test methods.
+
+### Pass 80 Verification
+
+- Verification command:
+
+  ```powershell
+  python -m pytest saleha/tests/test_safety_patterns.py saleha/tests/test_safety_guard.py -v
+  ```
+
+- Subsystem test results:
+  - `test_safety_patterns.py`: 16/16 PASSED.
+  - `test_safety_guard.py`: 11/11 PASSED.
+  - Total: **27/27 PASSED** in 0.11s.
+- Regression test results:
+  - Multi-module regression suite: **54/54 PASSED** in 0.71s.
+- Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
+- Committed cleanly on `main` as `18204be`.
