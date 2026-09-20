@@ -1144,6 +1144,98 @@ class RunTestsToolTests(unittest.TestCase):
         loop.run("anything")
         self.assertIn("run_tests", loop.agent.prompts[0])
 
+    # ---- the AUTOMATIC verification gate ----------------------------
+    # Measured live against the planted requests bug (pass 92-adjacent):
+    # qwen3:8b navigated correctly, patch_file reported "successfully
+    # patched", and finish() claimed the bug was fixed -- but the edit
+    # landed on the wrong line and the real suite went 4 failed -> 6
+    # failed. require_evidence defaults off and no production caller
+    # (saleha agent, swe_bench_runner) turns it on, so the ledger tests
+    # above had never once exercised a live repair run. These tests do
+    # NOT set require_evidence -- they use the loop the way `saleha
+    # agent` actually constructs it, so the gate under test is the one
+    # that runs automatically regardless of that flag.
+
+    def test_a_wrong_patch_is_caught_by_an_automatic_test_run(self) -> None:
+        """The tool reporting "successfully patched" is not proof the fix
+        is correct. The loop must run the real suite itself and refuse
+        finish() on a red result, without the model ever calling
+        run_tests or require_evidence being set."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x + 1"),
+            _finish("fixed double() to return the doubled value"),
+            _finish("really, it is fixed"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertFalse(result.success, msg=result.final_message)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertTrue(rejected, msg=result.steps)
+        self.assertIn("test suite says otherwise", rejected[-1].observation)
+        with open(os.path.join(self.root, "calc.py"), encoding="utf-8") as f:
+            self.assertIn("return x + 1", f.read(),
+                          msg="the wrong patch really did land on disk")
+
+    def test_a_correct_patch_passes_the_automatic_test_run(self) -> None:
+        """The gate must not block a genuinely correct fix."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _finish("fixed double() to actually double"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+
+    def test_no_discoverable_test_command_does_not_block_finish(self) -> None:
+        """A repo this loop cannot test must not fail a repair for that
+        reason -- there is nothing to verify against, so the gate stays
+        out of the way rather than rejecting on a technicality."""
+        self._write("calc.py", "def double(x):\n    return x\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _finish("fixed double() to actually double"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+
+    def test_verification_is_not_re_run_on_a_repeated_finish_attempt(self) -> None:
+        """Once verified for the current file state, a second finish()
+        attempt (e.g. after being rejected for an unrelated reason) must
+        not re-run the whole suite again -- only a NEW mutation should
+        invalidate the cached verdict."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _finish("fixed"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+        verify_steps = [s for s in result.steps if s.action == "auto-verify-tests"]
+        self.assertEqual(len(verify_steps), 1, result.steps)
+
 
 class patch_gate:
     """approval_gate.approve ko force-approve karta hai (context manager)."""

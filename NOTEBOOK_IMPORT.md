@@ -7584,7 +7584,6 @@ done=stop  eval_count=1071  secs=140.4
  "search": "return max(0, total_length)",
  "replace": "return max(0, total_length - current_position)"}}
 ```
-```
 
 That is byte-for-byte the correct patch, chosen unaided.
 
@@ -8220,3 +8219,120 @@ capped at 7.61 GiB memory -- a real resource constraint to plan around,
 not yet measured for how many instances it can sustain concurrently or
 what a full run would cost in time. That is the next honest step, not a
 claim to make yet.
+
+## Pass 93: a fifth fake green -- a "successfully patched" response was never proof the fix was correct (2026-09-20)
+
+Isolated the loop's two capabilities before assuming which was broken.
+Probed `qwen2.5-coder:3b` and `qwen3:8b` directly (outside the loop, given
+the exact buggy lines with no navigation needed): `qwen2.5-coder:3b`
+diagnosed the bug correctly but never emitted `patch_file` -- it called
+`finish()` with an explanation, 2/2 trials, even though `patch_file` was
+the only tool offered and the prompt said "reply with exactly one block".
+`qwen3:8b` emitted a byte-correct patch, 2/2 trials. So the two models'
+gaps are different in kind: one will not act, the other can act
+correctly in isolation.
+
+Ran `qwen3:8b` through the full `AgentLoop` next, against a freshly
+planted `super_len` bug (same setup as passes 53/85-91): it navigated
+correctly in 6 steps (list_dir -> get_file_outline -> read_file ->
+patch_file), `patch_file` reported "successfully patched", and `finish()`
+claimed the bug was fixed. Verified against reality, not the claim: the
+edit landed on the wrong line (added `current_position` capture at the
+top of the function instead of fixing the return statement), and the
+real suite went from **4 failed to 6 failed**. `mutations_succeeded > 0`
+was true -- the tool genuinely did not error -- so every existing gate
+(pass 85's zero-mutation gate, pass 91's test-file guard) let it through.
+This is the same shape of defect passes 13/51/53 already named a fourth
+time each: a tool completing without error is not the same as the tool's
+output being correct.
+
+**Root cause: `run_tests` and the `TESTS_PASSED` evidence kind have
+existed since pass 53, and nothing in any production path ever required
+them.** `require_evidence` defaults to `False`; grepped every
+`AgentLoop(` construction site (`core_agentic.py`'s `saleha agent`
+command, `swe_bench_runner.py`, and the two entries in the legacy
+`commands.py.old`) -- none passes `require_evidence=True`. So the
+verification machinery pass 53 built for exactly this failure mode had
+never once executed on a real repair run in the two years since. Pass
+91's write-up even named this as the explicit "next thing to build" and
+it was not acted on until this pass.
+
+**Fix: the loop verifies itself, rather than depending on the model to
+call `run_tests` or on a caller to set `require_evidence`.** Once a
+repair-goal run has `mutations_succeeded > 0`, immediately before
+admitting a `finish()` claim, the loop calls its own `_tool_run_tests()`
+directly -- no model turn, no opt-in flag. Three cases:
+
+- No discoverable test command (`_discover_test_command()` returns
+  `None`) -- the gate stays out of the way. A repo this loop cannot test
+  must not fail a repair for that reason.
+- Tests pass -- `finish()` is admitted normally.
+- Tests fail -- `finish()` is REJECTED with the real pytest failure
+  output embedded, and the model is told explicitly to re-read the
+  failing test and patch again, not call `run_tests` (it has already
+  been run for it).
+
+The verdict is cached (`auto_test_verdict`) so a rejected `finish()`
+retry does not re-run the whole suite every turn; a new successful
+mutation invalidates the cache, since it was measured against the file
+as it stood before that edit.
+
+**A second, real bug found while testing the fix, not designed in:** the
+new `auto-verify-tests` step was only ever `emit()`-ted to the event
+stream, never appended to `result.steps` -- the exact gap pass 90's own
+write-up named and fixed for its `-blocked` observations, reproduced
+here in new code three passes later. A caller reading `result.steps`
+programmatically (a test, or anything not watching the live CLI event
+stream) would see the mutation and the `finish` step with nothing
+between them explaining why the run failed. Fixed for the new step, and
+found the same gap pre-exists on all five `finish-rejected` emit sites
+in the file (passes 53/85/89, two more) -- fixed the one this pass's
+code owns; the other four are a pre-existing gap, not touched here, and
+should be picked up as their own finding rather than folded into this
+diff.
+
+Four new tests in `RunTestsToolTests` (the class already dedicated to
+`run_tests` and its evidence gate): a wrong patch is caught and rejected
+with the real failure embedded and the wrong edit confirmed still on
+disk; a correct patch is not blocked; a repo with no discoverable test
+command does not block finish (the "stay out of the way" case); and the
+verdict is genuinely cached, not re-run on a repeated `finish()` attempt.
+
+Teeth-checked by stashing `agentic_loop.py` only (keeping the new
+tests): **2 failed** against the unfixed loop -- specifically the
+wrong-patch case (the defect this pass exists to catch) and the
+cache-count case, both of which the old code has no mechanism to satisfy.
+4/4 with the fix restored.
+
+**Live re-run, twice, against a fresh planted bug each time (not
+assumed to generalize from one run):** `qwen3:8b`, same setup as every
+prior pass in this lineage. Both runs: navigation succeeds, `patch_file`
+reports success, `auto-verify-tests` runs the real suite and reports
+`FAILED (exit 1)`, `finish()` is REJECTED with the real pytest output,
+the model retries twice more (both retries fail with "Could not match
+search block", caught by the existing repeat-detection on the third
+identical attempt), and the run ends **`success: False`, `error: max_steps
+(15) exhausted without finish`**. Verified against the real file both
+times: the wrong patch is genuinely on disk (`git diff` shows the
+same wrong edit as the isolated probe), the real suite genuinely reports
+**6 failed** (up from the 4-failed baseline), and the CLI-facing result
+is an honest failure, not a green tick over a broken fix.
+
+**Honest state after pass 93:** the fifth fake green in this lineage is
+fixed and the loop now correctly refuses to claim success for a wrong
+patch. This does not mean the loop can land a correct patch --
+`qwen3:8b` still has not, across nine measured attempts now (passes 53,
+85-93). What changed is that a wrong fix is now reported as a wrong fix,
+which passes 53's own write-up named as the necessary next building
+block for eventually distinguishing "the loop is broken" from "the model
+cannot do this yet" -- before this pass, a loop bug (missing
+verification) and a model capability gap (an incorrect patch) produced
+the identical `success: True` symptom, so no run could tell which one was
+in front of it. `qwen2.5-coder:3b`'s different gap (never attempting
+`patch_file` at all when given the isolated probe) is recorded here but
+not otherwise investigated this pass -- it may or may not reproduce
+inside the full loop with its more complex prompt, and that has not been
+measured.
+
+Measured: `test_agentic_loop.py` 76 -> **80/80**. Full suite 2207 ->
+**2211 passed, 13 skipped, 172 subtests** in 201.51s, zero regressions.

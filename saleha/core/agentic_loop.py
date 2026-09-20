@@ -895,6 +895,12 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # failed has changed nothing, however many reads succeeded.
         mutations_attempted = 0
         mutations_succeeded = 0
+        # Cache of the one auto-run test verification, so a model that gets
+        # rejected and retries finish() without changing anything else does
+        # not re-run the whole suite every turn. Invalidated by any new
+        # mutation, since a fresh edit needs a fresh verdict. None = not run
+        # yet; otherwise (passed: bool, detail: str).
+        auto_test_verdict: Optional[Tuple[bool, str]] = None
         # Consecutive read-only calls since the last mutation attempt.
         # Measured against a real repo bug: after the pass-88 navigation
         # fixes, qwen3:8b found the right test at step 6 and the right
@@ -1100,6 +1106,61 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
                     )
                     continue
+
+                # A "successfully patched" tool response is not proof the fix
+                # is correct -- only that the search/replace matched. Measured
+                # live against this exact planted `requests` bug: qwen3:8b
+                # navigated correctly (list_dir -> get_file_outline ->
+                # read_file -> patch_file), the patch tool reported success,
+                # and finish() claimed the bug was fixed -- but the edit
+                # landed on the wrong line, and the real test suite went from
+                # 4 failed to 6 failed. The `run_tests` tool and the
+                # TESTS_PASSED evidence kind already existed for exactly this
+                # (pass 53), but nothing forced them to run: `require_evidence`
+                # defaults off and no production caller (saleha agent,
+                # swe_bench_runner) turns it on, so this check had never once
+                # executed on a live repair run. Rather than depend on the
+                # model remembering to call run_tests, the loop runs it
+                # itself once a repair goal has a successful mutation to
+                # verify -- verification cannot be skipped by omission.
+                if (self.allow_write and mutations_succeeded > 0
+                        and _looks_like_a_repair_goal(goal)):
+                    if auto_test_verdict is None:
+                        test_observation = self._tool_run_tests()
+                        passed = test_observation.startswith("PASSED ")
+                        auto_test_verdict = (passed, test_observation)
+                        result.steps.append(LoopStep(
+                            step_no, "auto-verify-tests", "",
+                            _truncate(test_observation, self.max_observation_chars)))
+                        emit({"step": step_no, "action": "auto-verify-tests",
+                              "observation": test_observation})
+                    passed, test_observation = auto_test_verdict
+                    if test_observation.startswith("no test command found:"):
+                        # Nothing to verify against -- do not fail a repair
+                        # for a repo this loop cannot test, but say so plainly
+                        # rather than silently skipping the check.
+                        pass
+                    elif not passed:
+                        observation = (
+                            f"REJECTED: you claimed the fix is done, but "
+                            f"running the project's real test suite says "
+                            f"otherwise. This is not evidence of a fix -- it "
+                            f"is evidence the fix is wrong or incomplete.\n"
+                            f"Test result:\n{_truncate(test_observation, 1200)}\n"
+                            f"DO THIS NEXT: re-read the failing test(s) named "
+                            f"above, re-read the source function the goal "
+                            f"describes, and patch_file again with a "
+                            f"corrected fix. Do not call finish() until "
+                            f"run_tests reports PASSED."
+                        )
+                        result.steps.append(LoopStep(
+                            step_no, "finish-rejected", "", observation))
+                        emit({"step": step_no, "action": "finish-rejected",
+                              "observation": observation})
+                        transcript_parts.append(
+                            f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                        )
+                        continue
 
                 if self.require_evidence and self.ledger is not None:
                     # Route through VERIFYING -> ACCEPTED so the recorded
@@ -1350,6 +1411,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         or observation.startswith("file not found:")
                         or observation.startswith("path traversal blocked:")):
                     mutations_succeeded += 1
+                    # A new successful edit invalidates any prior test
+                    # verdict -- it was measured against the file as it
+                    # stood before this change.
+                    auto_test_verdict = None
             elif tool_name in _READ_ONLY_TOOLS and not call_failed:
                 reads_since_mutation_attempt += 1
                 if reads_since_mutation_attempt == _READ_ONLY_NUDGE_AFTER:

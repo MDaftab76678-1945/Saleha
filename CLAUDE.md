@@ -1603,6 +1603,50 @@ was romanized Hinglish (English-only rule, found in a fourth file after
 rewritten in English and corrected to match the real code. Detail:
 `NOTEBOOK_IMPORT.md`, "Pass 92."
 
+**Pass 93 — a fifth fake green in the agent loop, fixed: a "successfully
+patched" tool response was never proof the fix was correct.** Probed
+isolated capability first: given the exact buggy lines with no navigation
+needed, `qwen2.5-coder:3b` diagnosed the bug correctly but never emitted
+`patch_file` (2/2 trials, called `finish()` with an explanation instead,
+even with `patch_file` the only tool offered); `qwen3:8b` emitted a
+byte-correct patch (2/2). Different gaps, so tested each model's
+different failure mode in the full loop next. `qwen3:8b` through
+`AgentLoop` against a fresh planted `super_len` bug: navigated correctly,
+`patch_file` reported success, `finish()` claimed the bug fixed — verified
+against reality, the edit landed on the wrong line and the real suite went
+**4 failed → 6 failed**. Every existing gate (pass 85's zero-mutation gate,
+pass 91's test-file guard) passed it through, because
+`mutations_succeeded > 0` was true — the tool genuinely did not error, so
+"did a write succeed?" was still the only question ever asked, three fixes into this
+exact lineage. Root cause: `run_tests`/`TESTS_PASSED` have existed since
+pass 53 and no production `AgentLoop` construction site (`saleha agent`,
+`swe_bench_runner.py`) has ever passed `require_evidence` as `True` — the
+verification machinery had never once executed on a live repair run.
+**Fix: the loop verifies itself** — once a repair-goal run has a
+successful mutation, before admitting `finish()`, the loop calls its own
+`_tool_run_tests()` directly (no model turn, no opt-in flag needed). No
+discoverable test command → stays out of the way; tests pass → admits
+normally; tests fail → REJECTED with the real pytest output embedded,
+cached so a retry does not re-run the whole suite. A second, real bug
+found while testing: the new step was only `emit()`-ted to the event
+stream, never appended to `result.steps` — the exact gap pass 90 named and
+fixed for its own `-blocked` observations, reproduced in new code three
+passes later. Fixed for the new step; the same gap pre-exists on four
+older `finish-rejected` sites (passes 53/85/89) — left as a separate,
+recorded finding, not folded into this fix. Teeth-checked: 2/4 new tests
+fail against the unfixed loop. Live re-run twice against a fresh planted
+bug each time: both end **`success: False`, max_steps exhausted** — the
+wrong patch is genuinely on disk, the suite genuinely reports 6 failed,
+and the CLI-facing result is now an honest failure instead of a green
+tick over a broken fix. **Honest state: `qwen3:8b` still has not landed a
+correct patch across nine measured attempts (passes 53, 85-93) — this
+pass did not fix that. What changed is that a wrong fix is now reported
+as wrong**, which is what lets a future pass tell "the loop is broken"
+apart from "the model cannot do this yet" instead of both producing the
+identical false `success: True`. Measured: `test_agentic_loop.py` 76 →
+**80/80**; full suite 2207 → **2211 passed, 13 skipped, 172 subtests**,
+zero regressions. Detail: `NOTEBOOK_IMPORT.md`, "Pass 93."
+
 ---
 
 ## Environment facts worth knowing
