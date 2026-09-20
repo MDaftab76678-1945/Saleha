@@ -8740,3 +8740,45 @@ Architected and built the 9-Brain Multi-Agent Coordination Engine:
 - `test_agent_worker_pool.py`: 7 tests.
 - Physical execution: **14 passed in 2.27s** (100% green).
 - Pre-flight commit audit: 100.0/100 on `octopus_coordinator.py`, `octopus_cmd.py`, `test_octopus_coordinator.py`, `test_cli_octopus.py`.
+
+## Pass 101: Step 4 of Master Vision -- Small Beating Large (Local-First Supremacy Engine) (2026-09-21)
+
+Fully implemented Step 4 of the Master Vision: *"Enabling a 4GB/3B local model to outperform 200B parameter frontier models (Small Beating Large)."*
+
+### 1. LocalSupremacyEngine (`saleha/core/local_supremacy.py`)
+
+Architected and built the Test-Time Compute (TTC) scaling and Reflexion tournament engine:
+- **Stratified Multi-Trajectory Generation**:
+  - Concurrently generates $K$ diverse algorithmic strategies across temperatures ($T=0.2$ to $0.8$) using `FastInference.run_batch()`:
+    - Strategy 1: Direct Idiomatic ($T=0.2$)
+    - Strategy 2: Defensive & Guarded ($T=0.4$)
+    - Strategy 3: Modular Decomposed ($T=0.6$)
+    - Strategy 4: Algorithmic Optimized ($T=0.8$)
+- **Dual Verification Tournament**:
+  - Level 1: AST syntax validation (`ast.parse`). Invalid candidates score 0.
+  - Level 2: AST security pre-filtering (`ASTContractAuditor`). Catches forbidden modules and dangerous dynamic execution (`eval`, `exec`) before sandbox execution.
+  - Level 3: Isolated sandbox testing (`CodeExecutor`). Executes code against physical test assertions with resource bounds.
+  - Fast-Pass: When any candidate in the initial fan-out passes all tests, it is declared tournament winner immediately without incurring repair latency.
+- **Traceback-Conditioned Reflexion Self-Correction**:
+  - When initial candidates fail sandbox tests, selects the highest-scoring candidate with valid syntax.
+  - Extracts physical runtime error logs and failure frames via `SelfHealingEngine`.
+  - Submits an error-conditioned repair prompt to the local model and re-verifies in the sandbox.
+- **Empirical Amplification Factor**:
+  - Quantifies test-time compute leverage: $P(\text{TTC + Reflexion}) / P(\text{Single-Shot Baseline})$.
+  - Accurately tracks when a problem failed single-shot and was successfully recovered through TTC search.
+
+### 2. First-Class CLI Command & Rich Tournament HUD (`saleha supremacy`)
+
+- Built `saleha supremacy <problem>` in `saleha/cli/commands/supremacy_cmd.py`:
+  - Rich Terminal HUD displaying Mission header, Trajectory Tournament table (Strategy, Temperature, Syntax, Security, Sandbox Tests, Latency), Reflexion traceback repair log, and Deliverable panel.
+  - Options: `--tests` / `-t` (test assertion string or file path), `--model` / `-m` (default: `qwen2.5-coder:3b`), `--trajectories` / `-k` (default: 4), `--refinements` / `-r` (default: 2), and `--json`.
+  - Machine-readable `--json` flag: Captures internal stdout/stderr logs cleanly with `contextlib.redirect_stdout`/`redirect_stderr` so emitted JSON is pure.
+  - Registered command in `saleha/cli/commands/__init__.py`.
+
+### Verified
+
+- `test_local_supremacy.py`: 5 comprehensive tests (fast-pass winner selection, reflexion repair recovery from single-shot failure, honest failure reporting with non-zero exit codes, security disqualification of dangerous `eval`, and stratified diversity).
+- `test_cli_supremacy.py`: 2 tests (`test_cli_supremacy_help` and `test_cli_supremacy_json_execution`).
+- `test_ttc_solver.py`: 11 regression tests.
+- Physical execution: **18 passed in 3.53s** (100% green).
+- Pre-flight commit audit: **100.0/100** on `local_supremacy.py`, `supremacy_cmd.py`, `test_local_supremacy.py`, `test_cli_supremacy.py`.
