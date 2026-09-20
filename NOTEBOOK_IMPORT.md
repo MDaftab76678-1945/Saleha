@@ -8992,3 +8992,68 @@ different file. **Recorded, not yet root-caused or fixed** -- unlike the
 pass-103 scaffolder flake, this one has not been traced to a specific
 line; flagging it as a known intermittent rather than claiming a fix that
 was not done.
+
+## Pass 105: gated patch_file/get_file_outline on confirmed evidence -- eliminates invented filenames, does not solve the instance (2026-09-21)
+
+Direct follow-up to pass 104's finding: the model invented a nonexistent
+filename and called `patch_file`/`get_file_outline` on it directly, ignoring
+real evidence its own `list_dir` had just produced. Decision (with the
+user): fix the evidence-ignoring defect rather than move on, since it is a
+concrete, testable engineering gap distinct from a capability ceiling.
+
+Added `confirmed_files: set` to `agentic_loop.py`'s `run()`, populated from
+every real `list_dir` (files, not just the `unexplored_dirs` this pass's
+predecessor already tracked), `find_symbols`, and `search_repo` result. New
+gate: once at least one real file has been confirmed, `patch_file` and
+`get_file_outline` on a path not in that set are rejected outright (before
+the handler runs), naming a real file from the transcript instead of
+letting the honest "file not found" -- which the model was measured to
+ignore -- be the only signal. The gate does not fire before any evidence
+exists (a first-ever correctly-guessed filename from the goal text is not
+penalized).
+
+Two new tests: `test_unconfirmed_path_rejected_after_real_evidence_exists`
+(teeth-checked: 0 rejections against the pre-fix code, 2 against the fix)
+and `test_first_ever_guess_is_not_blocked_before_any_evidence_exists` (the
+negative-case guard, correctly passes both before and after). Also had to
+adjust the pass-104 test itself: the new gate now intercepts
+`get_file_outline` on the invented path before the older repeat-detection
+nudge logic ever runs for that call, so the original test's assertion
+(checking for a `[repeat]`-prefixed observation) no longer applied to that
+exact scenario -- switched to repeated `list_dir` calls instead, which
+isolates the unexplored-dirs nudge from this new gate cleanly. Confirmed
+this is a genuine improvement, not a workaround: the new gate's rejection
+of an invented path is strictly stronger than a same-content repeat nudge
+(it fires on the very first attempt at a bad path, not only the second).
+
+**Live re-run, same instance (`psf__requests-3362`), same clean checkout:**
+the specific defect is gone -- no invented filename appeared anywhere in
+the 14-step transcript. But the run still failed, for a different reason:
+the model listed the real repo root correctly, then went into the real
+`docs/` directory (Sphinx documentation, not the `requests/` source
+package) and got stuck re-reading `docs/conf.py` for the remaining steps,
+via the repeat-nudge loop (correctly firing each time). It never called
+`find_symbols`, never entered `requests/`, never attempted `patch_file`.
+`success: False`, `max_steps` exhausted, working tree confirmed clean --
+honest, no fabricated success.
+
+**Honest state**: the evidence-ignoring bug pass 104 found is fixed and
+verified live -- the model can no longer act on invented paths once real
+evidence exists. That did not make this instance solvable. The model's
+remaining failure mode has shifted from "invents a file" to "explores a
+real but irrelevant directory and never pivots to the relevant one
+(`requests/`) despite seeing it listed at step 1." This is arguably the
+same underlying weakness in a new guise -- a small model does not
+prioritize evidence by relevance to the goal -- but it is a different,
+harder problem than the one this pass fixed, and is not addressed here.
+Given three fix-attempt passes (103 partially unrelated, 104, 105) against
+this single real instance without a landed patch, the next step recorded
+for this lineage is to either (a) try a bigger local model
+(`qwen3:8b`/`qwen3.5:9b`) against the now-hardened loop on this same
+instance, or (b) accept this as a measured capability ceiling for
+`qwen2.5-coder:3b` on real, hint-free SWE-bench instances and move
+effort elsewhere -- a decision recorded here for the next session rather
+than made unilaterally.
+
+Measured: `test_agentic_loop.py` 91 -> **93/93 passed**, 2 new tests. Full
+suite re-run pending in the same commit as this entry.

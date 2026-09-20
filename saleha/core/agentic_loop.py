@@ -1109,6 +1109,22 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # break the cycle. Now it names a real, unexplored directory
         # instead when one exists.
         unexplored_dirs: List[str] = []
+        # Real file paths this run has actually seen -- from list_dir,
+        # find_symbols, or search_repo results. Measured against the same
+        # psf/requests run above: even after the unexplored_dirs fix made
+        # the nudge point at a real directory, the model invented a
+        # *second* nonexistent filename (./your_script.py) and called
+        # patch_file/get_file_outline on it directly, ignoring the real
+        # `requests/` package directory its own list_dir had just shown.
+        # The tool handlers report "file not found" honestly, but nothing
+        # stopped the model from spending its remaining budget on invented
+        # paths instead of ones it had evidence for. Gating patch_file and
+        # get_file_outline on this set turns "file not found" (which the
+        # model was ignoring) into a hard rejection naming a real path.
+        confirmed_files: set = set()
+
+        def _norm_rel(p: str) -> str:
+            return p.strip().replace("\\", "/").lstrip("./")
 
         for step_no in range(1, self.max_steps + 1):
             if time.time() - start_time > self.timeout_sec:
@@ -1487,6 +1503,43 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 )
                 continue
 
+            # Reject patch_file/get_file_outline on a path this run has never
+            # actually confirmed to exist. Measured live against
+            # psf/requests-3362 (pass 104): after list_dir showed a real
+            # `requests/` package directory, the model still called
+            # patch_file and get_file_outline on an invented
+            # `./your_script.py` -- the handler's honest "file not found" did
+            # not stop it from repeating the same invented name. This is not
+            # about a missing directory to explore (unexplored_dirs already
+            # covers that); it fires specifically when the model acts on a
+            # path with zero evidence behind it while real evidence already
+            # exists in the transcript, so it does not block a first-ever
+            # guess before any list_dir/find_symbols/search_repo has run.
+            if (self.allow_write
+                    and tool_name in ("patch_file", "get_file_outline")
+                    and confirmed_files
+                    and _norm_rel(str(args.get("path", ""))) not in confirmed_files):
+                sample = ", ".join(sorted(confirmed_files)[:5])
+                observation = (
+                    f"REJECTED: {args.get('path')} has not been confirmed to "
+                    f"exist by any list_dir, find_symbols, or search_repo "
+                    f"result in this run. Real files seen so far include: "
+                    f"{sample}.\n"
+                    f"DO THIS NEXT: call find_symbols on the name from the "
+                    f"goal, or list_dir on a real directory already shown "
+                    f"above, before touching a specific file."
+                )
+                result.steps.append(
+                    LoopStep(step_no, f"{tool_name}-rejected-unconfirmed-path",
+                            args_preview=json.dumps(args)[:120],
+                            observation=observation))
+                emit({"step": step_no, "action": f"{tool_name}-rejected-unconfirmed-path",
+                      "observation": observation})
+                transcript_parts.append(
+                    f"[step {step_no}] {tool_name} (REJECTED)\nOBSERVATION: {observation}"
+                )
+                continue
+
             # Hard gate past the read-only streak threshold: a suggestion
             # alone was measured not to change the next action. Same real
             # repo bug, same model: the nudge fired at step 4 exactly as
@@ -1600,6 +1653,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
             # Track subdirectories seen but not yet themselves listed, so a
             # stuck model can be pointed at one instead of its own dead end.
+            # Also record every real file this call actually reported, so
+            # patch_file/get_file_outline can be gated on real evidence
+            # rather than an invented path (see the rejection gate above).
             if not call_failed and tool_name == "list_dir":
                 listed_path = (args.get("path") or ".").rstrip("/")
                 if listed_path in unexplored_dirs:
@@ -1611,6 +1667,24 @@ Never invent tool outputs. One block per reply. Be efficient."""
                             child = f"{listed_path}/{name}" if listed_path != "." else name
                             if child not in unexplored_dirs:
                                 unexplored_dirs.append(child)
+                    elif line.startswith("file "):
+                        rest = line[5:].strip()
+                        name = rest.rsplit(" ", 1)[0] if rest.rsplit(" ", 1)[-1].endswith("B") else rest
+                        if name:
+                            full = f"{listed_path}/{name}" if listed_path != "." else name
+                            confirmed_files.add(_norm_rel(full))
+            elif not call_failed and tool_name == "find_symbols":
+                for part in observation.split("defined at:", 1)[-1].split(","):
+                    part = part.strip().split("\n", 1)[0]
+                    rel = part.rsplit(":", 1)[0] if ":" in part else part
+                    if rel:
+                        confirmed_files.add(_norm_rel(rel))
+            elif not call_failed and tool_name == "search_repo":
+                for line in observation.split("\n"):
+                    if ":" in line:
+                        rel = line.split(":", 1)[0]
+                        if rel and not rel.startswith("["):
+                            confirmed_files.add(_norm_rel(rel))
 
             # Repeat detection. A small model re-reads the same file instead of
             # acting on it: an earlier SWE-bench run here spent 6 of 12 turns on

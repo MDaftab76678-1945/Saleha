@@ -771,12 +771,17 @@ class AgentLoopTests(unittest.TestCase):
         old fallback nudge ("call get_file_outline on the source file")
         named no path when located_region was empty. list_dir's own first
         result had already shown a real `pkg/` subdirectory it never
-        entered. The nudge must name that real, unexplored directory."""
+        entered. The nudge must name that real, unexplored directory.
+
+        Uses repeated list_dir (not get_file_outline) to isolate this nudge
+        from the separate unconfirmed-path gate below, which now catches
+        get_file_outline on an invented path before the repeat-nudge logic
+        ever runs."""
         os.makedirs(os.path.join(self.root, "pkg"), exist_ok=True)
         agent = ScriptedAgent([
             _tool_call("list_dir", path="."),
         ] + [
-            _tool_call("get_file_outline", path="./src/main.py")
+            _tool_call("list_dir", path=".")
             for _ in range(8)
         ] + [_finish("done")] * 20)
         res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
@@ -784,6 +789,49 @@ class AgentLoopTests(unittest.TestCase):
         repeats = [s for s in res.steps if s.observation.startswith("[repeat]")]
         self.assertTrue(repeats, res.steps)
         self.assertIn('list_dir with "path" set to "pkg"', repeats[0].observation)
+
+    def test_unconfirmed_path_rejected_after_real_evidence_exists(self) -> None:
+        """Measured live against the same psf/requests-3362 run, after the
+        unexplored_dirs fix above was already in place: the model invented
+        a *second* nonexistent filename (./your_script.py) and called
+        patch_file/get_file_outline on it directly -- ignoring the real
+        `requests/`-equivalent directory its own list_dir had just shown.
+        The handler's honest "file not found" did not stop the model from
+        repeating the same invented name. Once real evidence exists in the
+        transcript, a path that evidence never confirmed must be rejected
+        outright, naming a real file instead."""
+        with open(os.path.join(self.root, "real_mod.py"), "w") as f:
+            f.write("x = 1\n")
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _tool_call("get_file_outline", path="./invented_name.py"),
+            _tool_call("patch_file", path="./invented_name.py",
+                       search="x", replace="y"),
+        ] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=10).run("fix the bug")
+        rejected = [s for s in res.steps
+                    if s.action.endswith("-rejected-unconfirmed-path")]
+        self.assertEqual(len(rejected), 2, res.steps)
+        self.assertIn("invented_name.py", rejected[0].observation)
+        self.assertIn("real_mod.py", rejected[0].observation)
+
+    def test_first_ever_guess_is_not_blocked_before_any_evidence_exists(self) -> None:
+        """The unconfirmed-path gate must not fire on the very first guess,
+        before list_dir/find_symbols/search_repo has run even once -- that
+        would block the honest, ordinary case of a model naming a file it
+        has correctly guessed from the goal text, with no evidence in the
+        transcript yet to check the guess against."""
+        agent = ScriptedAgent([
+            _tool_call("get_file_outline", path="app.py"),
+            _finish("read the outline"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=4).run("understand billing")
+        rejected = [s for s in res.steps
+                    if s.action.endswith("-rejected-unconfirmed-path")]
+        self.assertEqual(rejected, [])
+        self.assertTrue(res.success, res.error)
 
     def test_patching_a_test_file_is_rejected_for_a_repair_goal(self) -> None:
         """Measured live (pass 91): forced to act by the read-only gate,
