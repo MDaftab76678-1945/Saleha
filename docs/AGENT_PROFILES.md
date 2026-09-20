@@ -1,10 +1,10 @@
-# 🎭 Saleha AI — Domain Agent Profiles Catalog
+# Saleha AI -- Domain Agent Profiles Catalog
 
-Saleha dynamically parses, indexes, and adopts 20 specialized domain personas defined in Markdown specifications.
+Saleha dynamically parses, indexes, and adopts 30 specialized domain personas defined in Markdown specifications.
 
 ---
 
-## Catalog of 20 Specialized Agent Profiles
+## Catalog of 30 Specialized Agent Profiles
 
 | Profile ID | Role Name | Primary Responsibilities & Expertise |
 |---|---|---|
@@ -28,6 +28,16 @@ Saleha dynamically parses, indexes, and adopts 20 specialized domain personas de
 | `agent_pcb_designer` | Senior PCB Layout Specialist | Signal integrity, board schematics, component placement. |
 | `agent_programmer` | Core Programmer & Code Synthesizer | Fast script generation, algorithmic implementations. |
 | `agent_software_engineer` | Senior Software Engineer | Generalist software engineering across full-stack applications. |
+| `agent_cloud_resilience` | Lead Cloud Resilience & SRE Architect | Failure-domain design, chaos testing, multi-region resilience. |
+| `agent_embedded_firmware` | Principal Embedded Systems & RTOS Firmware Architect | RTOS scheduling, bare-metal drivers, real-time constraints. |
+| `agent_finops_token_economist` | Lead FinOps & Token Economics Optimization Architect | Inference cost modeling, token budgeting, spend attribution. |
+| `agent_neuro_optimizer` | Principal Neural Compiler & Tensor Optimizer | Kernel fusion, quantization, tensor graph optimization. |
+| `agent_p2p_swarm_coordinator` | P2P Mesh Swarm Coordinator & Consensus Arbiter | Peer coordination, consensus arbitration, swarm scheduling. |
+| `agent_quantum_symbolic` | Formal Verification & Symbolic Logic Architect | SMT/Z3 proofs, invariants, symbolic constraint solving. |
+| `agent_semantic_data_pipeline` | Principal Real-Time Streaming & Vector Lakehouse Architect | Streaming ingestion, vector stores, semantic indexing. |
+| `agent_silicon_architect` | Principal Silicon & Hardware RTL Architect | RTL design, Verilog synthesis, hardware datapaths. |
+| `agent_spatial_3d_engine` | Principal 3D Graphics & Spatial WebGPU Engineer | WebGPU pipelines, spatial math, real-time rendering. |
+| `agent_zero_day_hunter` | Autonomous Exploit Defense & Fuzzing Red-Teamer | Fuzzing campaigns, exploit discovery, red-team defense. |
 
 ---
 

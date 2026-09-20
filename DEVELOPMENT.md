@@ -23,8 +23,8 @@ The repository maintains two virtual environments. Use them strictly as intended
 
 | Environment Path | Python Version | Purpose |
 | --- | --- | --- |
-| `.\.venv\` | **Python >= 3.12** | **Primary Development.** All everyday coding, test runs, and CLI operations MUST run here. |
-| `.\.venv_train\` | Python 3.11 | **Legacy Offline Training.** Strictly reserved for offline torch/PEFT scripts. Never run unit tests here. |
+| `.\.venv\` | **Python 3.14.7** | **Primary Development.** All everyday coding, test runs, and CLI operations MUST run here. |
+| `.\.venv_train\` | Python 3.11.16 | **Legacy Offline Training.** Strictly reserved for offline torch/PEFT scripts. Never run unit tests here — `requires-python` is `>=3.12`, so this environment is below the supported floor and CI never tests it. |
 
 ### Activation & Package Installation
 
@@ -45,7 +45,10 @@ pip install -e ".[dev,formal]"
 
 ## 3. TypeScript Monorepo Setup
 
-Saleha includes an 8-package TypeScript monorepo under `packages/`:
+Saleha includes an 8-workspace TypeScript monorepo — 5 libraries under
+`packages/` (`api`, `auth`, `core`, `db`, `ui`) plus 3 apps under `apps/`
+(`desktop`, `landing`, `web`). The workspace globs live in
+`pnpm-workspace.yaml`, not `package.json`:
 
 ```powershell
 # Install TypeScript monorepo dependencies
@@ -65,7 +68,7 @@ Before submitting or staging any change:
 # 1. Run surgical module test
 python -m pytest saleha/tests/test_math_logic.py -v
 
-# 2. Run full test suite (~1661 tests)
+# 2. Run full test suite (2174 passed, 13 skipped as of 2026-09-20)
 python -m pytest saleha/tests/ -q
 
 # 3. Check code style and diagnostics

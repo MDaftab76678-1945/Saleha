@@ -7333,3 +7333,128 @@ green test).
 - No source-code fabrication found; changes are one real model-name typo
   fix (`project_initializer.py`), one regenerated stale artifact
   (`.saleharules`), and two doc corrections (`EVALS.md`).
+
+---
+
+## Pass 84: root docs audited -- an invented capability matrix, and the flaky test finally fixed (2026-09-20)
+
+Continued the section-8 sweep into the root-level docs `ORCHESTRATOR.md`
+8.1 had listed as "not yet in the audit trail."
+
+### 1. `AGENTSKILLS.md` documented a capability system that does not exist
+
+Section 2's "Domain Personas Capability Matrix" had three columns, two of
+them invented:
+
+- **"Allowed Tools" named the wrong things.** It listed module-level
+  identifiers (`sandbox_jail`, `math_engine`, `ast_cache`,
+  `bm25_search`, `smt_verifier`). The real `allowed_tools` in every
+  `saleha/skills/agent_*.md` frontmatter are `read_file`, `write_file`,
+  `run_code`, `search_repo`, `list_dir`, `web_fetch` -- a different
+  vocabulary entirely. `agent_profile_loader.py:56` reads the frontmatter
+  list and injects it as an `[AUTHORIZED TOOLS]` prompt line, so the real
+  names are load-bearing and the documented ones appear nowhere in code
+  (`grep` for `sandbox_jail|math_engine` in the loader: no hits).
+- **"Token Budget" (2048 / 4096 per persona) was entirely fabricated.**
+  No profile declares a token budget (`grep -l "token_budget"
+  saleha/skills/agent_*.md`: empty), and nothing reads or enforces one
+  anywhere.
+- **"Boundary Restrictions"** carried prose rules ("Cannot commit changes
+  directly to main", "Read-only audit; zero disk writes") with no code
+  behind them either. The genuine boundary is which tools a persona was
+  granted -- a profile with no `write_file` is read-only because of that,
+  not because of a sentence in a table.
+
+Replaced with the verbatim frontmatter values for all eight documented
+personas, plus a note recording what was removed and why.
+
+### 2. The same doc understated every context window by 10-20x
+
+Section 4 claimed "Fast Tier (`qwen2.5-coder:3b`): Max prompt context 2048
+tokens" and "Reasoning Tier: 4096 tokens". The real registry in
+`saleha/core/context_budget.py` -- which `ContextBudgetGuard` actually uses
+to size prompts -- says `qwen2.5-coder:3b` 32768, `qwen3:8b` 40960,
+`qwen3.5:9b` 40960, `deepseek-r1:7b` 32768. An agent following the doc
+would prune context to 6% of what the model can hold. Corrected to the
+registry values, with a pointer to the pass-63 reasoning-model
+`num_predict` finding.
+
+### 3. Persona count was 20 everywhere; there are 30
+
+`docs/AGENT_PROFILES.md` claimed "20 specialized domain personas" in three
+places; `saleha/skills/` holds 30 `agent_*.md` files. Cross-checked
+properly rather than just fixing the number: **every one of the 20
+documented entries maps to a real file (zero ghost entries)** -- this was
+honest drift, not fabrication. Added the 10 undocumented personas
+(`agent_cloud_resilience`, `agent_embedded_firmware`,
+`agent_finops_token_economist`, `agent_neuro_optimizer`,
+`agent_p2p_swarm_coordinator`, `agent_quantum_symbolic`,
+`agent_semantic_data_pipeline`, `agent_silicon_architect`,
+`agent_spatial_3d_engine`, `agent_zero_day_hunter`) with role names read
+from their own frontmatter, and corrected the count in
+`AGENT_PROFILES.md` and `AGENTSKILLS.md`. Also removed a decorative emoji
+from the `AGENT_PROFILES.md` title per rule 3.
+
+### 4. `SOUL.md` said the SMT verifier does not call Z3 -- it does
+
+Section II.1 read: "`formal_verifier.py` and `formal_smt_verifier.py`
+generate Lean 4- and SMT-*shaped text* as templates -- they do not invoke
+Lean or Z3." That was true when written but half of it stopped being true
+at pass 39. `formal_smt_verifier.py` imports and calls `z3` for real
+(verified: `z3.Real`, `z3.Int`, `z3.And`, `z3.Not` across lines 54-180).
+`formal_verifier.py`'s Lean output genuinely is still an unverified
+scaffold. Split the claim so the honest half is not dragged down by the
+stale half -- a doc that understates a real capability costs trust the
+same way an overstated one does.
+
+### 5. `DEVELOPMENT.md` and `AGENTS.md` -- stale counts
+
+- Test count "~1661" in both -> real 2174 (272 test files).
+- `saleha/core/` "~220 modules" -> real 241.
+- "8-package TypeScript monorepo under `packages/`" -> the 8 workspaces are
+  5 libraries in `packages/` (api, auth, core, db, ui) plus 3 apps in
+  `apps/` (desktop, landing, web); globs live in `pnpm-workspace.yaml`.
+  Verified `npx turbo run typecheck` -> **8 successful, 8 total**.
+- Installed-model list was missing `qwen3.5:4b` and `nomic-embed-text`;
+  replaced with the verified `ollama list` output including on-disk sizes.
+- **`.venv_train` has been recreated.** CLAUDE.md's pass-35 note says its
+  `Scripts/` no longer has a `python.exe`; it does now, and reports
+  **Python 3.11.16**. Both docs updated to state the version and that it
+  sits below the `requires-python = ">=3.12"` floor.
+
+### 6. The Windows test flake, diagnosed and fixed
+
+`test_agentic_loop.py::RunTestsToolTests::test_a_failing_suite_reports_failed`
+failed on two consecutive full-suite runs (recorded as "unrelated flake"
+in pass 82) while passing in isolation. Read rather than re-run: the class
+runs a **real nested pytest** inside a `tempfile.TemporaryDirectory`, which
+leaves `__pycache__/*.pyc` files Windows may still hold open when
+`tearDown` calls `cleanup()`. The cleanup raises `WinError 32` *after* the
+test's own assertions have already passed -- so a green test reported red.
+
+Reproduced deliberately (`pytest ...::RunTestsToolTests` alone:
+`1 failed, 11 passed`, traceback ending in `_os.unlink(path)` ->
+`PermissionError`), then fixed with
+`TemporaryDirectory(ignore_cleanup_errors=True)`. Three consecutive runs
+of the class: **12/12, 12/12, 12/12**.
+
+Reading that file also surfaced ~30 pre-existing type diagnostics:
+`ScriptedAgent` (a test double) was passed where `AgentLoop.__init__`
+declared `agent: BaseAgent`. Rather than force every test to construct a
+real provider-backed agent, introduced a `ThinkingAgent` Protocol in
+`agentic_loop.py` -- the loop calls exactly one method on its agent
+(`self.agent.think(...)`, line 820) and nothing else, so a Protocol is the
+honest type. `BaseAgent` satisfies it structurally; the now-unused
+`BaseAgent` import was removed. Also translated one Hindi docstring in the
+test file per rule 2.4.
+
+### Pass 84 Verification
+
+- `test_agentic_loop.py`: **58 passed, 10 subtests**.
+- `test_agentic_loop.py` + `test_context_budget.py` +
+  `test_agent_profile_loader.py`: **95 passed, 10 subtests**.
+- `npx turbo run typecheck`: **8 successful, 8 total**.
+- Full suite: **2175 passed, 13 skipped, 172 subtests passed** in 142.81s
+  -- the first fully clean full-suite run in this session (pass 82 and the
+  first pass-84 run both ended `1 failed` on the flake now fixed).
+- Zero editor diagnostics on both modified source files.

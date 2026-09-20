@@ -1,11 +1,11 @@
 # AGENTSKILLS.md — Real Capability Matrix & Tool Registry
 
 > **Project:** saleha-0.1 (Local-First Autonomous Multi-Agent AI Coding Assistant)  
-> **Audience:** Saleha Core Orchestrators, 20 Domain Personas, Antigravity IDE, Claude Code  
+> **Audience:** Saleha Core Orchestrators, 30 Domain Personas, Antigravity IDE, Claude Code  
 > **Source of Truth:** Aligned with `docs/AGENT_PROFILES.md` and `saleha/skills/`
 
 This document defines the real, executable capability matrix, tool permissions, and context budgets
-for Saleha's 20 domain personas and autonomous workflow skills.
+for Saleha's 30 domain personas and autonomous workflow skills.
 
 ---
 
@@ -28,16 +28,34 @@ All agent capabilities are grounded strictly in real executable modules within `
 
 Saleha adopts specialized personas defined in `docs/AGENT_PROFILES.md`. Each role operates under strict boundary gates:
 
-| Profile ID | Role Name | Allowed Tools | Boundary Restrictions | Token Budget |
-| --- | --- | --- | --- | --- |
-| `agent_sde` | Core Distributed SDE | `sandbox_jail`, `math_engine`, `ast_cache` | Cannot bypass AST security verifier | 2048 tokens |
-| `agent_security_engineer` | App & Cloud Security | `ast_verifier`, `sandbox_jail`, `bm25_search` | Cannot commit changes directly to main | 4096 tokens |
-| `agent_test_automation_engineer` | Test Automation | `sandbox_jail`, `ast_cache`, `math_engine` | Restricted strictly to `saleha/tests/` | 2048 tokens |
-| `agent_software_designer` | LLD Architect | `bm25_search`, `math_engine`, `smt_verifier` | Read-only analysis; no code synthesis | 4096 tokens |
-| `agent_programmer` | Core Code Synthesizer | `sandbox_jail`, `math_engine` | Must follow surgical diff contracts | 2048 tokens |
-| `agent_cloud_architect` | Cloud Solutions Architect | `bm25_search`, `ast_verifier` | Cannot generate synthetic cloud mocks | 4096 tokens |
-| `agent_performance_tester` | Performance Engineer | `sandbox_jail`, `math_engine` | Must measure physical execution times | 2048 tokens |
-| `agent_compliance_officer` | Compliance & Privacy | `ast_verifier`, `bm25_search` | Read-only audit; zero disk writes | 4096 tokens |
+`allowed_tools` below is read verbatim from each profile's YAML frontmatter
+in `saleha/skills/agent_*.md`. `agent_profile_loader.py` parses it and
+injects it into the system prompt as an `[AUTHORIZED TOOLS]` line — these
+are the real tool identifiers the loader uses, not the module names in
+section 1. A persona with no `write_file` is read-only by virtue of the
+tools it was granted, which is the only boundary the code actually
+enforces.
+
+| Profile ID | Role Name | Allowed Tools (verbatim from frontmatter) |
+| --- | --- | --- |
+| `agent_sde` | Core Distributed SDE | `read_file`, `write_file`, `run_code`, `search_repo`, `list_dir` |
+| `agent_security_engineer` | App & Cloud Security | `read_file`, `search_repo`, `run_code` |
+| `agent_test_automation_engineer` | Test Automation | `read_file`, `search_repo`, `run_code` |
+| `agent_software_designer` | LLD Architect | `read_file`, `search_repo`, `write_file` |
+| `agent_programmer` | Core Code Synthesizer | `read_file`, `write_file`, `run_code`, `search_repo` |
+| `agent_cloud_architect` | Cloud Solutions Architect | `read_file`, `search_repo`, `web_fetch` |
+| `agent_performance_tester` | Performance Engineer | `read_file`, `search_repo`, `run_code` |
+| `agent_compliance_officer` | Compliance & Privacy | `read_file`, `search_repo` |
+
+> **Removed 2026-09-20 (pass 84):** this table previously carried a
+> "Token Budget" column (2048 / 4096 per persona) and a "Boundary
+> Restrictions" column with prose rules like "Cannot commit changes
+> directly to main". Neither was real: no profile declares a token budget
+> in its frontmatter, nothing in `agent_profile_loader.py` or anywhere
+> else reads or enforces one, and the prose boundaries were not
+> represented in code either. The `allowed_tools` list is the boundary
+> mechanism that genuinely exists. See section 4 for the context limits
+> that *are* real (they are per-model, not per-persona).
 
 ---
 
@@ -61,8 +79,12 @@ In addition to static personas, Saleha executes autonomous workflow skills locat
 
 To prevent hallucinations on consumer-grade local hardware:
 
-- **Fast Tier (`qwen2.5-coder:3b`):** Max prompt context 2048 tokens. Used for surgical unit test generation, regex extraction, and single-function patches.
-- **Reasoning Tier (`qwen3:8b` / `deepseek-r1:7b`):** Max prompt context 4096 tokens. Used for multi-step planning, security reviews, and SMT verification tasks.
+Context windows below are the registered values in
+`saleha/core/context_budget.py`, which `ContextBudgetGuard` uses to size
+prompts. Do not quote numbers that are not in that registry.
+
+- **Fast Tier (`qwen2.5-coder:3b`):** 32768-token context. Used for surgical unit test generation, regex extraction, and single-function patches.
+- **Reasoning Tier (`qwen3:8b`: 40960, `qwen3.5:9b`: 40960, `deepseek-r1:7b`: 32768):** Used for multi-step planning, security reviews, and SMT verification tasks. Note these are *reasoning* models — Ollama bills their chain of thought against the same `num_predict` budget as the answer, so a small output budget can return an empty reply (pass 63); `budget_for_model()` in `model_provider.py` accounts for this.
 - **BM25 Pruning:** Any prompt referencing multiple files must prune irrelevant functions using `saleha/core/bm25.py` before model submission.
 
 ---

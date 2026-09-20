@@ -10,7 +10,7 @@ from saleha.core.agentic_loop import AgentLoop, LoopResult
 
 
 class ScriptedAgent:
-    """Har think() call pe agla scripted response deta hai."""
+    """Returns the next scripted response on each think() call."""
 
     def __init__(self, responses: list) -> None:
         self.responses = list(responses)
@@ -711,7 +711,12 @@ class RunTestsToolTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
+        # These tests run a real nested pytest inside the temp dir, which
+        # leaves __pycache__/*.pyc files the OS may still hold open when
+        # tearDown runs. On Windows that makes cleanup raise WinError 32
+        # and fails the test *after* its assertions have already passed --
+        # a red suite caused by teardown, not by the code under test.
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = self._tmp.name
 
     def tearDown(self) -> None:

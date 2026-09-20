@@ -1428,6 +1428,53 @@ all code and comments still English. Three regression tests added,
 teeth-checked at **2 failed, 1 passed** against pass 80's source. Suite:
 **2168 passed, 13 skipped**. Commit `4aff6c4`.
 
+**Root docs audited; an invented capability matrix and the Windows flake
+fixed (passes 83-84).** Worked through `ORCHESTRATOR.md` section 8's
+remaining open items.
+
+- **Five scripts flagged as "same style as scripts caught fabricating" are
+  genuine.** Read in full: all load a real model or call an already-fixed
+  engine (`FrontierTrainer`, `GRPOReasoningTrainer`, `SwarmSelfPlayArena`)
+  and score real output. Naming stays marketing-heavy; the rule is about
+  fabricated results, not oversold naming.
+- **Mukti/Nexus contamination check closed** on `docs/manifestos/soul.md`,
+  `generative-art/`, `docs/notes/model-lab/` -- all clean. `model-lab`'s
+  `did:mukti:*` strings are the same coincidental brand overlap already
+  resolved for `mukti_chain_bridge.py`, not the foreign `deploy/` product.
+- **`AGENTSKILLS.md` documented a capability system that does not exist.**
+  Its persona matrix listed `allowed_tools` under names appearing nowhere
+  in code (`sandbox_jail`, `math_engine`) when the real frontmatter values
+  are `read_file`/`write_file`/`run_code`/`search_repo`/`list_dir`/`web_fetch`
+  (read by `agent_profile_loader.py:56`); a **"Token Budget" column
+  (2048/4096) that no profile declares and nothing enforces**; and prose
+  "Boundary Restrictions" with no code behind them. Replaced with verbatim
+  frontmatter values. Same doc understated every context window by 10-20x
+  (claimed 2048/4096 vs. the real 32768/40960 in `context_budget.py`) --
+  an agent following it would prune to 6% of the real window.
+- **Persona count was 20 everywhere; there are 30.** Cross-checked before
+  fixing: all 20 documented entries map to real files (zero ghost
+  entries), so this was honest drift. Added the 10 missing ones.
+- **`SOUL.md` said the SMT verifier does not call Z3 -- it does** (pass 39).
+  Split the claim: `formal_smt_verifier.py` is real Z3; only
+  `formal_verifier.py`'s Lean output is still an unverified scaffold.
+- **The Windows test flake is fixed, not excused.** `RunTestsToolTests`
+  runs a real nested pytest in a `TemporaryDirectory`; Windows still holds
+  the `__pycache__/*.pyc` open at `tearDown`, so `cleanup()` raised
+  `WinError 32` *after* the assertions had passed -- a green test
+  reporting red. Fixed with `ignore_cleanup_errors=True`; 3/3 clean runs.
+  Reading that file also surfaced ~30 pre-existing type errors
+  (`ScriptedAgent` vs `agent: BaseAgent`); `AgentLoop` calls exactly one
+  method on its agent, so it now takes a `ThinkingAgent` Protocol.
+- **Stale counts corrected** in `AGENTS.md`/`DEVELOPMENT.md`: tests
+  ~1661 -> 2174, core ~220 -> 241 modules, the "8 packages under
+  `packages/`" framing -> 5 libraries + 3 apps, and the model list now
+  matches `ollama list`. **`.venv_train` has been recreated** (Python
+  3.11.16) -- the pass-35 note saying its `python.exe` is gone is stale.
+
+Measured: **2175 passed, 13 skipped, 172 subtests** -- the first fully
+clean full-suite run (passes 82-83 both ended `1 failed` on that flake).
+`npx turbo run typecheck` 8/8. Detail: `NOTEBOOK_IMPORT.md`, passes 83-84.
+
 **Standing lesson:** "remove non-English text for Rule 2.4" is not a safe
 blanket refactor. Before stripping a non-English string, check whether it is
 *data the feature needs* (a pattern, a keyword list, a test fixture) rather
@@ -1478,10 +1525,10 @@ source, **36/36 passed** with the fix. Suite: **2174 passed, 13 skipped,
   Normalise both when talking to Ollama directly.
 - **Python: use `.venv` (3.14.7), not `.venv_train`.** `.venv_train` is the old
   3.11.16 environment — a version `requires-python = ">=3.12"` forbids and CI
-  never tests. It was kept for `torch` (the LoRA/training path), but as of
-  pass 35 its `Scripts/` has no `python.exe` any more (only the
-  `accelerate`/`torch` console shims), so it is not a usable interpreter —
-  recreate it if training is actually needed. `.vscode/settings.json`
+  never tests. It was kept for `torch` (the LoRA/training path). Pass 35
+  recorded that its `Scripts/` had no `python.exe`; **it has since been
+  recreated and works — verified pass 84, Python 3.11.16.** Still never run
+  the suite there: 3.11 is below the `requires-python = ">=3.12"` floor. `.vscode/settings.json`
   (gitignored) now points `defaultInterpreterPath` at `.venv`. The GPU
   training tests are backend-aware since pass 35: with no `torch` they
   assert the honest `success=False`, not a skip or a crash.

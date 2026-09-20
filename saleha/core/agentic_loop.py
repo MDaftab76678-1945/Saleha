@@ -33,10 +33,23 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse
 from saleha.core.path_utils import safe_relpath
+
+
+class ThinkingAgent(Protocol):
+    """The only thing this loop needs from an agent.
+
+    Typed as a Protocol rather than `BaseAgent` because the loop calls
+    nothing else on it, and requiring the concrete class would force every
+    test to construct a real provider-backed agent just to script replies.
+    `BaseAgent` satisfies this structurally.
+    """
+
+    def think(self, prompt: str, **kwargs: Any) -> AgentResponse:
+        ...
 
 MAX_OBSERVATION_CHARS = 3000
 MAX_FILE_READ_CHARS = 4000
@@ -204,7 +217,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         "write_file": '{"path": "<file>", "content": "<full new content>"}',
     }
 
-    def __init__(self, agent: BaseAgent, root_dir: str = ".",
+    def __init__(self, agent: ThinkingAgent, root_dir: str = ".",
                  max_steps: int = 12, allow_write: bool = False,
                  code_executor=None,
                  allowed_tools: Optional[List[str]] = None,
