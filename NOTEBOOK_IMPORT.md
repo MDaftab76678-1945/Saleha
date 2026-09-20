@@ -8563,3 +8563,39 @@ Measured:
 - `test_agentic_loop.py`: 85 -> **86/86 passed, 10 subtests passed** in 4.76s.
 - Full suite: 2216 -> **2217 passed, 13 skipped, 172 subtests** in 158.95s,
   zero regressions.
+
+## Pass 97: qwen2.5-coder:3b lands its first real verified repair end-to-end (2026-09-21)
+
+Tested the hardened `AgentLoop` (with pass 94's outline hints, pass 95's
+mutation-gated finish, and pass 96's auto-verify lockout) live against a
+real failing codebase using local `qwen2.5-coder:3b` (1.9 GB).
+
+Setup: planted arithmetic bug in `src/calc.py` (`double(x)` returned `x`
+instead of `x * 2`), with a 3-test pytest suite in `tests/test_calc.py`
+(red baseline: 2 failed, 1 passed). Goal: "fix the bug in double() in
+src/calc.py so that tests pass".
+
+Physical live trace:
+
+```text
+step 1  list_dir           -> pyproject.toml, src, tests
+step 2  list_dir           -> src/calc.py
+step 3  read_file          -> read src/calc.py
+step 4  find_symbols       -> located double at src/calc.py:1
+step 5  patch_file         -> successfully patched src/calc.py (return x * 2)
+step 6  auto-verify-tests  -> PASSED (exit 0) -- pytest suite verified in sandbox
+step 6  finish             -> admitted: "Bug in double() fixed by updating the return statement to correctly multiply x by 2."
+```
+
+Outcome:
+- `success: True`, `error: ""`
+- Steps taken: 7 (well within the 12-step budget).
+- Verified against disk: `src/calc.py` genuinely contains `return x * 2`.
+- Real test suite: 0 failed, 3 passed (100% green).
+
+This is a major milestone: for the first time in the repository's history,
+a local 3B model has completed the entire autonomous journey -- repository
+exploration, symbol grounding, code reading, surgical patching, and
+passing the sandbox test verification gate -- with zero human intervention
+and zero fake greens.
+
