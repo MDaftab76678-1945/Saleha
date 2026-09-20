@@ -159,7 +159,9 @@ class PolyglotExecutor:
             java_bin = self._find_compiler("java")
             if not javac_bin or not java_bin:
                 return PolyglotExecutionResult(success=False, language=lang, error="'javac'/'java' JDK not found on PATH.")
-            compile_res = subprocess.run([javac_bin, temp_file], cwd=temp_dir, capture_output=True, text=True)
+            compile_res = subprocess.run(
+                [javac_bin, temp_file], cwd=temp_dir, capture_output=True,
+                text=True, encoding="utf-8", errors="replace")
             if compile_res.returncode != 0:
                 return PolyglotExecutionResult(success=False, language=lang, error=compile_res.stderr, exit_code=compile_res.returncode)
             class_name = os.path.splitext(os.path.basename(temp_file))[0]
@@ -171,7 +173,9 @@ class PolyglotExecutor:
             if not rustc_bin:
                 return PolyglotExecutionResult(success=False, language=lang, error="'rustc' compiler not found on PATH.")
             bin_name = os.path.join(temp_dir, "out_bin.exe" if os.name == "nt" else "out_bin")
-            compile_res = subprocess.run([rustc_bin, temp_file, "-o", bin_name], cwd=temp_dir, capture_output=True, text=True)
+            compile_res = subprocess.run(
+                [rustc_bin, temp_file, "-o", bin_name], cwd=temp_dir,
+                capture_output=True, text=True, encoding="utf-8", errors="replace")
             if compile_res.returncode != 0:
                 return PolyglotExecutionResult(success=False, language=lang, error=compile_res.stderr, exit_code=compile_res.returncode)
             return self._run_proc([bin_name], temp_dir, lang)

@@ -40,9 +40,10 @@ class ScanReport:
 
 
 class ASTSecurityVisitor(ast.NodeVisitor):
-    # Inline suppression: "# noqa: SEC002" jaisi trailing comment wali lines
-    # skip hoti hain (Bandit ke "# nosec" jaisa) -- legit use-cases ke liye
-    # (e.g. interactive REPL ka exec). scan_code() post-filter lagata hai.
+    # Inline suppression: a trailing "# noqa: SEC002" comment skips that line
+    # (Bandit's "# nosec" convention) for legitimate use cases (e.g. an
+    # interactive REPL's own exec call). scan_code() applies this as a
+    # post-filter.
     _NOQA_RE = re.compile(r"#\s*noqa:\s*([A-Z0-9,\s]+)", re.IGNORECASE)
 
     def __init__(self, filename: str, lines: List[str]):
@@ -253,8 +254,13 @@ class ASTSecurityScanner:
                     code_snippet=sline, description="Insecure child_process.exec command execution.",
                     remediation="Use child_process.execFile() or spawn() with argument arrays."
                 ))
-            # Secrets
-            if re.search(r"(?:api_key|jwt_secret|password|secret_key)\s*[:=]\s*['\"][A-Za-z0-9_\-]{16,}['\"]", sline, re.IGNORECASE):
+            # Secrets. JS/TS convention is camelCase (apiKey, jwtSecret), not
+            # the snake_case this pattern originally matched exclusively --
+            # confirmed by direct probe that api_key matched while apiKey,
+            # jwtSecret, secretKey, and authToken (all real, common secret
+            # variable names) did not. "_?" makes the separator optional so
+            # both conventions match.
+            if re.search(r"(?:api_?key|jwt_?secret|password|secret_?key|auth_?token)\s*[:=]\s*['\"][A-Za-z0-9_\-]{16,}['\"]", sline, re.IGNORECASE):
                 vulns.append(SecurityVulnerability(
                     rule_id="SEC003", severity="HIGH", file_path=filename, line_number=idx,
                     code_snippet=sline, description="Hardcoded API key or secret token detected.",

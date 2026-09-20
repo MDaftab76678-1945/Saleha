@@ -24,12 +24,12 @@ What this adds over calling the provider directly
 2. **Exact-prompt caching**, keyed on model AND prompt AND sampling options.
    Keying on the prompt alone is what let one model's answer be served to
    another elsewhere in this repo; that bug is not repeated here.
-3. **Retry with backoff** (tenacity) for transport failures only. A model
-   that answers badly is not retried -- that is a quality problem, and
-   silently re-rolling it would hide it.
+3. **Retry with backoff** (hand-rolled exponential backoff, no external
+   retry library) for transport failures only. A model that answers badly
+   is not retried -- that is a quality problem, and silently re-rolling it
+   would hide it.
 4. **Honest degradation**: if aiohttp is missing, parallel calls fall back
-   to a thread pool over the sync client rather than failing. If tenacity is
-   missing, a single attempt is made rather than pretending to retry.
+   to a thread pool over the sync client rather than failing.
 
 Deliberately not included
 -------------------------
@@ -63,7 +63,6 @@ def _have(name: str) -> bool:
 
 
 HAVE_AIOHTTP = _have("aiohttp")
-HAVE_TENACITY = _have("tenacity")
 
 
 @dataclass
@@ -329,7 +328,6 @@ class FastInference:
             "base_url": self.base_url,
             "max_concurrency": self.max_concurrency,
             "aiohttp": HAVE_AIOHTTP,
-            "tenacity": HAVE_TENACITY,
             "cache": self.cache.stats(),
         }
 

@@ -271,6 +271,16 @@ class SmartPatcher:
     @staticmethod
     def fuzzy_find_block(source_lines: List[str], search_lines: List[str]) -> Optional[int]:
         """Finds starting line index in source_lines matching search_lines (with exact or trimmed fallback)."""
+        span = SmartPatcher._fuzzy_find_block_span(source_lines, search_lines)
+        return span[0] if span else None
+
+    @staticmethod
+    def _fuzzy_find_block_span(source_lines: List[str], search_lines: List[str]) -> Optional[Tuple[int, int]]:
+        """Like fuzzy_find_block, but also returns the number of source lines
+        actually consumed by the match (end - start), which mode 3 below can
+        make differ from len(search_lines) by skipping extra blank lines --
+        callers must splice using this count, not len(search_lines), or they
+        drop or duplicate lines around the match."""
         if not search_lines or not source_lines:
             return None
         n_search = len(search_lines)
@@ -280,14 +290,14 @@ class SmartPatcher:
         # 1. Exact line match
         for i in range(len(source_lines) - n_search + 1):
             if source_lines[i:i + n_search] == search_lines:
-                return i
+                return (i, n_search)
 
         # 2. Strip trailing whitespace match
         clean_search = [l.rstrip() for l in search_lines]
         for i in range(len(source_lines) - n_search + 1):
             clean_source = [l.rstrip() for l in source_lines[i:i + n_search]]
             if clean_source == clean_search:
-                return i
+                return (i, n_search)
 
         # 3. Strip leading & trailing whitespace match (indentation-tolerant)
         trimmed_search = [l.strip() for l in search_lines if l.strip()]
@@ -297,15 +307,30 @@ class SmartPatcher:
         for i in range(len(source_lines)):
             if source_lines[i].strip() == trimmed_search[0]:
                 k = 0
-                matched_indices = []
                 for j in range(i, min(len(source_lines), i + len(search_lines) + 10)):
-                    if not source_lines[j].strip() and not (k < len(search_lines) and not search_lines[k].strip()):
+                    src_blank = not source_lines[j].strip()
+                    if src_blank:
+                        # A blank source line always advances past -- it is
+                        # either a real gap the search block also has (fine,
+                        # trimmed_search skips blanks on both sides so there
+                        # is nothing to compare here) or an extra blank the
+                        # search doesn't have (also fine to skip over).
+                        # Found by direct probe: the old version compared
+                        # search_lines[k] -- indexed with k, an index into
+                        # trimmed_search, not search_lines -- to decide
+                        # whether to skip, which broke on the ordinary case
+                        # of a blank line appearing at the same position in
+                        # both source and search (it fell through to the
+                        # match check, found "" != trimmed_search[k], and
+                        # aborted the whole match).
                         continue
                     if k < len(trimmed_search) and source_lines[j].strip() == trimmed_search[k]:
-                        matched_indices.append(j)
                         k += 1
                         if k == len(trimmed_search):
-                            return i
+                            # j is inclusive; the span is i..j, so its length
+                            # is (j - i + 1) source lines -- may differ from
+                            # n_search when blank lines were skipped over.
+                            return (i, j - i + 1)
                     elif k > 0:
                         break
         return None
@@ -324,9 +349,47 @@ class SmartPatcher:
         search_lines = search_block.splitlines(keepends=True)
         replace_lines = replace_block.splitlines(keepends=True)
 
-        idx = SmartPatcher.fuzzy_find_block(orig_lines, search_lines)
-        if idx is not None:
-            new_lines = orig_lines[:idx] + replace_lines + orig_lines[idx + len(search_lines):]
+        span = SmartPatcher._fuzzy_find_block_span(orig_lines, search_lines)
+        if span is not None:
+            idx, consumed = span
+            # A replace_block with no trailing newline (a model very
+            # plausibly writes its replacement text without one) glues the
+            # next source line onto the last replacement line once spliced
+            # back in -- found by direct probe, pre-existing in this
+            # function before this pass's other two fixes, not introduced
+            # by them. Only append one when a real line still follows the
+            # matched region, so a deliberate no-trailing-newline-at-EOF
+            # replacement (the match genuinely is the last thing in the
+            # file) is left untouched.
+            if (replace_lines and not replace_lines[-1].endswith("\n")
+                    and idx + consumed < len(orig_lines)):
+                replace_lines[-1] += "\n"
+            # Splice using `consumed`, the source lines the match actually
+            # spans -- not len(search_lines). Mode 3 (indentation-tolerant)
+            # can skip blank lines while matching, so those two counts can
+            # differ; splicing with the wrong one silently drops or
+            # duplicates a line adjacent to the match. Found by direct
+            # probe: a search block spanning a blank line consumed 3 source
+            # lines but len(search_lines) was also 3 in that case by
+            # coincidence -- a search/source blank-line-count mismatch
+            # would have made them diverge and corrupted the splice.
+            matched_indent = orig_lines[idx][:len(orig_lines[idx]) - len(orig_lines[idx].lstrip(" \t"))]
+            search_indent = search_lines[0][:len(search_lines[0]) - len(search_lines[0].lstrip(" \t"))]
+            if matched_indent != search_indent:
+                # The match only succeeded via mode 3's strip()-based
+                # comparison, meaning indentation genuinely differs between
+                # search and source. Re-apply the source's real indentation
+                # to each replacement line instead of the caller's literal
+                # leading whitespace -- found by direct probe: without this,
+                # a tab-indented source patched with a 4-space search block
+                # came back with the tab replaced by 4 literal spaces,
+                # silently reformatting a line the caller never asked to
+                # reformat.
+                replace_lines = [
+                    (matched_indent + line.lstrip(" \t")) if line.strip() else line
+                    for line in replace_lines
+                ]
+            new_lines = orig_lines[:idx] + replace_lines + orig_lines[idx + consumed:]
             return True, "".join(new_lines), None
 
         return False, original_code, "Could not match search block in target file."

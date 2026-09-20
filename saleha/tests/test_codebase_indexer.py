@@ -64,6 +64,49 @@ def standalone_helper(x: int) -> int:
         self.assertTrue(ok, msg=f"Fuzzy match failed: {err}")
         self.assertIn("name = 'saleha'", patched)
 
+    def test_smart_patcher_fuzzy_match_spans_a_blank_line(self) -> None:
+        """Real bug found auditing this module: fuzzy_find_block's blank-line
+        skip logic compared search_lines[k] (k indexes trimmed_search, a
+        shorter list with blanks removed) instead of trimmed_search[k], so a
+        blank line appearing at the same position in both search and source
+        fell through to the match check, found "" != trimmed_search[k], and
+        aborted the whole match -- even though the blank line was a genuine
+        match, not a mismatch."""
+        code = "def foo():\n    x = 1\n\n    y = 2\n    return x + y\n"
+        search_b = "x = 1\n\ny = 2"
+        replace_b = "x = 10\n\ny = 20"
+        ok, patched, err = SmartPatcher.apply_search_replace(code, search_b, replace_b)
+        self.assertTrue(ok, msg=f"blank-line fuzzy match failed: {err}")
+        self.assertIn("    x = 10", patched)
+        self.assertIn("    y = 20", patched)
+        self.assertIn("    return x + y", patched)
+
+    def test_smart_patcher_fuzzy_match_preserves_source_indentation(self) -> None:
+        """Real bug: mode 3 matches lines regardless of indentation but then
+        spliced in the replacement's own literal leading whitespace verbatim
+        -- a tab-indented source line patched with a 4-space search/replace
+        block came back with the tab silently replaced by 4 spaces, an
+        unrequested reformat of a line the caller never asked to touch."""
+        code = "def foo():\n\treturn 1\n\tprint(1)\n"
+        ok, patched, err = SmartPatcher.apply_search_replace(
+            code, "    return 1", "    return 2")
+        self.assertTrue(ok, msg=f"match failed: {err}")
+        self.assertIn("\treturn 2", patched)
+        self.assertIn("\tprint(1)", patched, "next line must not be glued on")
+
+    def test_smart_patcher_fuzzy_match_replace_without_trailing_newline(self) -> None:
+        """Real bug: a replace_block with no trailing newline (a very
+        plausible thing for a model to write) got spliced back in as-is,
+        gluing the next real source line onto the end of the last
+        replacement line instead of starting a new line."""
+        code = "def foo():\n\treturn 1\n\tprint(1)\n"
+        ok, patched, err = SmartPatcher.apply_search_replace(
+            code, "    return 1", "    return 2")  # no trailing \n on replace
+        self.assertTrue(ok, msg=f"match failed: {err}")
+        lines = patched.splitlines()
+        self.assertIn("\treturn 2", lines)
+        self.assertIn("\tprint(1)", lines)
+
     def test_smart_patcher_aider_blocks(self) -> None:
         code = "def first():\n    return 1\n\ndef second():\n    return 2\n"
         diff = """<<<<<<< SEARCH

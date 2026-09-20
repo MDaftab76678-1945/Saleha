@@ -9122,3 +9122,91 @@ No official Docker-harness score was run for this instance -- the loop's
 own `run_tests` already reported failure, and running the container would
 have measured the same "not resolved" outcome for an already-known reason
 (a provably wrong patch), not something new.
+
+## Pass 107: resumed the saleha/core/ bulk audit sweep (stalled since pass 48) -- four modules read in full, five real defects found and fixed (2026-09-21)
+
+Picked the highest-impact unaudited modules first: of the ~115 `saleha/core/`
+files never named in this ledger, ranked by real importer count
+(`security_scanner.py` 16, `fast_inference.py` 11, `codebase_indexer.py` 10,
+`polyglot_executor.py` 7) rather than reading in arbitrary order.
+
+- **`security_scanner.py`** -- genuinely real AST-based SAST scanner (probed:
+  clean code -> 0 vulns, a deliberately dangerous snippet -> 5 correctly
+  distinct vulns, `# noqa` suppression works). One real bug: the JS/TS
+  hardcoded-secret regex matched only snake_case variable names
+  (`api_key`, `jwt_secret`), missing the camelCase convention
+  (`apiKey`, `jwtSecret`) that is standard in real JS/TS code. Measured
+  before fixing: `apiKey`/`jwtSecret`/`secretKey`/`authToken` all scored 0
+  vulnerabilities; only `password` (not compound) matched. Fixed with an
+  optional-underscore pattern; verified all four now match, snake_case
+  still matches, and a non-secret string containing the substring
+  "apiKey" (e.g. a UI label) still does not false-positive. Also fixed one
+  Hinglish comment (Rule 2.4).
+- **`fast_inference.py`** -- genuinely real (measured concurrency numbers
+  in its own docstring, a correct cache key that includes model+options
+  not just the prompt, honest degradation without aiohttp). One doc/code
+  mismatch: the docstring claimed "if tenacity is missing, a single
+  attempt is made rather than pretending to retry," but `tenacity` was
+  never actually imported or used anywhere -- retries are a hand-rolled
+  loop that runs identically whether or not tenacity is installed.
+  Measured directly: `max_retries=2` against an unreachable server
+  produced 3 real attempts regardless. Removed the dead `HAVE_TENACITY`
+  detection and corrected the docstring rather than wire in an unused
+  dependency for a claim nothing needs.
+- **`codebase_indexer.py`** -- the AST symbol indexer is genuinely real
+  (confirmed via its own bare-method-lookup fix from an earlier pass,
+  re-verified here). `SmartPatcher.apply_search_replace` -- the function
+  behind the live `patch_file` tool in `agentic_loop.py`, the mechanism
+  passes 53-106 have been hardening against real repository bugs -- had
+  three real, distinct bugs, found by direct probing rather than reading
+  alone:
+  1. `fuzzy_find_block`'s blank-line skip compared `search_lines[k]`
+     (`k` indexes `trimmed_search`, a *shorter* list with blanks
+     removed) instead of `trimmed_search[k]`. A blank line at the same
+     position in both search and source fell through to the match
+     check, found `"" != trimmed_search[k]`, and aborted a match that
+     should have succeeded. Reproduced directly: a search block
+     spanning `x = 1\n\ny = 2` against source with the same shape
+     failed to match at all before the fix.
+  2. The fuzzy (indentation-tolerant) match mode found the right lines
+     via `.strip()` comparison but then spliced in the replacement
+     text's own literal leading whitespace verbatim, silently
+     reformatting the line -- a tab-indented source line patched via a
+     4-space search/replace block came back with the tab replaced by 4
+     literal spaces. Fixed by re-applying the matched region's real
+     indentation to each replacement line, and by tracking the actual
+     number of source lines consumed by a fuzzy match (which can differ
+     from `len(search_lines)` when blank lines are skipped over) so the
+     splice range is correct in both fixes at once.
+  3. Pre-existing, independent of the above two: a `replace_block` with
+     no trailing newline (a plausible thing for a model to write) got
+     spliced back in as-is, gluing the next real source line onto the
+     end of the last replacement line. Fixed by appending a newline to
+     the replacement only when a real line still follows the matched
+     region, so a deliberate no-trailing-newline-at-EOF replacement is
+     untouched.
+  All three teeth-checked: each new regression test fails against the
+  pre-fix module and passes with the fix.
+- **`polyglot_executor.py`** -- genuinely real polyglot sandbox (real
+  subprocess dispatch per language, real SAST pre-check via the
+  now-fixed `security_scanner.py`). Found the exact class of bug
+  `CLAUDE.md` already names for this file (pass 36: a `subprocess.run`
+  call with `text=True` and no `encoding=`, silently falling back to
+  this machine's cp1252 default) in two sibling calls the earlier pass
+  didn't touch: the `javac` and `rustc` compile invocations. Measured on
+  this machine, which genuinely runs cp1252 as its default encoding and
+  has a real `rustc` on PATH: a Rust compile error containing CJK
+  identifiers came back as mojibake (`中文` -> `ä¸­æ–‡`) before the fix,
+  correct after. No JDK is installed here to run `javac` for real, so
+  that fix is asserted at the call-site level (`encoding="utf-8"`
+  present in the source) rather than via a live compile.
+
+Five real defects across four modules, all fixed, all teeth-checked
+against pre-fix code where a live probe was possible. Full suite: 2259
+(pass 106) -> **2270 passed, 13 skipped, 172 subtests**, zero failures.
+~111 of the ~115 never-before-named `saleha/core/` modules
+remain unread; next candidates by importer count: `task_scheduler.py` (4),
+`soul_engine.py` (4), `mcp_engine.py` (4), `vision_coder.py` (3),
+`tri_tier_memory.py` (3), `tech_debt_analyzer.py` (3), `sre_responder.py`
+(3), `mcp_hub.py` (3), `lora_tuner.py` (3), `evaluator.py` (3),
+`deliberation_engine.py` (3), `conflict_resolver.py` (3).

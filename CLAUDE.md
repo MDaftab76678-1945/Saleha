@@ -1858,6 +1858,49 @@ when multiple functions relate to the symptom." No code change this pass
 — a measurement, recorded for the next session. Detail:
 `NOTEBOOK_IMPORT.md`, "Pass 106."
 
+**Pass 107 — resumed the `saleha/core/` bulk audit sweep, stalled since
+pass 48.** Read four never-before-audited modules in full, prioritized by
+real importer count: `security_scanner.py` (16 importers),
+`fast_inference.py` (11), `codebase_indexer.py` (10),
+`polyglot_executor.py` (7). All four are genuinely real; five real
+defects found and fixed:
+
+- `security_scanner.py` — the JS/TS hardcoded-secret regex matched only
+  snake_case (`api_key`), missing camelCase (`apiKey`, `jwtSecret`,
+  `secretKey`, `authToken`) — measured before fixing: all four scored 0
+  vulnerabilities. Fixed with an optional-underscore pattern.
+- `fast_inference.py` — the docstring claimed a `tenacity`-gated retry
+  fallback that never existed in the code; `HAVE_TENACITY` was checked but
+  `tenacity` itself was never imported or used. Measured:
+  `max_retries=2` produced 3 real attempts regardless of tenacity's
+  presence. Removed the dead detection, corrected the docstring.
+- `codebase_indexer.py` — three real bugs in `SmartPatcher.apply_search_replace`,
+  the function behind the live `patch_file` tool that passes 53-106 have
+  been hardening: (1) the fuzzy blank-line skip indexed the wrong list
+  (`search_lines[k]` instead of `trimmed_search[k]`), aborting a match
+  that should have succeeded whenever a blank line appeared at the same
+  position in both search and source; (2) the indentation-tolerant match
+  mode spliced in the replacement's own literal leading whitespace instead
+  of the source's real indentation, silently reformatting untouched code
+  (a tab-indented line patched via a 4-space block lost its tab); (3) a
+  `replace_block` with no trailing newline glued the next real source line
+  onto the end of the replacement. All three teeth-checked against pre-fix
+  code.
+- `polyglot_executor.py` — the exact class of bug `CLAUDE.md` already
+  names for this file (pass 36: `subprocess.run` with `text=True` and no
+  `encoding=`) in two sibling calls (`javac`, `rustc` compile invocations)
+  the earlier pass didn't touch. Measured live with a real `rustc` on
+  PATH: a CJK compiler error came back as mojibake before the fix,
+  correct after.
+
+Full suite: 2259 (pass 106) → **2270 passed, 13 skipped, 172 subtests**,
+zero failures. ~111 of the ~115 never-before-named `saleha/core/` modules
+remain; next candidates by importer count: `task_scheduler.py`,
+`soul_engine.py`, `mcp_engine.py` (4 each), then `vision_coder.py`,
+`tri_tier_memory.py`, `tech_debt_analyzer.py`, `sre_responder.py`,
+`mcp_hub.py`, `lora_tuner.py`, `evaluator.py`, `deliberation_engine.py`,
+`conflict_resolver.py` (3 each). Detail: `NOTEBOOK_IMPORT.md`, "Pass 107."
+
 ---
 
 ## Environment facts worth knowing
