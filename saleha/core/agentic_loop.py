@@ -988,9 +988,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # qwen2.5-coder:3b from emitting finish() anyway (see
             # SYSTEM_PROMPT_NO_FINISH's docstring); removing the option
             # structurally does what the warning could not.
-            system = (system_with_finish
-                      if successful_actions >= self.min_actions_before_finish
-                      else system_no_finish)
+            #
+            # For a repair goal specifically, "the minimum" means a real
+            # mutation attempt, not just any successful action. Measured
+            # live (pass 94): one successful list_dir re-armed finish()
+            # after a single step, and qwen2.5-coder:3b reached for it
+            # again immediately instead of continuing on to patch_file --
+            # min_actions_before_finish=1 was satisfied by an action that
+            # cannot possibly fix anything. A repair goal's "minimum" has
+            # to be an attempted edit, since reading alone never repairs.
+            if self.allow_write and _looks_like_a_repair_goal(goal):
+                finish_ready = mutations_attempted >= self.min_actions_before_finish
+            else:
+                finish_ready = successful_actions >= self.min_actions_before_finish
+            system = system_with_finish if finish_ready else system_no_finish
             prompt = (
                 f"{system}\n\n## Goal\n{goal}\n\n"
                 f"## Action-Observation History (steps {len(transcript_parts)})\n"

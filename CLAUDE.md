@@ -1684,6 +1684,32 @@ not implemented this pass. Measured: `test_agentic_loop.py` 80 →
 **84/84**; full suite 2211 → **2215 passed, 13 skipped, 172 subtests**,
 zero regressions. Detail: `NOTEBOOK_IMPORT.md`, "Pass 94."
 
+**Pass 95 — `qwen2.5-coder:3b` calls `patch_file` for the first time
+ever in this lineage; the patch is still wrong, and the loop honestly
+says so.** Picked up pass 94's own recorded next candidate: `finish()`
+was re-armed by any successful action (`successful_actions`), so a
+single `list_dir` satisfied `min_actions_before_finish=1` and the model
+reached for `finish()` again instead of continuing toward `patch_file`.
+Fixed narrowly: for a repair goal with `allow_write` on, `finish()`
+readiness is now gated on `mutations_attempted`, not
+`successful_actions` — reading alone never repairs anything. Every
+other case (investigative goals, `allow_write=False`, an explicit
+`min_actions_before_finish=0`) is untouched. **Live re-run result:** the
+model completed the full navigate-to-mutation path for the first time in
+nine full-lineage attempts (passes 53, 85-95) —
+`list_dir → get_file_outline → read_file → patch_file` — and the
+pass-93 auto-verify gate caught the result being wrong (real suite
+4 failed → **10 failed**: the model added `o.tell()` at the top of the
+function, crashing on non-file-like inputs, and actually *removed*
+`- current_position` from the return statement rather than adding it).
+`success: False`, honest, no fake green. New failure mode recorded, not
+yet fixed: the model gave up retrying `patch_file` after one rejection
+and spent the remaining steps repeating `finish()` instead, despite the
+rejection naming the real next move each time. 1 new test, teeth-checked
+against the pre-pass state. Measured: `test_agentic_loop.py` 84 →
+**85/85**; full suite 2215 → **2216 passed, 13 skipped, 172 subtests**,
+zero regressions. Detail: `NOTEBOOK_IMPORT.md`, "Pass 95."
+
 ---
 
 ## Environment facts worth knowing

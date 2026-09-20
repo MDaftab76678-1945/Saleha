@@ -8446,3 +8446,80 @@ candidate, not implemented this pass.
 Measured: `test_agentic_loop.py` 80 -> **84/84** (4 new). Full suite
 2211 -> **2215 passed, 13 skipped, 172 subtests** in 161.89s, zero
 regressions.
+
+## Pass 95: gating finish() on a mutation attempt, not any success -- qwen2.5-coder:3b calls patch_file for the first time in this lineage (2026-09-20)
+
+Picked up pass 94's own recorded next candidate directly: `finish()` was
+re-armed by `successful_actions >= min_actions_before_finish`, and a
+single successful `list_dir` (a read, not an edit) satisfied
+`min_actions_before_finish=1` -- so the model reached for `finish()`
+again on turn two of the live pass-94 run instead of continuing toward
+`patch_file`. For a repair goal, "the minimum" needs to mean an attempted
+edit, since reading alone never repairs anything.
+
+Fixed narrowly: when `allow_write` is on and the goal reads as a repair
+goal, `finish_ready` is now gated on `mutations_attempted >=
+min_actions_before_finish` instead of `successful_actions`. Every other
+case (investigative goals, `allow_write=False`, an explicit
+`min_actions_before_finish=0` caller) is untouched -- verified by keeping
+the existing tests for those cases green rather than rewriting them.
+
+One existing test's docstring claimed to cover the real-bug scenario but
+did not: `test_finish_is_not_offered_before_the_minimum_action_count`
+used `allow_write`'s default (`False`), so this pass's new branch never
+armed for it. Left it in place (it correctly covers the plain,
+non-repair path) and added its explicit annotation plus a new test,
+`test_repair_goal_keeps_finish_hidden_until_a_mutation_is_attempted`,
+which sets `allow_write=True` and a repair goal explicitly -- the actual
+shape of the pass-94 live bug.
+
+Teeth-checked: reverted `agentic_loop.py` to its pre-this-pass state
+(keeping the new test), and the new test failed with `"finish"` present
+in the second prompt after only a `list_dir`; passed with the fix
+restored.
+
+### Live re-run: `patch_file` called for the first time ever in this lineage
+
+Same setup as passes 53, 85-94 (fresh planted `super_len` bug,
+`qwen2.5-coder:3b`, no hint):
+
+```text
+step 1  list_dir
+step 2  list_dir           [repeat, caught]
+step 3  get_file_outline
+step 4  read_file
+step 5  patch_file         <- never once reached in any prior pass
+step 6  auto-verify-tests  -> FAILED (exit 1)
+steps 6-13, 15: finish-rejected (repeatedly, real pytest output embedded)
+step 14 find_symbols
+```
+
+`success: False`, `max_steps (15) exhausted without finish` -- honest,
+not a fake green. Verified against the real file: the patch is genuinely
+wrong in a new way. The model added `current_position = o.tell()` at the
+top of the function (crashes on any input without `.tell()`, e.g. a
+plain string or list) and, in the return statement, actually *removed*
+`- current_position` rather than adding it -- moving the bug from
+"missing subtraction" to "no subtraction at all, plus a crash on
+non-file-like inputs". Real suite went from the 4-failed baseline to
+**10 failed** (6 new `AttributeError` failures from the `.tell()` crash).
+The model's own diagnosis (visible in the earlier isolated probes, pass
+93-94) was about the *initialization*, not the return statement -- it
+patched what it believed was broken, and the auto-verify gate (pass 93)
+caught the result being wrong regardless of which line the model thought
+the bug was on.
+
+This is the first time in nine full-lineage attempts
+(passes 53, 85-95) that `qwen2.5-coder:3b` has completed the entire
+navigate-to-mutation path (list_dir -> get_file_outline -> read_file ->
+patch_file) rather than stalling on `finish()` or a navigation dead end.
+It still has not landed a correct patch, and gave up retrying
+`patch_file` after the first rejection (spent steps 7-13 repeating
+`finish()` instead of re-patching, despite the rejection naming the real
+next move each time) -- a different, not-yet-fixed failure mode from
+the ones already recorded ("does not act at all" is fixed; "does not
+retry after a rejected patch" is not).
+
+Measured: `test_agentic_loop.py` 84 -> **85/85** (1 new). Full suite
+2215 -> **2216 passed, 13 skipped, 172 subtests** in 161.61s, zero
+regressions.

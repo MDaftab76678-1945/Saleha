@@ -105,7 +105,9 @@ class AgentLoopTests(unittest.TestCase):
         prompt outright did (probed directly: the identical goal, no
         finish() offered at all, got a correct tool call on turn one).
         The first prompt (successful_actions=0 < min_actions_before_finish)
-        must not mention finish() as an option."""
+        must not mention finish() as an option. (allow_write left at its
+        default False here -- with it on, for a repair goal, a different,
+        stricter rule applies; see the mutation-gated test below.)"""
         agent = ScriptedAgent([
             _tool_call("list_dir", path="."),
             _finish("done"),
@@ -116,6 +118,28 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("no finish() action available", agent.prompts[0])
         # Once the minimum is met, the next prompt must offer it again.
         self.assertIn('"finish"', agent.prompts[1])
+
+    def test_repair_goal_keeps_finish_hidden_until_a_mutation_is_attempted(self) -> None:
+        """Measured live (pass 94): one successful list_dir re-armed
+        finish() after a single step under the plain successful_actions
+        count, and qwen2.5-coder:3b reached for it again immediately
+        instead of continuing to patch_file -- min_actions_before_finish=1
+        was satisfied by an action that cannot possibly fix anything. For
+        a repair goal with allow_write on, "the minimum" must mean an
+        attempted edit, not just any successful read."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _finish("done"),
+            _finish("done again"),
+        ])
+        AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                 min_actions_before_finish=1, max_steps=3).run(
+            "fix the bug in charge()")
+        # list_dir succeeded, but it is not a mutation attempt -- finish()
+        # must stay hidden across every prompt that follows it too.
+        self.assertNotIn('"finish"', agent.prompts[0])
+        self.assertNotIn('"finish"', agent.prompts[1])
+        self.assertNotIn('"finish"', agent.prompts[2])
 
     def test_finish_is_offered_immediately_when_the_minimum_is_zero(self) -> None:
         """A caller that explicitly sets min_actions_before_finish=0 (an
