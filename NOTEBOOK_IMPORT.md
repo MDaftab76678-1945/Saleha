@@ -9057,3 +9057,68 @@ than made unilaterally.
 
 Measured: `test_agentic_loop.py` 91 -> **93/93 passed**, 2 new tests. Full
 suite re-run pending in the same commit as this entry.
+
+## Pass 106: qwen3:8b navigates correctly on the first try, lands a real edit -- and the edit is provably the wrong fix (2026-09-21)
+
+Followed the decision recorded at the end of pass 105: rather than keep
+tuning the loop against `qwen2.5-coder:3b`'s navigation gap, tried a bigger
+local model (`qwen3:8b`, already installed) against the identical hardened
+loop and the identical real instance (`psf__requests-3362`, same clean
+`base_commit` checkout, `timeout_sec=1800` given the model's slower
+measured throughput from pass 63).
+
+**Navigation was immediately, qualitatively better.** Where
+`qwen2.5-coder:3b` invented filenames and then wandered into `docs/`,
+`qwen3:8b` used `search_repo` from step 1 and, by step 3, had already
+found `requests/models.py:653: def iter_content(self, chunk_size=1,
+decode_unicode=False)` and the target test itself
+(`tests/test_requests.py:963: def test_response_decode_unicode`) --
+exactly the right symbols, with no wasted list_dir/get_file_outline calls
+at all. Step 5: `patch_file` succeeded on `requests/models.py`. This is
+the fewest steps to a real mutation of any run in this lineage (passes 53,
+85-97, 104-105) against a real, hint-free SWE-bench instance.
+
+**The edit is a real, verifiable wrong fix, not a fabricated success.**
+`git diff` shows the model changed only `iter_content`'s default parameter
+value (`decode_unicode=False` -> `decode_unicode=True`). Checked the
+dataset's own gold patch for this instance
+(`princeton-nlp/SWE-bench_Lite`, field `patch`): the real fix is inside
+`stream_decode_response_unicode()` in `requests/utils.py` -- it falls back
+to `r.apparent_encoding` when `r.encoding` is `None`, and switches from a
+one-shot `.decode()` to an incremental `codecs.getincrementaldecoder`. The
+model never touched that function or that file. Confirmed empirically, not
+just by comparing diffs: the target test
+(`test_response_decode_unicode`) always calls
+`r.iter_content(decode_unicode=True)` explicitly, so flipping the
+*default* value the model changed can never affect this test's outcome
+either way -- the edit is provably irrelevant to the bug, not merely
+different from the gold patch.
+
+**The loop did not let this become a fake success.** Step 6's
+`run_tests` reported `FAILED (exit 4)` and the run ended `success: False`
+-- correctly, though for an incidental reason: this machine's project
+`.venv` cannot import the checked-out 2016-era `requests` package (the
+same Python-version incompatibility pass 104's setup notes hit locally;
+the official Docker harness would run the real test and get a real
+failure for the real reason, not an import error). Either way, no
+`finish()` was ever admitted, and no false "success" was reported --
+consistent with every fake-green fix already in this loop (passes
+85-96/104-105).
+
+**Honest state**: navigation ability scales with model size, in this one
+measured instance -- confirmed, not assumed, by a direct side-by-side run
+of the identical loop and instance. Fix *correctness* did not. `qwen3:8b`
+reached the right file and function immediately, patched something real,
+and still produced a fix that is demonstrably not the actual bug. This
+narrows what "the loop cannot get a local model to fix a real bug" was
+measuring: it is not purely a navigation problem (qwen3:8b solved that
+part cleanly), and it is not purely "does a mutation land" (one did,
+cleanly) -- the open gap is specifically diagnosing *which* function
+carries the bug when multiple functions plausibly relate to the reported
+symptom (`iter_content`'s own default looked like a plausible culprit;
+the actual bug is one call deeper, in the helper it delegates to).
+
+No official Docker-harness score was run for this instance -- the loop's
+own `run_tests` already reported failure, and running the container would
+have measured the same "not resolved" outcome for an already-known reason
+(a provably wrong patch), not something new.

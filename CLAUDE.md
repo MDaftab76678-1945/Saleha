@@ -1839,6 +1839,25 @@ measured `qwen2.5-coder:3b` capability ceiling and move on. Full suite:
 2259 passed, 13 skipped (test_agentic_loop.py 91 → 93/93). Detail:
 `NOTEBOOK_IMPORT.md`, "Pass 105."
 
+**Pass 106 — tried the bigger model on the same instance: navigation
+solved, correctness didn't.** `qwen3:8b` against the identical hardened
+loop and the identical `psf__requests-3362` instance: found the exact
+right function (`requests/models.py:653`, `iter_content`) and the target
+test by step 3 using `search_repo`, no wasted calls, `patch_file`
+succeeded at step 5 — the fewest steps to a real mutation of any run in
+this lineage. But the edit (flipping `iter_content`'s default parameter)
+is a **provably wrong fix**: the real bug is one function deeper, in
+`stream_decode_response_unicode()` (`requests/utils.py`, confirmed
+against the dataset's own gold patch), and the target test always passes
+`decode_unicode=True` explicitly, so the model's default-flip can never
+affect it either way. The loop correctly did not report success — `run_tests`
+failed and `finish()` was never admitted. **Conclusion: bigger model fixed
+navigation, not correctness.** The open gap has narrowed from "can't find
+the file" to "picks a plausible-looking function one level too shallow
+when multiple functions relate to the symptom." No code change this pass
+— a measurement, recorded for the next session. Detail:
+`NOTEBOOK_IMPORT.md`, "Pass 106."
+
 ---
 
 ## Environment facts worth knowing
