@@ -7774,3 +7774,129 @@ mode changed from "the loop breaks" (pass 85's fake green, pass 86's
 timeout/empty-reply wall) to "the loop is honest but the model runs out of
 steps before it acts" -- a budget problem, not a correctness problem, and
 a different thing to fix.
+
+---
+
+## Pass 87: root-caused the 1498s step -- Ollama's thinking field, not the token budget (2026-09-20)
+
+The user asked directly for the "advance improvement" and "improve how you
+work" lever, having already told this session to stop hand-editing docs.
+Picked up exactly where pass 86 left off: why did one step in the completed
+8B run take 1498 seconds?
+
+### Root cause, measured not guessed
+
+Reproduced the shape of that step directly: a debugging prompt with
+`num_predict=1200`.
+
+```text
+prompt_chars=2708  wall=213.7s  prompt_eval=14.2s  gen=199.2s(1200tok, 6.0tok/s)
+reply_chars: 0
+```
+
+Full budget spent, zero characters returned. Checked Ollama's raw JSON
+response rather than assuming: it carries a **separate `thinking` field**
+from `response`, and the two are billed against the same `num_predict`.
+`model_provider.py` had already documented this exact mechanism in a
+comment (pass 53's finding) but only ever *budgeted around* it
+(`_REASONING_THINKING_HEADROOM`) -- never turned it off, because the loop's
+own `think()` call had no way to ask for that.
+
+### The actual fix, and its size
+
+Ollama accepts a top-level `think: false` on `/api/generate`. Measured
+directly on the identical pass-85/86 bug:
+
+```text
+reasoning ON,  571-char prompt -> 140.4s, correct patch, done_reason='length' risk
+reasoning OFF, same prompt     -> 9.0s,   same correct patch, done_reason='stop'
+```
+
+A **~15x speedup for the identical correct output**, because the model
+stops competing with itself for token budget.
+
+### What changed
+
+`disable_reasoning: bool = False` threaded through the whole call path:
+
+- `ModelProvider.generate()` (abstract) declares it; providers with no
+  such concept accept and ignore it (documented, not silently dropped).
+- `OllamaProvider.generate()`: when set, sends `think: false` and skips
+  `budget_for_model()`'s headroom growth entirely -- growing the budget to
+  survive a `<think>` block that no longer exists would just make an
+  already-correct answer wait longer.
+- `BaseAgent.think()` forwards the flag to the provider.
+- `AgentLoop` passes `disable_reasoning=True` on every turn: the loop
+  always wants exactly one structured `tool_call` block, never a prose
+  explanation, so thinking is pure overhead here specifically -- this is
+  not a claim that thinking is never useful elsewhere.
+
+Default is `False` everywhere, so no caller outside the agent loop changes
+behavior by not opting in.
+
+### A gap the interface change exposed, not caused
+
+Two test doubles (`FakeProvider` in `test_debugger.py`, `fake_generate` in
+`test_market_upgrades.py`) had `generate()` signatures narrower than the
+real interface. Widening the real signature made both raise `TypeError`
+immediately -- fixed by matching the real keyword set, which is the
+correct direction: the fakes should track the interface, not the other
+way round.
+
+`test_market_upgrades.py` also carried a pre-existing, unrelated
+quality-gate failure (0.0/100, confirmed via `git stash` to predate this
+session entirely): 0 of 45 functions had return-type annotations, plus a
+duplicated `_make_cm` helper defined twice and a stray
+`if __name__ == "__main__":` block sitting mid-file rather than at the
+end. The pre-commit gate scans whole modified files, not diff hunks, so
+touching one function in this file for the signature fix surfaced the
+whole file's score. Fixed all four while already there rather than
+leaving the gate permanently primed to block the next unrelated touch to
+this file. One Hindi inline comment translated to English in the same
+pass (rule 2.4).
+
+### Verified live, end to end -- and the honest result
+
+Reset the planted bug, ran the full `saleha agent` CLI (not the
+instrumented probe) against `qwen3:8b`, 14 steps:
+
+```text
+14/14 steps: ok=True, no crash, no timeout, no empty reply
+step 12 "already ran list_dir with these exact arguments at step 1" (repeat)
+step 13 "already ran read_file with these exact arguments at step 5" (repeat)
+step 10: "no such file: utils/super_len.py" (wrong path guessed)
+step 14: reached the real file, 0 steps of budget left to patch it
+
+Agent Stopped: max_steps (14) exhausted without finish
+```
+
+`git diff --stat`: only the originally planted bug. No fake success was
+printed.
+
+**What this pass actually bought:** every infrastructure failure mode from
+passes 85-86 (fake green, crash, timeout, empty `done_reason='length'`
+reply) is gone, replaced by an honest stop. **What it did not buy:** the
+model still wanders -- two wasted repeat calls, one wrong file-path guess,
+and it reaches the right file only when the step budget is already spent.
+That is a navigation-efficiency problem, and it is a different, separate
+thing from the wall this pass removed. Not claimed as fixed.
+
+### Pass 87 Verification
+
+- `test_model_provider.py`: **18 passed** (15 + 3 new `disable_reasoning`
+  tests, plus the 2 test-double fixes exposed).
+- Teeth-checked: reverted `model_provider.py` to `HEAD` and re-ran the new
+  tests -- **2 failed** with `TypeError: unexpected keyword argument
+  'disable_reasoning'**. Restored: 3/3 pass.
+- `test_market_upgrades.py`: quality-gate score 0.0 -> **100.0/100**
+  (41/41 functions typed); 31/31 tests still pass (same count as before --
+  removing the duplicate `_make_cm` cost nothing).
+- Full suite: **2192 passed, 13 skipped, 172 subtests** (was 2189).
+- Committed on `main` as `b381b88`.
+
+### Still open
+
+- The model's navigation inefficiency (repeats, wrong paths, reaching the
+  target file with no budget left to act on it) is untouched.
+- The 3B `finish()` deadlock is untouched.
+- The default model for `saleha agent` is still `qwen2.5-coder:3b`.
