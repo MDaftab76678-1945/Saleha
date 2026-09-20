@@ -604,63 +604,124 @@ class AgentLoopTests(unittest.TestCase):
         nudged = [s for s in res.steps if "call patch_file now" in s.observation]
         self.assertEqual(nudged, [])
 
-    def test_fifth_read_only_call_is_blocked_not_just_nudged(self) -> None:
+    def _locate_then_read(self, count: int) -> list:
+        """A find_symbols call (which sets located_region) followed by
+        `count` further read-only calls, each with distinct arguments so
+        repeat-detection does not interfere."""
+        return [_tool_call("find_symbols", symbol_name="charge")] + [
+            _tool_call("read_file", path="app.py", start_line=1, end_line=1 + i)
+            for i in range(count)
+        ]
+
+    def test_read_only_tools_are_blocked_once_the_target_is_located(self) -> None:
         """Measured live (pass 90): the nudge fired exactly as designed
         (verified by instrumenting a real run) and the model called
         find_symbols anyway on the very next step. A suggestion alone does
         not change the next action, so past the threshold a read-only call
         must be refused outright, not merely discouraged."""
-        with open(os.path.join(self.root, "m.py"), "w") as f:
-            f.write("x = 1\n")
-        agent = ScriptedAgent([
-            _tool_call("read_file", path="m.py"),
-            _tool_call("read_file", path="m.py", start_line=1, end_line=1),
-            _tool_call("list_dir", path="."),
-            _tool_call("read_file", path="m.py", start_line=1, end_line=2),
-            _tool_call("find_symbols", symbol_name="anything"),
-        ] + [_finish("done")] * 20)
+        agent = ScriptedAgent(
+            self._locate_then_read(8) + [_finish("done")] * 20)
         res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
-                        max_steps=6).run("fix m.py")
-        blocked = [s for s in res.steps if s.action == "find_symbols-blocked"]
-        self.assertEqual(len(blocked), 1, res.steps)
+                        max_steps=12).run("fix charge in app.py")
+        blocked = [s for s in res.steps if s.action.endswith("-blocked")]
+        self.assertTrue(blocked, res.steps)
         self.assertIn("REJECTED", blocked[0].observation)
         self.assertIn("was not run", blocked[0].observation)
 
     def test_blocked_read_only_call_does_not_reach_the_real_tool(self) -> None:
         """The call must be refused before the handler runs -- verified by
-        pointing it at a file that does not exist. If the handler ran, the
-        observation would say "no such file"; it must not."""
-        agent = ScriptedAgent([
-            _tool_call("list_dir", path="."),
-            _tool_call("list_dir", path="."),
-            _tool_call("list_dir", path="."),
-            _tool_call("list_dir", path="."),
-            _tool_call("read_file", path="does_not_exist.py"),
-        ] + [_finish("done")] * 20)
+        pointing the blocked call at a file that does not exist. If the
+        handler had run, the observation would say "no such file"."""
+        agent = ScriptedAgent(
+            self._locate_then_read(7)
+            + [_tool_call("read_file", path="does_not_exist.py")]
+            + [_finish("done")] * 20)
         res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
-                        max_steps=6).run("fix something")
-        fifth = res.steps[4]
-        self.assertEqual(fifth.action, "read_file-blocked")
-        self.assertNotIn("no such file", fifth.observation)
-
-    def test_hard_gate_uses_located_region_when_available(self) -> None:
-        """A blocked call should name the concrete file/line range the
-        tools already reported, not a generic placeholder, when one is
-        on hand."""
-        with open(os.path.join(self.root, "app.py"), "w") as f:
-            f.write("def charge(amount):\n    return amount * 2\n")
-        agent = ScriptedAgent([
-            _tool_call("get_file_outline", path="app.py"),
-            _tool_call("read_file", path="app.py"),
-            _tool_call("read_file", path="app.py", start_line=1, end_line=1),
-            _tool_call("read_file", path="app.py", start_line=1, end_line=2),
-            _tool_call("list_dir", path="."),
-        ] + [_finish("done")] * 20)
-        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
-                        max_steps=6).run("fix charge in app.py")
+                        max_steps=12).run("fix charge in app.py")
         blocked = [s for s in res.steps if s.action.endswith("-blocked")]
-        self.assertEqual(len(blocked), 1)
+        self.assertTrue(blocked, res.steps)
+        for step in blocked:
+            self.assertNotIn("no such file", step.observation)
+
+    def test_hard_gate_names_the_located_region(self) -> None:
+        """The rejection must name the concrete file and line range the
+        tools already reported, so the model has somewhere to aim."""
+        agent = ScriptedAgent(
+            self._locate_then_read(8) + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=12).run("fix charge in app.py")
+        blocked = [s for s in res.steps if s.action.endswith("-blocked")]
+        self.assertTrue(blocked, res.steps)
         self.assertIn("app.py", blocked[0].observation)
+        self.assertIn("lines", blocked[0].observation)
+
+    def test_patching_a_test_file_is_rejected_for_a_repair_goal(self) -> None:
+        """Measured live (pass 91): forced to act by the read-only gate,
+        qwen3:8b patched tests/test_utils.py -- changing an unrelated
+        assertion from `== 0` to `== 00` -- then called finish() claiming
+        "The bug in the test was a missing value... It has been fixed."
+        The loop reported success=True with the real bug untouched and 4
+        tests still failing. Editing the test is not fixing the code."""
+        os.makedirs(os.path.join(self.root, "tests"), exist_ok=True)
+        with open(os.path.join(self.root, "tests", "test_charge.py"), "w") as f:
+            f.write("def test_charge():\n    assert charge(1) == 2\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="tests/test_charge.py",
+                       search="== 2", replace="== 4"),
+        ] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=4).run("fix the failing charge test")
+        rejected = [s for s in res.steps
+                    if s.action == "patch_file-rejected-test-file"]
+        self.assertTrue(rejected, res.steps)
+        self.assertIn("is a test file", rejected[0].observation)
+        # The file must be byte-identical -- the tool never ran.
+        with open(os.path.join(self.root, "tests", "test_charge.py")) as f:
+            self.assertIn("== 2", f.read())
+
+    def test_patching_source_is_still_allowed_for_a_repair_goal(self) -> None:
+        """The test-file guard must not block the honest path."""
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="app.py",
+                       search="amount * 2", replace="amount * 3"),
+            _finish("patched the source"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=4).run("fix charge in app.py")
+        self.assertTrue(res.success, res.error)
+        with open(os.path.join(self.root, "app.py")) as f:
+            self.assertIn("amount * 3", f.read())
+
+    def test_test_file_guard_is_off_for_a_non_repair_goal(self) -> None:
+        """Asked to *write* tests, editing a test file is the whole point."""
+        os.makedirs(os.path.join(self.root, "tests"), exist_ok=True)
+        with open(os.path.join(self.root, "tests", "test_charge.py"), "w") as f:
+            f.write("def test_charge():\n    assert True\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="tests/test_charge.py",
+                       search="assert True", replace="assert charge(1) == 2"),
+            _finish("extended the test"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=4).run("write a better assertion in the charge test")
+        rejected = [s for s in res.steps
+                    if s.action.endswith("-rejected-test-file")]
+        self.assertEqual(rejected, [], res.steps)
+
+    def test_hard_gate_stays_off_until_a_region_is_located(self) -> None:
+        """Measured live (pass 90): with the block firing before the tools
+        had located anything, qwen3:8b was forced to patch after reading
+        only the *test* file -- it had not yet found the source at all, so
+        all three forced patch_file calls targeted the wrong file and
+        failed with "Could not match search block". Forcing action before
+        the target is known is worse than one more read."""
+        agent = ScriptedAgent(
+            [_tool_call("read_file", path="app.py", start_line=1, end_line=1 + i)
+             for i in range(10)] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=12).run("fix charge in app.py")
+        blocked = [s for s in res.steps if s.action.endswith("-blocked")]
+        self.assertEqual(blocked, [], "blocked before any region was located")
 
     def test_hard_gate_off_when_writes_are_not_allowed(self) -> None:
         """A read-only run cannot patch anything, so the hard gate must not

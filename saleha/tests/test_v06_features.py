@@ -9,6 +9,7 @@ v0.6.0 feature tests:
 import os
 import tempfile
 import unittest
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 from saleha.core.repo_context_packer import RepoContextPacker
@@ -17,21 +18,21 @@ from saleha.core.memory_store import MemoryStore
 
 
 class RepoContextPackerTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = self._tmp.name
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _write(self, rel: str, content: str):
+    def _write(self, rel: str, content: str) -> None:
         path = os.path.join(self.root, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
         return path
 
-    def test_relevant_file_ranks_first_and_appears_in_output(self):
+    def test_relevant_file_ranks_first_and_appears_in_output(self) -> None:
         self._write("src/payments.py", "class PaymentProcessor:\n    def charge(self, amount): ...\n")
         self._write("src/unrelated.py", "def render_menu(): ...\n")
         packer = RepoContextPacker(root_dir=self.root)
@@ -40,7 +41,7 @@ class RepoContextPackerTests(unittest.TestCase):
         self.assertIn("Repository Context", ctx)
         self.assertIn("payments.py", ctx)
 
-    def test_budget_is_respected(self):
+    def test_budget_is_respected(self) -> None:
         big = "def filler_%d(): pass\n" * 1  # small lines; use many files instead
         for i in range(50):
             self._write(f"src/mod_{i}.py", f"class Thing{i}:\n    def process(self): ...\n" * 30)
@@ -48,18 +49,18 @@ class RepoContextPackerTests(unittest.TestCase):
         ctx = packer.pack("process things", budget_chars=1500)
         self.assertLessEqual(len(ctx), 1600)
 
-    def test_skip_dirs_ignored(self):
+    def test_skip_dirs_ignored(self) -> None:
         self._write("venv/lib/junk.py", "class RateLimiter:\n    pass\n")
         self._write("app/core.py", "class RateLimiter:\n    pass\n")
         packer = RepoContextPacker(root_dir=self.root)
         stats = packer.stats()
         self.assertEqual(stats["code_files"], 1)
 
-    def test_empty_repo_returns_empty_string(self):
+    def test_empty_repo_returns_empty_string(self) -> None:
         packer = RepoContextPacker(root_dir=self.root)
         self.assertEqual(packer.pack("anything"), "")
 
-    def test_non_code_files_excluded(self):
+    def test_non_code_files_excluded(self) -> None:
         self._write("notes.txt", "rate limiter class here")
         packer = RepoContextPacker(root_dir=self.root)
         self.assertEqual(packer.stats()["code_files"], 0)
@@ -68,10 +69,10 @@ class RepoContextPackerTests(unittest.TestCase):
 class _FakeStageAgent:
     """Minimal think() stub returning canned stage content."""
 
-    def __init__(self, marker):
+    def __init__(self, marker: str) -> None:
         self.marker = marker
 
-    def think(self, prompt, **kwargs):
+    def think(self, prompt: str, **kwargs: Any) -> Any:
         resp = MagicMock()
         resp.success = True
         resp.content = f"{self.marker} output"
@@ -79,7 +80,7 @@ class _FakeStageAgent:
 
 
 class EventStreamingTests(unittest.TestCase):
-    def test_on_event_fires_per_stage_immediately(self):
+    def test_on_event_fires_per_stage_immediately(self) -> None:
         from saleha.core.team_orchestrator import TeamOrchestrator
 
         orch = TeamOrchestrator(model="test-model")
@@ -95,7 +96,7 @@ class EventStreamingTests(unittest.TestCase):
         impl_agent = _FakeStageAgent("IMPL")
         orig_impl_think = impl_agent.think
 
-        def impl_think(prompt, **kwargs):
+        def impl_think(prompt: str, **kwargs: Any) -> Any:
             resp = orig_impl_think(prompt)
             resp.content = "```python\nvalue = 42\n```"
             return resp
@@ -126,7 +127,7 @@ class EventStreamingTests(unittest.TestCase):
         indexes = [e["stage_index"] for e in events]
         self.assertEqual(indexes, sorted(indexes))
 
-    def test_no_callback_still_works(self):
+    def test_no_callback_still_works(self) -> None:
         from saleha.core.team_orchestrator import TeamOrchestrator
 
         orch = TeamOrchestrator(model="test-model")
@@ -138,11 +139,18 @@ class EventStreamingTests(unittest.TestCase):
 
 
 class IncrementalMemoryTests(unittest.TestCase):
-    def _store(self, tmp):
+    # MemoryStore keeps mem.json open, and on Windows a strict
+    # TemporaryDirectory cleanup then raises WinError 32 *after* the
+    # test's assertions have already passed -- a green test reported
+    # red. Same failure mode fixed in test_agentic_loop.py (pass 84).
+    def _tmpdir(self) -> tempfile.TemporaryDirectory:
+        return tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+
+    def _store(self, tmp: str) -> MemoryStore:
         return MemoryStore(storage_path=os.path.join(tmp, "mem.json"))
 
-    def test_remember_does_not_resync_all_vectors_each_save(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_remember_does_not_resync_all_vectors_each_save(self) -> None:
+        with self._tmpdir() as tmp:
             store = self._store(tmp)
             calls = []
             original = store.vector_store._reindex
@@ -150,12 +158,13 @@ class IncrementalMemoryTests(unittest.TestCase):
                               side_effect=lambda: (calls.append(1), original())):
                 for i in range(20):
                     store.remember(f"unique goal number {i}", "print(1)")
-            # Pehle har remember par FULL sync hota tha -> O(N) reindexes.
-            # Ab lazy: writes par sirf dirty-flag; reindex next search pe ek baar.
+            # Previously every remember() triggered a FULL sync -> O(N)
+            # reindexes. Now lazy: writes only set a dirty flag, and the
+            # reindex happens once on the next search.
             self.assertLessEqual(len(calls), 1)
 
-    def test_semantic_search_still_correct_after_many_writes(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_semantic_search_still_correct_after_many_writes(self) -> None:
+        with self._tmpdir() as tmp:
             store = self._store(tmp)
             for i in range(15):
                 store.remember(f"distributed redis lock pattern {i}", "print('lock')")
@@ -164,16 +173,16 @@ class IncrementalMemoryTests(unittest.TestCase):
             self.assertTrue(hits)
             self.assertEqual(hits[0][0].goal, "jwt authentication middleware setup")
 
-    def test_delete_removes_vector_incrementally(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_delete_removes_vector_incrementally(self) -> None:
+        with self._tmpdir() as tmp:
             store = self._store(tmp)
             entry = store.remember("vector deletion probe goal", "print(2)")
             store.delete(entry.id)
             hits = store.semantic_search("vector deletion probe", top_k=5)
             self.assertEqual(hits, [])
 
-    def test_recall_hit_does_not_trigger_vector_reindex(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_recall_hit_does_not_trigger_vector_reindex(self) -> None:
+        with self._tmpdir() as tmp:
             store = self._store(tmp)
             store.remember("recall hit persistence check", "print(3)")
             with patch.object(store.vector_store, "_reindex") as mock_reindex:
@@ -183,7 +192,7 @@ class IncrementalMemoryTests(unittest.TestCase):
 
 
 class VectorStoreLazyIndexTests(unittest.TestCase):
-    def test_lazy_dirty_flag_single_reindex(self):
+    def test_lazy_dirty_flag_single_reindex(self) -> None:
         vs = VectorStore()
         calls = []
         original = vs._reindex
@@ -196,7 +205,7 @@ class VectorStoreLazyIndexTests(unittest.TestCase):
             vs.search("another query")
             self.assertEqual(len(calls), 1)      # ab clean -- dubara nahi
 
-    def test_remove_document_marks_dirty(self):
+    def test_remove_document_marks_dirty(self) -> None:
         vs = VectorStore()
         vs.add_documents([("a", "alpha body", None), ("b", "beta body", None)])
         vs.search("alpha")
@@ -205,22 +214,22 @@ class VectorStoreLazyIndexTests(unittest.TestCase):
 
 
 class EnsureImagePreflightTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         from saleha.core.execution_policy import _reset_probe_cache
         _reset_probe_cache()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         from saleha.core.execution_policy import _reset_probe_cache
         _reset_probe_cache()
         os.environ.pop("SALEHA_DOCKER_AUTO_PULL", None)
 
-    def test_returns_false_when_docker_unavailable(self):
+    def test_returns_false_when_docker_unavailable(self) -> None:
         from saleha.core.execution_policy import ensure_image
         with patch("saleha.core.execution_policy.docker_available", return_value=False):
             ok, msg = ensure_image("python:3.12-slim")
         self.assertFalse(ok)
 
-    def test_skips_pull_when_image_present(self):
+    def test_skips_pull_when_image_present(self) -> None:
         from saleha.core.execution_policy import ensure_image
         with patch("saleha.core.execution_policy.docker_available", return_value=True), \
              patch("saleha.core.execution_policy.image_present", return_value=True):
@@ -228,7 +237,7 @@ class EnsureImagePreflightTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("already present", msg)
 
-    def test_auto_pull_disabled_env(self):
+    def test_auto_pull_disabled_env(self) -> None:
         from saleha.core.execution_policy import ensure_image
         env = {"SALEHA_DOCKER_AUTO_PULL": "0"}
         with patch("saleha.core.execution_policy.docker_available", return_value=True), \

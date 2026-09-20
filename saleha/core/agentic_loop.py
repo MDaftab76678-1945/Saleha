@@ -76,7 +76,30 @@ _DEFAULT_TRANSCRIPT_STEPS = 6
 # call after the threshold, so it reads as one nudge, not nagging.
 _READ_ONLY_NUDGE_AFTER = 4
 
+# Refusing read-only tools outright starts later than the nudge, and only
+# once the tools have actually located a definition (see located_region).
+# Measured: with the block at 4 and no located_region requirement, qwen3:8b
+# was forced to patch after reading only the *test* file -- it had not yet
+# found src/requests/utils.py at all, so all three forced patch_file calls
+# targeted tests/test_utils.py and failed with "Could not match search
+# block". Forcing action before the target is known produces confident
+# edits to the wrong file, which is worse than another read.
+_READ_ONLY_BLOCK_AFTER = 7
+
 _FINISH_RE = re.compile(r"```(?:json)?\s*(\{.*?\"finish\".*?\})\s*```", re.DOTALL)
+
+
+def _is_test_path(rel_path: str) -> bool:
+    """True for a path that looks like a test file rather than source."""
+    norm = (rel_path or "").replace("\\", "/").lower()
+    name = norm.rsplit("/", 1)[-1]
+    return (name.startswith("test_")
+            or name.endswith("_test.py")
+            or name == "conftest.py"
+            or "/tests/" in norm
+            or norm.startswith("tests/")
+            or "/test/" in norm
+            or norm.startswith("test/"))
 
 
 def _loads_lenient(payload: str) -> Optional[Dict]:
@@ -1145,6 +1168,38 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
             tool_name, args = call
 
+            # Editing the test instead of the code it tests is not a fix --
+            # it is the fake green this whole project exists to stop.
+            # Measured live (pass 91): forced to act by the gate below,
+            # qwen3:8b patched tests/test_utils.py, changing an unrelated
+            # assertion from `== 0` to `== 00`, then called finish() with
+            # "The bug in the test was a missing value... It has been
+            # fixed." The loop reported success=True with the real bug
+            # untouched and 4 tests still failing.
+            if (self.allow_write
+                    and tool_name in ("patch_file", "write_file")
+                    and _looks_like_a_repair_goal(goal)
+                    and _is_test_path(str(args.get("path", "")))):
+                observation = (
+                    f"REJECTED: {args.get('path')} is a test file. The goal "
+                    f"is to fix the code the test exercises, not the test "
+                    f"itself -- changing the test to match broken behaviour "
+                    f"hides the bug instead of fixing it.\n"
+                    f"DO THIS NEXT: find the source function the failing "
+                    f"test calls (find_symbols on its name), read it, and "
+                    f"patch that file instead."
+                )
+                result.steps.append(
+                    LoopStep(step_no, f"{tool_name}-rejected-test-file",
+                            args_preview=json.dumps(args)[:120],
+                            observation=observation))
+                emit({"step": step_no, "action": f"{tool_name}-rejected-test-file",
+                      "observation": observation})
+                transcript_parts.append(
+                    f"[step {step_no}] {tool_name} (REJECTED)\nOBSERVATION: {observation}"
+                )
+                continue
+
             # Hard gate past the read-only streak threshold: a suggestion
             # alone was measured not to change the next action. Same real
             # repo bug, same model: the nudge fired at step 4 exactly as
@@ -1159,23 +1214,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # real mutation for a repair goal.
             if (self.allow_write
                     and tool_name in _READ_ONLY_TOOLS
-                    and reads_since_mutation_attempt >= _READ_ONLY_NUDGE_AFTER):
+                    and located_region is not None
+                    and reads_since_mutation_attempt >= _READ_ONLY_BLOCK_AFTER):
                 # Described in prose, not a fenced tool_call example -- an
                 # observation re-enters the prompt, and a live fence inside
                 # it was measured (pass 53) to make the model echo the
                 # fence's shape back empty rather than filling it in.
-                if located_region:
-                    rel, lo, hi = located_region
-                    where = f'"{rel}", with the search text copied from lines {lo}-{hi}'
-                else:
-                    where = "the file you already read"
+                rel, lo, hi = located_region
                 observation = (
                     f"REJECTED: read-only tools are unavailable after "
                     f"{reads_since_mutation_attempt} investigative calls with "
-                    f"no patch attempt. You already have enough information "
-                    f"-- call patch_file now, on {where}. Use the exact "
-                    f"existing text as \"search\" and your fixed version as "
-                    f"\"replace\".\n"
+                    f"no patch attempt. The tools already located the "
+                    f"definition at {rel} lines {lo}-{hi} -- call patch_file "
+                    f"on {rel} now, using text copied exactly from that range "
+                    f"as \"search\" and your fixed version as \"replace\".\n"
                     f"({tool_name} was not run; this call did not cost you "
                     f"information, only a step.)"
                 )
