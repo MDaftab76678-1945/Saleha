@@ -55,6 +55,53 @@ class ModelProviderTests(unittest.TestCase):
         self.assertIn("generated", result.error_message)
 
     @patch("saleha.core.model_provider.requests.post")
+    def test_disable_reasoning_sends_think_false(self, post: Mock) -> None:
+        # Measured (pass 87): qwen3:8b on the pass-85/86 planted `requests`
+        # bug took 140.4s for the correct patch with reasoning left on, and
+        # 9.0s for the identical correct patch with think: false -- no
+        # token-budget race, done_reason='stop' instead of 'length'.
+        resp = Mock()
+        resp.raise_for_status = Mock()
+        resp.json.return_value = {"response": "ok", "eval_count": 3,
+                                  "done_reason": "stop"}
+        post.return_value = resp
+
+        self.provider.generate("qwen3:8b", "p", disable_reasoning=True)
+
+        sent = post.call_args.kwargs["json"]
+        self.assertEqual(sent["think"], False)
+
+    @patch("saleha.core.model_provider.requests.post")
+    def test_disable_reasoning_does_not_grow_num_predict(self, post: Mock) -> None:
+        # budget_for_model()'s headroom exists to survive a <think> block
+        # that disable_reasoning already removes -- it must not stack.
+        resp = Mock()
+        resp.raise_for_status = Mock()
+        resp.json.return_value = {"response": "ok", "eval_count": 3}
+        post.return_value = resp
+
+        self.provider.generate("qwen3:8b", "p", options={"num_predict": 64},
+                               disable_reasoning=True)
+
+        sent = post.call_args.kwargs["json"]["options"]
+        self.assertEqual(sent["num_predict"], 64)
+
+    @patch("saleha.core.model_provider.requests.post")
+    def test_reasoning_left_on_by_default_still_grows_budget(self, post: Mock) -> None:
+        """disable_reasoning defaults False -- no existing caller's behavior
+        changes unless it opts in."""
+        resp = Mock()
+        resp.raise_for_status = Mock()
+        resp.json.return_value = {"response": "ok", "eval_count": 3}
+        post.return_value = resp
+
+        self.provider.generate("qwen3:8b", "p", options={"num_predict": 64})
+
+        sent = post.call_args.kwargs["json"]
+        self.assertNotIn("think", sent)
+        self.assertGreater(sent["options"]["num_predict"], 64)
+
+    @patch("saleha.core.model_provider.requests.post")
     def test_generate_returns_provider_response(self, post: Mock) -> None:
         response = Mock()
         response.json.return_value = {"response": "hello"}

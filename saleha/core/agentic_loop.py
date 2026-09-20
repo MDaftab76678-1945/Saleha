@@ -876,7 +876,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 + ("\n".join(transcript_parts[-self.transcript_steps:])
                    or "(none yet)")
             )
-            resp: AgentResponse = self.agent.think(prompt, complexity_score=7.0)
+            # Every turn here wants exactly one structured tool_call block,
+            # not an explanation -- disable_reasoning turns off a reasoning
+            # model's <think> block instead of racing it for the token
+            # budget. Measured (pass 87): the same bug, same model, went
+            # from 140.4s to 9.0s for the identical correct patch.
+            resp: AgentResponse = self.agent.think(
+                prompt, complexity_score=7.0, disable_reasoning=True)
             if not resp.success:
                 result.error = f"LLM error at step {step_no}: {resp.error_message}"
                 emit({"step": step_no, "action": "error", "observation": result.error})

@@ -9,7 +9,8 @@ class FakeProvider:
         self.response = response
         self.prompts = []
 
-    def generate(self, model, prompt, options=None):
+    def generate(self, model, prompt, options=None, response_format=None,
+                disable_reasoning=False):
         self.prompts.append(prompt)
         return self.response
 

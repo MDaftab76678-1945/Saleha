@@ -33,11 +33,16 @@ class ModelProvider(ABC):
 
     @abstractmethod
     def generate(self, model: str, prompt: str, options: Optional[dict] = None,
-                 response_format: Optional[dict] = None) -> ProviderResponse:
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
         """
         `response_format` is an optional JSON schema for providers that
         support constrained decoding (Ollama's `format`). Providers without
         it may ignore the argument; callers must not assume it took effect.
+
+        `disable_reasoning` asks a reasoning-capable provider to skip its
+        chain-of-thought entirely. Providers with no such concept (or no
+        way to disable it) may ignore this argument.
         """
         raise NotImplementedError
 
@@ -120,13 +125,26 @@ class OllamaProvider(ModelProvider):
         self.timeout = timeout
 
     def generate(self, model: str, prompt: str, options: Optional[dict] = None,
-                 response_format: Optional[dict] = None) -> ProviderResponse:
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
         """
         `response_format` is Ollama's structured-output JSON schema. When
         given, the server constrains decoding so the reply *must* match the
         schema -- the model cannot emit malformed output at all. Used by the
         action-menu loop to force a single integer choice, which removes the
         parse-failure class of errors entirely rather than recovering from it.
+
+        `disable_reasoning=True` sends Ollama's top-level `think: false`,
+        which turns off a reasoning model's <think> block entirely rather
+        than budgeting around it. Measured on this box (qwen3:8b, the same
+        planted `requests` bug from pass 85-86): with reasoning left on, a
+        571-char prompt took 140.4s for the correct patch; with
+        `think: false`, the same prompt took 9.0s for the same correct
+        patch, done_reason='stop' instead of racing a token budget. Callers
+        that want a structured action (a tool_call, not an explanation)
+        should pass this -- `_REASONING_THINKING_HEADROOM` below is a
+        budget guess for callers that still want the reasoning; this is
+        an actual measured fix for callers that do not.
         """
         # Caller options are MERGED over the defaults, never substituted for
         # them. `options or {...}` meant any caller passing a partial dict
@@ -146,18 +164,31 @@ class OllamaProvider(ModelProvider):
         }
         if options:
             merged_options.update(options)
-        # A reasoning model spends this budget on its thinking block before it
-        # writes any answer, so a budget sized for a direct answer yields an
-        # empty response. Grown here rather than at each of the ~17 call sites,
-        # which cannot know which model they will be routed to.
-        merged_options["num_predict"] = budget_for_model(
-            model, merged_options["num_predict"])
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "options": merged_options,
-        }
+        if disable_reasoning:
+            # Turning thinking off outright beats budgeting around it: no
+            # token competition, no risk of an empty done_reason='length'
+            # reply, and the caller's own num_predict is left alone.
+            payload: dict = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "think": False,
+                "options": merged_options,
+            }
+        else:
+            # A reasoning model spends this budget on its thinking block
+            # before it writes any answer, so a budget sized for a direct
+            # answer yields an empty response. Grown here rather than at
+            # each of the ~17 call sites, which cannot know which model
+            # they will be routed to.
+            merged_options["num_predict"] = budget_for_model(
+                model, merged_options["num_predict"])
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": merged_options,
+            }
         if response_format:
             payload["format"] = response_format
 
@@ -341,7 +372,11 @@ class OpenAICompatibleProvider(ModelProvider):
         self.timeout = timeout
 
     def generate(self, model: str, prompt: str, options: Optional[dict] = None,
-                 response_format: Optional[dict] = None) -> ProviderResponse:
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
+        # No known OpenAI-compatible endpoint exposes a "disable
+        # chain-of-thought" switch through this API shape, so the flag is
+        # accepted for interface parity and otherwise has no effect here.
         if not self.api_key and not ("localhost" in self.base_url or "127.0.0.1" in self.base_url):
             return ProviderResponse(
                 success=False,
@@ -404,22 +439,25 @@ class FallbackChainProvider(ModelProvider):
         ]
 
     def generate(self, model: str, prompt: str, options: Optional[dict] = None,
-                 response_format: Optional[dict] = None) -> ProviderResponse:
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
         """
         `response_format` (a JSON schema) is forwarded to providers that
         support constrained decoding and silently ignored by those that do
         not, so a caller relying on it degrades rather than breaking. It was
         previously dropped here, which meant the action-menu loop's
-        constrained decoding never actually took effect.
+        constrained decoding never actually took effect. `disable_reasoning`
+        is forwarded the same way.
         """
         errors = []
         for p in self.providers:
             if p.is_available():
                 try:
                     res = p.generate(model=model, prompt=prompt, options=options,
-                                     response_format=response_format)
+                                     response_format=response_format,
+                                     disable_reasoning=disable_reasoning)
                 except TypeError:
-                    # Provider predates response_format -- still usable.
+                    # Provider predates one of these keyword arguments -- still usable.
                     res = p.generate(model=model, prompt=prompt, options=options)
                 if res.success:
                     return res
@@ -468,7 +506,8 @@ class MockProvider(ModelProvider):
         self.default_response = default_response
 
     def generate(self, model: str, prompt: str, options: Optional[dict] = None,
-                 response_format: Optional[dict] = None) -> ProviderResponse:
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
         return ProviderResponse(
             success=True,
             content=self.default_response,

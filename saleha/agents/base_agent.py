@@ -83,7 +83,8 @@ class BaseAgent:
         return used
 
     def think(self, prompt: str, previous_error_reflexion: Optional[str] = None,
-              complexity_score: float = 0.0) -> AgentResponse:
+              complexity_score: float = 0.0,
+              disable_reasoning: bool = False) -> AgentResponse:
         self.task_counter += 1
         start_time = time.time()
 
@@ -124,7 +125,9 @@ class BaseAgent:
 
         temp = getattr(self, "temperature", None)
         options = {"temperature": temp} if temp is not None else None
-        provider_result = self.provider.generate(model=selected_model, prompt=full_prompt, options=options)
+        provider_result = self.provider.generate(
+            model=selected_model, prompt=full_prompt, options=options,
+            disable_reasoning=disable_reasoning)
         response_time = provider_result.response_time or (time.time() - start_time)
 
         if self.router:
