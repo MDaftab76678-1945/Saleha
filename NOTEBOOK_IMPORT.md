@@ -7726,3 +7726,51 @@ drift in the first place.
 - `min_actions_before_finish` still counts `list_dir` as investigation.
 - The default model for `saleha agent` is still `qwen2.5-coder:3b`, which
   measurement now shows is the wrong choice for repair work.
+
+---
+
+## Pass 86 addendum: the full 8B run finished -- no crash, no patch (2026-09-20)
+
+The live run referenced as "still going" at the end of pass 86 has now
+completed. Recording the real result rather than leaving the entry
+open-ended.
+
+```text
+step 1-14: every step returned ok=True (no crash, no empty reply,
+           no timeout) -- the wall from pass 85 is gone.
+step times: 70, 30, 37, 36, 45, 87, 232, 67, 179, 293, 242, 1498, 121, 106s
+max prompt: 4,134 chars (was 10,356 before the pass-86 fix)
+
+success: False
+error: "max_steps (14) exhausted without finish"
+```
+
+Checked the file directly rather than trusting the summary:
+`git diff --stat` shows only the originally planted bug; `pytest`:
+**4 failed, 224 passed**, unchanged from the red baseline. `patch_file`
+and `write_file` were never called across all 14 steps -- the agent spent
+the entire run reading and investigating.
+
+**What pass 86's fix actually bought:** the infrastructure failure modes
+are gone (crash, empty reply, timeout, fake green). The model's own
+capability was already established separately (the isolated 571-char
+probe produced the byte-correct patch). What is not yet true is that the
+loop, at this model's real speed on this hardware, reaches a `patch_file`
+call before its step budget runs out.
+
+**The new, real constraint, measured rather than assumed:** one step took
+1,498 seconds (nearly 25 minutes) on its own. Fourteen steps of pure
+investigation, several of them 3-4 minutes each, consumed the entire
+budget before the model reached the point of writing anything. Raising
+`--max-steps` is the obvious next lever, but it directly trades for wall-
+clock cost that is already measured to be minutes-per-step at this
+model's speed on this box -- a 30-step run could plausibly take an hour
+or more, which is a cost this ledger should state plainly rather than
+gloss over before recommending it.
+
+**Not claimed:** that the bug is fixable end-to-end on this hardware with
+this model. That remains open. What is now known, precisely: the failure
+mode changed from "the loop breaks" (pass 85's fake green, pass 86's
+timeout/empty-reply wall) to "the loop is honest but the model runs out of
+steps before it acts" -- a budget problem, not a correctness problem, and
+a different thing to fix.
