@@ -6,6 +6,7 @@ import unittest
 from typing import Any, Optional
 from unittest.mock import MagicMock
 
+from saleha.agents.base_agent import AgentResponse
 from saleha.core.agentic_loop import (
     MAX_FILE_READ_CHARS,
     MAX_OBSERVATION_CHARS,
@@ -21,19 +22,23 @@ class ScriptedAgent:
         self.responses = list(responses)
         self.prompts: list = []
 
-    def think(self, prompt: str, **kwargs: Any) -> MagicMock:
+    def think(
+        self,
+        prompt: str,
+        previous_error_reflexion: Optional[str] = None,
+        complexity_score: float = 0.0,
+        disable_reasoning: bool = False,
+        **kwargs: Any,
+    ) -> AgentResponse:
         self.prompts.append(prompt)
-        resp = MagicMock()
         if isinstance(self.responses[0], Exception):
             raise self.responses.pop(0)
         content = self.responses.pop(0)
-        resp.success = True
-        resp.content = content
-        return resp
+        return AgentResponse(success=True, content=content)
 
 
-def _tool_call(name: str, **args: Any) -> str:
-    return f'```tool_call\n{{"tool": "{name}", "args": {json.dumps(args)}}}\n```'
+def _tool_call(__tool_name: str, **args: Any) -> str:
+    return f'```tool_call\n{{"tool": "{__tool_name}", "args": {json.dumps(args)}}}\n```'
 
 
 def _finish(summary: str = "done") -> str:
@@ -261,7 +266,7 @@ class AgentLoopTests(unittest.TestCase):
         assert callback is not None
         src = inspect.getsource(callback)
         self.assertIn("timeout_sec=", src)
-        params = inspect.signature(core_agentic.agent.callback).parameters
+        params = inspect.signature(callback).parameters
         self.assertIn("timeout", params)
 
     def test_unclosed_reasoning_tag_does_not_destroy_the_tool_call(self) -> None:
@@ -309,6 +314,7 @@ class AgentLoopTests(unittest.TestCase):
                '```')
         parsed = AgentLoop._parse_call(raw)
         self.assertIsNotNone(parsed, "literal newlines in search still reject")
+        assert parsed is not None
         self.assertEqual(parsed[0], "patch_file")
         self.assertIn("total_length = 0", parsed[1]["search"])
         self.assertIn("\n", parsed[1]["search"])
@@ -321,6 +327,8 @@ class AgentLoopTests(unittest.TestCase):
                '"search": "a\\nb", "replace": "c"}}\n'
                '```')
         parsed = AgentLoop._parse_call(raw)
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
         self.assertEqual(parsed[1]["search"], "a\nb")
 
     def test_parser_accepts_the_shapes_models_actually_emit(self) -> None:
@@ -1245,10 +1253,11 @@ class RunTestsToolTests(unittest.TestCase):
     def test_the_prompt_advertises_run_tests(self) -> None:
         self.assertIn("run_tests", AgentLoop.TOOL_SIGNATURES)
         self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
-        loop = AgentLoop(agent=ScriptedAgent([_finish("x")]), root_dir=self.root,
+        agent = ScriptedAgent([_finish("x")])
+        loop = AgentLoop(agent=agent, root_dir=self.root,
                          min_actions_before_finish=0, max_steps=1)
         loop.run("anything")
-        self.assertIn("run_tests", loop.agent.prompts[0])
+        self.assertIn("run_tests", agent.prompts[0])
 
     # ---- the AUTOMATIC verification gate ----------------------------
     # Measured live against the planted requests bug (pass 92-adjacent):
@@ -1378,7 +1387,7 @@ class RunTestsToolTests(unittest.TestCase):
 
 
 class patch_gate:
-    """approval_gate.approve ko force-approve karta hai (context manager)."""
+    """Context manager that forces approval_gate.approve to return a fixed boolean."""
     def __init__(self, approve_result: bool = True) -> None:
         self.result = approve_result
         self._cm = None
@@ -1389,13 +1398,111 @@ class patch_gate:
         self._cm = patch.object(gate, "approve",
                                 lambda *a, **k: self.result)
         self._cm.__enter__()
-        # agentic_loop function-local import karta hai -- module attr patched hai
+        # agentic_loop performs function-local import -- module attribute is patched
         import saleha.core.approval_gate as gate2
-        assert gate2.approve  # sanity
+        assert callable(gate2.approve)
         return self
 
     def __exit__(self, *a: Any) -> Optional[bool]:
-        return self._cm.__exit__(*a)
+        if self._cm is not None:
+            return self._cm.__exit__(*a)
+        return None
+
+
+class AutonomousSelfBuildingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_dynamic_registry_tool_invocation(self) -> None:
+        from saleha.tools.base import BaseTool, ToolResult, tool_registry
+
+        class MockEchoTool(BaseTool):
+            name = "mock_echo"
+            description = "Echoes back the message"
+            parameters = {
+                "type": "object",
+                "properties": {"msg": {"type": "string"}},
+                "required": ["msg"],
+            }
+
+            def execute(self, **kwargs: Any) -> ToolResult:
+                return ToolResult(success=True, data={"echo": kwargs.get("msg", "")})
+
+        tool_registry.register(MockEchoTool())
+
+        agent = ScriptedAgent([
+            _tool_call("mock_echo", msg="hello world"),
+            _finish("echo verified"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("test echo tool")
+        self.assertTrue(res.success, msg=res.error)
+        self.assertEqual(res.steps[0].action, "mock_echo")
+        self.assertIn("hello world", res.steps[0].observation)
+
+    def test_forge_tool_blocked_when_write_disabled(self) -> None:
+        agent = ScriptedAgent([
+            _tool_call("forge_tool", name="dummy_calc", description="Performs calculations"),
+            _finish("done"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=False)
+        res = loop.run("forge dummy tool")
+        self.assertEqual(res.steps[0].action, "forge_tool")
+        self.assertIn("BLOCKED: forge_tool disabled", res.steps[0].observation)
+
+    def test_forge_tool_blocked_when_approval_denied(self) -> None:
+        agent = ScriptedAgent([
+            _tool_call("forge_tool", name="dummy_calc", description="Performs calculations"),
+            _finish("done"),
+        ])
+        with patch_gate(approve_result=False):
+            loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True)
+            res = loop.run("forge dummy tool")
+            self.assertEqual(res.steps[0].action, "forge_tool")
+            self.assertIn("BLOCKED: human approval denied", res.steps[0].observation)
+
+    def test_forge_tool_success_and_immediate_invocation_turn(self) -> None:
+        from unittest.mock import patch
+        from saleha.core.tool_forge import ToolForgeResult
+        from saleha.tools.base import BaseTool, ToolResult, tool_registry
+
+        class MockForgedTool(BaseTool):
+            name = "synthesized_calculator"
+            description = "Calculates sums"
+            parameters = {"type": "object", "properties": {"val": {"type": "integer"}}}
+
+            def execute(self, **kwargs: Any) -> ToolResult:
+                return ToolResult(success=True, data={"result": kwargs.get("val", 0) * 10})
+
+        mock_forge_res = ToolForgeResult(
+            timestamp="2026-09-21 00:00:00",
+            tool_name="synthesized_calculator",
+            status="created",
+            detail="Synthesized mock tool successfully",
+            tool_path="saleha/tools/synthesized_calculator.py",
+            tests_passed=True,
+        )
+
+        with patch_gate(approve_result=True), \
+             patch("saleha.core.tool_forge.ToolForge.forge_tool", return_value=mock_forge_res):
+            tool_registry.register(MockForgedTool())
+
+            agent = ScriptedAgent([
+                _tool_call("forge_tool", name="synthesized_calculator", description="Calculates sums"),
+                _tool_call("synthesized_calculator", val=5),
+                _finish("tool forged and executed"),
+            ])
+            loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True, max_steps=4)
+            res = loop.run("create and run calculator")
+            self.assertTrue(res.success, msg=res.error)
+            self.assertEqual(res.steps[0].action, "forge_tool")
+            self.assertIn("successfully forged", res.steps[0].observation)
+            self.assertEqual(res.steps[1].action, "synthesized_calculator")
+            self.assertIn('"result": 50', res.steps[1].observation)
 
 
 if __name__ == "__main__":

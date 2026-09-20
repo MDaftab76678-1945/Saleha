@@ -8637,3 +8637,45 @@ Added `**kwargs: Any` to `BaseAgent.think()` in `saleha/agents/base_agent.py` an
 - `test_issue_resolver.py`: Added 4 new end-to-end autonomous solver tests in `AutonomousSolverTests` (mock agent success, failing agent error reporting, issue number dispatch, and natural language goal dispatch).
 - `pytest saleha/tests/test_issue_resolver.py saleha/tests/test_diff_engine.py`: **42 passed** in 4.82s.
 - Full test suite: **2221 passed, 13 skipped, 172 subtests** in 197.92s (up from 2217, +4 new tests, zero regressions).
+
+## Pass 99: Step 2 of Master Vision -- Autonomous Self-Building Intelligence (ToolForge Dynamic Synthesis & Multi-Cycle Self-Improvement Engine) (2026-09-21)
+
+Fully implemented Step 2 of the Master Vision: *"Isse khud ko build karne do -- apne design ko improve kar sake, naye functions bana sake, apne liye tools bana sake."*
+
+### 1. Dynamic Tool Registry & On-the-Fly Tool Synthesis (`AgentLoop`)
+
+Wired `tool_registry` (`saleha/tools/base.py`) directly into `AgentLoop` (`saleha/core/agentic_loop.py`):
+
+- Dynamic tool discovery: At the start of `run()`, all registered tools in `tool_registry` are discovered and dynamically wrapped, augmenting built-in primitives.
+- `forge_tool` tool action:
+  - Added `forge_tool` schema to `TOOL_SIGNATURES` with parameters `name`, `description`, `parameters`, `domain`, and `auto_commit`.
+  - Enforced strict safety guardrails: Gated by `allow_write=True` and `approve("forge_tool", ...)` human safety gate.
+  - Generates tool implementation via `ToolForge`, validates using AST security rules and `QualityGuard`, runs pytest in isolation, and commits to git.
+  - Dynamically registers newly forged tool into `tool_registry` and immediately injects it into the active execution loop, allowing immediate step $N+1$ tool execution in the same run.
+  - Integrated with evidence tracking and mutation tracking (`mutations_attempted`, `mutations_succeeded`).
+
+### 2. Multi-Cycle Batch Self-Improvement Engine (`self_improve.py`)
+
+- Added `run_self_improvement_batch(cycles, max_repairs, max_tries_per_module, callback)`:
+  - Tracks persistent failures per module across cycles using `failure_counts` and a persistent `skip_set`.
+  - Discovered and fixed `skip_set` extension mismatch: `res.module` (`widget.py`) did not match `candidates` comparison key (`widget`); normalized `skip` set with `{m[:-3] if m.endswith(".py") else m for m in skip}`.
+  - Discovered and fixed `FileNotFoundError` on empty/switched git branches: When test commits landed on `auto/self-improve`, switching back to clean `main` caused `TEST_DIR` to be absent on disk; guarded with `(os.listdir(TEST_DIR) if os.path.exists(TEST_DIR) else [])`.
+- Added `get_self_improvement_status()` returning total core modules, tested modules count (local + auto-branch), untested modules count, test coverage %, and recent audit pass rates.
+
+### 3. Tool Catalog CLI Management & Backward Compatibility
+
+- Refactored `saleha tools` in `saleha/cli/commands/tool_forge_cmd.py` to a `@cli.group(invoke_without_command=True)`.
+  - Preserved 100% backward compatibility for `saleha tools --json` outputting `global_tool_registry.get_schemas()`.
+  - Added `saleha tools list` showing registered tool name, class, description, and parameters.
+  - Added `saleha tools info <name>` rendering formatted Rich panel with full schema.
+  - Added `saleha tools forge <name> <description>` and `saleha forge-tool`.
+- Extended `saleha self-improve` in `saleha/cli/commands/self_improve.py`:
+  - Added `--cycles` / `-c` batch option to `saleha self-improve run`.
+  - Added `saleha self-improve status` rendering Rich status table.
+- Cleaned duplicate `tools` command and type warnings in `saleha/cli/commands/misc_tools.py`.
+
+### Verified
+
+- `pytest saleha/tests/test_agentic_loop.py saleha/tests/test_self_improve.py saleha/tests/test_tool_forge.py saleha/tests/test_cli_self_building.py -v`:
+  - **120 passed, 10 subtests passed** in 22.77s (exit code 0).
+  - 100% green across all 4 test files. Zero regressions.

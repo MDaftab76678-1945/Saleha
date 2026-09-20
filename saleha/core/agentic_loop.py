@@ -335,9 +335,12 @@ Never invent tool outputs. One block per reply. Be efficient."""
                       'optional "target": "<file or test id>" to narrow it)'),
         "patch_file": '{"path": "<file>", "search": "<exact existing text>", "replace": "<new text>"}',
         "write_file": '{"path": "<file>", "content": "<full new content>"}',
+        "forge_tool": ('{"name": "<snake_case_tool_name>", "description": "<what tool does>", '
+                       '"parameters": {"type": "object", "properties": {...}}, '
+                       '"auto_commit": <optional bool>}'),
     }
 
-    def __init__(self, agent: ThinkingAgent, root_dir: str = ".",
+    def __init__(self, agent: Any, root_dir: str = ".",
                  max_steps: int = 12, allow_write: bool = False,
                  code_executor=None,
                  allowed_tools: Optional[List[str]] = None,
@@ -349,6 +352,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  required_evidence=None,
                  budget=None):
         self.agent = agent
+        self.tool_signatures: Dict[str, str] = dict(self.TOOL_SIGNATURES)
         # Sizing the prompt to the model, not to a fixed constant. See the
         # _REASONING_* constants for the measurement that motivated this.
         from saleha.core.model_provider import is_reasoning_model
@@ -869,6 +873,104 @@ Never invent tool outputs. One block per reply. Be efficient."""
         except Exception as ex:
             return f"outline error: {ex}"
 
+    @staticmethod
+    def _make_tool_wrapper(reg_tool: Any) -> Callable[..., str]:
+        def _wrapper(**kwargs: Any) -> str:
+            try:
+                res = reg_tool.execute(**kwargs)
+                if getattr(res, "success", False):
+                    data = getattr(res, "data", None)
+                    if isinstance(data, (dict, list)):
+                        return json.dumps(data, indent=2, default=str)
+                    return str(data)
+                err = getattr(res, "error", None) or "Tool execution failed"
+                return f"Error: {err}"
+            except Exception as ex:
+                return f"Tool execution error: {ex}"
+        return _wrapper
+
+    @staticmethod
+    def _format_tool_signature(params: Dict[str, Any]) -> str:
+        if not isinstance(params, dict):
+            return "{...}"
+        props = params.get("properties", {})
+        if not isinstance(props, dict) or not props:
+            return "{}"
+        required = set(params.get("required", []))
+        parts: List[str] = []
+        for k, v in props.items():
+            if isinstance(v, dict):
+                desc = v.get("description", v.get("type", "any"))
+            else:
+                desc = "any"
+            opt = "" if k in required else " (optional)"
+            parts.append(f'"{k}": <{desc}{opt}>')
+        return "{" + ", ".join(parts) + "}"
+
+    def _tool_forge_tool(
+        self,
+        name: str,
+        description: str,
+        parameters: Union[Dict[str, Any], str, None] = None,
+        auto_commit: bool = False,
+    ) -> str:
+        """Autonomously synthesize, test, and deploy a new tool to saleha/tools/.
+
+        Synthesizes a BaseTool subclass, generates a companion pytest suite,
+        verifies it via QualityGuard & pytest in a sandbox, writes it to
+        saleha/tools/<name>.py, and auto-registers it into tool_registry.
+        """
+        if not self.allow_write:
+            return "BLOCKED: forge_tool disabled (enable allow_write=True)"
+        from saleha.core.approval_gate import approve
+        if not approve("forge_tool", f"{name}: {description}"):
+            return "BLOCKED: human approval denied/required."
+
+        clean_name = re.sub(r"[^a-zA-Z0-9_]", "_", (name or "").strip().lower())
+        if not clean_name:
+            return "Tool forge failed: invalid or empty tool name."
+
+        params_dict: Dict[str, Any] = {}
+        if isinstance(parameters, dict):
+            params_dict = parameters
+        elif isinstance(parameters, str) and parameters.strip():
+            try:
+                parsed = json.loads(parameters)
+                if isinstance(parsed, dict):
+                    params_dict = parsed
+                else:
+                    params_dict = {"type": "object", "properties": {}}
+            except Exception:
+                params_dict = {"type": "object", "properties": {}}
+        else:
+            params_dict = {"type": "object", "properties": {}}
+
+        class_name = "".join(part.capitalize() for part in clean_name.split("_") if part) + "Tool"
+
+        from saleha.core.tool_forge import ToolForge, ToolSpecification
+        spec = ToolSpecification(
+            name=clean_name,
+            class_name=class_name,
+            description=description.strip() if description else f"Autonomous tool {clean_name}",
+            parameters=params_dict,
+        )
+
+        forge = ToolForge()
+        forge_res = forge.forge_tool(spec, auto_commit=auto_commit)
+
+        if forge_res.status in ("created", "already_exists"):
+            try:
+                from saleha.tools.base import tool_registry
+                tool_registry.auto_discover()
+            except Exception:
+                pass
+            return (
+                f"Tool '{clean_name}' successfully forged and registered into tool_registry "
+                f"(status={forge_res.status}, detail={forge_res.detail}). "
+                f"You can now call `{clean_name}` with arguments matching its schema."
+            )
+        return f"Tool forge failed (status={forge_res.status}): {forge_res.detail}"
+
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
@@ -892,7 +994,22 @@ Never invent tool outputs. One block per reply. Be efficient."""
             "run_tests": self._tool_run_tests,
             "patch_file": self._tool_patch_file,
             "write_file": self._tool_write_file,
+            "forge_tool": self._tool_forge_tool,
         }
+
+        # Dynamic tool discovery: ingest registered tools from tool_registry
+        try:
+            from saleha.tools.base import tool_registry
+            tool_registry.auto_discover()
+            for reg_tool in tool_registry.list_tools():
+                if reg_tool.name not in tools:
+                    if self.allowed_tools is not None and reg_tool.name not in self.allowed_tools:
+                        continue
+                    tools[reg_tool.name] = self._make_tool_wrapper(reg_tool)
+                    if reg_tool.name not in self.tool_signatures:
+                        self.tool_signatures[reg_tool.name] = self._format_tool_signature(reg_tool.parameters)
+        except Exception:
+            pass
 
         # Profile-driven restriction: allowed_tools diya gaya to intersection
         # use karo (khali result par sab wapas -- dead-end se bachne ke liye).
@@ -902,7 +1019,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 tools = filtered
 
         tool_lines = "\n".join(
-            f'  {name} -- args: {self.TOOL_SIGNATURES.get(name, "{...}")}'
+            f'  {name} -- args: {self.tool_signatures.get(name, self.TOOL_SIGNATURES.get(name, "{...}"))}'
             for name in tools
         )
         system_with_finish = self.SYSTEM_PROMPT.replace("{tool_names}", tool_lines)
@@ -933,6 +1050,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 "find_symbols": EvidenceKind.SEARCH_PERFORMED,
                 "write_file": EvidenceKind.FILE_MODIFIED,
                 "patch_file": EvidenceKind.FILE_MODIFIED,
+                "forge_tool": EvidenceKind.FILE_MODIFIED,
                 "run_code": EvidenceKind.CODE_EXECUTED,
                 # TESTS_PASSED has existed in EvidenceKind since the ledger
                 # was written, but no tool could record it -- so a completion
@@ -1409,13 +1527,34 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     observation = _truncate(str(handler(**args)),
                                             self.max_observation_chars)
                 except TypeError as terr:
-                    expected = self.TOOL_SIGNATURES.get(tool_name, "{...}")
+                    expected = self.tool_signatures.get(tool_name, self.TOOL_SIGNATURES.get(tool_name, "{...}"))
                     observation = (f"bad args for {tool_name}: {terr}. "
                                    f"Correct args: {expected}")
                     call_failed = True
                 except Exception as exc:
                     observation = f"tool error: {exc}"
                     call_failed = True
+
+            # If a tool was forged successfully on this turn, refresh registry so step N+1 can invoke it immediately
+            if not call_failed and tool_name == "forge_tool":
+                try:
+                    from saleha.tools.base import tool_registry
+                    tool_registry.auto_discover()
+                    for reg_tool in tool_registry.list_tools():
+                        if self.allowed_tools is not None and reg_tool.name not in self.allowed_tools:
+                            continue
+                        if reg_tool.name not in tools:
+                            tools[reg_tool.name] = self._make_tool_wrapper(reg_tool)
+                            if reg_tool.name not in self.tool_signatures:
+                                self.tool_signatures[reg_tool.name] = self._format_tool_signature(reg_tool.parameters)
+                    tool_lines = "\n".join(
+                        f'  {name} -- args: {self.tool_signatures.get(name, self.TOOL_SIGNATURES.get(name, "{...}"))}'
+                        for name in tools
+                    )
+                    system_with_finish = self.SYSTEM_PROMPT.replace("{tool_names}", tool_lines)
+                    system_no_finish = self.SYSTEM_PROMPT_NO_FINISH.replace("{tool_names}", tool_lines)
+                except Exception:
+                    pass
 
             # get_file_outline's own hint always points at its first entry --
             # measured against a real repo bug where the goal names
@@ -1533,7 +1672,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # one blocked write poisoned the whole run. Only real attempts,
             # where the tool actually tried to change the file, are counted.
             policy_refused = observation.startswith("BLOCKED")
-            if tool_name in ("patch_file", "write_file") and not policy_refused:
+            if tool_name in ("patch_file", "write_file", "forge_tool") and not policy_refused:
                 mutations_attempted += 1
                 reads_since_mutation_attempt = 0
                 # The tools report failure in the observation text rather than
@@ -1545,7 +1684,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         or observation.startswith("patch error:")
                         or observation.startswith("write error:")
                         or observation.startswith("file not found:")
-                        or observation.startswith("path traversal blocked:")):
+                        or observation.startswith("path traversal blocked:")
+                        or observation.startswith("Tool forge failed")):
                     mutations_succeeded += 1
                     # A new successful edit invalidates any prior test
                     # verdict -- it was measured against the file as it

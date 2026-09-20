@@ -224,3 +224,35 @@ def test_successful_commit_lands_on_the_auto_branch(sandbox_repo: Path) -> None:
     ).stdout
     assert "test_widget.py" in listed
     assert not (sandbox_repo / "saleha" / "tests" / "test_widget.py").exists()
+
+
+def test_run_self_improvement_batch_success(sandbox_repo: Path) -> None:
+    results = self_improve.run_self_improvement_batch(cycles=2)
+    assert len(results) == 2
+    assert results[0].status == "committed"
+    assert results[1].status == "no_candidate"
+
+
+def test_run_self_improvement_batch_skips_persistent_failures(
+    sandbox_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        self_improve, "_generate_test_source",
+        lambda module_filename, public_symbols=None: (None, None),
+    )
+    results = self_improve.run_self_improvement_batch(cycles=3, max_tries_per_module=2)
+    assert len(results) == 3
+    assert results[0].status == "generation_failed"
+    assert results[1].status == "generation_failed"
+    assert results[2].status == "no_candidate"
+
+
+def test_get_self_improvement_status_structure(sandbox_repo: Path) -> None:
+    status = self_improve.get_self_improvement_status()
+    assert isinstance(status, dict)
+    assert "total_core_modules" in status
+    assert "tested_modules_count" in status
+    assert "untested_modules_count" in status
+    assert "test_coverage_pct" in status
+    assert status["total_core_modules"] >= 1
+

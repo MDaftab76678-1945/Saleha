@@ -29,7 +29,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, asdict
-from typing import Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CORE_DIR = os.path.join(REPO_ROOT, "saleha", "core")
@@ -80,11 +80,12 @@ def find_untested_module(skip: Optional[set] = None) -> Optional[str]:
     the same run, without writing anything to disk."""
     tested = {
         f[len("test_"):-len(".py")]
-        for f in os.listdir(TEST_DIR)
+        for f in (os.listdir(TEST_DIR) if os.path.exists(TEST_DIR) else [])
         if f.startswith("test_") and f.endswith(".py")
     }
     tested |= _tested_on_auto_branch()
-    tested |= (skip or set())
+    if skip:
+        tested |= {m[:-3] if m.endswith(".py") else m for m in skip}
     candidates = sorted(
         f for f in os.listdir(CORE_DIR)
         if f.endswith(".py") and not f.startswith("__") and f[:-3] not in tested
@@ -478,4 +479,88 @@ def read_log(limit: int = 20) -> list:
     with open(LOG_PATH, "r", encoding="utf-8") as f:
         lines = [json.loads(l) for l in f if l.strip()]
     return lines[-limit:]
+
+
+def run_self_improvement_batch(
+    cycles: int = 1,
+    max_repairs: int = 2,
+    max_tries_per_module: int = 2,
+    callback: Optional[Callable[[int, int, SelfImproveResult], None]] = None,
+) -> List[SelfImproveResult]:
+    """Runs multiple autonomous self-improvement cycles in sequence.
+
+    Maintains a persistent skip set across cycles so that modules that fail
+    generation or tests max_tries_per_module times are skipped in subsequent
+    cycles within the batch, preventing the engine from looping on a single
+    stubborn module.
+    """
+    results: List[SelfImproveResult] = []
+    failure_counts: Dict[str, int] = {}
+    skip_set: Set[str] = set()
+
+    total_cycles = max(1, cycles)
+    for cycle_idx in range(1, total_cycles + 1):
+        res = run_self_improvement_cycle(skip=skip_set, max_repairs=max_repairs)
+        results.append(res)
+        if callback:
+            try:
+                callback(cycle_idx, total_cycles, res)
+            except Exception:
+                pass
+
+        if res.status == "no_candidate":
+            break
+
+        if res.status != "committed" and res.module:
+            mod_key = res.module[:-3] if res.module.endswith(".py") else res.module
+            failure_counts[mod_key] = failure_counts.get(mod_key, 0) + 1
+            if failure_counts[mod_key] >= max_tries_per_module:
+                skip_set.add(mod_key)
+                skip_set.add(res.module)
+
+    return results
+
+
+def get_self_improvement_status() -> Dict[str, Any]:
+    """Inspects and returns a snapshot of self-improvement test coverage and audit history."""
+    core_files = sorted(
+        f for f in os.listdir(CORE_DIR)
+        if f.endswith(".py") and not f.startswith("__")
+    )
+    total_core = len(core_files)
+    core_names = {f[:-3] for f in core_files}
+
+    local_tests = {
+        f[len("test_"):-len(".py")]
+        for f in (os.listdir(TEST_DIR) if os.path.exists(TEST_DIR) else [])
+        if f.startswith("test_") and f.endswith(".py")
+    }
+    tested_local = sorted(local_tests & core_names)
+    auto_branch_tests = _tested_on_auto_branch()
+    tested_auto = sorted((auto_branch_tests & core_names) - set(tested_local))
+    all_tested = set(tested_local) | set(tested_auto)
+
+    untested = sorted(core_names - all_tested)
+    coverage_pct = round((len(all_tested) / total_core * 100.0), 1) if total_core > 0 else 0.0
+
+    recent_logs = read_log(limit=50)
+    committed_count = sum(1 for entry in recent_logs if entry.get("status") == "committed")
+    recent_success_rate = (
+        round((committed_count / len(recent_logs) * 100.0), 1)
+        if recent_logs else 0.0
+    )
+
+    return {
+        "total_core_modules": total_core,
+        "tested_modules_count": len(all_tested),
+        "tested_local_count": len(tested_local),
+        "tested_auto_branch_count": len(tested_auto),
+        "untested_modules_count": len(untested),
+        "test_coverage_pct": coverage_pct,
+        "untested_modules": untested,
+        "total_logged_cycles": len(recent_logs),
+        "recent_committed_cycles": committed_count,
+        "recent_success_rate_pct": recent_success_rate,
+    }
+
 

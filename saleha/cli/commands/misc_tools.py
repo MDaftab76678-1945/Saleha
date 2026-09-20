@@ -52,14 +52,15 @@ def debug(code_file: str, error_log: Optional[str], model: str, save: bool,
     if error_file:
         with open(error_file, 'r', encoding='utf-8') as f:
             error_log = f.read()
+    active_error_log: str = error_log or ""
     agent = _cmds.DebuggerAgent(model=model)
     if as_json:
-        result = agent.debug_code('Debug the provided Python code', code, error_log)
+        result = agent.debug_code('Debug the provided Python code', code, active_error_log)
     else:
         console.print(Panel.fit(f'[bold cyan]🐞 Debugging:[/] {code_file}\n[bold cyan]🤖 Model:[/] {model}', title='[bold green]Saleha Debugger[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Analyzing error...', total=None)
-            result = agent.debug_code('Debug the provided Python code', code, error_log)
+            result = agent.debug_code('Debug the provided Python code', code, active_error_log)
     if not result.success:
         if as_json:
             click.echo(json.dumps({'success': False, 'diagnosis': result.diagnosis, 'fixed_code': result.fixed_code, 'error': result.error, 'model_used': result.model_used}, ensure_ascii=False))
@@ -178,22 +179,6 @@ def refactor(target_file: str, instruction: str, model: str, diff_only: bool,
         syntax = Syntax(diff, 'diff', theme='monokai')
         console.print(syntax)
 
-@cli.command()
-@click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def tools(as_json: bool) -> None:
-    """List all available dynamic tools and their JSON schemas."""
-    registered = _cmds.global_tool_registry.list_tools()
-    if as_json:
-        click.echo(json.dumps({'tools': _cmds.global_tool_registry.get_schemas()}, ensure_ascii=True))
-        return
-    table = Table(title='🛠️ Registered Dynamic Agent Tools', show_header=True, header_style='bold magenta')
-    table.add_column('Tool Name', style='cyan')
-    table.add_column('Parameters', style='green')
-    table.add_column('Description', style='yellow')
-    for t in registered:
-        params_str = ', '.join([f'{p.name}: {p.type}' for p in t.parameters]) or 'None'
-        table.add_row(t.name, params_str, t.description)
-    console.print(table)
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
@@ -258,7 +243,7 @@ def doctor(as_json: bool) -> None:
 @cli.command()
 @click.option('--task-type', '-t', default='coding', help='Task category to show stats for')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def stats(task_type: Optional[str], as_json: bool) -> None:
+def stats(task_type: str = 'coding', as_json: bool = False) -> None:
     """
     Show persistent model performance stats (saved in ~/.saleha/stats.json)
 
@@ -270,34 +255,35 @@ def stats(task_type: Optional[str], as_json: bool) -> None:
     Example: saleha stats --task-type coding
     """
     from saleha.core.stats_tracker import StatsTracker
+    t_type: str = task_type or 'coding'
     tracker = StatsTracker()
-    bucket = tracker._data.get(task_type, {})
+    bucket = tracker._data.get(t_type, {})
     if not bucket:
         if as_json:
-            click.echo(json.dumps({'task_type': task_type, 'models': [], 'best_model': None}, ensure_ascii=False))
+            click.echo(json.dumps({'task_type': t_type, 'models': [], 'best_model': None}, ensure_ascii=False))
             return
-        console.print(f"[yellow]Abhi tak '{task_type}' ke liye koi stats nahi hain.[/]")
+        console.print(f"[yellow]Abhi tak '{t_type}' ke liye koi stats nahi hain.[/]")
         return
     if as_json:
         models = {}
         for model_name in bucket:
-            model_stats = tracker.get_model_stats(model_name, task_type)
+            model_stats = tracker.get_model_stats(model_name, t_type)
             models[model_name] = {'uses': model_stats.uses, 'success_rate': model_stats.success_rate, 'avg_attempts': model_stats.avg_attempts, 'last_used': model_stats.last_used}
-        click.echo(json.dumps({'task_type': task_type, 'models': models, 'best_model': tracker.best_model_for(task_type=task_type)}, ensure_ascii=False))
+        click.echo(json.dumps({'task_type': t_type, 'models': models, 'best_model': tracker.best_model_for(task_type=t_type)}, ensure_ascii=False))
         return
-    table = Table(title=f'📊 Model Stats ({task_type})', show_header=True, header_style='bold magenta')
+    table = Table(title=f'📊 Model Stats ({t_type})', show_header=True, header_style='bold magenta')
     table.add_column('Model', style='cyan')
     table.add_column('Uses', justify='right')
     table.add_column('Success Rate', justify='right', style='green')
     table.add_column('Avg Attempts', justify='right', style='yellow')
     table.add_column('Last Used', style='dim')
     for model_name in sorted(bucket, key=lambda m: -bucket[m]['uses']):
-        s = tracker.get_model_stats(model_name, task_type)
+        s = tracker.get_model_stats(model_name, t_type)
         table.add_row(model_name, str(s.uses), f'{s.success_rate}%', str(s.avg_attempts), s.last_used or '-')
     console.print(table)
-    best = tracker.best_model_for(task_type=task_type)
+    best = tracker.best_model_for(task_type=t_type)
     if best:
-        console.print(f"\n[bold green]🏆 Best model for '{task_type}':[/] {best}")
+        console.print(f"\n[bold green]🏆 Best model for '{t_type}':[/] {best}")
 
 @cli.command()
 @click.option('--limit', '-n', default=10, help='Number of recent tasks to show')
@@ -612,7 +598,7 @@ def chaos_cmd(iterations: int) -> None:
     from saleha.core.chaos_engine import chaos_engine
     console.print(f'[bold cyan]💥 Running Chaos Fault Injection Probe ({iterations} iterations)...[/]')
 
-    def mock_target_flow() -> None:
+    def mock_target_flow() -> bool:
         time.sleep(0.005)
         return True
     res = chaos_engine.probe_resilience(mock_target_flow, iterations=iterations)
@@ -684,14 +670,15 @@ def pull_cmd(model_name: str, benchmark: bool) -> None:
 @click.option('--model', default='qwen2.5-coder:3b', help='Base model to fine-tune')
 @click.option('--epochs', default=3, help='Training epochs')
 @click.option('--name', default='saleha-custom', help='Output model name')
-def tune_cmd(model: str, epochs: int, name: Optional[str]) -> None:
+def tune_cmd(model: str, epochs: int, name: str = 'saleha-custom') -> None:
     """
     Run Local LoRA Fine-Tuning Pipeline on collected codebase data.
     
     Example: saleha tune --model qwen2.5-coder:3b --epochs 3
     """
     from saleha.core.lora_tuner import lora_tuner, TuningConfig
-    cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=name)
+    out_name = name or 'saleha-custom'
+    cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=out_name)
     console.print(f'[bold cyan]🚀 Starting Local LoRA Fine-Tuning on {model}...[/]')
     result = lora_tuner.fine_tune(cfg)
     if result.success:
