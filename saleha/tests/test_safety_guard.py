@@ -88,6 +88,27 @@ class SafetyGuardTests(unittest.TestCase):
         self.assertTrue(len(breakdown["risk_contributions"]) >= 1)
         self.assertEqual(breakdown["risk_score"], 8.0)
 
+    def test_hindi_chest_pain_is_blocked(self) -> None:
+        # Devanagari, with an intensifier ("bahut tez" / "very sharp")
+        # between the location and the symptom word.
+        result: SafetyResult = self.guard.evaluate("सीने में बहुत तेज दर्द है")
+
+        self.assertFalse(result.is_safe)
+        self.assertEqual(result.level, "BLOCK")
+        self.assertGreaterEqual(result.risk_score, 8.0)
+
+    def test_hindi_difficulty_breathing_is_blocked(self) -> None:
+        result: SafetyResult = self.guard.evaluate("सांस नहीं आ रही")
+
+        self.assertFalse(result.is_safe)
+        self.assertEqual(result.level, "BLOCK")
+
+    def test_hindi_safe_keyword_reduces_score(self) -> None:
+        result: SafetyResult = self.guard.evaluate("Python में एक function बनाओ")
+
+        self.assertTrue(result.is_safe)
+        self.assertEqual(result.level, "SAFE")
+
     def test_stats_reporting(self) -> None:
         stats: Dict[str, Any] = self.guard.stats()
         self.assertIn("total_risk_patterns", stats)

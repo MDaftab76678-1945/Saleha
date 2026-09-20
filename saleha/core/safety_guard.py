@@ -23,6 +23,18 @@ RISK_KEYWORDS: Dict[str, float] = {
     r"(heavy\s+bleeding|severe\s+bleeding|suicide|self-harm)": 9.0,
     r"(unconscious|passed\s+out|heart\s+attack|stroke|poison|poisoning)": 8.5,
 
+    # Health emergencies -- Hindi/Urdu patterns. Saleha's users converse in
+    # Hindi/Hinglish, so these patterns are language-specific by necessity;
+    # everything else in this file stays English per the project's
+    # English-only code/comment rule (data patterns are not code).
+    #
+    # \s+\S*\s* between key words allows an intervening intensifier (e.g.
+    # "bahut" / "very") without requiring it.
+    r"(छाती|सीने)\s+में\s+(\S*\s+){0,2}?दर्द": 9.0,  # chest pain
+    r"सांस\s+(\S*\s+){0,2}?(नहीं\s+आ\s+रही|लेने\s+में\s+तकलीफ|फूल\s+रही\s+है)": 9.0,  # difficulty breathing
+    r"(बहुत\s+ज्यादा\s+खून|आत्महत्या|खुदकुशी)": 9.0,  # heavy bleeding / suicide
+    r"(बेहोश|हार्ट\s+अटैक|दिल\s+का\s+दौरा|स्ट्रोक|जहर)": 8.5,  # unconscious / heart attack / stroke / poison
+
     # Network/security threats (medium risk)
     r"(curl\s+.*\|\s*bash|wget\s+.*\|\s*sh)": 7.0,
     r"(chmod\s+777|netcat|nc\s+-e)": 6.0,
@@ -30,6 +42,7 @@ RISK_KEYWORDS: Dict[str, float] = {
 
 SAFE_KEYWORDS: Dict[str, float] = {
     r"(create|build|write|generate|read|search|help)": -2.0,
+    r"(बनाओ|लिखो|पढ़ो|ढूंढो|मदद)": -2.0,  # create/write/read/find/help (Hindi)
 }
 
 THRESHOLD_WARN: float = 5.0
