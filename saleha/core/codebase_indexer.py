@@ -59,6 +59,10 @@ class CodebaseIndexer:
         self.root_dir = os.path.abspath(root_dir)
         self.files: Dict[str, FileIndex] = {}
         self.symbol_map: Dict[str, List[str]] = {}  # symbol_name -> list of file paths
+        # bare_method_name -> ["ClassName.method_name", ...]. Separate from
+        # symbol_map so a bare method lookup can never shadow a same-named
+        # top-level function -- find_symbol() only consults this on a miss.
+        self.bare_method_map: Dict[str, List[str]] = {}
         self.ignored_dirs = {
             ".git", ".venv", "venv", "env", "__pycache__", ".pytest_cache",
             "build", "dist", ".egg-info", ".idea", ".vscode", "node_modules",
@@ -182,13 +186,48 @@ class CodebaseIndexer:
             self.symbol_map.setdefault(cls_name, []).append(rel_path)
             for m_name in cls_sym.methods:
                 self.symbol_map.setdefault(f"{cls_name}.{m_name}", []).append(rel_path)
+                # Bare method names are also registered, distinct from the
+                # qualified map. A caller asking for a test function it just
+                # read out of a traceback ("test_super_len_with_tell") has
+                # no way to know its class name yet -- measured against a
+                # real repo bug, find_symbols on the bare method name
+                # returned "not found in codebase" even though the method
+                # exists, because only "ClassName.method" was ever
+                # registered. See find_symbol() for how the two maps are
+                # combined without a bare name silently shadowing a
+                # same-named top-level function.
+                self.bare_method_map.setdefault(m_name, []).append(
+                    f"{cls_name}.{m_name}")
 
         for fn_name in file_index.functions:
             self.symbol_map.setdefault(fn_name, []).append(rel_path)
 
     def find_symbol(self, symbol_name: str) -> List[str]:
-        """Returns list of relative file paths where the symbol is defined."""
-        return self.symbol_map.get(symbol_name, [])
+        """Returns list of relative file paths where the symbol is defined.
+
+        Tries an exact match first (a top-level function, a class, or an
+        already-qualified "ClassName.method"). Falls back to a bare method
+        name match across all classes only when the exact lookup misses, so
+        a top-level function is never shadowed by a same-named method.
+        """
+        exact = self.symbol_map.get(symbol_name, [])
+        if exact:
+            return exact
+        qualified = self.bare_method_map.get(symbol_name, [])
+        if not qualified:
+            return []
+        files: List[str] = []
+        for q in qualified:
+            files.extend(self.symbol_map.get(q, []))
+        # De-duplicate while preserving order (multiple classes across
+        # files can share a method name, e.g. every TestCase's setUp).
+        seen: Set[str] = set()
+        out = []
+        for f in files:
+            if f not in seen:
+                seen.add(f)
+                out.append(f)
+        return out
 
     def get_summary(self) -> Dict[str, Any]:
         """Returns summary statistics for the scanned codebase."""

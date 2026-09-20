@@ -96,6 +96,20 @@ class AgentLoopTests(unittest.TestCase):
         res = AgentLoop(agent=agent, root_dir=self.root).run("escape")
         self.assertIn("no such file", res.steps[0].observation)
 
+    def test_missing_file_names_a_next_action(self) -> None:
+        """Measured against a real repo bug: the model guessed
+        "utils/super_len.py" (function name, wrong directory) after already
+        learning the real path via search_repo two turns earlier -- the old
+        bare "no such file" message gave it nothing to connect the two."""
+        agent = ScriptedAgent([
+            _tool_call("read_file", path="utils/super_len.py"),
+            _finish("gave up"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root).run("find the bug")
+        self.assertIn("no such file", res.steps[0].observation)
+        self.assertIn("DO THIS NEXT", res.steps[0].observation)
+        self.assertIn("search_repo", res.steps[0].observation)
+
     def test_unknown_tool_reported(self) -> None:
         # A third reply is needed because an unknown tool is a FAILED call and
         # no longer satisfies min_actions_before_finish -- the loop rejects the

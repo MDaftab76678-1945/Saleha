@@ -417,7 +417,17 @@ Never invent tool outputs. One block per reply. Be efficient."""
         """
         abs_p = self._safe_path(path)
         if not abs_p or not os.path.isfile(abs_p):
-            return f"no such file: {path}"
+            # A bare "no such file" leaves the model to guess a second path
+            # with no more information than the first guess had. Measured
+            # against a real repo bug: the model guessed "utils/super_len.py"
+            # (the function name, wrong directory) after already learning
+            # via search_repo that the real path was
+            # "src/requests/utils.py" two turns earlier -- the rejection
+            # gave it nothing to connect the two.
+            return (f"no such file: {path}\n"
+                    f"DO THIS NEXT: call search_repo with a pattern matching "
+                    f"the filename or symbol you are looking for, or "
+                    f"list_dir on the parent directory, to find the real path.")
         trusted_note = ""
         content: str
         try:
