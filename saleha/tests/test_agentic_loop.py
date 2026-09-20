@@ -499,6 +499,64 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(res.final_message, "instant")
 
     # ------------------------------------------------------------------
+    # A repair goal is not done until something on disk changed
+    # ------------------------------------------------------------------
+
+    def test_repair_goal_cannot_finish_after_only_reading(self) -> None:
+        """Measured against a real planted bug in psf/requests: the agent
+        called list_dir once, called finish(), and the CLI printed a green
+        "Agent Summary" over a byte-identical file whose 4 tests were still
+        failing. The existing mutation gate only fires once a mutation has
+        been ATTEMPTED and failed, so a run that never tried fell through."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _finish("I have analyzed the code and fixed the bug."),
+            _finish("The fix is complete."),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=3).run(
+            "The test test_super_len_with_tell is failing. Fix the bug.")
+        self.assertFalse(res.success, msg=res.final_message)
+
+    def test_repair_goal_finishes_once_a_patch_lands(self) -> None:
+        """The same gate must not block a run that really did change a file."""
+        path = os.path.join(self.root, "m.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("x = 1\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="m.py", search="x = 1", replace="x = 2"),
+            _finish("patched"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=3).run("fix the value in m.py")
+        self.assertTrue(res.success, msg=res.error)
+        with open(path, encoding="utf-8") as f:
+            self.assertIn("x = 2", f.read())
+
+    def test_investigative_goal_still_finishes_without_any_mutation(self) -> None:
+        """Read-only goals are legitimate -- the gate is armed by repair
+        verbs only, so 'find all X' must not be forced to edit a file."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _finish("Found three endpoints without auth."),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=3).run(
+            "find all API endpoints missing auth checks")
+        self.assertTrue(res.success, msg=res.error)
+
+    def test_repair_gate_is_off_when_writes_are_not_allowed(self) -> None:
+        """A read-only run cannot mutate anything, so requiring a mutation
+        would make it permanently unfinishable."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _finish("Here is what I found and what would need to change."),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=False,
+                        max_steps=3).run("fix the failing test")
+        self.assertTrue(res.success, msg=res.error)
+
+    # ------------------------------------------------------------------
     # Parse resilience: one bad reply must not kill the whole run
     # ------------------------------------------------------------------
 

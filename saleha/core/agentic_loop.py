@@ -142,11 +142,29 @@ _NEXT_ACTION_HINT = {
     "file_exists": "verify the expected output file is really on disk",
 }
 
+# Verbs that mean the caller wants the repo changed, not just described.
+# Deliberately narrow: an investigative goal ("find all endpoints missing
+# auth") must stay finishable without touching a file, so only an explicit
+# repair/implement verb arms the no-mutation gate.
+_REPAIR_GOAL_RE = re.compile(
+    r"\b(fix(?:es|ed|ing)?|repair(?:s|ed|ing)?|patch(?:es|ed|ing)?|"
+    r"correct(?:s|ed|ing)?|resolve(?:s|d|ing)?|debug(?:s|ged|ging)?|"
+    r"implement(?:s|ed|ing)?|add(?:s|ed|ing)?|remove(?:s|d|ing)?|"
+    r"rename(?:s|d|ing)?|refactor(?:s|ed|ing)?|"
+    r"make .{0,40}\bpass\b|get .{0,40}\bpassing\b)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_a_repair_goal(goal: str) -> bool:
+    """True when the goal asks for a change on disk, not just an answer."""
+    return bool(_REPAIR_GOAL_RE.search(goal or ""))
+
 
 @dataclass
 class LoopStep:
     step: int
-    action: str                 # tool name ya "finish"
+    action: str                 # tool name or "finish"
     args_preview: str
     observation: str
 
@@ -924,6 +942,39 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         f"Then copy the `search` text verbatim from what it "
                         f"returns, including indentation, and call patch_file "
                         f"again."
+                    )
+                    emit({"step": step_no, "action": "finish-rejected",
+                          "observation": observation})
+                    transcript_parts.append(
+                        f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                    )
+                    continue
+
+                # A repair run that never attempted a mutation did not repair
+                # anything, however many files it read. The gate above only
+                # fires once a mutation has been *attempted* and failed, so a
+                # run that never tried fell straight through it: measured
+                # against the same planted `requests` bug, the agent spent 9
+                # steps deadlocked on finish(), called list_dir once, called
+                # finish() again, and the CLI printed a green "Agent Summary"
+                # over a byte-identical file with its 4 tests still failing.
+                # Reading is not repairing.
+                if (self.allow_write and mutations_succeeded == 0
+                        and _looks_like_a_repair_goal(goal)):
+                    if located_region:
+                        rel, lo, hi = located_region
+                        next_call = (f"call read_file on {rel} with start_line "
+                                     f"{lo} and end_line {hi}, then patch_file")
+                    else:
+                        next_call = ("call get_file_outline on the file named in "
+                                     "the goal, then read_file on the relevant "
+                                     "lines, then patch_file")
+                    observation = (
+                        "REJECTED: this goal asks for a fix, but no file has "
+                        "been changed -- you have not landed a single "
+                        "patch_file or write_file call. Reading a file is not "
+                        "fixing it, and a summary is not a change.\n"
+                        f"DO THIS NEXT: {next_call}."
                     )
                     emit({"step": step_no, "action": "finish-rejected",
                           "observation": observation})
