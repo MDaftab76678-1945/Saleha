@@ -1969,6 +1969,56 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 pass
             return
 
+        if path.startswith("/api/stream/octopus"):
+            query = urllib.parse.parse_qs(parsed.query)
+            goal = query.get("goal", ["Design and implement an autonomous rate limiter"])[0]
+            model = query.get("model", ["auto"])[0]
+            supremacy = query.get("supremacy", ["false"])[0].lower() in ("true", "1", "yes")
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'close')
+            self.close_connection = True
+            self.end_headers()
+
+            from saleha.core.octopus_coordinator import OctopusCoordinator, ArmBrainOutput
+
+            def _on_brain(out: ArmBrainOutput) -> None:
+                payload = json.dumps({
+                    "event": "brain_output",
+                    "role": out.brain_role,
+                    "name": out.brain_name,
+                    "status": out.status,
+                    "summary": out.summary,
+                    "duration_ms": out.duration_ms,
+                })
+                try:
+                    self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+            coordinator = OctopusCoordinator(model=model, use_supremacy=supremacy)
+            try:
+                res = coordinator.coordinate(goal=goal, callback=_on_brain)
+                final_payload = json.dumps({
+                    "event": "complete",
+                    "execution_id": res.execution_id,
+                    "success": res.success,
+                    "adr_title": res.adr_title,
+                    "tests_passed": res.tests_passed,
+                    "security_clean": res.security_clean,
+                    "resilience_score": res.resilience_score,
+                    "review_approved": res.review_approved,
+                    "total_duration_ms": res.total_duration_ms,
+                })
+                self.wfile.write(f"data: {final_payload}\n\n".encode("utf-8"))
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
+
         if path == "/api/desktop/status":
             try:
                 from saleha.desktop.app import LocalLLMManager
@@ -2980,6 +3030,148 @@ still required before merging -- neither ran here."""
                 self._send_json(404, {"error": str(err)})
             return
 
+        if path == "/api/octopus/run":
+            goal = payload.get("goal", "")
+            if not goal:
+                self._send_json(400, {"error": "goal is required"})
+                return
+            model = payload.get("model", "auto")
+            supremacy = bool(payload.get("supremacy", False))
+            timeout = float(payload.get("timeout", 120.0))
+
+            from saleha.core.octopus_coordinator import OctopusCoordinator
+            coordinator = OctopusCoordinator(model=model, use_supremacy=supremacy, timeout_sec=timeout)
+            res = coordinator.coordinate(goal=goal)
+            self._send_json(200, {
+                "execution_id": res.execution_id,
+                "goal": res.goal,
+                "success": res.success,
+                "adr_title": res.adr_title,
+                "security_clean": res.security_clean,
+                "tests_passed": res.tests_passed,
+                "resilience_score": res.resilience_score,
+                "review_approved": res.review_approved,
+                "total_duration_ms": res.total_duration_ms,
+                "final_code": res.final_code,
+                "brain_outputs": {
+                    k: {
+                        "name": v.brain_name,
+                        "status": v.status,
+                        "summary": v.summary,
+                        "duration_ms": v.duration_ms,
+                        "payload": v.payload,
+                    }
+                    for k, v in res.brain_outputs.items()
+                },
+            })
+            return
+
+        if path == "/api/supremacy/run":
+            problem = payload.get("problem", "")
+            if not problem:
+                self._send_json(400, {"error": "problem is required"})
+                return
+            test_suite = payload.get("test_suite", "")
+            model = payload.get("model", "auto")
+            trajectories = int(payload.get("num_trajectories", 4))
+            refinements = int(payload.get("max_refinements", 2))
+
+            from saleha.core.local_supremacy import LocalSupremacyEngine
+            engine = LocalSupremacyEngine(
+                model=model,
+                num_trajectories=trajectories,
+                max_refinements=refinements,
+            )
+            res = engine.solve(problem=problem, test_suite=test_suite)
+            self._send_json(200, {
+                "success": res.passed,
+                "winner_code": res.winner_code,
+                "winner_strategy": res.winner_strategy,
+                "passed": res.passed,
+                "single_shot_passed": res.single_shot_passed,
+                "amplification_factor": res.amplification_factor,
+                "total_candidates": res.total_candidates,
+                "total_repairs": res.total_repairs,
+                "total_duration_ms": res.total_duration_ms,
+                "summary": res.summary,
+            })
+            return
+
+        if path == "/api/solve/run":
+            task_or_issue = payload.get("issue_ref") or payload.get("task") or payload.get("goal") or ""
+            if not task_or_issue:
+                self._send_json(400, {"error": "issue_ref, task, or goal is required"})
+                return
+            model = payload.get("model", "auto")
+            test_cmd = payload.get("test_command")
+            max_steps = int(payload.get("max_steps", 15))
+            autonomous = bool(payload.get("autonomous", True))
+
+            from saleha.core.issue_resolver import issue_resolver
+            res = issue_resolver.resolve_issue(
+                issue_ref=task_or_issue,
+                model=model,
+                autonomous=autonomous,
+                max_steps=max_steps,
+                test_command=test_cmd,
+            )
+            self._send_json(200, {
+                "success": res.success,
+                "issue_number": res.issue.issue_number,
+                "issue_title": res.issue.title,
+                "branch_name": res.branch_name,
+                "tests_passed": res.tests_passed,
+                "test_output": res.test_output,
+                "summary": res.summary,
+                "diff": res.diff_result.unified_diff if res.diff_result else None,
+                "caveats": res.caveats,
+            })
+            return
+
+        if path == "/api/tools/forge":
+            tool_name = payload.get("name") or payload.get("tool_name")
+            auto_commit = bool(payload.get("auto_commit", False))
+
+            if not tool_name:
+                from saleha.core.tool_forge import tool_forge
+                forge_res = tool_forge.forge_next_unbuilt_tool(auto_commit=auto_commit)
+                self._send_json(200, {
+                    "tool_name": forge_res.tool_name,
+                    "status": forge_res.status,
+                    "detail": forge_res.detail,
+                    "tool_path": forge_res.tool_path,
+                    "test_path": forge_res.test_path,
+                    "quality_score": forge_res.quality_score,
+                    "tests_passed": forge_res.tests_passed,
+                })
+                return
+
+            class_name = payload.get("class_name") or ("".join(part.capitalize() for part in tool_name.split("_")) + "Tool")
+            description = payload.get("description", f"Dynamic autonomous tool for {tool_name}")
+            parameters = payload.get("parameters") or {"type": "object", "properties": {}}
+            domain = payload.get("domain", "general")
+
+            from saleha.core.tool_forge import ToolForge, ToolSpecification
+            forge = ToolForge()
+            spec = ToolSpecification(
+                name=tool_name,
+                class_name=class_name,
+                description=description,
+                parameters=parameters,
+                domain=domain,
+            )
+            forge_res = forge.forge_tool(spec, auto_commit=auto_commit)
+            self._send_json(200, {
+                "tool_name": forge_res.tool_name,
+                "status": forge_res.status,
+                "detail": forge_res.detail,
+                "tool_path": forge_res.tool_path,
+                "test_path": forge_res.test_path,
+                "quality_score": forge_res.quality_score,
+                "tests_passed": forge_res.tests_passed,
+            })
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def log_message(self, format: str, *args: Any) -> None:
@@ -2987,12 +3179,13 @@ still required before merging -- neither ran here."""
 
 
 def run_web_studio(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True) -> None:
-    if hasattr(sys.stdout, "reconfigure"):
-        try:
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
+    for stream in (sys.stdout, sys.stderr):
+        reconfig = getattr(stream, "reconfigure", None)
+        if callable(reconfig):
+            try:
+                reconfig(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
     token = get_auth_token()
     server_address = (host, port)

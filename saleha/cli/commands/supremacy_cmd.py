@@ -15,7 +15,6 @@ import io
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 import click
 from rich.panel import Panel

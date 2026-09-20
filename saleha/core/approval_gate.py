@@ -36,6 +36,7 @@ DANGEROUS_ACTIONS: Set[str] = {
     "file_write",
     "file_patch",
     "git_reset_hard",
+    "forge_tool",
 }
 
 _MODE_ALIASES = {

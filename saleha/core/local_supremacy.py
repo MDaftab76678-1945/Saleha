@@ -73,6 +73,7 @@ class SupremacyResult:
     test_suite: str
     winner_code: str
     winner_id: str
+    winner_strategy: str
     passed: bool
     single_shot_passed: bool
     amplification_factor: float
@@ -155,7 +156,7 @@ class LocalSupremacyEngine:
 
         results: List[InferenceResult] = engine.run_batch(requests, use_cache=False)
         candidates = []
-        for idx, (req, res) in enumerate(zip(requests, results)):
+        for idx, (req, res) in enumerate(zip(requests, results, strict=False)):
             strat_name, temp, _ = self.STRATEGIES[idx % len(self.STRATEGIES)]
             cid = req.tag or f"TRAJ-{idx + 1:02d}"
             code = extract_code(res.content) if res.success else ""
@@ -451,6 +452,7 @@ class LocalSupremacyEngine:
             test_suite=test_suite,
             winner_code=winner.code,
             winner_id=winner.candidate_id,
+            winner_strategy=winner.strategy_name,
             passed=passed,
             single_shot_passed=single_shot_passed,
             amplification_factor=amplification,

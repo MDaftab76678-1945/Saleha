@@ -21,6 +21,7 @@ Topological Structure:
 
 from __future__ import annotations
 
+import contextlib
 import enum
 import os
 import threading
@@ -37,7 +38,11 @@ from saleha.core.agent_message_bus import (
     OctopusSynthesisCompletedEvent,
     message_bus as global_message_bus,
 )
-from saleha.core.agent_worker_pool import AgentWorkerPool, WorkerTaskResult, worker_pool as global_worker_pool
+from saleha.core.agent_worker_pool import (
+    AgentWorkerPool,
+    WorkerTaskResult,
+    worker_pool as global_worker_pool,
+)
 from saleha.core.code_executor import CodeExecutor
 
 
@@ -121,11 +126,13 @@ class OctopusCoordinator:
         worker_pool: Optional[AgentWorkerPool] = None,
         bus: Optional[AgentMessageBus] = None,
         timeout_sec: float = 120.0,
+        use_supremacy: bool = False,
     ) -> None:
         self.model = model
         self.worker_pool = worker_pool or global_worker_pool
         self.bus = bus or global_message_bus
         self.timeout_sec = timeout_sec
+        self.use_supremacy = use_supremacy
 
     def _resolve_model(self, task_role: str) -> str:
         if os.environ.get("SALEHA_TEST_MODE") == "1" or self.model == "mock":
@@ -148,6 +155,15 @@ class OctopusCoordinator:
         exec_id = execution_id or str(uuid.uuid4())[:8]
         start_time = time.perf_counter()
         blackboard = SynapticBlackboard(goal=goal)
+
+        # Pre-warm agent imports in main thread to prevent Python 3.14 import lock deadlock
+        from saleha.agents.planner import PlannerAgent
+        from saleha.agents.architect import ArchitectAgent
+        from saleha.agents.coder import CoderAgent
+        from saleha.agents.security_guard import SecurityGuardAgent
+        from saleha.agents.qa_lead import QALeadAgent
+        from saleha.agents.chaos_resilience import ChaosResilienceAgent
+        from saleha.agents.reviewer import ReviewerAgent
 
         # Notify dispatch of Brain 0 (Central Mind)
         self.bus.publish(
@@ -204,10 +220,8 @@ class OctopusCoordinator:
                 )
             )
             if callback:
-                try:
+                with contextlib.suppress(Exception):
                     callback(out)
-                except Exception:
-                    pass
             return out
 
         # =====================================================================
@@ -244,7 +258,7 @@ class OctopusCoordinator:
             ("arm_architect", _run_architect, (), {}),
         ]
         p1_res = self.worker_pool.execute_parallel(parallel_phase1, timeout_sec=self.timeout_sec)
-        for task_id, role, name, func in [
+        for task_id, role, name, _func in [
             ("arm_planner", ArmBrainRole.PLANNER, "PlannerBrain", _run_planner),
             ("arm_architect", ArmBrainRole.ARCHITECT, "ArchitectBrain", _run_architect),
         ]:
@@ -288,6 +302,32 @@ class OctopusCoordinator:
         # PHASE 2: IMPLEMENTATION & TOOLING (Arms 3 & 8)
         # =====================================================================
         def _run_coder() -> Tuple[str, Dict[str, Any]]:
+            if self.use_supremacy:
+                from saleha.core.local_supremacy import LocalSupremacyEngine
+                sup_engine = LocalSupremacyEngine(
+                    model=self._resolve_model("coder"),
+                    num_trajectories=4,
+                    max_refinements=2,
+                )
+                sup_res = sup_engine.solve(
+                    problem=f"{goal}\nContext: Plan: {blackboard.plan_steps}\nComponents: {blackboard.architecture_components}",
+                    test_suite="",
+                )
+                code = sup_res.winner_code
+                with blackboard.lock:
+                    blackboard.source_code = code
+                strat = sup_res.winner_strategy or "supremacy"
+                return (
+                    f"Synthesized via Local Supremacy [{strat}] (amp: {sup_res.amplification_factor}x, {len(code)} chars)",
+                    {
+                        "code": code,
+                        "strategy": strat,
+                        "amplification_factor": sup_res.amplification_factor,
+                        "reflexion_repairs": len(sup_res.repairs),
+                        "candidates_evaluated": len(sup_res.candidates),
+                    },
+                )
+
             from saleha.agents.coder import CoderAgent
             coder = CoderAgent(model=self._resolve_model("coder"))
             context_hint = f"Plan: {blackboard.plan_steps}\nComponents: {blackboard.architecture_components}"

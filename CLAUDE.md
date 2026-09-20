@@ -1710,6 +1710,71 @@ against the pre-pass state. Measured: `test_agentic_loop.py` 84 →
 **85/85**; full suite 2215 → **2216 passed, 13 skipped, 172 subtests**,
 zero regressions. Detail: `NOTEBOOK_IMPORT.md`, "Pass 95."
 
+**Passes 96-102 — the finish()/patch_file lineage lands a real repair, then
+four Master Vision pillars get built and wired together.**
+
+- **Pass 96** — `finish()` stays hidden after auto-verify records a failing
+  test, not just for one turn: `qwen2.5-coder:3b` had been calling
+  `finish()` seven times in a row after a rejection instead of retrying
+  `patch_file`. Fixed in `agentic_loop.py`; re-opens automatically once a
+  new mutation is attempted.
+- **Pass 97 — first real end-to-end repair.** `qwen2.5-coder:3b` fixed a
+  planted arithmetic bug in a fresh repo (`double(x)` missing `* 2`),
+  verified by a real pytest run, `finish()` admitted honestly: 0 failed,
+  3 passed. First time any local model completed the full
+  explore→patch→verify journey in this lineage (passes 53, 85-96 had all
+  failed or produced a caught-wrong patch).
+- **Pass 98 — `saleha solve` / `IssueResolver` autonomous mode.** Wired
+  `AgentLoop` into `IssueResolver`; new `--autonomous` path drives a real
+  git branch, commits atomically, and generates an honest diff. Fixed a
+  real `diff_engine.py` bug found during this work: `lineterm=""` stripped
+  newlines from diff headers, corrupting single-line-deletion diffs.
+- **Pass 99 — ToolForge wired into `AgentLoop`** (`forge_tool` action,
+  gated by `approve()` + AST security + sandboxed pytest) and a multi-cycle
+  batch self-improvement engine (`run_self_improvement_batch`), fixing two
+  real bugs found while building it (a `skip_set` extension-mismatch, a
+  `FileNotFoundError` on branch switch when `TEST_DIR` didn't exist yet).
+- **Pass 100 — `OctopusCoordinator`** (`saleha octopus <goal>`): a real
+  9-brain coordination engine (Planner/Architect/Coder/Security/QA/
+  SRE/Critic/ToolForge arms + a central synthesizing mind), concurrent
+  phases via `AgentWorkerPool`, physical sandbox execution — a failing test
+  in the QA arm's sandbox genuinely sets `success=False`, no fabricated
+  green.
+- **Pass 101 — `LocalSupremacyEngine`** (`saleha supremacy <problem>`): real
+  test-time-compute tournament — 4 stratified trajectories at different
+  temperatures, scored through real AST/security/sandbox checks, with
+  traceback-conditioned Reflexion repair on the best near-miss candidate.
+  Reports a measured amplification factor, not an asserted one.
+- **Pass 102 — harmonization.** `OctopusCoordinator`'s coder arm can now
+  route through `LocalSupremacyEngine` (`--supremacy` flag on both `saleha
+  octopus` and the new `/api/octopus/run` endpoint). Fixed a real Python
+  3.14 import-lock deadlock (pre-warming `planner`/`architect` module
+  imports on the main thread before worker-pool dispatch). Added 5 real
+  REST/SSE endpoints in `web_server.py` (`/api/stream/octopus`,
+  `/api/octopus/run`, `/api/supremacy/run`, `/api/solve/run`,
+  `/api/tools/forge`) — read in full, genuinely wired to the real engines,
+  the SSE stream correctly opts out of the pass-50 keep-alive framing with
+  `Connection: close` since it's the one unbounded response. Live-measured
+  on real `qwen2.5-coder:3b`: 4-trajectory tournament, one candidate
+  genuinely failed sandbox tests (score 40.0) while three passed (100.0),
+  proving the sandbox actually discriminates rather than rubber-stamping.
+  Claimed **37/37 passed** across the 4 affected test files — independently
+  re-run and confirmed. Full suite (session-verified, not just the
+  ledger's claim): 2255 passed, 13 skipped — 1 failure
+  (`test_project_scaffolder.py::test_existing_dir_needs_force`) that
+  reproduced only under full-suite load and passed clean in isolation;
+  root-caused to the same Windows temp-cleanup race documented in pass 84,
+  just surfacing in a new file. **Fixed, not just noted**: the nested
+  `pytest test_main.py` subprocess `_verify_fastapi()` runs was writing
+  `.pyc`/`.pytest_cache` files under the scaffolded temp dir, which Windows
+  can still hold open for a moment after the subprocess exits — the
+  caller's own `tearDown` then raced `WinError 32` when removing that temp
+  dir. Fixed by running the nested pytest with `-p no:cacheprovider` and
+  `PYTHONDONTWRITEBYTECODE=1`, removing the cache files rather than timing
+  around them. Teeth-checked: 5/5 clean repeated runs after the fix.
+  Detail for all seven passes: `NOTEBOOK_IMPORT.md`, "Pass 96" through
+  "Pass 102."
+
 ---
 
 ## Environment facts worth knowing

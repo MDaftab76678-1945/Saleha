@@ -8783,3 +8783,103 @@ Architected and built the Test-Time Compute (TTC) scaling and Reflexion tourname
 - `test_ttc_solver.py`: 11 regression tests.
 - Physical execution: **18 passed in 3.53s** (100% green).
 - Pre-flight commit audit: **100.0/100** on `local_supremacy.py`, `supremacy_cmd.py`, `test_local_supremacy.py`, `test_cli_supremacy.py`.
+
+## Pass 102: Master Vision Harmonization, Web Studio 2.0 REST/SSE Endpoints, and Live Amplification Measurement (2026-09-21)
+
+Completed the end-to-end Master Vision synthesis across the 4 foundational pillars (Multi-Brain Octopus + Local Supremacy + Autonomous Tool Synthesis + Self-Healing Resolution), exposed them via Web Studio 2.0 REST and SSE endpoints, and physically benchmarked test-time compute scaling on local Ollama `qwen2.5-coder:3b`.
+
+### 1. Subsystem Harmonization & Deep Integration
+
+- **`saleha/core/octopus_coordinator.py`**:
+  - Wired `LocalSupremacyEngine` directly into `OctopusCoordinator._run_coder()` via `use_supremacy: bool` (default: False, enabled via `--supremacy`).
+  - Pre-warmed `saleha.agents.planner` and `saleha.agents.architect` on the main thread prior to worker thread pool dispatch, eliminating Python 3.14 concurrent import `_ModuleLock` deadlocks.
+  - Aligned `SupremacyResult` dataclass attributes (`winner_code`, `winner_strategy`, `repairs`, `candidates`) and emitted `OctopusBrainCompletedEvent` carrying real amplification metrics.
+- **`saleha/cli/commands/octopus_cmd.py`**:
+  - Added `--supremacy` flag to `saleha octopus` CLI with automated CoderBrain enrichment.
+- **`saleha/core/approval_gate.py`**:
+  - Added `"forge_tool"` to `DANGEROUS_ACTIONS` (resolving untrusted content approval gating).
+- **`saleha/tests/test_semantic_cache.py`**:
+  - Converted `WordVectorEmbedder` to deterministic CRC32 128-dim hashing, eliminating hash-seed flakiness across Python processes. Added explicit type narrowing assertions (`assert hit is not None`).
+
+### 2. Web Studio 2.0 REST & SSE Endpoints (`saleha/server/web_server.py`)
+
+- **`GET /api/stream/octopus`**:
+  - Server-Sent Events (SSE) live streaming endpoint broadcasting per-brain activity (`brain_output` events with role, name, status, latency, summary) and central synthesis deliverable (`complete` event).
+- **`POST /api/octopus/run`**:
+  - Full 9-Brain execution API accepting mission goals, model configuration, and supremacy flags; returns comprehensive JSON execution payload.
+- **`POST /api/supremacy/run`**:
+  - Direct endpoint running `LocalSupremacyEngine` tournament across stratified trajectories; returns winner code, amplification factor, and candidate metrics.
+- **`POST /api/solve/run`**:
+  - Triggers autonomous `IssueResolver` to diagnose bugs, compute AST-aware diffs, and report physical sandbox verification.
+- **`POST /api/tools/forge`**:
+  - Synthesizes and tests new tools dynamically via `ToolForge`, registering them into the active server registry.
+- **Clean Typing & Zero Diagnostics**:
+  - Replaced direct `sys.stderr.reconfigure` with safe `getattr(stream, "reconfigure", None)` check to eliminate `TextIO` missing attribute static analyzer errors.
+
+### 3. Physical Live Benchmark Probe (`qwen2.5-coder:3b`)
+
+Executed live verification tournament on physical local Ollama `qwen2.5-coder:3b` on the algorithmic challenge `longest_common_subsequence`:
+
+- **Physical Runtime Elapsed**: 33.74s
+- **Total Candidates Evaluated**: 4 stratified trajectories
+  - `TRAJ-01` (`direct_idiomatic`, T=0.2): syntax=True, sec=True, tests=True, score=100.0, time=207.8ms
+  - `TRAJ-02` (`defensive_guarded`, T=0.4): syntax=True, sec=True, tests=True, score=100.0, time=196.2ms
+  - `TRAJ-03` (`modular_decomposed`, T=0.6): syntax=True, sec=True, **tests=False**, score=40.0, time=186.3ms (physical sandbox caught logic defect!)
+  - `TRAJ-04` (`algorithmic_optimized`, T=0.8): syntax=True, sec=True, tests=True, score=100.0, time=124.9ms
+- **Physical Result**: Winner selected: `direct_idiomatic` (100.0 score, passed 100% of test assertions). Proves physical sandbox catches defects in small model trajectories and picks proven working candidates.
+
+### 4. Verified Test Matrix
+
+- `saleha/tests/test_semantic_cache.py`: **23/23 PASSED**
+- `saleha/tests/test_octopus_supremacy_integration.py`: **3/3 PASSED**
+- `saleha/tests/test_octopus_coordinator.py`: **5/5 PASSED**
+- `saleha/tests/test_web_server_master_vision.py`: **6/6 PASSED**
+- Total Surgical Suite: **37/37 PASSED** in 7.52s.
+- TypeScript Monorepo: `npx turbo run typecheck` **8/8 packages (FULL TURBO)**.
+- Code Linter: Zero diagnostics.
+
+## Pass 103: independently re-verified Pass 102's claims, and fixed a full-suite-only flake found while doing it (2026-09-21)
+
+Before committing Pass 102, re-ran its claimed test counts rather than trusting the ledger text: `test_semantic_cache.py` + `test_octopus_supremacy_integration.py` +
+`test_octopus_coordinator.py` + `test_web_server_master_vision.py` -> confirmed
+**37/37 passed**. Reviewed the staged diffs in full (`octopus_coordinator.py`,
+`local_supremacy.py`, `approval_gate.py`, `web_server.py`'s 5 new endpoints) --
+genuine wiring, no fabrication found.
+
+Ran the full suite to check for regressions: **1 failed, 2255 passed, 13
+skipped** --
+`test_project_scaffolder.py::TestProjectScaffolder::test_existing_dir_needs_force`
+failed with `PermissionError [WinError 32]` during `shutil.rmtree` cleanup of a
+temp dir. Re-ran the single test in isolation: passed clean. Same shape as the
+pass-84 Windows tempdir-cleanup flake (`test_agentic_loop.py`), now surfacing
+in a different file under full-suite contention.
+
+Root cause, found by reading `project_scaffolder.py` in full: `_verify_fastapi()`
+runs a real nested `pytest test_main.py` subprocess against the scaffolded
+temp copy to verify the FastAPI template actually works. That subprocess
+writes `__pycache__/*.pyc` and `.pytest_cache` files under the temp dir;
+Windows can still hold those files open for a moment after the subprocess
+exits, so the test's own `tearDown` (`shutil.rmtree(..., ignore_errors=True)`)
+can race a still-open handle -- `ignore_errors=True` does not always catch
+this because pytest's own internal `os.walk`-based rmtree in this Python
+version raises through a different path than the caller's cleanup.
+
+Fixed in `_verify_fastapi()`: run the nested pytest with `-p no:cacheprovider`
+and `PYTHONDONTWRITEBYTECODE=1` so it never writes those cache files under
+the temp dir in the first place -- removes the race instead of timing around
+it. Teeth-checked: 5/5 repeated clean runs of `test_project_scaffolder.py`
+after the fix (was reproducing intermittently before).
+
+Also updated `CLAUDE.md`'s "Known open work" section, which had been stale
+since Pass 95 -- passes 96-102 (the finish()/patch_file lineage landing its
+first real repair, plus all four Master Vision pillars: `saleha solve`,
+ToolForge synthesis, `OctopusCoordinator`, `LocalSupremacyEngine`, and their
+Pass 102 harmonization) were already committed/staged but not recorded there,
+so a fresh session would have had to re-read 500+ lines of this ledger to
+learn what changed -- the exact failure this file's own preamble names as
+unacceptable.
+
+Measured: `test_project_scaffolder.py` 5/5 (repeated x5) after fix. Full
+suite re-run: **2256 passed, 13 skipped, 172 subtests** in 164.27s -- zero
+failures, confirming the fix holds under the same full-suite load that
+originally triggered the flake.

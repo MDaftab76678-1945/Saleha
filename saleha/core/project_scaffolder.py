@@ -194,10 +194,18 @@ class ProjectScaffolder:
             return (False, None, f"{missing}; fastapi check skipped "
                                  f"(pip install fastapi httpx pytest)")
 
+        # -p no:cacheprovider and PYTHONDONTWRITEBYTECODE avoid writing
+        # .pytest_cache/__pycache__ under project_dir -- on Windows those
+        # .pyc files can still be memory-mapped by the OS for a moment after
+        # this subprocess exits, so a caller that removes project_dir right
+        # after (e.g. a test's tempdir cleanup) can hit a transient
+        # WinError 32. Not writing them removes the race instead of timing
+        # around it.
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
         try:
             proc = subprocess.run(
-                [sys.executable, "-m", "pytest", "test_main.py", "-q"],
-                cwd=project_dir, capture_output=True, text=True, timeout=120,
+                [sys.executable, "-m", "pytest", "test_main.py", "-q", "-p", "no:cacheprovider"],
+                cwd=project_dir, capture_output=True, text=True, timeout=120, env=env,
             )
         except subprocess.TimeoutExpired:
             return (True, False, "pytest timed out after 120s")

@@ -11,7 +11,6 @@ import contextlib
 import io
 import json
 import time
-from typing import Optional
 
 import click
 from rich.panel import Panel
@@ -25,8 +24,9 @@ from saleha.cli.commands import cli, console
 @click.option("--model", "-m", default="auto", help="Model to use across brains (default: auto)")
 @click.option("--workers", "-w", default=4, help="Maximum concurrent worker threads (default: 4)")
 @click.option("--timeout", "-t", default=120.0, help="Per-phase execution timeout in seconds")
+@click.option("--supremacy", is_flag=True, help="Empower Coder arm with Test-Time Compute Local Supremacy tournament")
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON execution payload")
-def octopus_cmd(goal: str, model: str, workers: int, timeout: float, as_json: bool) -> None:
+def octopus_cmd(goal: str, model: str, workers: int, timeout: float, supremacy: bool, as_json: bool) -> None:
     """Execute goal using the 9-Brain Octopus Multi-Agent Coordination Engine."""
     from saleha.core.octopus_coordinator import OctopusCoordinator, ArmBrainOutput
     from saleha.core.agent_worker_pool import AgentWorkerPool
@@ -35,6 +35,7 @@ def octopus_cmd(goal: str, model: str, workers: int, timeout: float, as_json: bo
         model=model,
         worker_pool=AgentWorkerPool(max_workers=workers),
         timeout_sec=timeout,
+        use_supremacy=supremacy,
     )
 
     if not as_json:
