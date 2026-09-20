@@ -8523,3 +8523,41 @@ retry after a rejected patch" is not).
 Measured: `test_agentic_loop.py` 84 -> **85/85** (1 new). Full suite
 2215 -> **2216 passed, 13 skipped, 172 subtests** in 161.61s, zero
 regressions.
+
+## Pass 96: hiding finish() after a verified-wrong patch -- stopping the premature finish retry loop (2026-09-21)
+
+Picked up the specific failure mode pass 95 recorded: after the pass-93
+auto-verify gate caught a wrong patch and rejected `finish()` with the
+failing pytest output embedded, `qwen2.5-coder:3b` replied `finish()` anyway
+on the very next turn, seven times in a row, never touching `patch_file`
+again. Telling the model in prose to "patch_file again with a corrected
+fix" did not work -- small models repeat `finish()` whenever it is
+offered in the prompt, regardless of what the rejection message said.
+
+Probed in isolation with the identical transcript: the same rejection as
+prose text did not stop it; removing `finish()` from the prompt structurally
+did, causing the model to emit a real tool call immediately.
+
+Fixed in `saleha/core/agentic_loop.py`:
+```python
+if auto_test_verdict is not None and not auto_test_verdict[0]:
+    finish_ready = False
+```
+Once auto-verify has recorded a failing test verdict, `finish()` stays
+hidden again until a new mutation is attempted (since `auto_test_verdict`
+resets to None on each mutation attempt, this naturally re-opens the moment
+the model attempts a new patch).
+
+Added `test_finish_stays_hidden_after_a_verified_wrong_patch` in
+`saleha/tests/test_agentic_loop.py` verifying that after an automatic test
+run fails, `finish()` stays hidden across subsequent prompts. Also added
+explicit typing assertions for `loop.ledger`.
+
+Pre-flight quality gate: **100% passed** (`agentic_loop.py` 82.0/100,
+`test_agentic_loop.py` 100.0/100).
+
+Measured:
+- `test_agentic_loop.py`: 85 -> **86/86 passed, 10 subtests passed** in 4.76s.
+- Full suite: 2216 -> **2217 passed, 13 skipped, 172 subtests** in 158.95s,
+  zero regressions.
+

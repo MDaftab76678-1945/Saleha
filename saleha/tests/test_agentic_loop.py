@@ -973,6 +973,7 @@ class AgentLoopTests(unittest.TestCase):
                          required_evidence={EvidenceKind.FILE_READ})
         res = loop.run("go")
         self.assertFalse(res.success)
+        assert loop.ledger is not None
         self.assertEqual(loop.ledger.state, TaskState.FAILED)
 
     # ------------------------------------------------------------------
@@ -998,6 +999,7 @@ class AgentLoopTests(unittest.TestCase):
         rejected = [e for e in events if e.get("action") == "finish-rejected"]
         self.assertEqual(len(rejected), 1)
         self.assertIn("no evidence of: file_read", rejected[0]["observation"])
+        assert loop.ledger is not None
         self.assertEqual(loop.ledger.state, TaskState.ACCEPTED)
         self.assertTrue(loop.ledger.has(EvidenceKind.FILE_READ))
 
@@ -1017,6 +1019,7 @@ class AgentLoopTests(unittest.TestCase):
         res = loop.run("look around")
         self.assertFalse(res.success)
         self.assertIn("max_steps", res.error)
+        assert loop.ledger is not None
         self.assertEqual(loop.ledger.state, TaskState.FAILED)
 
     def test_failed_tool_call_produces_no_evidence(self) -> None:
@@ -1037,6 +1040,7 @@ class AgentLoopTests(unittest.TestCase):
         # The first finish was rejected because the failed call gave no evidence.
         rejected = [e for e in events if e.get("action") == "finish-rejected"]
         self.assertEqual(len(rejected), 1)
+        assert loop.ledger is not None
         # Exactly one FILE_READ evidence -- from the successful call only.
         reads = [e for e in loop.ledger.evidence if e.kind == EvidenceKind.FILE_READ]
         self.assertEqual(len(reads), 1)
@@ -1052,6 +1056,7 @@ class AgentLoopTests(unittest.TestCase):
                          required_evidence={EvidenceKind.FILE_MODIFIED})
         res = loop.run("create a file")
         self.assertTrue(res.success, res.error)
+        assert loop.ledger is not None
         self.assertTrue(loop.ledger.has(EvidenceKind.FILE_MODIFIED))
         states = [h["state"] for h in loop.ledger.history]
         self.assertIn("IMPLEMENTING", states)
@@ -1068,6 +1073,7 @@ class AgentLoopTests(unittest.TestCase):
         res = loop.run("loop forever")
         self.assertFalse(res.success)
         self.assertIn("budget exceeded", res.error)
+        assert loop.ledger is not None
         self.assertEqual(loop.ledger.state, TaskState.FAILED)
         self.assertEqual(len(res.steps), 4)  # 3 allowed, 4th trips the limit
 
@@ -1282,6 +1288,40 @@ class RunTestsToolTests(unittest.TestCase):
         with open(os.path.join(self.root, "calc.py"), encoding="utf-8") as f:
             self.assertIn("return x + 1", f.read(),
                           msg="the wrong patch really did land on disk")
+
+    def test_finish_stays_hidden_after_a_verified_wrong_patch(self) -> None:
+        """Measured live (pass 95): rejected with the real failing pytest
+        output embedded and told "patch_file again with a corrected fix",
+        qwen2.5-coder:3b replied finish() anyway on the very next turn --
+        seven times in a row, never touching patch_file again. Probed in
+        isolation with the identical transcript: the same rejection as
+        prose text did not stop it; removing finish() from the prompt did.
+        Once auto-verify has recorded a failing verdict, finish() must not
+        reappear in the prompt until a new mutation is attempted."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x + 1"),
+            _finish("fixed"),
+            _finish("really, it is fixed"),
+            _finish("no really"),
+        ])
+        AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                 max_steps=4).run("fix the bug in double()")
+        # prompts[0]: before any mutation -- finish() hidden (pass-95 gate).
+        # prompts[1]: right after the patch, before auto-verify has run --
+        # finish() correctly offered (mutations_attempted >= 1, no verdict
+        # yet), the model uses it and gets rejected by auto-verify.
+        # prompts[2..]: AFTER auto-verify recorded a failing verdict -- must
+        # STAY hidden, not re-armed just because a mutation was attempted.
+        self.assertIn('"finish"', agent.prompts[1])
+        for i, p in enumerate(agent.prompts[2:], start=2):
+            self.assertNotIn('"finish"', p, msg=f"prompt {i} offered finish()")
 
     def test_a_correct_patch_passes_the_automatic_test_run(self) -> None:
         """The gate must not block a genuinely correct fix."""

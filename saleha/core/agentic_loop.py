@@ -999,6 +999,24 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # to be an attempted edit, since reading alone never repairs.
             if self.allow_write and _looks_like_a_repair_goal(goal):
                 finish_ready = mutations_attempted >= self.min_actions_before_finish
+                # A verified-wrong patch is a stronger signal than "no
+                # mutation yet" -- the model already tried and the real
+                # test suite said no. Measured live (pass 95): rejected
+                # with the failing pytest output embedded and told
+                # "patch_file again with a corrected fix", the model
+                # replied finish() anyway on the very next turn, 7 times
+                # in a row, and never touched patch_file again. Probed in
+                # isolation with the identical transcript: the same model,
+                # given the exact same rejection as prose, still answered
+                # finish(); with finish() removed from the prompt instead,
+                # it emitted a real tool call immediately. So once
+                # auto-verify has recorded a failing verdict, finish()
+                # stays hidden again until a new mutation attempt
+                # (auto_test_verdict is reset to None on one, so this
+                # naturally re-opens the moment the model tries a new
+                # patch, verified or not).
+                if auto_test_verdict is not None and not auto_test_verdict[0]:
+                    finish_ready = False
             else:
                 finish_ready = successful_actions >= self.min_actions_before_finish
             system = system_with_finish if finish_ready else system_no_finish
