@@ -1,10 +1,8 @@
 """
-Saleha CLI - Advanced Command Line Interface
-उद्देश्य: Terminal से Saleha की पूरी ताकत इस्तेमाल करना
+Saleha CLI - Advanced Command Line Interface.
 
-Naya kya hai: `saleha stats` aur `saleha history` commands add hue hain,
-taaki persistent data dekhne ke liye lambi `python -c "..."` command na
-likhni pade.
+Provides a unified terminal interface for interacting with Saleha's autonomous
+multi-agent subsystems, diagnostics, benchmarks, history, and Octopus coordination.
 """
 
 from __future__ import annotations
@@ -32,8 +30,12 @@ from rich.syntax import Syntax
 
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        reconfig_out = getattr(sys.stdout, "reconfigure", None)
+        if callable(reconfig_out):
+            reconfig_out(encoding="utf-8", errors="replace")
+        reconfig_err = getattr(sys.stderr, "reconfigure", None)
+        if callable(reconfig_err):
+            reconfig_err(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -449,6 +451,7 @@ from saleha.cli.commands import indexing_graph  # noqa: F401
 from saleha.cli.commands import mcp_group  # noqa: F401
 from saleha.cli.commands import memory_context  # noqa: F401
 from saleha.cli.commands import misc_tools  # noqa: F401
+from saleha.cli.commands import octopus_cmd  # noqa: F401
 from saleha.cli.commands import quality_security  # noqa: F401
 from saleha.cli.commands import research_experimental  # noqa: F401
 from saleha.cli.commands import sandbox_exec  # noqa: F401

@@ -80,6 +80,37 @@ class TokenCompressedEvent(AgentEvent):
     savings_pct: float = 0.0
 
 
+@dataclass
+class OctopusBrainDispatchedEvent(AgentEvent):
+    event_type: str = "octopus_brain_dispatched"
+    brain_role: str = ""
+    mission: str = ""
+
+
+@dataclass
+class OctopusBrainCompletedEvent(AgentEvent):
+    event_type: str = "octopus_brain_completed"
+    brain_role: str = ""
+    status: str = "success"
+    duration_ms: float = 0.0
+    summary: str = ""
+
+
+@dataclass
+class OctopusConflictResolvedEvent(AgentEvent):
+    event_type: str = "octopus_conflict_resolved"
+    conflict_type: str = ""
+    resolution: str = ""
+
+
+@dataclass
+class OctopusSynthesisCompletedEvent(AgentEvent):
+    event_type: str = "octopus_synthesis_completed"
+    success: bool = True
+    tests_passed: bool = True
+    security_clean: bool = True
+
+
 class AgentMessageBus:
     """High-throughput In-Memory Event Broker for Autonomous Multi-Agent Swarms."""
 

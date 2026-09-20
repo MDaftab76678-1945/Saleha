@@ -10,7 +10,7 @@ from __future__ import annotations
 import concurrent.futures
 import time
 from dataclasses import dataclass
-from typing import Callable, Any, Optional, Dict
+from typing import Callable, Any, Optional, Dict, List, Tuple
 
 
 @dataclass
@@ -71,6 +71,46 @@ class AgentWorkerPool:
                 execution_time_ms=elapsed,
                 worker_id=f"worker-{task_id[:4]}"
             )
+
+    def execute_parallel(
+        self,
+        tasks: List[Tuple[str, Callable[..., Any], Tuple[Any, ...], Dict[str, Any]]],
+        timeout_sec: float = 30.0,
+    ) -> Dict[str, WorkerTaskResult]:
+        """Executes multiple tasks concurrently across worker threads."""
+        start_time = time.time()
+        futures: Dict[str, concurrent.futures.Future] = {}
+        for task_id, func, args, kwargs in tasks:
+            futures[task_id] = self._executor.submit(func, *args, **kwargs)
+
+        results: Dict[str, WorkerTaskResult] = {}
+        for task_id, future in futures.items():
+            try:
+                res = future.result(timeout=timeout_sec)
+                elapsed = round((time.time() - start_time) * 1000, 2)
+                results[task_id] = WorkerTaskResult(
+                    success=True,
+                    result=res,
+                    execution_time_ms=elapsed,
+                    worker_id=f"worker-{task_id[:4]}",
+                )
+            except concurrent.futures.TimeoutError:
+                elapsed = round((time.time() - start_time) * 1000, 2)
+                results[task_id] = WorkerTaskResult(
+                    success=False,
+                    error_message=f"Task timed out after {timeout_sec}s",
+                    execution_time_ms=elapsed,
+                    worker_id=f"worker-{task_id[:4]}",
+                )
+            except Exception as e:
+                elapsed = round((time.time() - start_time) * 1000, 2)
+                results[task_id] = WorkerTaskResult(
+                    success=False,
+                    error_message=str(e),
+                    execution_time_ms=elapsed,
+                    worker_id=f"worker-{task_id[:4]}",
+                )
+        return results
 
     def shutdown(self, wait: bool = False) -> None:
         self._executor.shutdown(wait=wait)
