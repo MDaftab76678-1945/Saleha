@@ -7458,3 +7458,160 @@ test file per rule 2.4.
   -- the first fully clean full-suite run in this session (pass 82 and the
   first pass-84 run both ended `1 failed` on the flake now fixed).
 - Zero editor diagnostics on both modified source files.
+
+---
+
+## Pass 85: gave Saleha a real bug again -- a fourth fake green, and the first hard number on why it fails (2026-09-20)
+
+The user's criticism, verbatim: after 84 passes nothing about Saleha looks
+better, and the work has been me hand-editing documents rather than making
+the product work. Both halves are correct. Passes 54-84 audited and fixed
+documents; the last time anyone asked whether Saleha can fix a real bug in
+a real repository was pass 53, which answered "no" and was never revisited.
+
+So this pass revisits it, with the same setup pass 53 used: clone
+`psf/requests`, drop `- current_position` from `super_len`'s return, measure
+the red baseline (**4 failed, 224 passed**), then run `saleha agent` with no
+file and no line hint.
+
+### 1. A fourth fake green, in a gate pass 53 believed it had closed
+
+Run 1 (`qwen2.5-coder:3b`, the default, 20 steps):
+
+```text
+step 1-9    finish-rejected  (0 successful tool calls)
+step 10     list_dir
+step 11     finish           -> "✅ Agent Summary"
+```
+
+`git diff --stat` after the run: only the planted bug. `pytest`: still
+**4 failed**. The agent read no source file, attempted no patch, and the
+CLI printed a green tick over it.
+
+Pass 53 added a gate for exactly this and it did not fire, because it
+reads:
+
+```python
+if mutations_attempted and not mutations_succeeded:
+```
+
+That closes "tried to patch, every attempt failed." It leaves open "never
+tried at all," which for a repair goal is the same lie. The pass-53 write-up
+called the fix "mutations_attempted vs mutations_succeeded" and stopped
+there; the zero-attempt case was never considered.
+
+**Fixed:** a goal carrying a repair verb, in a run where writes are
+allowed, is inadmissible with zero *successful* mutations. Kept narrow on
+purpose -- armed only by `_looks_like_a_repair_goal()`, and off entirely
+when `allow_write=False`, since a read-only run cannot mutate and would
+otherwise never be able to finish. Four tests cover both the arming and
+the two non-arming cases.
+
+Teeth-checked by stashing the source and re-running the new tests:
+`1 failed` with `success=True` and the message "I have analyzed the code
+and fixed the bug." With the fix: 4/4, and `test_agentic_loop.py` 62/62.
+
+Re-ran the identical live command: the green **Agent Summary** became
+**Agent Stopped**. The lie is gone. The bug is still not fixed.
+
+### 2. `min_actions_before_finish` counts the wrong thing
+
+Run 1 satisfied the action gate with a single `list_dir`. Listing a
+directory is not investigation, and the gate cannot tell the difference
+between a tool call and progress. Not fixed this pass -- the repair gate
+above catches the case that matters (a repair run that changed nothing)
+without having to rank tools by usefulness. Recorded because the next
+person will hit it.
+
+### 3. My own harness rigged the 8B comparison -- twice
+
+Run 2 (`qwen3:8b`) died at step 4:
+
+```text
+Ollama did not respond within 300s (model=qwen3:8b, prompt 7739 chars)
+```
+
+That is `SALEHA_MODEL_TIMEOUT`'s default, i.e. my harness, not the model.
+Exactly the rigged-control mistake pass 53 documented -- repeated here by
+me one pass after reading it.
+
+Run 3, same command with `SALEHA_MODEL_TIMEOUT=900`, got further and died
+differently:
+
+```text
+Ollama returned HTTP 200 with an empty response
+(model=qwen3:8b, prompt 10356 chars, done_reason='length')
+```
+
+`budget_for_model()` gives a reasoning model
+`max(requested + 1024, 2048)` = **3072** tokens, and qwen3:8b spent all
+3072 inside its `<think>` block at that prompt size, emitting nothing.
+Pass 53 identified this mechanism and explicitly deferred it
+("recorded rather than guessed at"). It is still the wall.
+
+**But 8B is not the weak link.** In the same run, before it hit the wall,
+qwen3:8b went straight to the right place in 3 steps -- read the test,
+`find_symbols` -> `src/requests/utils.py:160`, read the source. No
+deadlock at all, where the 3B burned 16 of 20 steps repeating `finish()`.
+
+### 4. The number that actually explains the failure
+
+Raising `num_predict` is the obvious fix. Measured instead of assumed:
+
+| prompt | task | num_predict | done_reason | tokens | time | tok/s |
+| --- | --- | --- | --- | --- | --- | --- |
+| 9,880 chars | reply "DONE" | 3072 | `stop` | 212 | 53.3s | **4.0** |
+| 571 chars | produce the patch | 3072 | `stop` | 1071 | 140.4s | 7.6 |
+
+At **4.0 tok/s**, a step that actually spends its 3072-token budget costs
+`3072 / 4.0` = **~13 minutes**. Twenty steps is over four hours. (My first
+attempt to measure this timed out at 900s for that reason -- the timeout
+was itself the data point.)
+
+So `num_predict` is not the fix. Raising it converts an empty reply into a
+run too slow to finish. The real lever is prompt size, which is what drives
+the `<think>` block that eats the budget.
+
+### 5. The model can solve this bug -- measured
+
+Same model, same bug, focused 571-char prompt instead of the loop's 10,356:
+
+```text
+done=stop  eval_count=1071  secs=140.4
+
+```tool_call
+{"tool": "patch_file", "args": {"path": "utils.py",
+ "search": "return max(0, total_length)",
+ "replace": "return max(0, total_length - current_position)"}}
+```
+```
+
+That is byte-for-byte the correct patch, chosen unaided.
+
+**This is the first thing in 32 passes that points at a fix rather than a
+defect.** The capability is present at 8B. What defeats it is the loop
+handing the model a 10k-character prompt, which pushes its reasoning past
+a budget that cannot be raised without making each step take 13 minutes.
+Pass 53's conclusion -- "neither local model lands this patch; that is a
+capability limit" -- is **wrong for qwen3:8b**, and the correction belongs
+in the ledger rather than being quietly left standing.
+
+### What this pass did and did not establish
+
+- Established: the fourth instance of the fake-green pattern, in a gate
+  believed closed; fixed and teeth-checked.
+- Established: qwen3:8b produces the correct patch for this bug when the
+  prompt is small. 4.0 tok/s at ~10k prompt on this box.
+- Established: pass 53's "capability limit" verdict was wrong for 8B.
+- **Not** established: that a prompt-size fix makes the end-to-end run
+  succeed. That is the next pass's job, and it is not claimed here.
+- Not fixed: the 3B `finish()` deadlock, `min_actions_before_finish`
+  counting `list_dir` as investigation, and the default model being the
+  wrong one for repair work.
+
+### Pass 85 Verification
+
+- `test_agentic_loop.py`: **62 passed, 10 subtests**.
+- `test_agentic_loop.py` + `test_model_provider.py`: **74 passed**.
+- Pre-flight quality gate: 88.0 and 100.0 on the two touched files.
+- Committed on `main` as `2321a53`.
