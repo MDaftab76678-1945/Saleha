@@ -8539,10 +8539,12 @@ prose text did not stop it; removing `finish()` from the prompt structurally
 did, causing the model to emit a real tool call immediately.
 
 Fixed in `saleha/core/agentic_loop.py`:
+
 ```python
 if auto_test_verdict is not None and not auto_test_verdict[0]:
     finish_ready = False
 ```
+
 Once auto-verify has recorded a failing test verdict, `finish()` stays
 hidden again until a new mutation is attempted (since `auto_test_verdict`
 resets to None on each mutation attempt, this naturally re-opens the moment
@@ -8557,7 +8559,7 @@ Pre-flight quality gate: **100% passed** (`agentic_loop.py` 82.0/100,
 `test_agentic_loop.py` 100.0/100).
 
 Measured:
+
 - `test_agentic_loop.py`: 85 -> **86/86 passed, 10 subtests passed** in 4.76s.
 - Full suite: 2216 -> **2217 passed, 13 skipped, 172 subtests** in 158.95s,
   zero regressions.
-
