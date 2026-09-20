@@ -8032,3 +8032,91 @@ the same way everything above was.
   honestly reported "Agent Stopped" with the bug still present. No fake
   success at any point.
 - Committed on `main` as `9b27e6d` (pass 88), `d15505b` (pass 89).
+
+## Pass 90: the nudge did not work, so read-only tools got hard-blocked (2026-09-20)
+
+Escalation from pass 89, driven by the same live measurement recorded above:
+the nudge fired exactly as designed at step 4 and the model called
+`find_symbols` on the very next step anyway. A suggestion embedded in an
+observation did not change the next action, so pass 90 escalated from
+suggesting to refusing.
+
+Once `allow_write` is set and `reads_since_mutation_attempt` reaches the
+threshold, a `read_file`/`list_dir`/`find_symbols`/`get_file_outline`/
+`search_repo` call is now rejected before its handler ever runs -- the
+model gets no new information from trying, so continuing to read is
+strictly worse than attempting a patch. `patch_file`/`write_file` are
+exempt (they are the acting the gate wants); `finish` is exempt because its
+own repair-gate already forces a real mutation. The gate is off entirely
+when `allow_write=False`, since a read-only run has no legal mutating tool
+to escalate toward and would otherwise get permanently stuck.
+
+The rejection names the concrete file/line range from `located_region` when
+one is on hand, described in prose rather than a fenced `tool_call` example
+-- pass 53's finding that a live tool_call fence inside an observation can
+make the model echo it back empty applies here too.
+
+Fixed a real bug found while writing the tests: the blocked-call
+observation was only emitted to the event stream, never appended to
+`result.steps`, so nothing calling the loop programmatically (rather than
+watching the CLI's live event stream) could see that a call had been
+refused. Now appended like every other step.
+
+5 new tests. Teeth-checked against pass 89's loop: 3 fail (the block never
+fires, so blocked-call assertions find nothing).
+
+Full suite: 2199 -> **2203 passed, 13 skipped**. Committed as `fb06d71`.
+
+## Pass 91: the hard gate worked, and produced a fake green (2026-09-20)
+
+Pass 90's block was measured live before trusting it. Forced to act,
+qwen3:8b patched `tests/test_utils.py` -- changing an unrelated assertion
+from `== 0` to `== 00` -- and called `finish()` with "The bug in the test
+was a missing value... It has been fixed." The loop reported
+`success=True`.
+
+Verified against reality, not against the model's claim: `git diff` showed
+the planted source bug untouched, `pytest` still 4 failed. Editing the test
+instead of the code it exercises is exactly the fake green this project
+exists to stop -- the same shape of defect the top of this file has named
+repeatedly, now found inside the very mechanism built two commits ago to
+prevent stalling.
+
+Two fixes, both measured:
+
+1. A `patch_file`/`write_file` call targeting a test path (`test_*.py`,
+   `*_test.py`, `conftest.py`, or anything under `tests/`/`test/`) is now
+   rejected outright for a repair goal, before the tool runs. The rejection
+   names the real next move: find the source function the failing test
+   calls and patch that. Off for non-repair goals, since "write a better
+   assertion" is a legitimate request to edit a test.
+2. The read-only block now requires `located_region` -- the tools must have
+   actually found a definition before reads are refused. Measured cause:
+   with the block firing at 4 reads with no such requirement, the model was
+   forced to patch while it had only ever read the *test* file, so all
+   three forced `patch_file` calls hit the wrong file and failed with
+   "Could not match search block". Block threshold also raised 4 -> 7,
+   keeping the softer nudge at 4.
+
+Also fixed a Windows tempdir flake surfaced by the full-suite run:
+`IncrementalMemoryTests` keeps `mem.json` open via `MemoryStore`, so strict
+`TemporaryDirectory` cleanup raised `WinError 32` *after* assertions
+passed -- same failure mode already fixed in `test_agentic_loop.py` in pass
+84. Annotated the file's 27 functions (pre-existing 0.0 quality score,
+confirmed via `git stash`) and translated two Hindi comments per rule 2.4.
+
+7 hard-gate/test-file tests. Teeth-checked: the test-file guard test fails
+against pass 90's loop (the patch lands and finish is accepted).
+
+Full suite: 2203 -> **2207 passed, 13 skipped**. Committed as `38c7884`.
+
+### Honest state after pass 91
+
+No patch has yet landed correctly against this planted bug across any of
+passes 85-91. Each pass fixed a real, measured defect in the loop itself --
+navigation misses, a nudge that did nothing, a hard gate that produced a
+fake green -- but the underlying question (can this loop get a local model
+to correctly fix someone else's real bug) is still open. The next live
+re-run against the same planted bug, with both pass-91 fixes in place, has
+not yet been done and should not be assumed to succeed before it is
+measured the same way everything above was.

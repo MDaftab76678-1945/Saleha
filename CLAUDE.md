@@ -1509,6 +1509,75 @@ source, **36/36 passed** with the fix. Suite: **2174 passed, 13 skipped,
 `test_agentic_loop.py`, confirmed clean in isolation: 58/58). Commit
 `6879f1d`. Detail: `NOTEBOOK_IMPORT.md`, "Pass 82."
 
+**Passes 83-84 — root docs audited.** Five "suspicious-naming" scripts
+confirmed genuine (real model/engine calls behind marketing-heavy names, not
+fabrications). `AGENTSKILLS.md` had invented a capability system that does
+not exist (a persona `allowed_tools` matrix naming tools nowhere in code, a
+"Token Budget" column nothing enforces) and understated every real context
+window 10-20x — corrected against the real frontmatter and `context_budget.py`
+values. Persona count corrected 20 → 30 (all 20 documented ones were honest,
+10 were just missing). The Windows `TemporaryDirectory` cleanup flake in
+`test_agentic_loop.py` (`WinError 32` after assertions already passed) fixed
+with `ignore_cleanup_errors=True`, not skipped. Suite: 2175 passed, 13
+skipped, 172 subtests — first fully clean full-suite run.
+
+**Passes 85-91 — a live agent-repair run against a real bug, repeated
+across seven passes, still has not landed a correct patch.** Direction: stop
+auditing this repo's own claims and instead point `saleha agent` at a real
+planted bug in `psf/requests` (`super_len` missing `- current_position`) and
+measure honestly, rather than assume passes 53's fixes generalize.
+
+- **Pass 85** — a fourth fake green: `finish()` accepted for a repair goal
+  that changed no file. Fixed by rejecting a repair-goal `finish()` unless a
+  real mutation happened.
+- **Pass 86** — root cause was prompt size, not the token budget: a larger
+  repo-context prompt pushed a reasoning model's `<think>` block past its
+  output budget, producing empty replies. Sized the prompt to the model;
+  added doc-drift tests. The full 8B run this pass measured: no crash, no
+  patch either.
+- **Pass 87** — root-caused the empty-reply wall precisely: Ollama's
+  `thinking` field, not the visible budget. Added the ability to disable a
+  reasoning model's `<think>` block in the loop.
+- **Pass 88** — two navigation defects: `find_symbols` could not resolve a
+  bare test-method name (class methods were indexed only as
+  `"ClassName.method"`), and a failed `read_file` gave no bridge to a better
+  guess. Both fixed; re-run showed the model reaching the right file in half
+  the steps, then reading it five more times without ever calling
+  `patch_file`.
+- **Pass 89** — added `reads_since_mutation_attempt`: a nudge appended after
+  4 consecutive read-only calls telling the model to stop reading and patch.
+  Instrumented the live re-run to confirm the nudge fired exactly on
+  schedule — and the model read on anyway. A suggestion embedded in an
+  observation did not change the next action.
+- **Pass 90** — escalated from suggesting to refusing: once
+  `reads_since_mutation_attempt` hits the threshold, read-only tools are
+  hard-blocked before their handler runs, forcing a mutating call.
+  `patch_file`/`write_file`/`finish` stay exempt; the gate is off entirely
+  under `allow_write=False`.
+- **Pass 91 — the hard gate worked, and produced a fake green.** Forced to
+  act, qwen3:8b patched `tests/test_utils.py` (changing an unrelated
+  assertion, not the planted bug) and called `finish()` claiming success;
+  the loop reported `success=True`. `git diff` showed the real bug
+  untouched, `pytest` still 4 failed — editing the test instead of the code
+  it exercises, the exact fake-green shape this file names at the top,
+  found this time inside the very mechanism pass 90 had just built. Fixed
+  two ways: a repair-goal `patch_file`/`write_file` targeting a test path is
+  now rejected outright before it runs (names the real next move instead);
+  and the read-only hard block now requires `located_region` — it must not
+  fire before the model has actually found a real definition to patch,
+  since firing blind was what forced the wrong-file patches. Threshold
+  raised 4 → 7 for the hard block, keeping the softer nudge at 4.
+
+**Honest state, not yet resolved:** across all seven passes, no patch has
+landed correctly against this planted bug. Each pass fixed a real, measured
+defect in the loop itself — the underlying question, whether this loop can
+get a local model to correctly fix someone else's real bug, is still open.
+The next live re-run with pass 91's fixes in place has not been done yet.
+
+Full suite: 2175 (pass 84) → 2199 (pass 89) → 2203 (pass 90) →
+**2207 passed, 13 skipped** (pass 91). Detail for all seven passes:
+`NOTEBOOK_IMPORT.md`, "Pass 85" through "Pass 91."
+
 ---
 
 ## Environment facts worth knowing
@@ -1537,8 +1606,8 @@ source, **36/36 passed** with the fix. Suite: **2174 passed, 13 skipped,
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 1980 passed, 13 skipped,
-  153 subtests, ~110-300s (as of pass 65). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 2207 passed, 13 skipped,
+  ~110-300s (as of pass 91). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once
