@@ -2,24 +2,28 @@
 Saleha Core: SWE-bench Lite Prediction Generator
 
 HONEST SCOPE NOTE:
-Poora SWE-bench evaluation ke liye chahiye: (a) dataset instances,
-(b) har instance ka repo base_commit par checkout, (c) model patch,
-(d) official docker harness se test-run. (c)+(d) ki heavy infra yahan
-NAHI hai. Ye module wo hissa deliver karta hai jo Saleha uniquely kar
-sakta hai aur jo officially verifiable hai:
+A full SWE-bench evaluation needs: (a) dataset instances, (b) each
+instance's repo checked out at base_commit, (c) a model patch, (d) a
+test run through the official Docker harness. This module does not run
+(d) itself -- that is `swebench.harness.run_evaluation` (the real,
+official package; see NOTEBOOK_IMPORT.md, "Pass 92" for a verified
+end-to-end run through it). What this module delivers is the part
+Saleha itself is responsible for, and that is officially verifiable
+once handed off:
 
   1. Instance -> Saleha prompt building (problem statement + hints)
-  2. Orchestrator run -> generated code extraction
-  3. Standard SWE-bench **predictions.jsonl** format likhna:
+  2. A real `AgentLoop` run against a real repo checkout -> a real
+     `git diff` of whatever the agent actually changed
+  3. Writing the standard SWE-bench **predictions.jsonl** format:
      {"instance_id", "model_name_or_path", "model_patch"}
-     -- is file ko official sb-cli / SWE-bench harness me feed karke
-        public score generate hota hai.
+     -- this file is what `swebench.harness.run_evaluation` (or sb-cli)
+        consumes to produce an official score.
 
-model_patch strategy: agar instance me `local_repo_dir` diya ho (user ne
-repo checkout karke path diya) to MultiFileEditor-style real diff banega;
-warna final_code ko ek synthetic diff (new-file) ke roop me likha jayega
--- jo official harness "empty patch" ki tarah treat karega (0 score) lekin
-format valid rehta hai. Documented limitation, chhupaya nahi.
+Each instance must supply a real `local_repo_dir` (a real checkout of
+`repo` at `base_commit`) to get a non-empty patch attempt. An instance
+with no `local_repo_dir`, or one where the agent made no real edit,
+gets an honest empty patch -- the official harness scores an empty
+patch as unresolved, not a fabricated success.
 """
 
 import difflib

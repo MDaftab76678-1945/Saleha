@@ -8120,3 +8120,103 @@ to correctly fix someone else's real bug) is still open. The next live
 re-run against the same planted bug, with both pass-91 fixes in place, has
 not yet been done and should not be assumed to succeed before it is
 measured the same way everything above was.
+
+## Pass 92: official SWE-bench Lite infrastructure installed and run end-to-end for the first time (2026-09-20)
+
+Every prior pass measured Saleha only against its own 12-task set
+(`real_task_bench.py`, pass 52, 83.33%) or a single planted bug in a local
+`requests` checkout (passes 53, 85-91). `scored_swebench_availability()`
+(pass 52) had reported `swebench` missing, HuggingFace `datasets` absent,
+and Docker not running -- so no comparison against the actual public
+SWE-bench Lite benchmark, the number market tools quote, had ever been
+possible on this machine.
+
+Fixed the infrastructure gap directly rather than working around it:
+
+- **Docker Desktop was installed but its daemon was not running.** Found
+  at `AppData\Local\Programs\DockerDesktop\Docker Desktop.exe` (a
+  user-scoped install, not under `Program Files`, so an earlier `docker
+  ps` check reporting failure could not distinguish "not installed" from
+  "not running"). Started it; `docker info` now reports a live
+  `docker-desktop` VM (12 CPUs, 7.61 GiB memory).
+- **`swebench==5.0.2` and `datasets==5.0.1` installed** into `.venv`.
+- Re-ran `scored_swebench_availability()` directly: **`available=True`**
+  for the first time -- all three gates (`swebench`, `datasets`, Docker)
+  pass.
+- Verified the real dataset loads, not just the import: `datasets.load_dataset("princeton-nlp/SWE-bench_Lite", split="test")`
+  returned all 300 real instances from HuggingFace.
+
+### A real end-to-end run, not just infrastructure
+
+Selected `psf__requests-3362` (the smallest instance by problem-statement
+length, single `FAIL_TO_PASS` test, no network dependency) to keep the
+first real run cheap. Cloned `psf/requests` at the instance's
+`base_commit`, ran Saleha's real `swe_bench_runner.run_benchmark()`
+(`saleha/core/swe_bench_runner.py` -- already wired to the real
+`AgentLoop` since an earlier, previously unlogged fix; its own docstring
+records that it replaced a version that hardcoded the changed filename
+and could never score a real fix) with `qwen2.5-coder:3b` against that
+checkout, then fed the resulting `predictions.jsonl` to the **official**
+`python -m swebench.harness.run_evaluation`.
+
+Result, from the official harness's own report, not inferred:
+
+```text
+Instances submitted: 1
+Instances resolved: 0
+Instances with empty patches: 1
+```
+
+The agent made no edit to the real repo (`git diff` was empty), so the
+prediction was an honest empty patch -- scored `unresolved` by the
+official harness, exactly as the module's docstring says it should be,
+not a fabricated success. This is consistent with passes 53 and 85-91:
+across every real-repository test run to date, `qwen2.5-coder:3b` /
+`qwen3:8b` through this loop have not yet landed a correct fix.
+
+### A real bug found and fixed along the way (not this project's)
+
+Testing manually surfaced that a *stale* editable-install `.pth` file
+(`__editable__.requests-2.34.2.pth`, pointing at a scratchpad path from
+an earlier, unrelated session) was already sitting in `.venv`'s
+site-packages before this pass touched anything. It did not break
+anything by itself (Python only resolves the real package once you are
+outside a directory that happens to contain a same-named module), but it
+meant `.venv`'s `requests` was one accidental `cd` away from being
+shadowed. Removed the stale `.pth` and force-reinstalled
+`requests==2.34.2` with `--no-deps` to confirm a clean state; verified
+`import requests` resolves to `.venv`'s real package from the project
+root afterward.
+
+Also fixed, in the file this pass actually touched:
+`swe_bench_runner.py`'s module docstring was romanized Hinglish
+("Poora SWE-bench evaluation ke liye chahiye...") -- the same rule-1
+violation recorded for `orchestrator.py` (pass 13), `safety_guard.py`
+(pass 49), and `self_healing.py` (pass 51), found in a fourth file. It
+was also stale: it described a "synthetic new-file diff" fallback
+strategy the current `run_benchmark()` implementation does not have (that
+code path was already replaced by an honest-empty-patch behavior,
+correctly described lower in the same file's `run_benchmark()`
+docstring, just never reconciled with the module-level one above it).
+Rewritten in English, and corrected to match what the code actually does.
+
+Verified: `test_swe_bench_harness.py` + `test_swe_leaderboard.py`, 18/18
+after the docstring edit. `.scratch/` (the cloned repo, predictions file,
+and evaluation logs) removed after the run; `git status` clean.
+
+### Honest state after pass 92
+
+The infrastructure question (can a real, official SWE-bench Lite score be
+produced on this machine) is now answered yes, and demonstrated once,
+end-to-end, on one instance. The capability question (can Saleha's local
+models actually resolve SWE-bench instances) remains open at n=1 --
+one instance is not a benchmark score, and the one instance run scored
+unresolved, consistent with every other real-repository measurement so
+far. A real Pass@1 number against a meaningful sample (the SWE-bench Lite
+convention is the full 300-instance set) has not been attempted: each
+instance needs its own repo checkout and, for the official harness's test
+run, its own Docker evaluation image, and this machine's Docker VM is
+capped at 7.61 GiB memory -- a real resource constraint to plan around,
+not yet measured for how many instances it can sustain concurrently or
+what a full run would cost in time. That is the next honest step, not a
+claim to make yet.

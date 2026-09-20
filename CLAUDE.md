@@ -1578,6 +1578,31 @@ Full suite: 2175 (pass 84) → 2199 (pass 89) → 2203 (pass 90) →
 **2207 passed, 13 skipped** (pass 91). Detail for all seven passes:
 `NOTEBOOK_IMPORT.md`, "Pass 85" through "Pass 91."
 
+**Pass 92 — official SWE-bench Lite infrastructure installed and run
+end-to-end for the first time.** Docker Desktop was installed but its
+daemon was not running (found at
+`AppData\Local\Programs\DockerDesktop\`, a user-scoped install); started
+it. Installed `swebench==5.0.2` and `datasets==5.0.1`. Re-checked
+`scored_swebench_availability()` (pass 52): **`available=True`** for the
+first time on this machine — all 300 real SWE-bench Lite instances load
+from HuggingFace. Ran one real instance (`psf__requests-3362`, chosen for
+being the smallest/simplest) end-to-end: real repo clone at the
+instance's `base_commit` → Saleha's real `AgentLoop` via
+`swe_bench_runner.run_benchmark()` → the official
+`swebench.harness.run_evaluation`. Result, from the official harness's
+own report: **`Instances resolved: 0`, `Instances with empty patches: 1`**
+— the agent made no edit to the real repo, consistent with every prior
+real-repository measurement (passes 53, 85-91). One instance is not a
+benchmark score; a full-sample Pass@1 has not been attempted, and this
+machine's Docker VM is capped at 7.61 GiB memory, an unmeasured
+constraint on how large a real run this machine can sustain. Also fixed
+in the file this pass touched: `swe_bench_runner.py`'s module docstring
+was romanized Hinglish (English-only rule, found in a fourth file after
+`orchestrator.py`/`safety_guard.py`/`self_healing.py`) and stale
+(described a "synthetic diff" fallback the code no longer has) —
+rewritten in English and corrected to match the real code. Detail:
+`NOTEBOOK_IMPORT.md`, "Pass 92."
+
 ---
 
 ## Environment facts worth knowing
