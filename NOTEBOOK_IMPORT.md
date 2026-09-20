@@ -7144,3 +7144,93 @@ of a bilingual detector cost nothing visible.
 fix -- the patterns are Devanagari-only and always have been, including in
 pass 49. That is a pre-existing coverage gap, not a regression, and is left
 open rather than silently claimed as fixed.
+
+---
+
+## Pass 82: romanized Hinglish was never detected in safety_guard.py or math_logic.py (2026-09-20)
+
+Pass 81 fixed pass 80's Devanagari removal, and noted a gap it deliberately
+left open: romanized Hinglish (Hindi typed in Latin letters, e.g. "seene
+mein dard hai" instead of "सीने में दर्द है") was never covered by any pass,
+including pass 49's original. This pass closes it, and found the same gap
+in a second file.
+
+### Measured, before this pass
+
+```text
+safety_guard.py:
+  "chest pain and difficulty breathing"  -> BLOCK, 18.0
+  "सीने में बहुत तेज दर्द है"             -> BLOCK, 9.0   (pass 81)
+  "seene mein bahut tez dard hai"        -> SAFE,  0.0   <- gap
+
+math_logic.py:
+  "refactor the entire codebase"                            -> 15.0
+  "पूरे प्रोजेक्ट को दोबारा लिखो"                              ->  8.0   <- also a gap
+  "poore project ko dobara likho"                            ->  0.0   <- gap
+```
+
+Two separate defects, not one: romanized Hinglish was entirely unmatched in
+both files, and even the *Devanagari* case in `math_logic.py` under-scored
+relative to English (8.0 vs 15.0), because "पूरे प्रोजेक्ट...refactor करो"
+only matched the scope pattern, not the refactor-everything pattern -- a
+narrower version of the same "same intent scores differently by script"
+problem pass 81 found in `safety_guard.py`.
+
+### First checked whether pass 80's mistake had spread
+
+Before writing new patterns, checked the full pass-80 diff and the whole
+repo for any other file where Devanagari detection data might have been
+deleted under the same "Rule 2.4 compliance" reasoning:
+
+```text
+git show 18204be -- saleha/core/safety_patterns.py | grep removed Devanagari lines: 0
+```
+
+`safety_patterns.py`'s 342-line diff removed only Hinglish *comments*,
+never detection data -- correctly in scope for Rule 2.4. A repo-wide scan
+for Devanagari found only `math_logic.py` (Pass 73's bilingual complexity
+patterns, untouched by pass 80) and `safety_guard.py`/its test as containing
+non-ASCII detection data. Pass 80's damage was confined to the one file
+already fixed in pass 81.
+
+### Remediation
+
+- `safety_guard.py`: added romanized alternations beside each Devanagari
+  health pattern (chest pain, difficulty breathing, heavy
+  bleeding/suicide, unconscious/heart attack/stroke/poison). Romanized
+  Hindi has no standard spelling ("seene"/"sine", "mein"/"me"/"main"), so
+  alternations admit common variants rather than one canonical form,
+  discovered by direct probing rather than guessed upfront -- three
+  iterations were needed before "seene mein bahut tez dard hai" and
+  "saans lene mein takleef" both matched without any false positive on
+  ordinary Hinglish coding requests ("ek script likho", "saare files
+  padho").
+- `math_logic.py`: added the same romanized alternations to `TASK_WEIGHTS`,
+  plus a reversed-order pattern for single-file requests (Hindi puts the
+  verb last: "ek file banao" vs English "create a file"), and a second
+  Devanagari/romanized refactor-everything pattern so scope + refactor
+  intent scores identically to English regardless of script.
+- One existing test, `test_hindi_medium_large_triggers_break_down`, was
+  pinning the 8.0-vs-15.0 asymmetry as correct (asserting the *smaller*
+  Hindi score and a milder recommendation, `BREAK_DOWN`, for the same
+  request that scores `REQUIRES_APPROVAL` in English). Corrected to assert
+  score parity with the English equivalent instead.
+
+### Pass 82 Verification
+
+- 12 new tests: 4 in `test_safety_guard.py` (romanized chest pain,
+  breathing difficulty, other emergencies, and a false-positive guard
+  against ordinary Hinglish coding requests), 3 in `test_math_logic.py`
+  (score parity across all three scripts, large-scope requests never
+  marked `EXECUTE`, single-file requests staying low).
+- Teeth-checked: reverted both source files to their pre-pass-82 state
+  and ran the new tests -- **16 failed, 6 passed** (the passing ones were
+  the false-positive guards, correctly still SAFE with no fix needed).
+  Restored the fix: **36/36 passed, 19 subtests passed**.
+- Full suite: **2174 passed, 13 skipped, 172 subtests passed** in 139.17s.
+  One `test_agentic_loop.py` failure on the full run was a Windows
+  tempdir-lock race (`PermissionError` deleting a `.pyc` from a
+  `tempfile.TemporaryDirectory`), unrelated to this pass's files;
+  confirmed by re-running that file alone: 58/58 passed.
+- Pre-flight quality gate: 100.0/100 on all four touched files.
+- Committed on `main` as `6879f1d`.

@@ -1434,6 +1434,34 @@ blanket refactor. Before stripping a non-English string, check whether it is
 than *language the developer writes*. Pass 49 and pass 80 read the same rule
 and reached opposite conclusions about the same file.
 
+**Romanized Hinglish was never detected anywhere -- fixed (pass 82).** Pass
+81 fixed pass 80's Devanagari removal but left one gap open on purpose:
+Hindi typed in Latin letters ("seene mein dard hai" instead of "सीने में
+दर्द है") was never covered, in `safety_guard.py` or anywhere else --
+including pass 49's original, so this predates pass 80 entirely. Checked
+the rest of pass 80's diff first to rule out the mistake having spread
+(`safety_patterns.py`'s 342-line change removed only Hinglish *comments*,
+never detection data -- correctly in scope). Found the identical gap in a
+second file: `math_logic.py`'s bilingual complexity estimator scored
+`"poore project ko dobara likho"` (a whole-codebase refactor) at **0.0**
+while the English `"refactor the entire codebase"` scored **15.0** -- so a
+Hinglish-speaking user's large refactor request was read as trivial and
+never flagged for breakdown or approval. A second, narrower asymmetry
+surfaced in the same file: even the *Devanagari* case scored only 8.0 vs
+English's 15.0 for the same intent, because "पूरे प्रोजेक्ट...refactor करो"
+matched only one of two relevant patterns. One existing test asserted that
+smaller Hindi score as correct -- corrected to assert parity with English
+instead of pinning the gap.
+
+Added romanized alternations beside the Devanagari patterns in both files
+(spelling is unstandardized -- "seene"/"sine", "mein"/"me"/"main" -- so the
+patterns admit common variants, found by direct probing rather than guessed
+upfront). 12 new tests; teeth-checked at **16 failed** against the pre-fix
+source, **36/36 passed** with the fix. Suite: **2174 passed, 13 skipped,
+172 subtests** (one unrelated Windows tempdir-lock flake in
+`test_agentic_loop.py`, confirmed clean in isolation: 58/58). Commit
+`6879f1d`. Detail: `NOTEBOOK_IMPORT.md`, "Pass 82."
+
 ---
 
 ## Environment facts worth knowing
