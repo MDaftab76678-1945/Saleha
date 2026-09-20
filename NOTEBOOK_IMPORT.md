@@ -7067,3 +7067,80 @@ Hardened AST static/dynamic code execution screening, English-only keyword compl
   - Multi-module regression suite: **54/54 PASSED** in 0.71s.
 - Zero diagnostics and 100% AST contract security verification (`True, []`) across all touched files.
 - Committed cleanly on `main` as `18204be`.
+
+---
+
+## Pass 81: Pass 80 removed Hindi health-emergency detection (2026-09-20)
+
+Pass 80 (above) records, as a hardening: "Enforced Rule 2.4 by eradicating
+all Devanagari Hindi text from `RISK_KEYWORDS`, `SAFE_KEYWORDS`, and smoke
+test cases, replacing with pure English equivalents."
+
+That was a regression, not a hardening.
+
+### The rule it cited does not cover detection data
+
+CLAUDE.md's English-only rule governs **code, comments, docstrings and log
+strings** -- the language a developer writes. `RISK_KEYWORDS` is neither: it
+is the regex data a Hindi/Hinglish safety detector matches user input
+against. Pass 49 had already drawn exactly this distinction, kept the Hindi
+patterns on purpose, and recorded the reasoning in CLAUDE.md -- and while
+translating the rest of that file to English, found and fixed a real bug
+*inside* one of those patterns (the chest-pain pattern required its
+intensifier adjacent, so "सीने में बहुत तेज दर्द है" failed to match).
+
+Pass 80 deleted the patterns that bug fix was made in.
+
+### Measured
+
+```text
+"chest pain and difficulty breathing"  -> BLOCK, score 18.0
+"सीने में बहुत तेज दर्द है"             -> SAFE,  score  0.0
+"सांस नहीं आ रही"                       -> SAFE,  score  0.0
+```
+
+Saleha's users write Hindi/Hinglish -- CLAUDE.md states this in three
+separate places, and the user's own messages in this session are in Hindi. A
+user reporting chest pain or breathing difficulty in their own language was
+scored 0.0 and passed through as safe by a health-emergency guard.
+
+### The existing tests could not see it
+
+`test_safety_guard.py` went from 11/11 passing before pass 80 to 11/11
+passing after, because **no test had ever used a non-English input**. The
+suite was green across the entire regression. Same trap CLAUDE.md names at
+the top: the tests pinned English-only behaviour, so removing the Hindi half
+of a bilingual detector cost nothing visible.
+
+### Remediation
+
+- Restored the four Devanagari health patterns (chest pain, difficulty
+  breathing, heavy bleeding/suicide, unconscious/heart attack/stroke/poison)
+  and the Hindi safe-keyword line.
+- Kept every pass-80 improvement that was genuine: `explain_risk()`,
+  `stats()`, strict type hints, `Dict[str, float]` annotations.
+- All code, comments and docstrings remain English; the restored comment
+  states why the patterns are language-specific.
+- Dropped the redundant bare `suicide` alternation from the Hindi line (the
+  English pattern already covers it).
+
+### Pass 81 Verification
+
+- After the fix: Devanagari chest pain -> **BLOCK 9.0**, Devanagari
+  breathing difficulty -> **BLOCK 9.0**, English -> **BLOCK 18.0**
+  (unchanged).
+- Three regression tests added (`test_hindi_chest_pain_is_blocked`,
+  `test_hindi_difficulty_breathing_is_blocked`,
+  `test_hindi_safe_keyword_reduces_score`).
+- Teeth-checked by running the new tests against pass 80's source:
+  **2 failed, 1 passed**. With the fix: **14/14 PASSED**.
+- Full suite: **2168 passed, 13 skipped, 153 subtests** in 153.24s.
+- Pre-flight quality gate: 100.0/100 on both touched files.
+- Committed on `main` as `4aff6c4`.
+
+### Note on romanized Hinglish
+
+"seene mein dard hai" (Latin script) scores 0.0 both before and after this
+fix -- the patterns are Devanagari-only and always have been, including in
+pass 49. That is a pre-existing coverage gap, not a regression, and is left
+open rather than silently claimed as fixed.

@@ -1368,6 +1368,72 @@ test. Teeth-checked: **2 failed, 8 passed** against the unfixed module,
 10/10 with the fix. Measured: suite 1977 → **1980 passed**, 13 skipped.
 Detail: `NOTEBOOK_IMPORT.md`, "Sixty-fifth pass."
 
+**Passes 66-80 — a hardening run, recorded in the ledger but never here
+until pass 81.** Fifteen passes landed between 2026-09-20 and the pass-81
+session without a single line reaching this file, so a new session had to
+re-read 500+ lines of `NOTEBOOK_IMPORT.md` to learn what had changed. That
+is the exact failure this file exists to prevent. Summary, so the ledger is
+only needed for evidence:
+
+- **Pass 66** — five core modules mutated the filesystem or executed code at
+  *import* time. `plugin_loader.py` searched `./.saleha/plugins` by default
+  and `exec_module`s what it finds, so importing it from any cloned
+  directory ran that repo's arbitrary Python with no opt-in. Project-level
+  plugin dirs now require `SALEHA_PLUGIN_DIRS` or an explicit argument; four
+  other modules' `os.makedirs` deferred to first write via lazy singletons.
+- **Passes 67-72** — six "dual milestone" passes, each a real defect plus a
+  new test suite: SMT division/index proofs extended to linear expressions
+  (`b + 1`, `seq[i - 1]`); `hypergraph_indexer.py` and `dependency_graph.py`
+  given scope-aware AST visitors (flat `ast.walk` had let a class method
+  silently overwrite a same-named top-level function); `change_impact.py`'s
+  substring caller search replaced with AST token matching (`add` had been
+  matching "address"); `windows_job_sandbox.py` given real Win32 Job Objects
+  (it had claimed parity with Linux seccomp while importing `ctypes` and
+  using nothing); `mcts_search_engine.py`'s `ucb1()` was defined but never
+  called with `tree_depth` hardcoded to 1 — now a real multi-depth search;
+  `gamma_critic_sandbox.py` given genuine infinite-loop, bare-except and
+  hardcoded-secret detectors.
+- **Passes 73-80** — eight "Round" passes hardening one subsystem pair each:
+  DAG engine (dependency-failure cascading, `KeyError` on unregistered
+  deps), repo context packing (dynamic per-model budgets replacing a fixed
+  6,000 chars), incremental AST cache (atomic `os.replace` writes, LRU
+  eviction), approval gate (action-name normalization so `fs:file_delete`
+  gates like `file_delete`), audit log + memory store (integrity
+  verification, JSON export/import), vault + agent permissions (**`blocked_patterns`
+  for `.env`/`id_rsa`/`.git` were defined in the dataclass but never checked
+  in `validate_file_write()`** — a zero-trust boundary that enforced
+  nothing), token ledger (atomic writes, uuid4 IDs replacing
+  timestamp-modulo collisions), and shared safety patterns.
+
+Most of these are genuine. **Pass 80 is the exception — see pass 81.**
+
+**Pass 80 removed Hindi health-emergency detection and called it
+compliance; restored in pass 81.** `safety_guard.py`'s `RISK_KEYWORDS` and
+`SAFE_KEYWORDS` lost every Devanagari pattern, justified in the ledger as
+"enforcing Rule 2.4 by eradicating all Devanagari Hindi text". That rule
+governs **code, comments, docstrings and log strings — not detection data**,
+and pass 49 had kept these patterns deliberately, recorded why in this file,
+and fixed a real matching bug inside one of them. Pass 80 undid that and
+recorded it as a hardening.
+
+Measured, live: `"chest pain and difficulty breathing"` → **BLOCK, 18.0**,
+while `"सीने में बहुत तेज दर्द है"` → **SAFE, 0.0**. The user base writes
+Hindi/Hinglish (this file says so in three places); a user reporting chest
+pain in their own language was passed through as safe by a health-emergency
+guard. **The existing 11 tests all passed** across the regression — none had
+ever tested a non-English input, the same trap this file names at the top.
+
+Fixed: four Hindi health patterns and the Hindi safe-keyword line restored,
+all code and comments still English. Three regression tests added,
+teeth-checked at **2 failed, 1 passed** against pass 80's source. Suite:
+**2168 passed, 13 skipped**. Commit `4aff6c4`.
+
+**Standing lesson:** "remove non-English text for Rule 2.4" is not a safe
+blanket refactor. Before stripping a non-English string, check whether it is
+*data the feature needs* (a pattern, a keyword list, a test fixture) rather
+than *language the developer writes*. Pass 49 and pass 80 read the same rule
+and reached opposite conclusions about the same file.
+
 ---
 
 ## Environment facts worth knowing
