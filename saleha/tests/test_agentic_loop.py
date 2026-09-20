@@ -564,6 +564,46 @@ class AgentLoopTests(unittest.TestCase):
             "find all API endpoints missing auth checks")
         self.assertTrue(res.success, msg=res.error)
 
+    def test_read_only_streak_nudges_toward_acting(self) -> None:
+        """Measured against a real repo bug (pass 88): after find_symbols/
+        search_repo fixes let the agent reach the right file quickly, it
+        then re-read the same two files five times (different line ranges,
+        so repeat-detection never caught it) and never called patch_file.
+        The nudge must appear once the streak crosses the threshold."""
+        with open(os.path.join(self.root, "m.py"), "w") as f:
+            f.write("x = 1\n")
+        agent = ScriptedAgent([
+            _tool_call("read_file", path="m.py"),
+            _tool_call("read_file", path="m.py", start_line=1, end_line=1),
+            _tool_call("list_dir", path="."),
+            _tool_call("read_file", path="m.py", start_line=1, end_line=2),
+            _finish("done"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=6).run("investigate m.py")
+        nudged = [s for s in res.steps if "call patch_file now" in s.observation]
+        self.assertEqual(len(nudged), 1, res.steps)
+        self.assertEqual(nudged[0].step, 4)
+
+    def test_read_only_streak_resets_on_mutation_attempt(self) -> None:
+        """A patch_file attempt (even a failing one) must reset the streak,
+        so a model that is actively trying is not scolded for reading
+        again afterward."""
+        with open(os.path.join(self.root, "m.py"), "w") as f:
+            f.write("x = 1\n")
+        agent = ScriptedAgent([
+            _tool_call("read_file", path="m.py"),
+            _tool_call("read_file", path="m.py", start_line=1, end_line=1),
+            _tool_call("patch_file", path="m.py", search="x = 1", replace="x = 2"),
+            _tool_call("read_file", path="m.py"),
+            _tool_call("read_file", path="m.py", start_line=1, end_line=1),
+            _finish("done"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=8).run("fix m.py")
+        nudged = [s for s in res.steps if "call patch_file now" in s.observation]
+        self.assertEqual(nudged, [])
+
     def test_repair_gate_is_off_when_writes_are_not_allowed(self) -> None:
         """A read-only run cannot mutate anything, so requiring a mutation
         would make it permanently unfinishable."""

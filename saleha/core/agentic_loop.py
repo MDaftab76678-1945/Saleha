@@ -70,6 +70,12 @@ _REASONING_MAX_FILE_READ_CHARS = 1600
 _REASONING_TRANSCRIPT_STEPS = 3
 _DEFAULT_TRANSCRIPT_STEPS = 6
 
+# After this many consecutive read-only calls with no mutation attempt, the
+# loop nudges the model to act instead of continuing to investigate. Fires
+# once per streak (reset by any patch_file/write_file attempt), not on every
+# call after the threshold, so it reads as one nudge, not nagging.
+_READ_ONLY_NUDGE_AFTER = 4
+
 _FINISH_RE = re.compile(r"```(?:json)?\s*(\{.*?\"finish\".*?\})\s*```", re.DOTALL)
 
 
@@ -866,6 +872,18 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # failed has changed nothing, however many reads succeeded.
         mutations_attempted = 0
         mutations_succeeded = 0
+        # Consecutive read-only calls since the last mutation attempt.
+        # Measured against a real repo bug: after the pass-88 navigation
+        # fixes, qwen3:8b found the right test at step 6 and the right
+        # source line at step 8-9, then spent steps 9-14 re-reading the same
+        # two files without ever calling patch_file -- 5 reads with the
+        # answer already in hand. Repeat-call detection does not catch this,
+        # because each read_file used a different line range and is
+        # therefore a distinct call. This counts investigation regardless of
+        # range, and nudges toward acting once it runs long.
+        reads_since_mutation_attempt = 0
+        _READ_ONLY_TOOLS = ("read_file", "list_dir", "find_symbols",
+                            "get_file_outline", "search_repo")
         # Last region the tools actually located (path, start, end), from
         # get_file_outline or find_symbols. A rejection that says "read the
         # exact lines" is useless if the model has to invent the numbers --
@@ -1223,6 +1241,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             policy_refused = observation.startswith("BLOCKED")
             if tool_name in ("patch_file", "write_file") and not policy_refused:
                 mutations_attempted += 1
+                reads_since_mutation_attempt = 0
                 # The tools report failure in the observation text rather than
                 # by raising, so call_failed alone does not see it: a patch
                 # whose search block did not match returns the string
@@ -1234,6 +1253,16 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         or observation.startswith("file not found:")
                         or observation.startswith("path traversal blocked:")):
                     mutations_succeeded += 1
+            elif tool_name in _READ_ONLY_TOOLS and not call_failed:
+                reads_since_mutation_attempt += 1
+                if reads_since_mutation_attempt == _READ_ONLY_NUDGE_AFTER:
+                    observation += (
+                        f"\n[saleha] You have made {reads_since_mutation_attempt} "
+                        f"investigative calls without attempting a patch_file "
+                        f"or write_file. If you know which line is wrong, stop "
+                        f"reading and call patch_file now -- a wrong patch can "
+                        f"be corrected, but reading forever cannot fix anything."
+                    )
             result.steps.append(LoopStep(step_no, tool_name, args_preview, observation))
             emit({"step": step_no, "action": tool_name,
                   "args": args, "observation": observation})
