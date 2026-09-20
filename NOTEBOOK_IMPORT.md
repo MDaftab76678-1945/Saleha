@@ -7615,3 +7615,114 @@ in the ledger rather than being quietly left standing.
 - `test_agentic_loop.py` + `test_model_provider.py`: **74 passed**.
 - Pre-flight quality gate: 88.0 and 100.0 on the two touched files.
 - Committed on `main` as `2321a53`.
+
+---
+
+## Pass 86: prompt size is the lever, not the token budget -- and doc drift becomes a test (2026-09-20)
+
+Pass 85 ended with one thing explicitly **not** established: whether
+shrinking the prompt actually makes the end-to-end run work. This pass
+answers it, and converts this session's hand-auditing into machine checks.
+
+### 1. Found where the prompt size actually comes from
+
+Pass 85 knew the symptom (10,356-char prompt -> empty reply) but not the
+source. Instrumented a real run instead of guessing, by subclassing
+`BaseAgent` and logging `len(prompt)` per step:
+
+```text
+step 1: 1283   step 5: 5406
+step 2: 1626   step 6: 5746
+step 3: 4726   step 7: 6086
+step 4: 5066   step 8: 6072
+```
+
+The jump is step 2 -> 3: **+3,100 chars in one step**. That is a single
+`read_file` observation hitting its 3000-char cap. Every later step adds
+only ~340 (rejection text). And `SYSTEM_PROMPT` is just **424 chars**, so
+the system prompt is not the problem at all.
+
+The real shape: one file read triples the prompt, then persists for six
+more steps because the transcript window is `[-6:]`. With a second read it
+reaches the 10k that killed the 8B run.
+
+### 2. The caps were written for a non-reasoning model
+
+`MAX_OBSERVATION_CHARS = 3000`, `MAX_FILE_READ_CHARS = 4000` and a 6-step
+transcript are fine for `qwen2.5-coder:3b`, which answers directly. For a
+reasoning model they are actively harmful, because its `<think>` block is
+billed against the same `num_predict` as its answer -- so a bigger prompt
+buys a longer chain of thought and *less* room for the reply.
+
+`AgentLoop.__init__` now selects its caps from
+`is_reasoning_model(agent.model_preference)`:
+
+| | file read | observation | transcript |
+| --- | --- | --- | --- |
+| non-reasoning (unchanged) | 4000 | 3000 | 6 steps |
+| reasoning | 1600 | 1200 | 3 steps |
+
+Non-reasoning values are byte-identical to before, so no earlier
+measurement in this ledger moves. Two tests pin that explicitly, and a
+third asserts the cap really reaches the tool (an earlier draft set the
+attribute but left `_read_head_with_note` a `@staticmethod` still reading
+the module constant -- the test catches exactly that).
+
+### 3. Measured live, same bug, same model
+
+Same planted `super_len` bug, `qwen3:8b`, the only change being these caps:
+
+| | before (pass 85) | after |
+| --- | --- | --- |
+| died at | step 4, then step 7 | reached step 7+ |
+| cause | 300s timeout, then `done_reason='length'` | none yet |
+| max prompt | 10,356 chars | 4,134 chars |
+| per-step time | >300s (timed out) | 30-87s |
+| empty replies | yes | none |
+
+Every step returned `ok=True`. The wall that ended two previous runs is
+gone. **Whether the run lands the correct patch is a separate claim and is
+not made here** -- the run was still going when this entry was written.
+
+### 4. Doc drift is now a test, not a person
+
+This session's passes 83-84 found, by hand: a persona catalog claiming 20
+entries while 30 files shipped; a capability matrix citing tool names
+(`sandbox_jail`, `math_engine`) that appear nowhere in the codebase; a
+"Token Budget" column nothing declares or enforces; context windows stated
+at 2048/4096 against a real registry of 32768/40960; and two referenced
+files that have never existed.
+
+Every one of those is mechanically checkable. `test_doc_consistency.py`
+now checks them:
+
+- documented personas vs. real `saleha/skills/agent_*.md` (both
+  directions -- ghosts *and* omissions), plus the stated count;
+- capability-matrix tool names vs. real `allowed_tools` frontmatter;
+- context-window figures vs. `KNOWN_CONTEXT_WINDOWS`;
+- every `saleha/...`-style path cited in four root docs must exist;
+- model names in `.saleharules` must be ones the registry knows.
+
+Teeth-checked by restoring the pre-pass-83 versions of all four documents
+from git and re-running: **5 failed, 2 passed**. With the current docs:
+**7 passed**.
+
+This is the part that addresses the user's actual criticism. The previous
+32 passes fixed documents by hand; this one makes the repository refuse to
+drift in the first place.
+
+### Pass 86 Verification
+
+- `test_agentic_loop.py`: **65 passed** (62 + 3 budget tests).
+- `test_doc_consistency.py`: **7 passed**; **5 failed** against pre-fix docs.
+- Full suite: **2189 passed, 13 skipped, 172 subtests** in 344s
+  (was 2175 -- +7 doc, +3 budget, +4 repair-gate from pass 85).
+- Pre-flight quality gate: 88.0 / 100.0 / 100.0 on the three touched files.
+- Committed on `main` as `2c13fd9`.
+
+### Still open
+
+- The 3B `finish()` deadlock (16 of 20 steps) is untouched.
+- `min_actions_before_finish` still counts `list_dir` as investigation.
+- The default model for `saleha agent` is still `qwen2.5-coder:3b`, which
+  measurement now shows is the wrong choice for repair work.
