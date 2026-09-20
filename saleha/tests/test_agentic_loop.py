@@ -604,6 +604,82 @@ class AgentLoopTests(unittest.TestCase):
         nudged = [s for s in res.steps if "call patch_file now" in s.observation]
         self.assertEqual(nudged, [])
 
+    def test_fifth_read_only_call_is_blocked_not_just_nudged(self) -> None:
+        """Measured live (pass 90): the nudge fired exactly as designed
+        (verified by instrumenting a real run) and the model called
+        find_symbols anyway on the very next step. A suggestion alone does
+        not change the next action, so past the threshold a read-only call
+        must be refused outright, not merely discouraged."""
+        with open(os.path.join(self.root, "m.py"), "w") as f:
+            f.write("x = 1\n")
+        agent = ScriptedAgent([
+            _tool_call("read_file", path="m.py"),
+            _tool_call("read_file", path="m.py", start_line=1, end_line=1),
+            _tool_call("list_dir", path="."),
+            _tool_call("read_file", path="m.py", start_line=1, end_line=2),
+            _tool_call("find_symbols", symbol_name="anything"),
+        ] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=6).run("fix m.py")
+        blocked = [s for s in res.steps if s.action == "find_symbols-blocked"]
+        self.assertEqual(len(blocked), 1, res.steps)
+        self.assertIn("REJECTED", blocked[0].observation)
+        self.assertIn("was not run", blocked[0].observation)
+
+    def test_blocked_read_only_call_does_not_reach_the_real_tool(self) -> None:
+        """The call must be refused before the handler runs -- verified by
+        pointing it at a file that does not exist. If the handler ran, the
+        observation would say "no such file"; it must not."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _tool_call("read_file", path="does_not_exist.py"),
+        ] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=6).run("fix something")
+        fifth = res.steps[4]
+        self.assertEqual(fifth.action, "read_file-blocked")
+        self.assertNotIn("no such file", fifth.observation)
+
+    def test_hard_gate_uses_located_region_when_available(self) -> None:
+        """A blocked call should name the concrete file/line range the
+        tools already reported, not a generic placeholder, when one is
+        on hand."""
+        with open(os.path.join(self.root, "app.py"), "w") as f:
+            f.write("def charge(amount):\n    return amount * 2\n")
+        agent = ScriptedAgent([
+            _tool_call("get_file_outline", path="app.py"),
+            _tool_call("read_file", path="app.py"),
+            _tool_call("read_file", path="app.py", start_line=1, end_line=1),
+            _tool_call("read_file", path="app.py", start_line=1, end_line=2),
+            _tool_call("list_dir", path="."),
+        ] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=6).run("fix charge in app.py")
+        blocked = [s for s in res.steps if s.action.endswith("-blocked")]
+        self.assertEqual(len(blocked), 1)
+        self.assertIn("app.py", blocked[0].observation)
+
+    def test_hard_gate_off_when_writes_are_not_allowed(self) -> None:
+        """A read-only run cannot patch anything, so the hard gate must not
+        block its investigation -- it would make the run permanently stuck
+        with no legal tool left to call."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _tool_call("list_dir", path="."),
+            _finish("investigated"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=False,
+                        max_steps=8).run("find all endpoints missing auth")
+        blocked = [s for s in res.steps if s.action.endswith("-blocked")]
+        self.assertEqual(blocked, [])
+        self.assertTrue(res.success)
+
     def test_repair_gate_is_off_when_writes_are_not_allowed(self) -> None:
         """A read-only run cannot mutate anything, so requiring a mutation
         would make it permanently unfinishable."""

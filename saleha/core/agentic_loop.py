@@ -1144,6 +1144,51 @@ Never invent tool outputs. One block per reply. Be efficient."""
             parse_failures = 0
 
             tool_name, args = call
+
+            # Hard gate past the read-only streak threshold: a suggestion
+            # alone was measured not to change the next action. Same real
+            # repo bug, same model: the nudge fired at step 4 exactly as
+            # designed (verified by instrumenting the run directly) and the
+            # model called find_symbols anyway. Escalating from "please act"
+            # to "read tools are unavailable until you do" -- the call is
+            # refused before the handler ever runs, so no information is
+            # gained from it, which is the only way to make continuing to
+            # read strictly worse than attempting a patch. patch_file and
+            # write_file are exempt (they are the acting the gate wants);
+            # finish is exempt because its own gate above already forces a
+            # real mutation for a repair goal.
+            if (self.allow_write
+                    and tool_name in _READ_ONLY_TOOLS
+                    and reads_since_mutation_attempt >= _READ_ONLY_NUDGE_AFTER):
+                # Described in prose, not a fenced tool_call example -- an
+                # observation re-enters the prompt, and a live fence inside
+                # it was measured (pass 53) to make the model echo the
+                # fence's shape back empty rather than filling it in.
+                if located_region:
+                    rel, lo, hi = located_region
+                    where = f'"{rel}", with the search text copied from lines {lo}-{hi}'
+                else:
+                    where = "the file you already read"
+                observation = (
+                    f"REJECTED: read-only tools are unavailable after "
+                    f"{reads_since_mutation_attempt} investigative calls with "
+                    f"no patch attempt. You already have enough information "
+                    f"-- call patch_file now, on {where}. Use the exact "
+                    f"existing text as \"search\" and your fixed version as "
+                    f"\"replace\".\n"
+                    f"({tool_name} was not run; this call did not cost you "
+                    f"information, only a step.)"
+                )
+                result.steps.append(
+                    LoopStep(step_no, f"{tool_name}-blocked", args_preview=json.dumps(args)[:120],
+                            observation=observation))
+                emit({"step": step_no, "action": f"{tool_name}-blocked",
+                      "observation": observation})
+                transcript_parts.append(
+                    f"[step {step_no}] {tool_name} (BLOCKED)\nOBSERVATION: {observation}"
+                )
+                continue
+
             handler = tools.get(tool_name)
             call_failed = False
             if handler is None:
