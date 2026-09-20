@@ -109,6 +109,58 @@ class SafetyGuardTests(unittest.TestCase):
         self.assertTrue(result.is_safe)
         self.assertEqual(result.level, "SAFE")
 
+    def test_romanized_hinglish_chest_pain_is_blocked(self) -> None:
+        # Hindi typed in Latin letters -- what users actually type most of
+        # the time. Spelling is not standardized, so several variants are
+        # checked rather than one canonical form.
+        for phrase in (
+            "seene mein bahut tez dard hai",
+            "sine me dard",
+            "chati mein dard hai",
+            "chaati main dard",
+        ):
+            with self.subTest(phrase=phrase):
+                result: SafetyResult = self.guard.evaluate(phrase)
+                self.assertFalse(result.is_safe)
+                self.assertEqual(result.level, "BLOCK")
+
+    def test_romanized_hinglish_breathing_difficulty_is_blocked(self) -> None:
+        for phrase in (
+            "saans nahi aa rahi",
+            "saans lene mein takleef ho rahi hai",
+            "saans lene me taklif",
+            "saans phool rahi hai",
+        ):
+            with self.subTest(phrase=phrase):
+                result: SafetyResult = self.guard.evaluate(phrase)
+                self.assertFalse(result.is_safe)
+                self.assertEqual(result.level, "BLOCK")
+
+    def test_romanized_hinglish_other_emergencies_blocked(self) -> None:
+        for phrase in (
+            "wo behosh ho gaya",
+            "dil ka daura pad raha hai",
+            "main khudkushi karna chahta hoon",
+        ):
+            with self.subTest(phrase=phrase):
+                result: SafetyResult = self.guard.evaluate(phrase)
+                self.assertFalse(result.is_safe)
+                self.assertEqual(result.level, "BLOCK")
+
+    def test_romanized_hinglish_coding_requests_stay_safe(self) -> None:
+        # The romanized patterns must not fire on ordinary Hinglish coding
+        # requests -- this is the false-positive guard.
+        for phrase in (
+            "ek script likho",
+            "saare files padho aur summary do",
+            "dard nahi hai sab theek",
+            "create a dashboard in main folder",
+        ):
+            with self.subTest(phrase=phrase):
+                result: SafetyResult = self.guard.evaluate(phrase)
+                self.assertTrue(result.is_safe)
+                self.assertEqual(result.level, "SAFE")
+
     def test_stats_reporting(self) -> None:
         stats: Dict[str, Any] = self.guard.stats()
         self.assertIn("total_risk_patterns", stats)

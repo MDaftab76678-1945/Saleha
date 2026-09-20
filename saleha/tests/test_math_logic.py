@@ -88,12 +88,18 @@ class BilingualKeywordsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = MathLogicEngine()
 
-    def test_hindi_medium_large_triggers_break_down(self) -> None:
-        # "पूरे प्रोजेक्ट" matches weight 8.0 -> triggers BREAK_DOWN (5.0 <= score < 9.0)
+    def test_hindi_medium_large_triggers_requires_approval(self) -> None:
+        # "पूरे प्रोजेक्ट...refactor" now matches both the scope pattern
+        # (8.0) and the refactor-everything pattern (7.0) = 15.0, matching
+        # the English "refactor the entire codebase" score exactly. It
+        # used to score only 8.0 here (BREAK_DOWN) while the equivalent
+        # English request scored 15.0 (REQUIRES_APPROVAL) -- the same
+        # scope request was treated as smaller in Hindi than in English.
         res = self.engine.estimate_complexity("पूरे प्रोजेक्ट को refactor करो")
-        self.assertEqual(res.complexity_score, 8.0)
-        self.assertEqual(res.recommendation, "BREAK_DOWN")
-        self.assertTrue(res.is_safe_to_run)
+        self.assertEqual(res.complexity_score, 15.0)
+        self.assertEqual(res.recommendation, "REQUIRES_APPROVAL")
+        english_equivalent = self.engine.estimate_complexity("refactor the entire codebase")
+        self.assertEqual(res.complexity_score, english_equivalent.complexity_score)
 
     def test_hindi_critical_scope_triggers_requires_approval(self) -> None:
         # Combines multiple scope patterns: entire project (8.0) + all files (3.0) + tests (2.0) = 13.0
@@ -149,6 +155,48 @@ class ArchitectureAndDAGDecompositionTests(unittest.TestCase):
         self.assertIn("task_db", dag.nodes)
         batches = dag.get_topological_batches()
         self.assertGreaterEqual(len(batches), 3)
+
+
+class RomanizedHinglishComplexityTests(unittest.TestCase):
+    """Hindi typed in Latin letters must score like the other two scripts.
+
+    A Devanagari-only pattern scored romanized input 0.0, so a
+    whole-codebase refactor requested as "poore project ko dobara likho"
+    was read as a trivial task and never broken down.
+    """
+
+    def setUp(self) -> None:
+        self.engine = MathLogicEngine()
+
+    def test_large_scope_scores_the_same_across_all_three_scripts(self) -> None:
+        english = self.engine.estimate_complexity("refactor the entire codebase")
+        devanagari = self.engine.estimate_complexity(
+            "पूरे प्रोजेक्ट "
+            "को दोबारा लिखो"
+        )
+        romanized = self.engine.estimate_complexity("poore project ko dobara likho")
+
+        self.assertEqual(english.complexity_score, devanagari.complexity_score)
+        self.assertEqual(english.complexity_score, romanized.complexity_score)
+        self.assertGreater(romanized.complexity_score, MAX_SAFE_COMPLEXITY)
+
+    def test_romanized_large_scope_requests_are_not_marked_execute(self) -> None:
+        for phrase in (
+            "poore project ko dobara likho",
+            "pura code refactor karo",
+            "saare files ka test likho",
+            "sabhi files padho",
+        ):
+            with self.subTest(phrase=phrase):
+                res: ComplexityResult = self.engine.estimate_complexity(phrase)
+                self.assertGreater(res.complexity_score, MAX_SAFE_COMPLEXITY)
+                self.assertNotEqual(res.recommendation, "EXECUTE")
+
+    def test_romanized_single_file_request_stays_low(self) -> None:
+        # Hindi puts the verb last ("ek file banao"); this must not be
+        # scored as a large-scope task.
+        res: ComplexityResult = self.engine.estimate_complexity("ek file banao script ke liye")
+        self.assertLessEqual(res.complexity_score, MAX_SAFE_COMPLEXITY)
 
 
 if __name__ == "__main__":

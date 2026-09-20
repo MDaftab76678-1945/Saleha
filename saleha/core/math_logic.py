@@ -24,37 +24,49 @@ if TYPE_CHECKING:
 # 1. Bilingual mathematical configuration
 # ==============================================================================
 
+# Each pattern carries three scripts for the same intent: English, Devanagari
+# Hindi, and romanized Hinglish (Hindi typed in Latin letters, e.g. "poore
+# project ko dobara likho"). Romanized input is what users actually type most
+# of the time -- a Devanagari-only pattern scored it 0.0, so a full-codebase
+# refactor was read as a trivial task. Spelling varies freely when Hindi is
+# romanized ("poora"/"pura", "saare"/"sare", "likho"/"likhho"), so the
+# alternations below deliberately admit common variants rather than one
+# canonical spelling.
 TASK_WEIGHTS: Dict[str, float] = {
     # 1. High complexity (massive scope -- stop or break down immediately)
-    r"(पूरे|पूरा|सारे|सभी|सब|entire|whole|all|full).*?(प्रोजेक्ट|कोड|फाइल|फोल्डर|project|code|files|folder|codebase)": 8.0,
+    r"(पूरे|पूरा|सारे|सभी|सब|p[uo]{1,2}r[ae]|s[aā]{1,2}r[ae]|sabhi|sab|entire|whole|all|full)\s.*?(प्रोजेक्ट|कोड|फाइल|फोल्डर|project|code|files?|folder|codebase|repo)": 8.0,
 
     # 2. High complexity (refactoring everything)
-    r"(refactor|rewrite|optimize|debug|दोबारा\s+लिखो|सुधार).*?(पूरे|पूरा|सारे|सभी|सब|entire|whole|all)": 7.0,
+    r"(refactor|rewrite|optimize|debug|दोबारा\s+लिखो|सुधार|dobara\s+likh|sudhar).*?(पूरे|पूरा|सारे|सभी|सब|p[uo]{1,2}r[ae]|s[aā]{1,2}r[ae]|sabhi|sab|entire|whole|all)": 7.0,
+    r"(पूरे|पूरा|सारे|सभी|सब|p[uo]{1,2}r[ae]|s[aā]{1,2}r[ae]|sabhi|sab)\s.*?(दोबारा\s+लिखो|सुधार|dobara\s+likh|refactor|rewrite|optimi[sz]e)": 7.0,
 
     # 3. High complexity (full-stack or end-to-end applications)
-    r"(frontend\s+and\s+backend|full\s*stack|फुल\s*स्टैक|end\s*to\s*end|एंड\s*टू\s*एंड)": 6.0,
+    r"(frontend\s+and\s+backend|full\s*stack|फुल\s*स्टैक|ful{1,2}\s*stack|end\s*to\s*end|एंड\s*टू\s*एंड)": 6.0,
 
     # 4. Medium-high complexity (distributed systems, microservices, pipeline engines)
-    r"\b(microservice|microservices|distributed\s+system|cluster\s+node|pipeline\s+engine|माइक्रोसर्विस|डिस्ट्रिब्यूटेड)\b": 4.5,
+    r"\b(microservices?|distributed\s+system|cluster\s+node|pipeline\s+engine|माइक्रोसर्विस|डिस्ट्रिब्यूटेड|microservis|distributed)\b": 4.5,
 
     # 5. Medium complexity (database migration or schema design)
-    r"\b(database\s+migration|schema\s+migration|db\s+migration|माइग्रेशन|डेटाबेस\s+स्कीमा)\b": 4.0,
+    r"\b((database|schema|db)\s+migration|माइग्रेशन|डेटाबेस\s+स्कीमा|migration)\b": 4.0,
 
     # 6. Medium complexity (security audits & penetration testing)
-    r"\b(security\s+audit|vulnerability\s+scan|penetration\s+test|auth\s+system|सुरक्षा\s+ऑडिट)\b": 4.0,
+    r"\b(security\s+audit|vulnerability\s+scan|penetration\s+test|auth\s+system|सुरक्षा\s+ऑडिट|suraksha\s+audit)\b": 4.0,
 
     # 7. Medium complexity (multiple tests or integrations)
-    r"(सभी|सारे|सब|all).*?(tests|टेस्ट|जांच|check)": 5.0,
-    r"(integrate|जोड़ो|merge).*?(app|application|main|सिस्टम)": 4.0,
+    r"(सभी|सारे|सब|s[aā]{1,2}r[ae]|sabhi|sab|all)\s.*?(tests?|टेस्ट|जांच|test|jaanch|janch|check)": 5.0,
+    r"(integrate|जोड़ो|merge|jodo|jod\s+do)\s.*?(app|application|main|सिस्टम|system)": 4.0,
 
     # 8. Medium-low complexity (reading multiple files)
-    r"(सभी|सारे|सब|all).*?(फाइल|फोल्डर|files|folder)": 3.0,
+    r"(सभी|सारे|सब|s[aā]{1,2}r[ae]|sabhi|sab|all)\s.*?(फाइल|फोल्डर|files?|folder|file)": 3.0,
 
-    # 9. Low complexity (single file creation)
-    r"(create|build|write|generate|बनाओ|लिखो).*?(एक|a|an|one|single).*?(file|script|function|फाइल|स्क्रिप्ट|component)": 2.0,
+    # 9. Low complexity (single file creation). Hindi puts the verb last
+    # ("ek file banao"), English puts it first ("create a file"), so both
+    # orderings are matched.
+    r"(create|build|write|generate|बनाओ|लिखो|banao|likho)\s.*?(एक|a|an|one|single|ek)\s.*?(file|script|function|फाइल|स्क्रिप्ट|component)": 2.0,
+    r"(एक|one|single|ek)\s.*?(file|script|function|फाइल|स्क्रिप्ट|component)\s.*?(बनाओ|लिखो|banao|likho|bana\s+do)": 2.0,
 
     # 10. Base testing keyword
-    r"\b(tests|टेस्ट|जांच|check|verify)\b": 2.0,
+    r"\b(tests?|टेस्ट|जांच|jaanch|janch|check|verify)\b": 2.0,
 }
 
 FILE_EXTENSION_WEIGHTS: Dict[str, float] = {

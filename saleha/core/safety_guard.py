@@ -23,17 +23,25 @@ RISK_KEYWORDS: Dict[str, float] = {
     r"(heavy\s+bleeding|severe\s+bleeding|suicide|self-harm)": 9.0,
     r"(unconscious|passed\s+out|heart\s+attack|stroke|poison|poisoning)": 8.5,
 
-    # Health emergencies -- Hindi/Urdu patterns. Saleha's users converse in
-    # Hindi/Hinglish, so these patterns are language-specific by necessity;
-    # everything else in this file stays English per the project's
-    # English-only code/comment rule (data patterns are not code).
+    # Health emergencies -- Hindi/Urdu patterns, in both Devanagari and
+    # romanized Hinglish (Hindi typed in Latin letters, which is how users
+    # most often type). Saleha's users converse in Hindi/Hinglish, so these
+    # patterns are language-specific by necessity; everything else in this
+    # file stays English per the project's English-only code/comment rule
+    # (data patterns are not code).
     #
     # \s+\S*\s* between key words allows an intervening intensifier (e.g.
-    # "bahut" / "very") without requiring it.
+    # "bahut" / "very") without requiring it. Romanized spelling is not
+    # standardized ("seene"/"sine", "dard"/"dardh"), so the alternations
+    # admit common variants rather than one canonical form.
     r"(छाती|सीने)\s+में\s+(\S*\s+){0,2}?दर्द": 9.0,  # chest pain
+    r"\b(ch[ae]{1,2}ti|s[ei]{1,2}n[ae])\s+(mein|me|mai|main|men|ma)\s+(\S*\s+){0,2}?dard": 9.0,  # chest pain (romanized)
     r"सांस\s+(\S*\s+){0,2}?(नहीं\s+आ\s+रही|लेने\s+में\s+तकलीफ|फूल\s+रही\s+है)": 9.0,  # difficulty breathing
+    r"\bs[aā]{1,2}ns\s+(\S*\s+){0,3}?(nah[iī]{1,2}n?\s+a|lene\s+(mein|me|mai|men)\s+takl[ie]{1,3}f|phool\s+rah)": 9.0,  # difficulty breathing (romanized)
     r"(बहुत\s+ज्यादा\s+खून|आत्महत्या|खुदकुशी)": 9.0,  # heavy bleeding / suicide
+    r"\b(aatmahatya|atmahatya|khudkushi|bahut\s+(zyada|jyada)\s+kh[uū]{1,2}n)\b": 9.0,  # heavy bleeding / suicide (romanized)
     r"(बेहोश|हार्ट\s+अटैक|दिल\s+का\s+दौरा|स्ट्रोक|जहर)": 8.5,  # unconscious / heart attack / stroke / poison
+    r"\b(behosh|behoash|h[aā]rt\s+at[ei]k|dil\s+ka\s+d[ao]ura|strok|zeh[ae]r|jah[ae]r)\b": 8.5,  # unconscious / heart attack / stroke / poison (romanized)
 
     # Network/security threats (medium risk)
     r"(curl\s+.*\|\s*bash|wget\s+.*\|\s*sh)": 7.0,
