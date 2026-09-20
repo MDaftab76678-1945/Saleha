@@ -763,6 +763,28 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("app.py", blocked[0].observation)
         self.assertIn("lines", blocked[0].observation)
 
+    def test_repeat_nudge_names_an_unexplored_dir_with_no_located_region(self) -> None:
+        """Measured live against the real psf/requests issue #3362 (no
+        planted bug, no file/line hint): qwen2.5-coder:3b guessed a
+        nonexistent ./src/main.py, then spent 13 of 15 steps oscillating
+        between that dead guess and re-listing the repo root, because the
+        old fallback nudge ("call get_file_outline on the source file")
+        named no path when located_region was empty. list_dir's own first
+        result had already shown a real `pkg/` subdirectory it never
+        entered. The nudge must name that real, unexplored directory."""
+        os.makedirs(os.path.join(self.root, "pkg"), exist_ok=True)
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+        ] + [
+            _tool_call("get_file_outline", path="./src/main.py")
+            for _ in range(8)
+        ] + [_finish("done")] * 20)
+        res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                        max_steps=10).run("fix the bug")
+        repeats = [s for s in res.steps if s.observation.startswith("[repeat]")]
+        self.assertTrue(repeats, res.steps)
+        self.assertIn('list_dir with "path" set to "pkg"', repeats[0].observation)
+
     def test_patching_a_test_file_is_rejected_for_a_repair_goal(self) -> None:
         """Measured live (pass 91): forced to act by the read-only gate,
         qwen3:8b patched tests/test_utils.py -- changing an unrelated

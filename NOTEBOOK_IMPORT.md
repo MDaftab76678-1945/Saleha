@@ -8883,3 +8883,112 @@ Measured: `test_project_scaffolder.py` 5/5 (repeated x5) after fix. Full
 suite re-run: **2256 passed, 13 skipped, 172 subtests** in 164.27s -- zero
 failures, confirming the fix holds under the same full-suite load that
 originally triggered the flake.
+
+## Pass 104: a real SWE-bench Lite instance, run live against the hardened loop -- a real fallback-nudge bug found and fixed, capability gap remains (2026-09-21)
+
+Followed up the open item from passes 53/85-97/92-93: run the fully hardened
+`AgentLoop` (post pass 96-97 fixes) against a real, official SWE-bench Lite
+instance -- not the hand-planted toy bug pass 97 solved -- and measure
+honestly.
+
+Setup: `psf__requests-3362` (from `princeton-nlp/SWE-bench_Lite`, verified
+via `datasets`), real checkout at the exact `base_commit`
+(`36453b95b13079296776d11b09cab2567ea3e703`), goal built with
+`swe_bench_runner.build_prompt()` from the real problem statement (a
+`decode_unicode`/`iter_content` text-vs-bytes bug in `requests`), no hint
+about which file or line. Docker daemon started for the official harness
+(`scored_swebench_availability()` now reports `available=True` on this
+session after starting Docker Desktop, confirming pass 92's earlier
+one-off start was not persistent).
+
+**Note on process hygiene**: the initial attempt to `pip install -e .` the
+old `requests` checkout accidentally ran against the *project's own*
+`.venv` (not an isolated one), downgrading its `requests` to 2.10.0 and
+breaking `saleha` imports (`ModuleNotFoundError: cgi`, removed in newer
+Python). Caught immediately by a sanity check, reverted
+(`pip uninstall requests` + reinstall `>=2.31.0`), and verified
+`import saleha` + a real test file passed clean afterward before
+continuing. The old `requests` checkout needs Python <=3.9 (vendored
+urllib3 imports `collections.Mapping`, removed in 3.10) -- an isolated
+venv from `.venv_train`'s 3.11.16 interpreter still could not import it
+locally; the official Docker harness handles this via its own pinned
+per-instance environment, which is the whole reason it exists.
+
+**First live run: empty patch.** `run_benchmark()` reported
+`empty_patches: 1`, confirmed by `git diff --stat` on the checkout (clean).
+Traced with direct `AgentLoop` access (the runner does not expose
+per-step detail): 14 steps, all wasted. Step 1 guessed a nonexistent
+`./src/main.py` (not from anything in the repo -- pure invention). Steps
+2-3 correctly listed the real repo root, which showed a real `requests/`
+package directory. Steps 4-14 then alternated between re-listing that
+same root and re-querying the same nonexistent file, 6 times each, despite
+the anti-repeat nudge firing every time it was told to. Root cause, found
+by reading the fallback branch in `agentic_loop.py`: when `located_region`
+is empty (the model has not yet found a real definition), the nudge's
+`alternative` text was a fixed, path-less sentence -- "call
+get_file_outline on the source file to get its line numbers" -- that
+named nowhere to go, so it could not break a cycle anchored on a dead
+guess. Confirmed by reading the code, not by inference alone: the repeat
+handler branches only on `located_region`, with no other named-path
+fallback.
+
+**Fix**: track subdirectories seen in any `list_dir` result but never
+themselves listed (`unexplored_dirs`, populated/consumed alongside the
+existing `seen_calls` state). The fallback now names a real one when
+`located_region` is empty and at least one exists, before falling back to
+the old generic sentence only when there is truly nothing else to point
+at. Teeth-checked: `git stash` the fix alone, re-run the new test --
+fails with the exact old generic message; restored, passes.
+
+**Re-run, live, same instance, same clean checkout.** Result changed --
+the fix demonstrably fired (step 4's rejection named a real `docs`
+directory instead of the old generic sentence, confirmed in the raw
+transcript) -- but the run still failed, differently: step 1 invented a
+*different* nonexistent filename (`./your_script.py`), and after
+`search_repo`/`list_dir` correctly surfaced the real `requests/`
+directory at step 3, the model never entered it -- instead re-listing the
+root once more (now correctly nudged toward `docs`) and then twice
+retrying `./your_script.py` via `patch_file`/`get_file_outline`, both
+failing "file not found." `max_steps` (15) exhausted at step 6 with
+`success: False`, no patch, working tree confirmed clean.
+
+**Honest state**: the fallback-nudge bug was real, is fixed, and is proven
+to change live model behavior (the nudge fired correctly on re-run) -- but
+it did not fix this instance. The deeper gap this run surfaces is new and
+distinct from anything in passes 53/85-97: `qwen2.5-coder:3b` invents a
+plausible-sounding filename before ever looking at the repo, and even
+after being shown the real package directory by its own tool calls, does
+not pivot to exploring it -- it returns to the invented name instead. That
+is not the "reads without acting" pattern (passes 89-90) or the "acts on
+the wrong file" pattern (pass 95) already fixed; it is closer to ignoring
+its own evidence. Not fixed this pass -- recorded here rather than
+patched around, per this file's own rule that a capability gap belongs in
+the ledger, not in another round of prompt tuning aimed at one transcript.
+
+No official Docker-harness score was run for this instance since the
+patch was empty (an empty patch scores unresolved by definition; running
+the container would have measured nothing new). The Docker availability
+fix (starting the daemon) and the isolated-checkout groundwork are in
+place for the next attempt.
+
+Measured: `test_agentic_loop.py` 90 -> **91/91 passed**, 1 new test
+(`test_repeat_nudge_names_an_unexplored_dir_with_no_located_region`)
+teeth-checked to fail against the pre-fix code.
+
+Full-suite re-run after this fix surfaced a second, unrelated full-suite-only
+flake: `test_mcts_search_engine.py::test_single_depth_search_selects_clean_winner`
+failed once (`passed_branches_count > 0` -> `0 > 0`) in a run otherwise
+showing 2256 passed, 13 skipped. Re-ran the same test file in isolation
+three times: 5/5 clean each time. Checked history and dependency surface
+before assuming a link to this pass's own change: neither
+`agentic_loop.py` nor `test_project_scaffolder.py` (this session's other
+touched files) share any state, mock, or import with
+`mcts_search_engine.py` -- this module genuinely calls the real sandboxed
+executor (confirmed real, not templated, in pass 47), so it is naturally
+sensitive to timing/resource contention under full-suite load, the same
+category as the pass-84/pass-103 Windows tempdir races, just a different
+mechanism (sandbox execution timing, not file-handle cleanup) and a
+different file. **Recorded, not yet root-caused or fixed** -- unlike the
+pass-103 scaffolder flake, this one has not been traced to a specific
+line; flagging it as a known intermittent rather than claiming a fix that
+was not done.

@@ -1097,6 +1097,18 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # filled in, even though step 5 had already reported
         # "def super_len() (lines 160-228)".
         located_region: Optional[Tuple[str, int, int]] = None
+        # Subdirectories seen in any list_dir result but never themselves
+        # listed. Measured against psf/requests' real issue #3362 (no
+        # planted bug, no file/line hint in the goal): the model guessed a
+        # nonexistent `./src/main.py`, got told so, then spent 13 of 15
+        # steps alternating between that same dead guess and re-listing the
+        # repo root -- even though step 2's list_dir had already shown a
+        # real `requests/` package directory it never entered. The generic
+        # "call get_file_outline on the source file" fallback (used only
+        # when located_region is empty) named no path, so it could not
+        # break the cycle. Now it names a real, unexplored directory
+        # instead when one exists.
+        unexplored_dirs: List[str] = []
 
         for step_no in range(1, self.max_steps + 1):
             if time.time() - start_time > self.timeout_sec:
@@ -1586,6 +1598,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
             args_preview = json.dumps(args)[:120]
 
+            # Track subdirectories seen but not yet themselves listed, so a
+            # stuck model can be pointed at one instead of its own dead end.
+            if not call_failed and tool_name == "list_dir":
+                listed_path = (args.get("path") or ".").rstrip("/")
+                if listed_path in unexplored_dirs:
+                    unexplored_dirs.remove(listed_path)
+                for line in observation.split("\n"):
+                    if line.startswith("dir "):
+                        name = line[4:].strip()
+                        if name and name != ".git":
+                            child = f"{listed_path}/{name}" if listed_path != "." else name
+                            if child not in unexplored_dirs:
+                                unexplored_dirs.append(child)
+
             # Repeat detection. A small model re-reads the same file instead of
             # acting on it: an earlier SWE-bench run here spent 6 of 12 turns on
             # duplicate reads and ran out of budget with nothing done. The step
@@ -1613,6 +1639,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         f"call read_file on {rel} with start_line {lo} and "
                         f"end_line {hi}"
                     )
+                elif unexplored_dirs:
+                    alternative = f'call list_dir with "path" set to "{unexplored_dirs[0]}"'
                 else:
                     alternative = ("call get_file_outline on the source file "
                                    "to get its line numbers")

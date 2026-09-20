@@ -1775,6 +1775,52 @@ four Master Vision pillars get built and wired together.**
   Detail for all seven passes: `NOTEBOOK_IMPORT.md`, "Pass 96" through
   "Pass 102."
 
+**Pass 103 — verified Pass 102's own claims before committing, fixed a
+full-suite-only Windows flake.** Independently re-ran Pass 102's claimed
+37/37 and reviewed its diffs before trusting them (confirmed genuine).
+Full suite then showed 1 failure
+(`test_project_scaffolder.py::test_existing_dir_needs_force`, passed clean
+in isolation) — root-caused to a nested `pytest test_main.py` subprocess
+writing `.pyc`/`.pytest_cache` files that Windows can still hold open
+briefly after the subprocess exits, racing the caller's own temp-dir
+cleanup. Fixed with `-p no:cacheprovider` + `PYTHONDONTWRITEBYTECODE=1` on
+that subprocess call, removing the cache files instead of timing around
+the race. Teeth-checked: 5/5 clean repeated runs after the fix, then a
+full-suite re-run at 2256 passed / 0 failed confirmed it holds under load.
+
+**Pass 104 — ran a real, official SWE-bench Lite instance against the
+hardened loop; found and fixed a real fallback-nudge bug, capability gap
+remains open.** Followed up the standing open item (no local model has
+correctly fixed a real repository bug end-to-end, only pass 97's
+hand-planted toy bug). Ran `psf__requests-3362` (real dataset instance,
+real base_commit checkout, no file/line hint) through `qwen2.5-coder:3b`.
+First run: empty patch, 14 wasted steps — the model guessed a nonexistent
+`./src/main.py` at step 1 and oscillated between that dead guess and
+re-listing the repo root for the rest of the budget, because
+`agentic_loop.py`'s repeat-nudge fallback (used when `located_region` is
+empty) named no concrete path to try instead. Fixed: track subdirectories
+seen via `list_dir` but never themselves explored, and name one in the
+nudge. Teeth-checked against the pre-fix code. Live re-run: the fix
+demonstrably fired (the nudge correctly named a real `docs/` directory)
+— but the run still failed differently: the model invented a *second*
+nonexistent filename and, even after its own tool calls showed the real
+`requests/` package directory, never entered it. **Honest state: this is
+a real, newly-observed capability gap — the model does not act on
+evidence its own tool calls just produced — distinct from every prior
+fixed pattern in this lineage (passes 89-91, 95). Not fixed this pass;
+recorded rather than prompt-tuned around one transcript.** Also incidentally
+caused, then immediately caught and reverted, a process-hygiene mistake:
+an old `requests` checkout's `pip install -e .` was first run against the
+project's own `.venv` by accident (should have used an isolated venv from
+the start), downgrading its `requests` to 2.10.0 and breaking `saleha`
+imports; caught by a sanity check before continuing, reverted, and
+verified `import saleha` + a real test passed clean afterward. A second,
+unrelated full-suite-only flake was also observed while re-verifying
+(`test_mcts_search_engine.py`, real sandboxed-execution timing, not this
+session's diff) — recorded as a known intermittent, not fixed. Full
+suite: 2256 passed, 13 skipped (test_agentic_loop.py 90 → 91/91 with the
+new test). Detail: `NOTEBOOK_IMPORT.md`, "Pass 103" and "Pass 104."
+
 ---
 
 ## Environment facts worth knowing
