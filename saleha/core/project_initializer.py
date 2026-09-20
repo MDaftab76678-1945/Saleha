@@ -69,7 +69,7 @@ class ProjectInitializer:
 
 [models]
 fast_tier = "qwen2.5-coder:3b"
-reasoning_flagship = "deepseek-r1:8b"
+reasoning_flagship = "deepseek-r1:7b"
 
 [sandboxing]
 mode = "subprocess_hardened"

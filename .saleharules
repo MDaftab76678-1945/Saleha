@@ -1,7 +1,7 @@
 # Saleha AI Project Architecture Rules
 # Project: saleha-0.1
 # Stack: Python
-# Generated: 2026-09-01
+# Generated: 2026-09-20
 
 [conventions]
 - Maintain 100% type annotations across all function signatures.
@@ -10,8 +10,8 @@
 - Never commit unmasked secrets, private keys, or plain-text credentials.
 
 [models]
-fast_tier = "qwen2.5-coder:1.5b"
-reasoning_flagship = "deepseek-r1:8b"
+fast_tier = "qwen2.5-coder:3b"
+reasoning_flagship = "deepseek-r1:7b"
 
 [sandboxing]
 mode = "subprocess_hardened"

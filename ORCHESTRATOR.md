@@ -169,24 +169,41 @@ Compared both duplicate pairs directly instead of guessing:
   verification done before deletion. `docs/threat_model.md` (12 lines,
   2026-09-01) remains — a terse auto-generated STRIDE table, thin but at
   least on-topic; not independently verified as current this pass.
-- Not yet independently diffed this pass: `docs/AGENT_PROFILES.md`,
+- **`docs/manifestos/soul.md` — checked for the Mukti/Nexus contamination
+  its `threat_model.md` sibling had; clean (pass 83).** No
+  mukti/nexus-omni/nexus-protocol/genesis-api hits; content not otherwise
+  read this pass.
+- Not yet independently diffed: `docs/AGENT_PROFILES.md`,
   `docs/CLI_REFERENCE.md`, `docs/MCP_SPEC.md`, `docs/SECURITY_MODEL.md`,
   `docs/TUTORIALS.md`, `docs/manifestos/agentskills.md`,
-  `docs/manifestos/harness.md`, `docs/manifestos/soul.md`.
-  `docs/manifestos/soul.md` in particular is worth checking for the same
-  Mukti/Nexus contamination found in its `threat_model.md` sibling before
-  trusting it as a Saleha doc.
+  `docs/manifestos/harness.md`.
 - `docs/architecture-code-review-2026-09-03.md`,
   `docs/notes/orchestrator-audit-2026-09-07.md` — prior review/audit notes;
   cross-check against `NOTEBOOK_IMPORT.md` for findings already fixed.
-- `docs/notes/` — non-code research notes (`architecture_vision.txt`,
-  `hyperbolic_geometry.txt`, `mukti_agents_sdk_impl.txt` — note the "mukti"
-  name again, `mukti_sovereign_summary.txt`) and a small standalone
-  Flask-style app (`docs/notes/model-lab/` — `trust_kernel.py`,
-  `prooftsilicon_trust.py`, templates), not referenced anywhere else found
-  so far. Given two of the four filenames here contain "mukti," check this
-  whole subfolder for the same foreign-project contamination before
-  assuming it's Saleha's own research.
+- **`docs/notes/model-lab/` — checked for contamination, confirmed clean
+  (pass 83).** `trust_kernel.py` and `prooftsilicon_trust.py` both use
+  `did:mukti:saleha` / `did:mukti:rtl-verifier` as example DID identifiers —
+  the same coincidental brand overlap already resolved for
+  `mukti_chain_bridge.py`/`mukti_economy.py` in CLAUDE.md, not the foreign
+  `deploy/` product (8.5). Both files are honest research prototypes: a
+  standalone risk/care/capability trust-decision kernel with real weighted
+  scoring and a deterministic hash "receipt," explicitly disclosed as a
+  stand-in for real signing ("Production mein Ed25519 hoga, abhi
+  deterministic hash"). Not wired into `saleha/` anywhere — orphaned
+  research, not a fabrication (nothing claims more than it does). Written
+  in Hinglish comments/docstrings, which is a Rule 2.4 violation if this
+  code is ever promoted out of `docs/notes/`, but low priority while it
+  stays an unreferenced research note.
+- `mukti_agents_sdk_impl.txt` / `mukti_sovereign_summary.txt` (loose
+  `.txt` notes, not re-checked this pass) — same "mukti" name; still worth
+  a read given the confirmed `deploy/` contamination, but distinct files
+  from `model-lab/`, which is now cleared.
+- `docs/notes/architecture_vision.txt`, `hyperbolic_geometry.txt` — design
+  notes, not checked for contamination this pass.
+- `docs/notes/orchestrator-audit-2026-09-07.md` (175 lines),
+  `docs/architecture-code-review-2026-09-03.md` (92 lines) — prior
+  review/audit notes; not yet cross-checked against `NOTEBOOK_IMPORT.md`
+  for findings already fixed elsewhere.
 - `docs/*.html` (`architecture_graph.html`, `docs.html`, `index.html`,
   `leaderboard.html`) and `docs/site/index.html` — generated/static pages;
   confirm what generates them and whether they're current.
@@ -339,9 +356,9 @@ re-open this question from scratch.
 - `apps/landing/`, `apps/web/` — Astro landing page and Next.js app;
   `apps/web` confirmed wired to `packages/` (8.2b), `apps/landing` not
   independently checked this pass.
-- `generative-art/` — `quorum-bloom-philosophy.md`, a single essay-style
-  file, not checked this pass for Mukti/Nexus contamination — worth a quick
-  grep before assuming it's Saleha's.
+- **`generative-art/` — checked for Mukti/Nexus contamination, clean
+  (pass 83).** `quorum-bloom-philosophy.md`, a single essay-style file, no
+  mukti/nexus-omni/nexus-protocol/genesis-api hits.
 - `datasets/` — **fabrication confirmed, same pattern as the deleted
   `saleha-asi` fine-tune, partially already fixed.**
   `datasets/synthesize_sovereign_ultra_dataset.py` carries its own
@@ -445,13 +462,28 @@ re-open this question from scratch.
     own docstring documents `synthesize_variation` being disabled after
     producing 493 fake stub samples that regressed the model — a fourth
     instance of the same fabricated-data pattern found in `datasets/`, 8.5).
-  - **Not yet verified this pass, same emoji-heavy style as scripts already
-    caught fabricating:** `evaluate_artificial_analysis_suite.py`,
-    `evaluate_real_trained_model.py`, `train_grpo_advanced_reasoning.py`,
-    `train_saleha_frontier_model.py`, `train_swarm_self_play_arena.py` —
-    claim elaborate multi-phase/GRPO/self-play pipelines; bodies not read
-    closely enough to confirm real training vs. scripted progress output.
-    Next candidates for a real audit pass.
+  - **These five, all read in full — genuine, not fabricated (pass 83):**
+    `evaluate_artificial_analysis_suite.py`, `evaluate_real_trained_model.py`,
+    `train_grpo_advanced_reasoning.py`, `train_saleha_frontier_model.py`,
+    `train_swarm_self_play_arena.py`. All five load a real model (or call
+    the real `FrontierTrainer`/`GRPOReasoningTrainer`/`SwarmSelfPlayArena`
+    engines fixed in earlier passes), generate real output, and score it
+    with real validators — none report an invented result. Three
+    (`train_grpo_advanced_reasoning.py`, `train_saleha_frontier_model.py`,
+    `train_swarm_self_play_arena.py`) are thin CLI wrappers over engines
+    already fixed and confirmed in pass 45, and their docstrings correctly
+    disclose what is not implemented (no weight training/deployment).
+    `evaluate_real_trained_model.py` already carries the pass-45 fix (four
+    explicit outcomes: IMPROVED/REGRESSED/MAINTAINED-pass/MAINTAINED-fail).
+    `evaluate_artificial_analysis_suite.py` carries its own inline comments
+    documenting prior fixes ("was hardcoded ~2.1 GB VRAM", "was the
+    unconditional string... Mastery Achieved") — now reads real
+    `torch.cuda.max_memory_allocated()` and a real pass/fail table. Naming
+    across all five remains marketing-heavy ("Saleha-ASI",
+    "Super-Intelligent", "Artificial Analysis Global Intelligence") but
+    CLAUDE.md's rule is about fabricated results, not oversold naming — no
+    fix needed on that basis alone. Detail: `NOTEBOOK_IMPORT.md`,
+    "Pass 83."
 - **`editors/vscode/` — read in full, functional, not a stub.**
   `extension.ts` registers real commands (`saleha.fix`, `.reviewAI`,
   `.diffPreview`, `.memoryProject`, `.watchAI`, `.search`, `.hud`, `.tune`)

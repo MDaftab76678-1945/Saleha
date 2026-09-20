@@ -7234,3 +7234,102 @@ already fixed in pass 81.
   confirmed by re-running that file alone: 58/58 passed.
 - Pre-flight quality gate: 100.0/100 on all four touched files.
 - Committed on `main` as `6879f1d`.
+
+---
+
+## Pass 83: five "suspicious-naming" scripts confirmed genuine; three doc drifts found and fixed (2026-09-20)
+
+Continuation of the section-8 sweep from `ORCHESTRATOR.md`. Four unrelated
+open items, worked in sequence.
+
+### 1. The five flagged scripts are genuine, not fabricated
+
+`ORCHESTRATOR.md` 8.6 flagged `evaluate_artificial_analysis_suite.py`,
+`evaluate_real_trained_model.py`, `train_grpo_advanced_reasoning.py`,
+`train_saleha_frontier_model.py`, `train_swarm_self_play_arena.py` as
+"not yet verified... same emoji-heavy style as scripts already caught
+fabricating." Read all five in full:
+
+- Three are thin CLI wrappers over engines already fixed and confirmed in
+  pass 45 (`GRPOReasoningTrainer`, `FrontierTrainer`, `SwarmSelfPlayArena`),
+  and their own docstrings correctly disclose what is not implemented.
+- `evaluate_real_trained_model.py` already carries the pass-45 fix (four
+  explicit outcomes instead of a binary MAINTAINED).
+- `evaluate_artificial_analysis_suite.py` carries inline comments
+  documenting its own prior fixes ("was hardcoded ~2.1 GB VRAM", "was the
+  unconditional string... Mastery Achieved") and now reads real
+  `torch.cuda.max_memory_allocated()` plus a real per-test pass/fail table.
+
+All five load a real model or call a real fixed engine, generate real
+output, and score it with real validators. Naming remains marketing-heavy
+("Saleha-ASI", "Super-Intelligent") but CLAUDE.md's rule targets fabricated
+results, not oversold naming, so no further fix applies. `ORCHESTRATOR.md`
+8.6 updated accordingly.
+
+### 2. Mukti/Nexus contamination check on three remaining unread items
+
+`docs/manifestos/soul.md`, `generative-art/quorum-bloom-philosophy.md`, and
+`docs/notes/model-lab/` were flagged as not-yet-checked for the same
+foreign-project contamination confirmed in `deploy/` (pass 44). Grepped for
+mukti/nexus-omni/nexus-protocol/genesis-api markers:
+
+- `soul.md`, `generative-art/` — zero hits, clean.
+- `docs/notes/model-lab/` — `trust_kernel.py` and `prooftsilicon_trust.py`
+  use `did:mukti:saleha` / `did:mukti:rtl-verifier` as example DID
+  identifiers. Read both in full: genuine, honest research prototypes (a
+  weighted risk/care/capability trust-decision kernel with a real
+  deterministic hash "receipt," explicitly disclosed as a stand-in for
+  real signing). Not wired into `saleha/` anywhere. Same coincidental
+  brand overlap already resolved for `mukti_chain_bridge.py` in CLAUDE.md
+  -- not the foreign `deploy/` product. No contamination; not fabricated
+  either (nothing claims more than it does).
+
+### 3. `.saleharules` and `project_initializer.py` -- stale generated data
+
+The root `.saleharules` file (a `saleha init` artifact) listed
+`fast_tier = "qwen2.5-coder:1.5b"` and `reasoning_flagship =
+"deepseek-r1:8b"` -- neither model matches this machine's installed set
+(`qwen2.5-coder:3b`, `deepseek-r1:7b` per CLAUDE.md's Environment facts).
+Traced the generator (`saleha/core/project_initializer.py:create_saleharules`):
+`fast_tier` was already correct in the *code* (3b), so the checked-in root
+file was simply stale, generated before an earlier fix to the template and
+never regenerated. `reasoning_flagship` was wrong in the code itself
+(`deepseek-r1:8b`), fixed to `7b`. Confirmed this file is write-only --
+`[models]` values are never parsed back by anything (`grep` across
+`saleha/` found no reader) -- so this was a documentation-drift bug, not a
+functional one; still fixed, since a user reading `.saleharules` would be
+told to expect a model that is not installed. Regenerated the root file to
+match. `test_project_initializer.py`: 3/3 passed (does not assert the
+specific model string, so it did not catch this -- confirms the earlier
+finding that generated-artifact drift needs a direct read, not just a
+green test).
+
+### 4. `EVALS.md` -- two broken file paths, one unverifiable number
+
+- `scripts/evaluate_artificial_analysis_benchmarks.py` does not exist;
+  `scripts/evaluate_artificial_analysis_suite.py` does. Fixed.
+- `saleha/tests/test_emergence_honest.py` does not exist;
+  `saleha/tests/test_emergence_detector.py` does. Fixed.
+- **"In Pass 28, 8,100 rows of fabricated training data were audited and
+  purged down to 59 genuine verified rows"** -- there is no "Pass 28" in
+  `NOTEBOOK_IMPORT.md` (the ledger jumps from the twenty-fifth pass
+  straight to the twenty-ninth), and neither 8,100 nor 59 appears anywhere
+  in `NOTEBOOK_IMPORT.md` or `CLAUDE.md`. Counted the current
+  `datasets/*.json` files directly: `7 + 7 + 31 + 7 + 1000 + 30`, across
+  files serving very different purposes -- no combination reaches 59
+  either. Rather than repeat an unsourced number (or silently delete it
+  and lose the pointer), replaced it with a note explaining why it could
+  not be verified and redirecting to the real, attributed purge history
+  (`CLAUDE.md`'s dataset-lineage entries, pass 44/46; `NOTEBOOK_IMPORT.md`
+  8.5). This is the same standard `CLAUDE.md` demands of code -- a claim
+  with no reproducible measurement behind it does not get repeated as fact
+  just because it lives in a document instead of a log line.
+
+### Pass 83 Verification
+
+- `test_project_initializer.py`, `test_frontier_trainer.py`,
+  `test_grpo_reasoning_trainer.py`, `test_swarm_self_play_arena.py`:
+  **16 passed, 2 skipped**.
+- No source-code fabrication found; changes are one real model-name typo
+  fix (`project_initializer.py`), one regenerated stale artifact
+  (`.saleharules`), and two doc corrections (`EVALS.md`).
