@@ -6,7 +6,12 @@ import unittest
 from typing import Any, Optional
 from unittest.mock import MagicMock
 
-from saleha.core.agentic_loop import AgentLoop, LoopResult
+from saleha.core.agentic_loop import (
+    MAX_FILE_READ_CHARS,
+    MAX_OBSERVATION_CHARS,
+    AgentLoop,
+    LoopResult,
+)
 
 
 class ScriptedAgent:
@@ -555,6 +560,54 @@ class AgentLoopTests(unittest.TestCase):
         res = AgentLoop(agent=agent, root_dir=self.root, allow_write=False,
                         max_steps=3).run("fix the failing test")
         self.assertTrue(res.success, msg=res.error)
+
+    # ------------------------------------------------------------------
+    # Prompt size is budgeted per model, because a reasoning model's
+    # <think> block competes with its answer for the same num_predict
+    # ------------------------------------------------------------------
+
+    def test_reasoning_model_gets_a_smaller_prompt_budget(self) -> None:
+        """Measured (pass 86): qwen3:8b at a 10,356-char prompt returned an
+        empty reply, done_reason='length' -- the whole budget went into
+        thinking. The same model solved the same bug at 571 chars."""
+        class _R(ScriptedAgent):
+            model_preference = "qwen3:8b"
+
+        loop = AgentLoop(agent=_R([]), root_dir=self.root)
+        self.assertTrue(loop.is_reasoning)
+        self.assertLess(loop.max_file_read_chars, MAX_FILE_READ_CHARS)
+        self.assertLess(loop.max_observation_chars, MAX_OBSERVATION_CHARS)
+        self.assertLess(loop.transcript_steps, 6)
+
+    def test_non_reasoning_model_budgets_are_unchanged(self) -> None:
+        """No prior measurement may shift: the 3b path keeps its old caps."""
+        class _N(ScriptedAgent):
+            model_preference = "qwen2.5-coder:3b"
+
+        loop = AgentLoop(agent=_N([]), root_dir=self.root)
+        self.assertFalse(loop.is_reasoning)
+        self.assertEqual(loop.max_file_read_chars, MAX_FILE_READ_CHARS)
+        self.assertEqual(loop.max_observation_chars, MAX_OBSERVATION_CHARS)
+        self.assertEqual(loop.transcript_steps, 6)
+
+    def test_reasoning_budget_actually_shrinks_a_file_read(self) -> None:
+        """The cap has to reach the tool, not just sit on the instance."""
+        big = "\n".join(f"line {i} " + "x" * 60 for i in range(400))
+        self._write_root("big.py", big)
+
+        class _R(ScriptedAgent):
+            model_preference = "qwen3:8b"
+
+        class _N(ScriptedAgent):
+            model_preference = "qwen2.5-coder:3b"
+
+        r_obs = AgentLoop(agent=_R([]), root_dir=self.root)._tool_read_file("big.py")
+        n_obs = AgentLoop(agent=_N([]), root_dir=self.root)._tool_read_file("big.py")
+        self.assertLess(len(r_obs), len(n_obs))
+
+    def _write_root(self, name: str, text: str) -> None:
+        with open(os.path.join(self.root, name), "w", encoding="utf-8") as f:
+            f.write(text)
 
     # ------------------------------------------------------------------
     # Parse resilience: one bad reply must not kill the whole run

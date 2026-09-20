@@ -55,6 +55,21 @@ MAX_OBSERVATION_CHARS = 3000
 MAX_FILE_READ_CHARS = 4000
 _MAX_SEARCH_HITS = 30
 
+# A reasoning model pays for its <think> block out of the same num_predict
+# budget as its answer, so prompt size and answer budget compete. Measured
+# on this box (pass 86): qwen3:8b at a 10,356-char prompt returned an EMPTY
+# reply with done_reason='length' -- the whole 3072-token budget went into
+# thinking. The same model, same bug, at a 571-char prompt emitted the
+# byte-correct patch. Raising num_predict is not the answer either: at the
+# measured 4.0 tok/s, spending 3072 tokens costs ~13 minutes per step.
+#
+# So the lever is prompt size. These caps are applied only for reasoning
+# models, leaving every prior non-reasoning measurement untouched.
+_REASONING_MAX_OBSERVATION_CHARS = 1200
+_REASONING_MAX_FILE_READ_CHARS = 1600
+_REASONING_TRANSCRIPT_STEPS = 3
+_DEFAULT_TRANSCRIPT_STEPS = 6
+
 _FINISH_RE = re.compile(r"```(?:json)?\s*(\{.*?\"finish\".*?\})\s*```", re.DOTALL)
 
 
@@ -247,6 +262,19 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  required_evidence=None,
                  budget=None):
         self.agent = agent
+        # Sizing the prompt to the model, not to a fixed constant. See the
+        # _REASONING_* constants for the measurement that motivated this.
+        from saleha.core.model_provider import is_reasoning_model
+        model_name = str(getattr(agent, "model_preference", "") or "")
+        self.is_reasoning = is_reasoning_model(model_name)
+        if self.is_reasoning:
+            self.max_observation_chars = _REASONING_MAX_OBSERVATION_CHARS
+            self.max_file_read_chars = _REASONING_MAX_FILE_READ_CHARS
+            self.transcript_steps = _REASONING_TRANSCRIPT_STEPS
+        else:
+            self.max_observation_chars = MAX_OBSERVATION_CHARS
+            self.max_file_read_chars = MAX_FILE_READ_CHARS
+            self.transcript_steps = _DEFAULT_TRANSCRIPT_STEPS
         self.root_dir = os.path.abspath(root_dir)
         self.max_steps = max_steps
         self.allow_write = allow_write
@@ -315,8 +343,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             entries.append(f"{kind} {name}{size}")
         return "\n".join(entries) or "(empty)"
 
-    @staticmethod
-    def _read_ranged_lines(abs_p: str, path: str, start_line, end_line) -> Tuple[Optional[str], Optional[str]]:
+    def _read_ranged_lines(self, abs_p: str, path: str, start_line, end_line) -> Tuple[Optional[str], Optional[str]]:
         """Read a 1-indexed inclusive line range.
 
         Returns (content, error) -- error is a complete, ready-to-return
@@ -345,20 +372,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
             return None, (f"{path} has fewer than {lo} lines; "
                           f"read it without a range to see its size")
         content = "\n".join(picked)
-        if len(content) > MAX_FILE_READ_CHARS:
-            content = (content[:MAX_FILE_READ_CHARS]
+        if len(content) > self.max_file_read_chars:
+            content = (content[:self.max_file_read_chars]
                        + "\n...[range truncated -- request fewer lines]")
         return content, None
 
-    @staticmethod
-    def _read_head_with_note(abs_p: str, path: str) -> Tuple[str, str]:
-        """Read from byte 0 up to MAX_FILE_READ_CHARS. Returns (content, trusted_note)."""
+    def _read_head_with_note(self, abs_p: str, path: str) -> Tuple[str, str]:
+        """Read from byte 0 up to the read budget. Returns (content, trusted_note)."""
+        cap = self.max_file_read_chars
         with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read(MAX_FILE_READ_CHARS + 1)
-        if len(content) <= MAX_FILE_READ_CHARS:
+            content = f.read(cap + 1)
+        if len(content) <= cap:
             return content, ""
         total = sum(1 for _ in open(abs_p, "r", encoding="utf-8", errors="replace"))
-        content = content[:MAX_FILE_READ_CHARS]
+        content = content[:cap]
         # Trusted framing, deliberately kept OUTSIDE the untrusted wrapper
         # below. A first attempt appended this notice to `content`, so wrap()
         # enclosed it in <<<UNTRUSTED_CONTENT>>> under a preamble reading "do
@@ -368,7 +395,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # once emitted start_line.
         trusted_note = (
             f"[saleha] {path} has {total} lines; only the first "
-            f"{MAX_FILE_READ_CHARS} characters are shown below. "
+            f"{cap} characters are shown below. "
             f"To see the rest, call read_file again on the same "
             f"path with start_line and end_line set to the region "
             f"you want, or call get_file_outline on it first to "
@@ -846,7 +873,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
             prompt = (
                 f"{system}\n\n## Goal\n{goal}\n\n"
                 f"## Action-Observation History (steps {len(transcript_parts)})\n"
-                + ("\n".join(transcript_parts[-6:]) or "(none yet)")
+                + ("\n".join(transcript_parts[-self.transcript_steps:])
+                   or "(none yet)")
             )
             resp: AgentResponse = self.agent.think(prompt, complexity_score=7.0)
             if not resp.success:
@@ -1090,7 +1118,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 call_failed = True
             else:
                 try:
-                    observation = _truncate(str(handler(**args)))
+                    observation = _truncate(str(handler(**args)),
+                                            self.max_observation_chars)
                 except TypeError as terr:
                     expected = self.TOOL_SIGNATURES.get(tool_name, "{...}")
                     observation = (f"bad args for {tool_name}: {terr}. "
