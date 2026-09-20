@@ -205,6 +205,32 @@ def _looks_like_a_repair_goal(goal: str) -> bool:
     return bool(_REPAIR_GOAL_RE.search(goal or ""))
 
 
+def _find_goal_relevant_outline_entry(outline_lines: List[str], goal: str) -> Optional[str]:
+    """Which outline line, if any, names an identifier the goal mentions.
+
+    Measured against a real repo bug: `_tool_get_file_outline`'s hint always
+    pointed at the FIRST entry in the outline (`lines[0]`), and the loop's
+    `located_region` capture below does the same via `re.search` taking only
+    the first match. On this exact bug's file, the goal names `super_len`,
+    but the outline's first top-level function is an unrelated
+    `dict_to_sequence` earlier in the file -- so every hint, and the region a
+    later rejection names, pointed the model at the wrong function entirely.
+    A goal mentioning a real identifier should make that entry win over
+    position; a goal with no matching identifier falls back to the first
+    entry exactly as before.
+    """
+    # Identifiers likely to be real symbol names, not common English words --
+    # short generic words ("the", "file") would false-match too often.
+    candidates = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", goal or ""))
+    if not candidates:
+        return None
+    for line in outline_lines:
+        m = re.search(r"(?:def|class)\s+(\w+)", line)
+        if m and m.group(1) in candidates:
+            return line
+    return None
+
+
 @dataclass
 class LoopStep:
     step: int
@@ -256,6 +282,35 @@ When the goal is achieved, finish:
 ```json
 {"finish": "<concise summary of what you found/did>"}
 ```
+
+Never invent tool outputs. One block per reply. Be efficient."""
+
+    # Offered only once min_actions_before_finish is satisfied. Measured
+    # against a real repo bug: qwen2.5-coder:3b, given a repair goal, emits
+    # finish() with a prose diagnosis on its very first turn -- 100% of
+    # trials, isolated and inside the full loop alike -- even when the
+    # system prompt explicitly says "finish() is not available until you
+    # have called patch_file". A confident-sounding diagnosis is treated as
+    # the answer, bypassing tool use entirely; text warnings do not change
+    # that. What does: removing the finish block from the prompt outright.
+    # Probed directly -- the identical goal, with no finish option offered
+    # at all, gets a correct get_file_outline call on the first turn. The
+    # rejection loop (below) still fires if the model invents a bare
+    # {"finish": ...} anyway despite it not being offered, so this narrows
+    # the failure mode rather than replacing the existing gate.
+    SYSTEM_PROMPT_NO_FINISH = """You are Saleha Agent, an autonomous software engineer working inside a repository.
+
+Reply with EXACTLY ONE block each turn -- a tool call:
+```tool_call
+{"tool": "<tool_name>", "args": {...}}
+```
+
+Tools available (use these EXACT argument names):
+{tool_names}
+
+There is no finish() action available yet. You have not investigated this
+repository at all -- you cannot know the answer without looking. Call a
+tool now.
 
 Never invent tool outputs. One block per reply. Be efficient."""
 
@@ -847,7 +902,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
             f'  {name} -- args: {self.TOOL_SIGNATURES.get(name, "{...}")}'
             for name in tools
         )
-        system = self.SYSTEM_PROMPT.replace("{tool_names}", tool_lines)
+        system_with_finish = self.SYSTEM_PROMPT.replace("{tool_names}", tool_lines)
+        system_no_finish = self.SYSTEM_PROMPT_NO_FINISH.replace("{tool_names}", tool_lines)
         transcript_parts: List[str] = []
         start_time = time.time()
         parse_failures = 0   # consecutive replies with no parseable block
@@ -927,6 +983,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 emit({"step": step_no, "action": "timeout", "observation": result.error})
                 return result
 
+            # Do not offer finish() at all until the minimum has been met --
+            # a text warning inside the prompt was measured not to stop
+            # qwen2.5-coder:3b from emitting finish() anyway (see
+            # SYSTEM_PROMPT_NO_FINISH's docstring); removing the option
+            # structurally does what the warning could not.
+            system = (system_with_finish
+                      if successful_actions >= self.min_actions_before_finish
+                      else system_no_finish)
             prompt = (
                 f"{system}\n\n## Goal\n{goal}\n\n"
                 f"## Action-Observation History (steps {len(transcript_parts)})\n"
@@ -1321,6 +1385,34 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     observation = f"tool error: {exc}"
                     call_failed = True
 
+            # get_file_outline's own hint always points at its first entry --
+            # measured against a real repo bug where the goal names
+            # `super_len`, but the file's first top-level function is an
+            # unrelated `dict_to_sequence` earlier in the source. Every
+            # rejection then told the model to read the wrong function's
+            # lines, and it never once produced its own start_line across
+            # six runs. Rewriting the hint to the goal-relevant entry when
+            # one is identifiable costs nothing when no entry matches (the
+            # first-entry hint stands unchanged).
+            if not call_failed and tool_name == "get_file_outline":
+                outline_lines = observation.split("\n")
+                relevant = _find_goal_relevant_outline_entry(outline_lines, goal)
+                if relevant and outline_lines and relevant != outline_lines[0]:
+                    span = re.search(r"\(lines (\d+)-(\d+)\)", relevant)
+                    if span:
+                        path = args.get("path", "")
+                        hint_re = re.compile(
+                            r"\n\nThese are line numbers.*", re.DOTALL)
+                        new_hint = (
+                            f"\n\nThese are line numbers in {path}. The goal "
+                            f"names an identifier matching this entry:\n"
+                            f"  {relevant}\n"
+                            f"To see its body, call read_file on {path} with "
+                            f"start_line {span.group(1)} and end_line "
+                            f"{span.group(2)}."
+                        )
+                        observation = hint_re.sub(new_hint, observation)
+
             args_preview = json.dumps(args)[:120]
 
             # Repeat detection. A small model re-reads the same file instead of
@@ -1375,7 +1467,19 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # Remember any concrete line range the tools just reported, so a
             # later rejection can name real numbers instead of placeholders.
             if not call_failed and tool_name in ("get_file_outline", "find_symbols"):
-                span = re.search(r"\(lines (\d+)-(\d+)\)", observation)
+                # get_file_outline lists every top-level function/class in
+                # the file, so a bare first-match search (what this used to
+                # do) picks whichever one happens to sit first in the file,
+                # not the one the goal is about. find_symbols is already
+                # targeted -- the model asked for one specific symbol, so its
+                # first (only) hit is correct as-is.
+                target_line = observation
+                if tool_name == "get_file_outline":
+                    relevant = _find_goal_relevant_outline_entry(
+                        observation.split("\n"), goal)
+                    if relevant:
+                        target_line = relevant
+                span = re.search(r"\(lines (\d+)-(\d+)\)", target_line)
                 if span:
                     where = args.get("path") or ""
                     if not where:

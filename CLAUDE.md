@@ -1647,6 +1647,43 @@ identical false `success: True`. Measured: `test_agentic_loop.py` 76 →
 **80/80**; full suite 2207 → **2211 passed, 13 skipped, 172 subtests**,
 zero regressions. Detail: `NOTEBOOK_IMPORT.md`, "Pass 93."
 
+**Pass 94 — two more real defects for `qwen2.5-coder:3b`, both isolated
+before being fixed.** Followed up pass 93's open item: measured
+`qwen2.5-coder:3b`'s different failure mode (never calling `patch_file`
+at all) inside the full loop, not just in isolation. Found two genuine
+bugs, neither assumed going in. **Defect 1:** `get_file_outline`'s hint
+and the `located_region` the loop remembers both used `re.search()`
+(first match only) against a multi-function outline, so whichever
+function happened to sit first in the file always won — a live run's
+rejection told the model to read `dict_to_sequence()`'s lines instead of
+the goal's actual `super_len()`. Invisible in every earlier pass because
+`super_len` happened to be first at the commit those passes used; a
+fresh clone put a different function first. Fixed with
+`_find_goal_relevant_outline_entry()` — an outline entry whose name the
+goal actually mentions now wins over position; falls back to the first
+entry, unchanged, when the goal names nothing identifiable. **Defect 2,
+the bigger one:** isolated probing showed `qwen2.5-coder:3b` calls
+`finish()` with a prose diagnosis on turn one of a repair goal, 2/2
+trials — and an explicit prompt sentence ("finish() is not available
+until...") changed nothing, 3rd identical trial. Removing the `finish`
+option from the prompt structurally (no textual substitute) fixed it
+immediately: identical goal, first-turn `get_file_outline` call. Added
+`SYSTEM_PROMPT_NO_FINISH`, selected per-step while
+`successful_actions < min_actions_before_finish`; the existing rejection
+path is untouched for a model that invents `finish()` anyway. 4 new
+tests, teeth-checked against `HEAD`. **Live re-run after both fixes:**
+real progress, not yet a fix — `qwen2.5-coder:3b` called `list_dir` on
+turn one (never before this pass), reached `get_file_outline` and
+`read_file`, but one successful action re-opens `finish()` and the model
+reaches for it again instead of continuing to `patch_file`; `patch_file`
+was never called and `git diff --stat` showed only the planted bug.
+`min_actions_before_finish=1` is armed and disarmed too easily for this
+model's pattern — recorded as the next candidate (raise the threshold,
+or hide `finish()` until a mutation attempt rather than any success),
+not implemented this pass. Measured: `test_agentic_loop.py` 80 →
+**84/84**; full suite 2211 → **2215 passed, 13 skipped, 172 subtests**,
+zero regressions. Detail: `NOTEBOOK_IMPORT.md`, "Pass 94."
+
 ---
 
 ## Environment facts worth knowing

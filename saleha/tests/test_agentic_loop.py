@@ -96,6 +96,37 @@ class AgentLoopTests(unittest.TestCase):
         res = AgentLoop(agent=agent, root_dir=self.root).run("escape")
         self.assertIn("no such file", res.steps[0].observation)
 
+    def test_finish_is_not_offered_before_the_minimum_action_count(self) -> None:
+        """Measured against a real repo bug: given a repair goal,
+        qwen2.5-coder:3b emits finish() with a prose diagnosis on its very
+        first turn, 100% of trials -- even when the prompt explicitly warns
+        "finish() is not available until you have called patch_file". A
+        text warning did not stop it; removing the finish option from the
+        prompt outright did (probed directly: the identical goal, no
+        finish() offered at all, got a correct tool call on turn one).
+        The first prompt (successful_actions=0 < min_actions_before_finish)
+        must not mention finish() as an option."""
+        agent = ScriptedAgent([
+            _tool_call("list_dir", path="."),
+            _finish("done"),
+        ])
+        AgentLoop(agent=agent, root_dir=self.root,
+                 min_actions_before_finish=1, max_steps=2).run("fix the bug")
+        self.assertNotIn('"finish"', agent.prompts[0])
+        self.assertIn("no finish() action available", agent.prompts[0])
+        # Once the minimum is met, the next prompt must offer it again.
+        self.assertIn('"finish"', agent.prompts[1])
+
+    def test_finish_is_offered_immediately_when_the_minimum_is_zero(self) -> None:
+        """A caller that explicitly sets min_actions_before_finish=0 (an
+        investigative run with no mandatory tool use) must see finish()
+        from the very first prompt -- the gate above must not apply when
+        there is nothing to wait for."""
+        agent = ScriptedAgent([_finish("done")])
+        AgentLoop(agent=agent, root_dir=self.root,
+                 min_actions_before_finish=0, max_steps=1).run("look around")
+        self.assertIn('"finish"', agent.prompts[0])
+
     def test_missing_file_names_a_next_action(self) -> None:
         """Measured against a real repo bug: the model guessed
         "utils/super_len.py" (function name, wrong directory) after already
@@ -460,6 +491,51 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertIn("def charge()", res.steps[0].observation)
         self.assertIn("app.py", res.steps[1].observation)
+
+    def test_outline_hint_points_at_the_goal_relevant_function_not_the_first(self) -> None:
+        """Measured against a real repo bug: super_len() is what the goal
+        names, but the file's first top-level function was an unrelated
+        dict_to_sequence() earlier in the source. get_file_outline's hint
+        (and the located_region it feeds) always pointed at whichever
+        function happened to be first, not the one the goal is about --
+        so a real qwen2.5-coder:3b run read the wrong function's body and
+        never came near patch_file."""
+        path = os.path.join(self.root, "utils.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "def dict_to_sequence(d):\n    return d.items()\n\n\n"
+                "def super_len(o):\n    return len(o)\n"
+            )
+        agent = ScriptedAgent([
+            _tool_call("get_file_outline", path="utils.py"),
+            _finish("inspected"),
+        ])
+        # allow_write left at its default (False) -- this test is only about
+        # the outline hint itself, not the separate repair-goal mutation gate.
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=3)
+        res = loop.run("fix the bug in super_len() -- it returns the wrong value")
+        obs = res.steps[0].observation
+        # The hint must name super_len's own line range (5-6), not
+        # dict_to_sequence's (1-2) just because it comes first in the file.
+        hint_section = obs[obs.index("These are line numbers"):]
+        self.assertNotIn("dict_to_sequence", hint_section)
+        self.assertIn("super_len", hint_section)
+        self.assertIn("start_line 5", hint_section)
+        self.assertIn("end_line 6", hint_section)
+
+    def test_outline_hint_falls_back_to_first_entry_when_goal_names_nothing(self) -> None:
+        """A goal with no identifiable function name must not break --
+        the original first-entry hint stands unchanged."""
+        path = os.path.join(self.root, "utils.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("def dict_to_sequence(d):\n    return d.items()\n")
+        agent = ScriptedAgent([
+            _tool_call("get_file_outline", path="utils.py"),
+            _finish("inspected"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("clean up this file")
+        self.assertIn("dict_to_sequence", res.steps[0].observation)
 
     def test_deepseek_r1_think_parsing(self) -> None:
         events = []

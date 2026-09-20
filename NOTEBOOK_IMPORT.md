@@ -8336,3 +8336,113 @@ measured.
 
 Measured: `test_agentic_loop.py` 76 -> **80/80**. Full suite 2207 ->
 **2211 passed, 13 skipped, 172 subtests** in 201.51s, zero regressions.
+
+## Pass 94: two more real defects for qwen2.5-coder:3b -- a wrong-function hint, and a text warning that does not stop finish() (2026-09-20)
+
+Picked up the open item pass 93 left explicit: `qwen2.5-coder:3b`'s
+different failure mode (never calling `patch_file` at all) had only been
+probed in isolation, not measured inside the full `AgentLoop`. Ran it
+there against a fresh planted `super_len` bug and found two separate,
+real defects -- neither one assumed, both isolated by direct probing
+before being called a fix target.
+
+### Defect 1: `get_file_outline`'s hint, and `located_region`, always pointed at the file's FIRST function, not the goal's function
+
+Live run: the model's step-7 rejection told it to read
+`start_line 149 end_line 157` -- that is `dict_to_sequence()`, an
+unrelated function that happens to sit earlier in the file than
+`super_len()` (lines 160-228). Read `_tool_get_file_outline` and the
+`located_region` capture in `run()`: both used `re.search()` (first
+match only) against the full multi-function outline text, so whichever
+function the AST visitor listed first always won, regardless of what the
+goal was about. Confirmed by the fact this exact bug's own past write-ups
+(pass 53) never surfaced it: `super_len` happened to be first at the
+`base_commit` those passes used, so the bug was structurally invisible
+until a fresh `git clone` put a different function first in the file.
+
+Fixed with `_find_goal_relevant_outline_entry()`: extracts identifier-
+shaped tokens (4+ word characters) from the goal text, and if any outline
+entry's `def`/`class` name matches one, that entry wins over position --
+both in the hint text `get_file_outline` returns and in the
+`located_region` the loop remembers for later rejections. A goal naming
+no real identifier falls back to the first entry exactly as before
+(verified by a dedicated test), so this only changes behavior when the
+goal actually names something in the file.
+
+Teeth-checked: stashed to `HEAD` (pre pass-93's own fix state, since this
+touches the same function), the new test asserting the hint names
+`super_len`'s own range failed with the literal `dict_to_sequence` range
+in the observation; passed with the fix restored.
+
+### Defect 2: a text warning inside the prompt does not stop qwen2.5-coder:3b from calling finish() on turn one
+
+Isolated first (outside the loop, same technique as pass 93): given the
+system prompt's normal `SYSTEM_PROMPT` with `finish()` offered as an
+option, `qwen2.5-coder:3b` given the repair goal calls `finish()` with a
+prose diagnosis on its very first turn, before any tool call --
+reproduced twice, 2/2. Adding an explicit sentence to the prompt ("finish()
+is not available until you have called patch_file") changed nothing --
+the model produced the identical bare `finish()` reply a third time.
+Removing the `finish` block from the prompt outright, with no textual
+substitute, changed the result immediately: the identical goal, same
+model, got a correct `get_file_outline` tool call on turn one.
+
+This is a stronger version of pass 89's finding (a suggestion embedded in
+an *observation* did not change the model's next action) -- here the
+same failure to respond to prose held even at *system-prompt* level, and
+only removing the structural option (not describing its absence) worked.
+
+Fixed by adding `SYSTEM_PROMPT_NO_FINISH`, a second system prompt with no
+`finish` block at all, and selecting between the two per-step based on
+whether `successful_actions >= min_actions_before_finish` has been met
+yet. The existing rejection path is untouched (a model that invents a
+bare `finish()` reply anyway despite it not being offered is still
+caught the same way), so this narrows the failure mode rather than
+replacing the gate pass 53 built.
+
+Two new tests: the first prompt under the default
+`min_actions_before_finish=1` must not mention `"finish"` and must state
+plainly that no finish action is available yet; the prompt after one
+successful action must offer it again. A third test guards the opposite
+case -- a caller that explicitly sets `min_actions_before_finish=0` (an
+investigative run with nothing to wait for) must see `finish()` from the
+very first prompt, so the new gate does not regress that legitimate use.
+
+Teeth-checked: against `HEAD` (pre this pass), the "not offered" test
+failed with `"finish"` genuinely present in the first prompt; passed with
+the fix restored.
+
+### Live re-run after both fixes: real progress, still short of a patch
+
+Same setup as every prior pass in this lineage, `qwen2.5-coder:3b`, fresh
+planted bug:
+
+```text
+step 1  list_dir           <- first tool call ever seen from this model
+                               on turn one of a repair goal (was
+                               finish() 100% of trials before this pass)
+step 2  finish-rejected    <- one successful action re-armed finish(),
+                               and the model reached for it again
+step 3  get_file_outline
+steps 4-10, 12-15: finish-rejected (repeated)
+step 11 read_file          <- reached the actual buggy source
+```
+
+`git diff --stat` after the run: only the planted bug, unchanged --
+`patch_file` was never called. This is genuinely further than any prior
+`qwen2.5-coder:3b` run in this lineage (three real tool calls including
+reaching the source file, versus zero before pass 93/94's fixes), and it
+is not a fix: the model still alternates between real navigation and
+reaching for `finish()` every time one successful action re-opens the
+option. **`min_actions_before_finish=1` is armed and disarmed too
+easily for this model's specific failure pattern** -- one successful
+`list_dir` is enough to re-offer `finish()`, and the model reaches for it
+immediately rather than continuing to `patch_file`. Whether raising the
+threshold, or keeping `finish()` hidden until a *mutation* attempt rather
+than any successful action, changes this has not been measured and
+should not be assumed before it is -- recorded here as the next
+candidate, not implemented this pass.
+
+Measured: `test_agentic_loop.py` 80 -> **84/84** (4 new). Full suite
+2211 -> **2215 passed, 13 skipped, 172 subtests** in 161.89s, zero
+regressions.
