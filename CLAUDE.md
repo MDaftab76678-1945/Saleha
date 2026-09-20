@@ -1821,6 +1821,24 @@ session's diff) — recorded as a known intermittent, not fixed. Full
 suite: 2256 passed, 13 skipped (test_agentic_loop.py 90 → 91/91 with the
 new test). Detail: `NOTEBOOK_IMPORT.md`, "Pass 103" and "Pass 104."
 
+**Pass 105 — fixed the evidence-ignoring bug pass 104 found; still didn't
+solve the instance.** Added `confirmed_files` tracking (from real
+`list_dir`/`find_symbols`/`search_repo` results) and a hard gate:
+`patch_file`/`get_file_outline` on a path never confirmed to exist are
+rejected outright once any real evidence exists, naming a real file
+instead of letting the model repeat an invented one. Live re-run of the
+same `psf__requests-3362` instance: the invented-filename defect is
+gone, confirmed in the transcript — but the model then wandered into the
+real `docs/` directory instead of the relevant `requests/` package and
+got stuck re-reading `docs/conf.py`, never calling `find_symbols` or
+`patch_file`. Honest failure, clean tree. **Two fix passes (104, 105)
+against this one real instance, no patch landed yet.** Next-session
+decision recorded, not made unilaterally: try a bigger local model
+(`qwen3:8b`/`qwen3.5:9b`) on this same instance, or treat this as a
+measured `qwen2.5-coder:3b` capability ceiling and move on. Full suite:
+2259 passed, 13 skipped (test_agentic_loop.py 91 → 93/93). Detail:
+`NOTEBOOK_IMPORT.md`, "Pass 105."
+
 ---
 
 ## Environment facts worth knowing
