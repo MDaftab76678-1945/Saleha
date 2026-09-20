@@ -7900,3 +7900,135 @@ thing from the wall this pass removed. Not claimed as fixed.
   target file with no budget left to act on it) is untouched.
 - The 3B `finish()` deadlock is untouched.
 - The default model for `saleha agent` is still `qwen2.5-coder:3b`.
+
+---
+
+## Pass 88-89: navigation fixed, action still does not follow (2026-09-20)
+
+Two navigation defects found and fixed from pass 87's honest 14-step run,
+then a third, and the result of all three together measured live rather
+than assumed.
+
+### Pass 88, finding 1: find_symbols could not resolve a bare test-method name
+
+`find_symbols("test_super_len_with_tell")` returned "not found in
+codebase" in the live run, even though the method exists. Read
+`CodebaseIndexer._register_symbols`: class methods are registered **only**
+as `"ClassName.method"`, never under the bare method name. A model reading
+a failing test's name out of pytest output cannot know its class yet, so
+querying the bare name is the natural first move -- and it always missed.
+
+Verified directly before fixing:
+
+```text
+find_symbol('test_super_len_with_tell') -> []
+find_symbol('super_len')                -> ['src\requests\utils.py']
+```
+
+Fixed with a separate `bare_method_map`, consulted only when the exact
+lookup (`symbol_map`) misses -- so a top-level function can never be
+shadowed by a same-named method. Tested directly for the miss case, the
+no-shadow case, and a multi-class case (`setUp` exists on many
+`TestCase` subclasses; the fallback must return every file, not just the
+first).
+
+### Pass 88, finding 2: a failed read_file gave no bridge to a better guess
+
+The same live run: the agent guessed `read_file("utils/super_len.py")`
+(the function name, wrong directory) two turns *after* `search_repo` had
+already reported the real path `src/requests/utils.py`. The rejection was
+a bare `"no such file: {path}"` -- nothing connecting the wrong guess to
+information already in the transcript. Now names `search_repo`/`list_dir`
+as the next call.
+
+### Pass 88 teeth-check
+
+2 new tests failed against the unfixed source (`find_symbol` on a bare
+method returned `[]`; the missing-file message lacked "DO THIS NEXT").
+Both pass with the fix. `test_codebase_indexer.py` also had a pre-existing
+0/7 typed-function ratio the new tests pushed below the gate's 70
+threshold (72.0 -> 56.0) -- annotated all 12 methods while already there.
+
+### Re-run after pass 88: navigation genuinely improved, action still absent
+
+Same planted bug, same model, 14 steps:
+
+```text
+step 6  search_repo  -> real test location found (was step 7+ before)
+step 8  find_symbols -> super_len found directly, no bare-name miss
+step 9  read_file    -> the actual buggy source read
+steps 10-14: five more read_file calls, same two files, no patch_file
+```
+
+The two pass-88 fixes worked exactly as intended -- the model reached the
+right file in roughly half the steps the previous run needed. It then
+spent the remaining half re-reading the same two files and never called
+`patch_file`. `git diff --stat`: only the planted bug.
+
+### Pass 89: a nudge for the read-without-acting pattern
+
+Existing repeat-call detection could not see this, because every
+`read_file` used a different `start_line`/`end_line` and was therefore a
+genuinely distinct call -- not a loop on identical input, just a model
+that never decided to stop reading.
+
+Added `reads_since_mutation_attempt`: counts `read_file`/`list_dir`/
+`find_symbols`/`get_file_outline`/`search_repo` calls since the last
+`patch_file`/`write_file` attempt (reset on any attempt, success or
+failure -- an active try should not be scolded for reading again
+afterward). At 4 consecutive read-only calls, one nudge is appended to
+the observation: "stop reading and call patch_file now." Fires once per
+streak, not on every call past the threshold.
+
+2 new tests; teeth-checked (the nudge-fires test fails with 0 nudges
+against the unfixed loop; the reset test already passed without the fix,
+correctly, since it asserts an absence).
+
+### Re-run after pass 89: the nudge fired -- and was not acted on
+
+Instrumented the exact live run to check the nudge's effect rather than
+inferring it from the transcript:
+
+```text
+step 4: find_symbols   nudge=True   <- threshold crossed, nudge appended
+step 5: read_file      nudge=False  <- model kept reading anyway
+...
+step 14: read_file     nudge=False  <- run ends, no patch_file ever called
+```
+
+`git diff --stat`: only the planted bug. `pytest`: still 4 failed,
+unchanged from the red baseline.
+
+### Honest conclusion
+
+Three real, measured, teeth-checked defects are fixed: a symbol lookup
+that returned false negatives on the exact query pattern a debugging model
+makes first, a dead-end error message, and now a working streak-based
+nudge whose firing was directly verified. Each fixed something concretely
+observed to be broken. **None of the three, individually or together, made
+this model land the patch.** The infrastructure now correctly tells the
+model "you have the answer, act on it," and the model reads the nudge and
+keeps reading anyway.
+
+This is a different kind of gap than passes 85-87 found. Those were loop
+bugs -- the harness lying, crashing, or wasting the model's time on
+solvable problems. This one is upstream of the loop: at this prompt
+style and this model, an explicit "stop investigating, call patch_file"
+instruction embedded in the observation did not change the next action.
+Whether a stronger intervention (forcing patch_file as the only legal
+tool past the nudge threshold, rather than suggesting it) would work is
+not tested here and should not be assumed to work before it is measured
+the same way everything above was.
+
+### Verification summary
+
+- `test_codebase_indexer.py`: 11/11 (5 new).
+- `test_agentic_loop.py`: 68/68 (2 new for the missing-file guidance and 2
+  for the read-only nudge).
+- Full suite: 2192 -> 2197 (pass 88) -> **2199 passed, 13 skipped**
+  (pass 89).
+- Three live end-to-end re-runs against the identical planted bug, each
+  confirmed via `git diff --stat` and a real `pytest` run: all three
+  honestly reported "Agent Stopped" with the bug still present. No fake
+  success at any point.
+- Committed on `main` as `9b27e6d` (pass 88), `d15505b` (pass 89).
