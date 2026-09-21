@@ -19,7 +19,10 @@ class DocGeneratorAgentTests(unittest.TestCase):
         self.assertGreater(spec.total_classes, 0)
         self.assertGreater(spec.total_functions, 0)
         self.assertIn("```mermaid", spec.architecture_diagram_mermaid)
-        self.assertIn("## 📊 Repository Metrics", spec.full_doc_markdown)
+        # Asserts the heading's real text, not its decoration. This used to
+        # assert "## 📊 Repository Metrics" including the emoji, which pinned
+        # a Rule 3 violation in the generator's own output template.
+        self.assertIn("## Repository Metrics", spec.full_doc_markdown)
         self.assertGreater(spec.generation_time_ms, 0.0)
 
     def test_execute_agent_response(self):
