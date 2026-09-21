@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 from typing import Any, Optional
 from unittest.mock import MagicMock
@@ -1258,6 +1259,69 @@ class RunTestsToolTests(unittest.TestCase):
         observation = self._loop()._tool_run_tests()
         self.assertTrue(observation.startswith("no test command found:"))
         self.assertFalse(observation.startswith("PASSED "))
+
+    # ---- test_timeout_sec bounded by the run's own timeout_sec -----
+    def test_bounded_timeout_falls_back_to_constant_outside_a_run(self) -> None:
+        # _run_start_time is only set inside run(); a tool method called
+        # directly (as every test in this class does) must get the
+        # unbounded constant, not a bound computed against a None start.
+        loop = self._loop(timeout_sec=5.0, test_timeout_sec=600.0)
+        self.assertIsNone(loop._run_start_time)
+        self.assertEqual(loop._bounded_test_timeout(), 600.0)
+
+    def test_bounded_timeout_is_capped_by_remaining_run_budget(self) -> None:
+        # Real bug: test_timeout_sec (default 600s) was never bounded by
+        # timeout_sec (default 300s) or by --timeout on `saleha agent`
+        # (30-7200s). A user running with --timeout 30 saw that value in
+        # the CLI's own startup panel, but a single run_tests call could
+        # still block for up to 600s once fired -- the outer per-step
+        # deadline check cannot interrupt a subprocess.run already in
+        # flight. This asserts the bound is real: with a 5s overall budget
+        # and most of it already spent, a single test call must not be
+        # allowed anywhere near the 600s constant.
+        loop = self._loop(timeout_sec=5.0, test_timeout_sec=600.0)
+        loop._run_start_time = time.time() - 4.0  # 4 of 5s already elapsed
+        bounded = loop._bounded_test_timeout()
+        self.assertLess(bounded, 600.0)
+        self.assertLessEqual(bounded, 1.5)  # ~1s remaining, plus the floor
+
+    def test_bounded_timeout_never_goes_below_one_second(self) -> None:
+        # Even a run already past its deadline gets one real attempt at the
+        # in-flight call rather than an instantly-doomed 0s/negative timeout.
+        loop = self._loop(timeout_sec=5.0, test_timeout_sec=600.0)
+        loop._run_start_time = time.time() - 50.0  # deadline long passed
+        self.assertEqual(loop._bounded_test_timeout(), 1.0)
+
+    def test_bounded_timeout_respects_a_smaller_test_timeout_sec(self) -> None:
+        # test_timeout_sec remains a real, independent knob: when it is
+        # already smaller than what remains of the run budget, that smaller
+        # value wins, not the remaining budget.
+        loop = self._loop(timeout_sec=600.0, test_timeout_sec=10.0)
+        loop._run_start_time = time.time()  # full budget still available
+        self.assertEqual(loop._bounded_test_timeout(), 10.0)
+
+    def test_run_sets_and_clears_run_start_time(self) -> None:
+        # run() must set _run_start_time before the loop body executes (so
+        # every tool call during the run sees it) and clear it afterward
+        # (so a finished loop's stale timestamp cannot leak into a later
+        # direct tool call, e.g. from a test or a second run() on the same
+        # instance).
+        loop = self._loop(max_steps=1, timeout_sec=5.0)
+        observed: list = []
+        agent = ScriptedAgent([_tool_call("list_dir", path=".")])
+        loop.agent = agent
+
+        real_tool = loop._tool_list_dir
+
+        def spy(*a: Any, **kw: Any) -> str:
+            observed.append(loop._run_start_time)
+            return real_tool(*a, **kw)
+
+        loop._tool_list_dir = spy  # type: ignore[method-assign]
+        loop.run("look around")
+        self.assertEqual(len(observed), 1)
+        self.assertIsNotNone(observed[0])
+        self.assertIsNone(loop._run_start_time)
 
     def test_a_passing_suite_reports_passed(self) -> None:
         self._write("pyproject.toml", "[tool.pytest.ini_options]\n")

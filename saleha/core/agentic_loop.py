@@ -411,9 +411,24 @@ Never invent tool outputs. One block per reply. Be efficient."""
         self.allow_write = allow_write
         self.timeout_sec = timeout_sec
         # A real suite routinely outruns a single tool call's patience -- this
-        # repo's own takes ~2 minutes. Kept separate from timeout_sec so the
-        # whole-run budget and one test invocation can be tuned independently.
+        # repo's own takes ~2 minutes. Kept separate from timeout_sec so a
+        # single test invocation can be given more patience than one ordinary
+        # step, but never more than the run's own remaining budget: see
+        # _bounded_test_timeout, which caps this against whatever time is
+        # left before self.timeout_sec. Without that cap, the production
+        # `saleha agent` CLI's --timeout flag (30-7200s, its own panel prints
+        # "Timeout: <n>s") was silently meaningless the moment a repair-goal
+        # auto-verify or coverage-check run_tests call fired: that single
+        # subprocess.run could block for up to this constant's default
+        # (600s) regardless of what the user asked for, because the run()
+        # loop's own deadline check (self.timeout_sec) only runs between
+        # steps and cannot interrupt a call already in flight.
         self.test_timeout_sec = test_timeout_sec
+        # Wall-clock start of the current run() call. None outside run() --
+        # a tool method calling _bounded_test_timeout before run() has set
+        # this would be a programming error, so it fails loudly (AttributeError)
+        # rather than silently falling back to the unbounded constant.
+        self._run_start_time: Optional[float] = None
         # Evidence-based completion (Level-6 architecture target). When on,
         # finish() is admissible only if the tools actually observed the
         # required facts -- a summary alone can never end the task. Off by
@@ -438,6 +453,24 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # tools available honge (intersection with built-ins).
         self.allowed_tools = set(allowed_tools) if allowed_tools else None
         self._executor = code_executor  # lazy init in _tool_run_code
+
+    def _bounded_test_timeout(self) -> float:
+        """test_timeout_sec, capped to what remains of the run's own timeout_sec.
+
+        A real subprocess.run call cannot be interrupted mid-call by the
+        step-loop's own deadline check in run() -- that check only runs
+        between steps. So the only way to keep a single run_tests/coverage
+        call from blowing past a caller's requested overall timeout is to
+        never hand subprocess.run a value larger than what is actually left.
+        At least 1.0s is always allowed even past the nominal deadline, so a
+        call already in flight gets one real attempt rather than an
+        instantly-doomed 0s timeout.
+        """
+        if self._run_start_time is None:
+            return self.test_timeout_sec
+        elapsed = time.time() - self._run_start_time
+        remaining = self.timeout_sec - elapsed
+        return max(1.0, min(self.test_timeout_sec, remaining))
 
     # ------------------------------------------------------------------
     # Path safety
@@ -721,6 +754,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 return f"path traversal blocked: {target}"
             argv = argv + [target]
 
+        bounded_timeout = self._bounded_test_timeout()
         try:
             proc = subprocess.run(
                 argv,
@@ -729,13 +763,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=self.test_timeout_sec,
+                timeout=bounded_timeout,
             )
         except FileNotFoundError:
             return (f"test command not runnable: {argv[0]!r} is not on PATH "
                     f"(discovered because {why})")
         except subprocess.TimeoutExpired:
-            return (f"test run timed out after {self.test_timeout_sec}s "
+            return (f"test run timed out after {bounded_timeout:.0f}s "
                     f"(command: {' '.join(argv)}). Nothing is proven by a "
                     f"timeout -- narrow the run with a \"target\".")
 
@@ -949,6 +983,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         except OSError as err:
             return (None, f"coverage skipped: cannot stage runner ({err})")
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        bounded_timeout = self._bounded_test_timeout()
         try:
             subprocess.run(
                 [sys.executable, runner, coverdir] + targets,
@@ -957,7 +992,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=self.test_timeout_sec,
+                timeout=bounded_timeout,
                 env=env,
             )
         except FileNotFoundError as err:
@@ -966,7 +1001,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         except subprocess.TimeoutExpired:
             return (None,
                     f"coverage skipped: traced run timed out after "
-                    f"{self.test_timeout_sec}s")
+                    f"{bounded_timeout:.0f}s")
         checked = 0
         unreached: List[str] = []
         evidence: List[str] = []
@@ -1237,6 +1272,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
     # Main loop
     # ------------------------------------------------------------------
     def run(self, goal: str, on_event: Optional[Callable[[Dict], None]] = None) -> LoopResult:
+        self._run_start_time = time.time()
+        try:
+            return self._run(goal, on_event)
+        finally:
+            self._run_start_time = None
+
+    def _run(self, goal: str, on_event: Optional[Callable[[Dict], None]] = None) -> LoopResult:
         result = LoopResult()
 
         def emit(ev: Dict):
@@ -1285,7 +1327,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
         system_with_finish = self.SYSTEM_PROMPT.replace("{tool_names}", tool_lines)
         system_no_finish = self.SYSTEM_PROMPT_NO_FINISH.replace("{tool_names}", tool_lines)
         transcript_parts: List[str] = []
-        start_time = time.time()
+        # Set once in run(), before this method starts, so the outer per-step
+        # deadline check below and _bounded_test_timeout() agree on the exact
+        # same zero point. run() always sets this before calling _run(); the
+        # fallback only matters if _run() is ever called directly instead.
+        if self._run_start_time is None:
+            self._run_start_time = time.time()
+        start_time: float = self._run_start_time
         parse_failures = 0   # consecutive replies with no parseable block
 
         # Evidence ledger + budget for this run (Level-6 completion gate).
