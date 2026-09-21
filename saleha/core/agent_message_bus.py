@@ -9,10 +9,11 @@ Provides decoupled, typed event messaging between all 18 Python Agents:
 
 from __future__ import annotations
 
+import contextlib
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Any, Type
+from typing import Any, Callable, Dict, List, Optional
 
 
 @dataclass
@@ -114,7 +115,7 @@ class OctopusSynthesisCompletedEvent(AgentEvent):
 class AgentMessageBus:
     """High-throughput In-Memory Event Broker for Autonomous Multi-Agent Swarms."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._subscribers: Dict[str, List[Callable[[AgentEvent], None]]] = {}
         self._history: List[AgentEvent] = []
         self._max_history = 500
@@ -142,11 +143,8 @@ class AgentMessageBus:
         handlers.extend(self._subscribers.get("*", []))
 
         for handler in handlers:
-            try:
+            with contextlib.suppress(Exception):
                 handler(event)
-            except Exception as e:
-                # Log error without halting the event bus dispatch loop
-                pass
 
     def get_history(self, event_type: Optional[str] = None, limit: int = 50) -> List[AgentEvent]:
         """Retrieves historical events filtered optionally by type."""

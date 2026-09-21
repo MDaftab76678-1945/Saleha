@@ -11,13 +11,14 @@ Features:
 4. Hit counter tracking to identify frequently reused patterns.
 """
 
-import os
+import contextlib
 import json
-import uuid
+import os
 import re
+import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from dataclasses import dataclass, field, asdict
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.core.vector_store import VectorStore
 
@@ -36,7 +37,7 @@ class MemoryEntry:
 
 
 class MemoryStore:
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: Optional[str] = None) -> None:
         if storage_path is None:
             home = os.path.expanduser("~")
             saleha_dir = os.path.join(home, ".saleha")
@@ -105,10 +106,8 @@ class MemoryStore:
                 os.replace(tmp_path, self.storage_path)
             except Exception:
                 if os.path.exists(tmp_path):
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(tmp_path)
-                    except OSError:
-                        pass
 
     def semantic_search(self, query: str, top_k: int = 5, min_score: float = 0.05) -> List[Tuple[MemoryEntry, float]]:
         """Performs TF-IDF Cosine Similarity semantic search over memory store."""

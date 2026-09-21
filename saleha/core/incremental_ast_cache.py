@@ -7,6 +7,7 @@ code analysis on repositories with 10,000+ files by skipping unchanged modules.
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import json
 import os
@@ -69,10 +70,8 @@ class IncrementalASTCache:
             os.replace(tmp_file, self.cache_file)
         except Exception:
             if tmp_file.exists():
-                try:
+                with contextlib.suppress(OSError):
                     tmp_file.unlink()
-                except OSError:
-                    pass
 
     def prune(self) -> int:
         """Evicts oldest entries based on last_scanned when cache exceeds max_entries."""
@@ -129,9 +128,11 @@ class IncrementalASTCache:
         try:
             tree = ast.parse(content)
             for node in tree.body:
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                    if not node.name.startswith("_"):
-                        symbols.append(node.name)
+                if (
+                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                    and not node.name.startswith("_")
+                ):
+                    symbols.append(node.name)
         except SyntaxError:
             pass
         return symbols

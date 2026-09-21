@@ -39,7 +39,7 @@ scanner; this does not substitute for it and no longer implies it does.
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List
 
 
 @dataclass
@@ -113,7 +113,7 @@ class ConstitutionalGuard:
         },
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the constitutional alignment guard."""
         pass
 

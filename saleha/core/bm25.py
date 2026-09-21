@@ -40,7 +40,7 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 # Robertson/Sparck-Jones defaults. See module docstring: defaults, not tuning.
 DEFAULT_K1 = 1.5
@@ -91,8 +91,12 @@ class BM25Index:
     and `hybrid_search()` combines them.
     """
 
-    def __init__(self, k1: float = DEFAULT_K1, b: float = DEFAULT_B,
-                 tokenizer=None):
+    def __init__(
+        self,
+        k1: float = DEFAULT_K1,
+        b: float = DEFAULT_B,
+        tokenizer: Optional[Callable[[str], List[str]]] = None,
+    ) -> None:
         self.k1 = k1
         self.b = b
         self._tokenize = tokenizer or tokenize
