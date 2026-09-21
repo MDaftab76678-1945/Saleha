@@ -7,11 +7,13 @@ Provides real-time event streaming for VS Code Extension, Web Studio, and CLI da
 3. Thread-safe client connection management and pub/sub event routing.
 """
 
-import json
-import time
+from __future__ import annotations
+
+import contextlib
 import threading
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any, Callable
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
 
 
 @dataclass
@@ -33,7 +35,7 @@ class WebSocketBridge:
         self._history: List[StreamEvent] = []
         self._lock = threading.Lock()
 
-    def register_listener(self, callback: Callable[[StreamEvent], None]):
+    def register_listener(self, callback: Callable[[StreamEvent], None]) -> None:
         """Registers a callback or websocket socket sender."""
         with self._lock:
             self._listeners.append(callback)
@@ -60,10 +62,8 @@ class WebSocketBridge:
             callbacks = list(self._listeners)
 
         for cb in callbacks:
-            try:
+            with contextlib.suppress(Exception):
                 cb(event)
-            except Exception:
-                pass  # noqa
 
         return event
 
@@ -72,7 +72,7 @@ class WebSocketBridge:
         with self._lock:
             return list(self._history[-limit:])
 
-    def clear(self):
+    def clear(self) -> None:
         """Clears all history and listener registrations."""
         with self._lock:
             self._listeners.clear()

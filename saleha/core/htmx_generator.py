@@ -7,9 +7,11 @@ Synthesizes high-performance, ultra-lightweight dynamic web applications:
 3. Zero npm/node_modules dependencies - loads in milliseconds.
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict
 
 
 @dataclass
@@ -31,8 +33,6 @@ class HTMXGenerator:
 
     def generate_app(self, app_name: str = "SalehaDashboard", description: str = "Real-time Metrics Dashboard") -> HTMXAppPackage:
         """Synthesizes a complete standalone FastAPI + HTMX application."""
-        clean_name = app_name.replace(" ", "_").lower()
-
         backend_code = f'''"""FastAPI + HTMX Server-Driven Application."""
 
 import time
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚀 {app_name}</h1>
+            <h1>{app_name}</h1>
             <button hx-get="/api/metrics" hx-target="#metrics-grid" hx-swap="outerHTML">Refresh</button>
         </div>
         <p>{description}</p>
@@ -128,16 +128,18 @@ Open `http://localhost:8000` in your browser.
             files=files,
         )
 
-    def write_to_disk(self, target_dir: str, package: HTMXAppPackage):
+    def write_to_disk(self, target_dir: str, package: HTMXAppPackage) -> None:
         """Writes the synthesized HTMX app package to the target directory."""
         try:
             os.makedirs(target_dir, exist_ok=True)
             for fname, content in package.files.items():
                 fpath = os.path.join(target_dir, fname)
-                with open(fpath, "w", encoding="utf-8") as f:
+                tmp_p = f"{fpath}.tmp.{os.getpid()}"
+                with open(tmp_p, "w", encoding="utf-8") as f:
                     f.write(content)
+                os.replace(tmp_p, fpath)
         except OSError:
-            pass  # noqa
+            pass
 
 
 htmx_generator = HTMXGenerator()

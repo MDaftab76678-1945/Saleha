@@ -7,11 +7,9 @@ and provides a lightweight in-memory HTTP mock response engine for isolated test
 
 from __future__ import annotations
 
-import os
 import time
-import random
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -31,7 +29,7 @@ class SyntheticMockServer:
         self.routes: Dict[str, MockRoute] = {}
         self._load_default_synthetic_routes()
 
-    def _load_default_synthetic_routes(self):
+    def _load_default_synthetic_routes(self) -> None:
         """Pre-populates realistic mock data schemas."""
         self.register_route("/api/user", "GET", 200, {
             "id": "usr_99182",
@@ -55,7 +53,14 @@ class SyntheticMockServer:
             "currency": "USD"
         })
 
-    def register_route(self, path: str, method: str, status_code: int, response_data: Dict[str, Any], latency_ms: int = 5):
+    def register_route(
+        self,
+        path: str,
+        method: str,
+        status_code: int,
+        response_data: Dict[str, Any],
+        latency_ms: int = 5
+    ) -> None:
         """Registers a synthetic mock endpoint."""
         key = f"{method.upper()}:{path}"
         self.routes[key] = MockRoute(

@@ -7,16 +7,15 @@ agent swarm metrics, memory search, and token analytics in the browser.
 
 from __future__ import annotations
 
-import os
 import json
-import time
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Dict, List, Optional, Any
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Optional
 
 from saleha import __version__
-from saleha.core.token_analytics import token_analytics
 from saleha.core.agent_profile_loader import profile_registry
+from saleha.core.token_analytics import token_analytics
 
 
 class _DashboardHandler(BaseHTTPRequestHandler):
@@ -58,7 +57,7 @@ class _DashboardHandler(BaseHTTPRequestHandler):
 </head>
 <body>
     <div class="header">
-        <h2>🧠 Saleha AI Live Web Dashboard</h2>
+        <h2>Saleha AI Live Web Dashboard</h2>
         <span class="badge">v{__version__} Active</span>
     </div>
     <div class="grid">
@@ -82,7 +81,7 @@ class _DashboardHandler(BaseHTTPRequestHandler):
 </html>"""
         self.wfile.write(html.encode("utf-8"))
 
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass  # Quiet logger
 
 
@@ -94,13 +93,13 @@ class WebDashboardServer:
         self.server: Optional[HTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
-    def start_background(self):
+    def start_background(self) -> None:
         """Starts dashboard HTTP server in a daemon thread."""
         self.server = HTTPServer(("127.0.0.1", self.port), _DashboardHandler)
         self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops dashboard HTTP server."""
         if self.server:
             self.server.shutdown()

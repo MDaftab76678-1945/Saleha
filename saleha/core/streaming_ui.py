@@ -5,14 +5,16 @@ Streams tokens chunk-by-chunk from local Ollama with rich syntax highlighting
 and typewriter rendering directly inside the user's terminal session.
 """
 
-import sys
-from typing import Optional, Callable
+from __future__ import annotations
+
+from typing import Optional
+
 from rich.console import Console
 from rich.live import Live
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
 
-from saleha.core.model_provider import default_provider, ProviderResponse
+from saleha.core.model_provider import default_provider
 
 console = Console()
 
@@ -36,7 +38,7 @@ class StreamRenderer:
             console=self.console,
             refresh_per_second=10
         ) as live:
-            def on_token(token: str):
+            def on_token(token: str) -> None:
                 nonlocal accumulated_text
                 accumulated_text += token
                 clean_display = accumulated_text or "*(Streaming...)*"
