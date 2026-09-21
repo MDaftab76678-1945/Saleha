@@ -8,7 +8,8 @@ multiple languages: Python, JavaScript/TypeScript, Go, Java, Rust, HTML, CSS.
 import os
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Set, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from saleha.core.path_utils import safe_relpath
 
 
@@ -53,7 +54,7 @@ class PolyglotIndexer:
         ".sh": "bash",
     }
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
         self.files: Dict[str, PolyglotFileSummary] = {}
 
@@ -96,11 +97,11 @@ class PolyglotIndexer:
         self.files[summary.file_path] = summary
         return summary
 
-    def _parse_js_ts(self, lines: List[str], summary: PolyglotFileSummary):
+    def _parse_js_ts(self, lines: List[str], summary: PolyglotFileSummary) -> None:
         for idx, line in enumerate(lines, 1):
             sline = line.strip()
             # Imports
-            if sline.startswith("import ") or sline.startswith("const ") and "require(" in sline:
+            if sline.startswith("import ") or (sline.startswith("const ") and "require(" in sline):
                 summary.imports.append(sline)
             # Classes / Interfaces
             m_class = re.match(r"^(?:export\s+)?(?:default\s+)?class\s+([A-Za-z0-9_$]+)", sline)
@@ -129,7 +130,7 @@ class PolyglotIndexer:
                     file_path=summary.file_path, line_number=idx, signature=sline
                 ))
 
-    def _parse_go(self, lines: List[str], summary: PolyglotFileSummary):
+    def _parse_go(self, lines: List[str], summary: PolyglotFileSummary) -> None:
         for idx, line in enumerate(lines, 1):
             sline = line.strip()
             if sline.startswith("import "):
@@ -149,7 +150,7 @@ class PolyglotIndexer:
                     file_path=summary.file_path, line_number=idx, signature=sline
                 ))
 
-    def _parse_java(self, lines: List[str], summary: PolyglotFileSummary):
+    def _parse_java(self, lines: List[str], summary: PolyglotFileSummary) -> None:
         for idx, line in enumerate(lines, 1):
             sline = line.strip()
             if sline.startswith("import "):
@@ -169,7 +170,7 @@ class PolyglotIndexer:
                     file_path=summary.file_path, line_number=idx, signature=sline
                 ))
 
-    def _parse_rust(self, lines: List[str], summary: PolyglotFileSummary):
+    def _parse_rust(self, lines: List[str], summary: PolyglotFileSummary) -> None:
         for idx, line in enumerate(lines, 1):
             sline = line.strip()
             if sline.startswith("use "):
@@ -187,7 +188,7 @@ class PolyglotIndexer:
                     file_path=summary.file_path, line_number=idx, signature=sline
                 ))
 
-    def _parse_python(self, lines: List[str], summary: PolyglotFileSummary):
+    def _parse_python(self, lines: List[str], summary: PolyglotFileSummary) -> None:
         for idx, line in enumerate(lines, 1):
             sline = line.strip()
             if sline.startswith("import ") or sline.startswith("from "):

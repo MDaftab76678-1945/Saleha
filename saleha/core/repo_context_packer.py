@@ -20,6 +20,7 @@ to prepend into LLM coder and planner prompts:
 from __future__ import annotations
 
 import ast
+import itertools
 import os
 import re
 from dataclasses import dataclass, field
@@ -163,12 +164,17 @@ class RepoContextPacker:
         doc_list: List[str] = []
 
         ranker: Any = self.ranker
-        if ranker is not None and hasattr(ranker, "supported") and ranker.supported(ext):
-            if hasattr(ranker, "index_file") and ranker.index_file(rel, content) is not None:
-                if hasattr(ranker, "extract_symbols"):
-                    for (lineno, label) in ranker.extract_symbols(rel, content):
-                        display_symbols.append(f"{label} (L{lineno})")
-                        symbol_name_list.append(label.split(" ", 1)[1])
+        if (
+            ranker is not None
+            and hasattr(ranker, "supported")
+            and ranker.supported(ext)
+            and hasattr(ranker, "index_file")
+            and ranker.index_file(rel, content) is not None
+            and hasattr(ranker, "extract_symbols")
+        ):
+            for (lineno, label) in ranker.extract_symbols(rel, content):
+                display_symbols.append(f"{label} (L{lineno})")
+                symbol_name_list.append(label.split(" ", 1)[1])
 
         if not display_symbols and path.lower().endswith(".py"):
             sym_entries = _python_symbols(path)
@@ -262,7 +268,7 @@ class RepoContextPacker:
                 pass
 
         lines: List[str] = ["## Repository Context (auto-packed by Saleha)", ""]
-        used = sum(len(l) + 1 for l in lines)
+        used = sum(len(line) + 1 for line in lines)
 
         # --- Section 1: trimmed tree of top-level structure ---
         tree_entries = sorted({
@@ -307,7 +313,7 @@ class RepoContextPacker:
                 with open(os.path.join(self.root_dir, sf.path), "r",
                           encoding="utf-8", errors="replace") as f:
                     excerpt_lines = [
-                        ln.rstrip() for _, ln in zip(range(self.excerpt_lines), f)
+                        ln.rstrip() for ln in itertools.islice(f, self.excerpt_lines)
                     ]
                 excerpt = "\n".join(excerpt_lines)[:remaining]
                 lang = "python" if sf.path.endswith(".py") else ""

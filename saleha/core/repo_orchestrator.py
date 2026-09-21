@@ -46,7 +46,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -75,10 +75,10 @@ class AutoPRResult:
 class AutonomousRepoOrchestrator:
     """Prepares a branch, commit message and PR body from real git state."""
 
-    def __init__(self, repo_path: str = "."):
+    def __init__(self, repo_path: str = ".") -> None:
         self.repo_path = repo_path
 
-    def _engine(self):
+    def _engine(self) -> Any:
         from saleha.core.git_native import GitAutomationEngine
         return GitAutomationEngine(repo_path=self.repo_path)
 

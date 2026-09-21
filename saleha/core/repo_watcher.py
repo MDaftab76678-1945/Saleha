@@ -5,11 +5,12 @@ Monitors codebase files in real-time, incrementally updates Abstract Syntax Tree
 symbol definitions and references on save, and calculates live downstream blast radius.
 """
 
+import contextlib
 import os
-import time
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional, Callable, Any
+from typing import Callable, Dict, List, Optional
 
 from saleha.core.dependency_graph import dependency_graph
 from saleha.core.path_utils import safe_relpath
@@ -27,7 +28,7 @@ class RepoChangeEvent:
 class RepoWatcher:
     """Monitors repository changes and maintains live, incremental AST dependency intelligence."""
 
-    def __init__(self, root_dir: str = ".", poll_interval: float = 0.5, debounce_sec: float = 0.3):
+    def __init__(self, root_dir: str = ".", poll_interval: float = 0.5, debounce_sec: float = 0.3) -> None:
         self.root_dir = os.path.abspath(root_dir)
         self.poll_interval = poll_interval
         self.debounce_sec = debounce_sec
@@ -41,7 +42,7 @@ class RepoWatcher:
             "dist", "build", ".pytest_cache", ".saleha", ".idea", ".vscode"
         }
 
-    def on_change(self, callback: Callable[[RepoChangeEvent], None]):
+    def on_change(self, callback: Callable[[RepoChangeEvent], None]) -> None:
         """Registers a listener for live file change events."""
         with self._lock:
             self._callbacks.append(callback)
@@ -54,13 +55,11 @@ class RepoWatcher:
             for f in files:
                 if f.endswith((".py", ".js", ".ts", ".go", ".java", ".rs")):
                     full_p = os.path.join(root, f)
-                    try:
+                    with contextlib.suppress(OSError):
                         snapshot[full_p] = os.path.getmtime(full_p)
-                    except OSError:
-                        pass
         return snapshot
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Builds initial AST dependency graph and takes file snapshot."""
         with self._lock:
             dependency_graph.build_graph(root_dir=self.root_dir)
@@ -94,10 +93,8 @@ class RepoWatcher:
         with self._lock:
             callbacks = list(self._callbacks)
         for cb in callbacks:
-            try:
+            with contextlib.suppress(Exception):
                 cb(event)
-            except Exception:
-                pass
 
         return event
 
@@ -127,7 +124,7 @@ class RepoWatcher:
 
         return events
 
-    def start_background(self):
+    def start_background(self) -> None:
         """Starts background file watcher thread."""
         if self.is_running:
             return
@@ -136,16 +133,14 @@ class RepoWatcher:
 
         def _loop():
             while self.is_running:
-                try:
+                with contextlib.suppress(Exception):
                     self.poll_once()
-                except Exception:
-                    pass
                 time.sleep(self.poll_interval)
 
         self._thread = threading.Thread(target=_loop, daemon=True)
         self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops background file watcher."""
         self.is_running = False
         if self._thread and self._thread.is_alive():

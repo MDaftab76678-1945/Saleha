@@ -84,7 +84,7 @@ class RepoGraph:
 
     def __init__(self, root_dir: str = ".",
                  excludes: Optional[Set[str]] = None,
-                 suffixes: Optional[Set[str]] = None):
+                 suffixes: Optional[Set[str]] = None) -> None:
         self.root = Path(os.path.abspath(root_dir))
         self.excludes = set(excludes) if excludes is not None else set(DEFAULT_EXCLUDES)
         self.suffixes = set(suffixes) if suffixes is not None else set(CODE_SUFFIXES)
