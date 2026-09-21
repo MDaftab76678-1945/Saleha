@@ -9,12 +9,10 @@ from __future__ import annotations
 
 import os
 import re
-import time
 import subprocess
+import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Any
-
-from saleha.core.git_native import git_engine
+from typing import List
 
 
 @dataclass
@@ -91,19 +89,19 @@ class ChangelogGenerator:
         blocks = [f"## [{version}] - {today}\n"]
 
         if cat.features:
-            blocks.append("### 🚀 Features & Enhancements\n" + "\n".join(f"- {f}" for f in cat.features) + "\n")
+            blocks.append("### Features & Enhancements\n" + "\n".join(f"- {f}" for f in cat.features) + "\n")
 
         if cat.fixes:
-            blocks.append("### 🩹 Bug Fixes & Resilience\n" + "\n".join(f"- {fx}" for fx in cat.fixes) + "\n")
+            blocks.append("### Bug Fixes & Resilience\n" + "\n".join(f"- {fx}" for fx in cat.fixes) + "\n")
 
         if cat.refactors:
-            blocks.append("### 🔄 Architecture & Refactoring\n" + "\n".join(f"- {r}" for r in cat.refactors) + "\n")
+            blocks.append("### Architecture & Refactoring\n" + "\n".join(f"- {r}" for r in cat.refactors) + "\n")
 
         if cat.performance:
-            blocks.append("### ⚡ Performance Improvements\n" + "\n".join(f"- {p}" for p in cat.performance) + "\n")
+            blocks.append("### Performance Improvements\n" + "\n".join(f"- {p}" for p in cat.performance) + "\n")
 
         if cat.tests:
-            blocks.append("### 🧪 Quality Assurance & Tests\n" + "\n".join(f"- {t}" for t in cat.tests) + "\n")
+            blocks.append("### Quality Assurance & Tests\n" + "\n".join(f"- {t}" for t in cat.tests) + "\n")
 
         return "\n".join(blocks).strip()
 

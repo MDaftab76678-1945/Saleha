@@ -6,10 +6,11 @@ libraries and frameworks (FastAPI, Pydantic, Requests, PyTorch, React, Python St
 to eliminate hallucinations in small local models.
 """
 
+from __future__ import annotations
+
 import os
-import json
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -82,7 +83,7 @@ class DocResearcher:
         self.docs: Dict[str, Dict[str, APISignature]] = {}
         self._init_builtin_docs()
 
-    def _init_builtin_docs(self):
+    def _init_builtin_docs(self) -> None:
         for doc in BUILTIN_DOCS:
             pkg_map = self.docs.setdefault(doc.package.lower(), {})
             pkg_map[doc.symbol.lower()] = doc
@@ -118,7 +119,7 @@ class DocResearcher:
 
         context_lines = ["\n--- Verified API Signatures (Zero-Hallucination Reference) ---"]
         for m in matched:
-            context_lines.append(f"• {m.package}.{m.symbol}: `{m.signature}`\n  {m.docstring}")
+            context_lines.append(f"- {m.package}.{m.symbol}: `{m.signature}`\n  {m.docstring}")
         context_lines.append("----------------------------------------------------------------\n")
         return "\n".join(context_lines)
 

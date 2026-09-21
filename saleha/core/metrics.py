@@ -1,22 +1,22 @@
 """
 Saleha Core: Structured Metrics (B3 -- Observability)
 
-Pehle koi telemetry hi nahi thi (purani telemetry.py dead-code ban gayi thi).
-Ab har orchestrator run ka outcome append-only JSONL mein persist hota hai:
+Persists orchestrator run outcomes to an append-only JSONL file:
 
     ~/.saleha/metrics.jsonl
 
-Har line: {"ts": ..., "event": "run_completed", "success": true, "attempts": 2,
+Each line records: {"ts": ..., "event": "run_completed", "success": true, "attempts": 2,
 "model": "...", "duration_sec": 12.3, ...}
 
-`saleha metrics` CLI iska summary dikhata hai (success rate, avg attempts,
-per-model breakdown, recent events).
+The `saleha metrics` CLI displays an aggregated summary including success rate, average
+attempts, per-model breakdowns, and recent telemetry events.
 """
+
+from __future__ import annotations
 
 import json
 import os
 import time
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 
@@ -29,8 +29,8 @@ class MetricsTracker:
         self.storage_path = storage_path
 
     def record(self, event: str, **data: Any) -> None:
-        """Append ek structured event. Failure kabhi caller ko nahi failta --
-        observability pipeline production path tode nahi."""
+        """Append a structured event. Failures never propagate to the caller to ensure
+        the observability pipeline does not disrupt the production path."""
         entry = {"ts": round(time.time(), 3), "event": event}
         entry.update(data)
         try:
@@ -62,7 +62,7 @@ class MetricsTracker:
         return out
 
     def summary(self) -> Dict[str, Any]:
-        """Poore JSONL ka aggregate -- runs/success-rate/attempts/models."""
+        """Aggregates metrics across the entire JSONL log: runs, success rate, attempts, and models."""
         runs = [e for e in self.tail(limit=10_000) if e.get("event") == "run_completed"]
         total = len(runs)
         successes = sum(1 for r in runs if r.get("success"))

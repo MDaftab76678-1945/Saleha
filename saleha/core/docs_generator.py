@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
@@ -21,7 +21,7 @@ from saleha.core.agent_profile_loader import profile_registry
 class DocSection:
     title: str
     description: str
-    items: List[Dict[str, str]] = field(default_factory=list)
+    items: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class DocsGenerator:
@@ -125,35 +125,35 @@ class DocsGenerator:
 </head>
 <body>
     <div class="header">
-        <h1>🧠 Saleha AI Framework Documentation</h1>
+        <h1>Saleha AI Framework Documentation</h1>
         <span class="version">v{__version__} Local-First</span>
     </div>
     <div class="container">
-        <h2>⚡ Quick Start CLI Commands</h2>
+        <h2>Quick Start CLI Commands</h2>
         <div class="grid">
             <div class="card">
-                <h3>🪄 Project Onboarding</h3>
+                <h3>Project Onboarding</h3>
                 <p>Auto-detect stack and build baseline AST dependencies.</p>
                 <div class="code-box">saleha init</div>
             </div>
             <div class="card">
-                <h3>🩹 Autonomous Self-Healing</h3>
+                <h3>Autonomous Self-Healing</h3>
                 <p>Parse stacktrace, patch surgically, and verify with auto-commit.</p>
                 <div class="code-box">saleha fix "pytest"</div>
             </div>
             <div class="card">
-                <h3>📊 Live Terminal HUD</h3>
+                <h3>Live Terminal HUD</h3>
                 <p>Interactive 4-quadrant real-time TUI telemetry.</p>
                 <div class="code-box">saleha hud</div>
             </div>
             <div class="card">
-                <h3>🛡️ STRIDE Threat Modeler</h3>
+                <h3>STRIDE Threat Modeler</h3>
                 <p>Automated security matrix & threat mitigations.</p>
                 <div class="code-box">saleha threat</div>
             </div>
         </div>
 
-        <h2>👥 Multi-Agent Swarm Personas ({len(profiles)} Available)</h2>
+        <h2>Multi-Agent Swarm Personas ({len(profiles)} Available)</h2>
         <div class="grid">
 """
         for p in profiles:
