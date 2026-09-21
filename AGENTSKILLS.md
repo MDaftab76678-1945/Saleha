@@ -9,18 +9,33 @@ for Saleha's 30 domain personas and autonomous workflow skills.
 
 ---
 
-## 1. System Tooling Registry
+## 1. Capability Module Index (not a callable tool registry)
 
-All agent capabilities are grounded strictly in real executable modules within `saleha/`:
+The modules below implement the capabilities the personas in section 2
+depend on. **These are Python modules, not tool identifiers** — the short
+names in the first column are descriptive labels for this table only, and
+a persona cannot invoke them. The real, enforceable identifiers are the
+`allowed_tools` values in section 2, which `agent_profile_loader.py`
+parses from each profile's frontmatter.
 
-| Tool Identifier | Implementation File | Primary Capability | Execution Mode |
+> **Corrected 2026-09-21 (pass 137):** this table was headed "System
+> Tooling Registry" with a "Tool Identifier" column, reading as if
+> `sandbox_jail`, `math_engine`, `ast_cache` and the rest were callable
+> by an agent. None of the six strings appears anywhere in the codebase
+> as an identifier (verified by grep across `saleha/`); `math_engine` and
+> `ast_cache` exist only as ordinary local variable and parameter names
+> inside `planner.py` and `change_impact.py`. Section 2's note already
+> warned that these were "not the real tool identifiers"; this heading
+> now says so too rather than contradicting it.
+
+| Label (this table only) | Implementation File | Primary Capability | Execution Mode |
 | --- | --- | --- | --- |
-| `sandbox_jail` | `saleha/sandbox/sandbox_jail.py` | Subprocess execution with Windows timeout | Isolated Subprocess |
-| `ast_verifier` | `saleha/sandbox/ast_security_verifier.py` | Static AST audit of imports & syscalls | Deterministic Python AST |
-| `math_engine` | `saleha/core/math_logic.py` | Complexity estimation (0.0 to 10.0) | Regex & Weighted Scoring |
-| `smt_verifier` | `saleha/core/formal_smt_verifier.py` | Mathematical & logical constraint proofs | Z3 Theorem Solver |
-| `bm25_search` | `saleha/core/bm25.py` | Lexical indexing and relevant code retrieval | Lexical Inverted Index |
-| `ast_cache` | `saleha/core/incremental_ast_cache.py` | Cache AST parses to detect change impact | AST Dependency Graph |
+| sandbox jail | `saleha/sandbox/sandbox_jail.py` | Subprocess execution with Windows timeout | Isolated Subprocess |
+| AST verifier | `saleha/sandbox/ast_security_verifier.py` | Static AST audit of imports & syscalls | Deterministic Python AST |
+| math engine | `saleha/core/math_logic.py` | Complexity estimation (0.0 to 10.0) | Regex & Weighted Scoring |
+| SMT verifier | `saleha/core/formal_smt_verifier.py` | Mathematical & logical constraint proofs | Z3 Theorem Solver |
+| BM25 search | `saleha/core/bm25.py` | Lexical indexing and relevant code retrieval | Lexical Inverted Index |
+| AST cache | `saleha/core/incremental_ast_cache.py` | Cache AST parses to detect change impact | AST Dependency Graph |
 
 ---
 
