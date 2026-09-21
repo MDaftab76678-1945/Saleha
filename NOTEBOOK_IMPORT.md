@@ -9981,3 +9981,103 @@ done; next is `skill_base.py` (7), `saleha_swarm_topology.py` (7),
 `skill_registry.py` (6), `repo_context_packer.py` (6),
 `latency_histogram.py` (6) -- full ranked list of the remaining ~119
 unaudited modules is in this session's transcript, not re-derived here.
+
+## Pass 136: the repo's 150 tracked .md files surveyed -- a stale auto-generated doc, and a hardcoded "architecture diagram" behind it (2026-09-21)
+
+Follow-up to the user's question about which context files exist beyond
+`CLAUDE.md`. Surveyed every markdown file in the repo, not just the root.
+
+**Scope, measured first.** 497 `.md` files exist on disk, but 347 of
+those are inside `.venv`/`.venv_train` (the `graphify` package ships its
+own docs tree) and are not this project's to maintain. **150 are
+git-tracked**, and they cluster: root 18, `saleha/skills/` 37,
+`saleha/specs/agent_specs/` 33, `souls/` ~35, `docs/` 12. The three
+large clusters are Saleha's own *runtime data* -- persona definitions,
+skill prompts, soul packages that the product loads when it runs -- not
+agent-facing documentation, so they are out of scope for "which docs
+does a session need".
+
+**Root-level docs (checked individually):**
+`EVALS.md`, `SOUL.md`, `PRODUCT_BRIEF.md` are current and honest --
+`EVALS.md` notably carries its own correction of a previously fabricated
+claim (8,100 purged rows) with a citation trail, which is the behaviour
+this project wants. `AGENTS.md`/`GEMINI.md`/`DEVELOPMENT.md` had drifted
+(fixed in commit `87eeb34`, see below). `AGENTSKILLS.md`'s persona
+`allowed_tools` matrix is genuinely correct post-pass-83, but its
+separate "Section 1 Tooling Registry" table still presents internal
+variable names (`math_engine`, `ast_cache`) as if they were
+agent-callable tool identifiers -- confirmed by grep that no such tool
+registry entries exist; recorded, not fixed. `CHANGELOG.md` stops at
+v0.2.0 ("180+ tests") and has been abandoned since early development --
+recorded, not fixed.
+
+**Stale counts corrected (commit `87eeb34`).** `AGENTS.md` claimed "29
+audit passes" (real: 135), "252 core modules" (real: 243), and carried a
+pass-109 test snapshot (2303 passed) in its directory tree. Its
+`packages/` entry also still described 8 undifferentiated workspaces,
+the exact framing passes 83-84 had already corrected elsewhere --
+`GEMINI.md` had the corrected "5 libraries + 3 apps" split but the same
+three stale numbers. `DEVELOPMENT.md` had 2174. Every replacement number
+was re-derived (`grep -oP "Pass \K[0-9]+" NOTEBOOK_IMPORT.md | sort -n |
+tail -1`, `ls saleha/core/*.py | wc -l`, and this session's own suite
+run), not copied from any prior claim. These files are not loaded by
+Claude Code -- which reads only `CLAUDE.md` -- but their own headers name
+Gemini/Antigravity and Cursor as their audience.
+
+**The real finding: `docs/ARCHITECTURE.md` and its generator.**
+Root `ARCHITECTURE.md` and `docs/ARCHITECTURE.md` turned out not to be
+duplicates: the latter is the committed output of `saleha doc-gen`
+(`saleha/cli/commands/docs.py` -> `saleha/agents/doc_generator.py`), a
+live CLI command. The committed file listed `setup.py`, deleted back in
+pass 24 (commit `a7b4402`), and its metrics header read 459 modules /
+834 classes / 2185 functions against a fresh run's 975 / 2014 / 5766 --
+every number off by more than 2x. It also documented `orchestrator.py`
+as having 2 functions where the file really has 7 methods, while
+presenting itself as a complete "Technical Reference".
+
+Reading the generator (155 lines, never audited, and *not* covered by
+`test_autodoc_generator.py` -- that file tests a different module,
+`saleha/core/autodoc_generator.py`) found the substantive defect:
+`scan_and_generate_docs()` does genuine `ast.parse` walks for its
+module/class/function counts, but the Mermaid "System Architecture
+Diagram" printed directly beneath those real numbers was a **hardcoded
+f-string**. It always claimed "19 First-Class Python Agents" and always
+named the same six agent classes, for any input directory. Measured:
+`saleha/agents/` holds 28 real persona files, and pointing the generator
+at an unrelated tree produced a byte-identical diagram. Real computed
+metrics sitting beside an invented diagram is precisely the shape this
+audit exists to catch -- the honest half makes the fabricated half look
+computed.
+
+Fixed: the diagram is now built from the scan's own `module_details`
+(real top-level classes under an `agents` path component, capped at 12
+nodes, with an explicit "No Agent Classes Found" label and a
+`(no classes found under agents/)` node rather than invented names when
+a scan finds none). Decorative emoji removed from the generated markdown
+template -- it was being reproduced into every generated document, not
+just the committed one -- and from `docs.py`'s console output.
+Regenerated `docs/ARCHITECTURE.md` through the real CLI end-to-end and
+committed the honest output.
+
+**An existing test pinned the violation**, the recurring trap:
+`test_quad_production_suite.py` asserted `"## 📊 Repository Metrics"`
+*including the emoji*. Replaced with an assertion on the heading's real
+text. Worth recording how it was found: I searched for
+`*doc_generator*`/`*doc_gen*` test files, found only the unrelated
+`test_autodoc_generator.py`, and concluded there was zero coverage --
+wrongly. The full-suite run surfaced the real test, in a file named for
+a "quad production suite". A filename search is not a coverage check.
+
+Added `saleha/tests/test_doc_generator_agent.py`: 5 tests against
+synthetic temp repos, including two asserting that two different
+directories yield two different diagrams, one for the empty-agents
+case, one for emoji-free output, and one confirming an unparseable file
+is skipped rather than fatal. Teeth-checked: **3/5 fail** against the
+pre-fix generator.
+
+Full suite: 2332 -> **2337 passed, 13 skipped, 0 failures**.
+
+**Open, recorded not fixed:** `AGENTSKILLS.md`'s Section 1 tooling
+registry (internal names presented as tool identifiers);
+`CHANGELOG.md` (abandoned at v0.2.0). Neither is loaded by any agent
+session; both are human-facing.

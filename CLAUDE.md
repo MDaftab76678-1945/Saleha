@@ -2085,6 +2085,41 @@ real defects confirmed by direct reproduction:
 code. Full suite: 2327 → **2332 passed, 13 skipped, 0 failures**.
 Detail: `NOTEBOOK_IMPORT.md`, "Pass 135."
 
+**Pass 136 — the repo's markdown docs surveyed; `DocGeneratorAgent`'s
+architecture diagram was hardcoded.** 497 `.md` files exist but 347 are
+inside `.venv*` (the `graphify` package's own docs); **150 are tracked**,
+clustering as root 18, `saleha/skills/` 37, `saleha/specs/agent_specs/`
+33, `souls/` ~35, `docs/` 12 — the three large clusters are Saleha's
+runtime *data* (personas, skills, souls), not agent-facing docs.
+
+- **Stale counts fixed** (`87eeb34`) in `AGENTS.md`/`GEMINI.md`/
+  `DEVELOPMENT.md`: "29 audit passes" (real 135), "252 core modules"
+  (real 243), a pass-109 test snapshot, and `AGENTS.md`'s uncorrected
+  "8 workspaces" framing. Claude Code loads **only `CLAUDE.md`** — these
+  files name Gemini/Antigravity and Cursor as their own audience.
+- **`docs/ARCHITECTURE.md` is generated, not hand-written** — it is
+  `saleha doc-gen`'s committed output, and it still listed `setup.py`
+  (deleted in pass 24) with metrics off by >2x (459/834/2185 vs a fresh
+  975/2014/5766). Behind it, `saleha/agents/doc_generator.py` computed
+  its counts from real `ast.parse` walks but emitted a **hardcoded**
+  Mermaid "architecture diagram" — always "19 First-Class Python Agents"
+  and the same six class names, for any input directory (real count: 28
+  persona files). Fixed to derive the diagram from the scan; emoji
+  removed from the generated template and `docs.py`'s console output;
+  file regenerated through the real CLI.
+- **An existing test pinned the emoji** (`test_quad_production_suite.py`
+  asserted `"## 📊 Repository Metrics"`). Found only by the full-suite
+  run — a `*doc_generator*` filename search had missed it and I wrongly
+  concluded there was no coverage. **A filename search is not a coverage
+  check.** 5 new tests added; teeth-checked at 3/5 failing pre-fix.
+- **Open, recorded not fixed:** `AGENTSKILLS.md`'s Section 1 "tooling
+  registry" presents internal variable names (`math_engine`, `ast_cache`)
+  as agent-callable tool identifiers; `CHANGELOG.md` is abandoned at
+  v0.2.0 ("180+ tests").
+
+Full suite: 2332 → **2337 passed, 13 skipped, 0 failures**. Detail:
+`NOTEBOOK_IMPORT.md`, "Pass 136."
+
 ---
 
 ## Environment facts worth knowing
