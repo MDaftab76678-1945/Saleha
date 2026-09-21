@@ -2141,6 +2141,72 @@ is stale. Removed 50 decorative emoji and 3 Hinglish headings from
 observed and confirmed not caused by this edit). Detail:
 `NOTEBOOK_IMPORT.md`, "Pass 137."
 
+**Pass 138 — continued the `saleha/core/` never-audited sweep; a
+fake-green bug in the real test runner, a silent-skip bug in the LSP
+engine.** Picked the next candidates by real importer count among 69
+core modules never named in this file or the ledger. Read four in full:
+
+- **`test_runner.py`** — the module `ttc_solver.py` and `tester.py`
+  both rely on to decide whether a candidate fix is verified correct
+  reported `passed=True, ran=0` whenever the supplied test code
+  contributed zero actual test methods (comments-only, malformed
+  class) — a suite that verified nothing looked identical to one that
+  proved the solution correct. Fixed with an explicit `ran == 0`
+  guard; the legitimate `test_code=None` bare-smoke-test path (which
+  correctly reports `passed=True, ran=0`) is untouched.
+- **`lsp_engine.py`** — claimed compiler-grade checking "across Python,
+  TypeScript/JavaScript, Go, and Rust" but only ever parses `.py`;
+  `check_directory` silently dropped every other language's file into
+  the same empty result, so `saleha lsp` printed "Clean! Zero errors"
+  for a directory containing only a syntactically broken JS file.
+  Fixed: `DiagnosticReport` now carries `files_analyzed` /
+  `files_skipped_unsupported`, and the CLI states which files were not
+  analyzed instead of implying they passed.
+- **`training_collector.py`** — genuinely honest; fixed the same
+  import-time `os.makedirs` side effect pass 66 fixed in five other
+  modules (lazy-init on first write instead).
+- **`speech.py`**, and **`user_store.py`** (checked opportunistically,
+  manages authentication) — both read in full, both genuinely solid,
+  no fabrication, no fix needed.
+
+Measured: suite 2337 → **2344 passed, 13 skipped, 0 failures** (7 new
+tests). Detail: `NOTEBOOK_IMPORT.md`, "Pass 138."
+
+**Pass 139 — repo-wide directory-structure cleanup, verified before
+acting.** User supplied a 9-category structural audit (cache scatter,
+dead files, root clutter, duplicate scripts/docs, tools/skills scatter,
+`saleha/core/` monolith, missing `__init__.py`, contracts nesting, test
+monolith). Verified each claim against the real repo first — several did
+not survive verification (root vs `docs/ARCHITECTURE.md`, `SECURITY.md`
+variants, and `swe_bench_runner.py`/`swebench_runner.py` and
+`self_healing.py`/`self_healer.py` are all genuinely distinct, not dead
+duplicates — confirmed by real, non-overlapping callers via grep).
+
+Fixed (all zero-risk, confirmed by grep/test before deleting or moving):
+`saleha/cli/commands.py.old` (285KB dead backup, superseded by the CLI
+package split) deleted; stray `.saleha/` sub-tree caches in
+`saleha/core/`/`saleha/tools/` and root leftover test artifacts removed
+(all untracked, all confirmed inert); `datasets/_pre_cleanup_backup_
+20260906/` (untracked, superseded by pass 46's verified purge) deleted;
+root-level `test_dynamic_ws/`/`workspace/`/`scratch/`/empty `logs/`
+(confirmed self-generated test/scratch output, already in
+`threat_modeler.py`'s own scan-exclusion list) deleted; `__init__.py`
+added to `saleha/specs/`, `saleha/experimental/` and its two
+subpackages (packaging correctness only — nothing imports these as
+dotted packages today); duplicate `scripts/install.{ps1,sh}` deleted in
+favor of the root pair (neither was referenced by any doc/CI, root
+matches the public curl/irm one-liners); decorative emoji removed from
+the kept install scripts (Rule 3); `saleha/server/dashboard_reference.jsx`
+(464-line React file, zero callers, wrong package for a Python backend)
+moved to `docs/reference/`.
+
+Full suite re-verified after all moves: **2344 passed, 13 skipped, 0
+failures**, unchanged. **Not yet done** (larger, real refactors queued
+for a following pass, each touching hundreds of import sites): the
+`saleha/core/` 243-file flat-to-category-folder reorganization, the
+`saleha/tests/` 282-file flat-to-subpackage split, and the tools/skills/
+personas 5-way consolidation. Detail: `NOTEBOOK_IMPORT.md`, "Pass 139."
+
 ---
 
 ## Environment facts worth knowing

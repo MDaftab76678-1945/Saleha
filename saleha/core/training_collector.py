@@ -53,14 +53,20 @@ class TrainingCollector:
 
     def __init__(self, dataset_dir: str = DEFAULT_DATASET_DIR):
         self.dataset_dir = dataset_dir
-        os.makedirs(dataset_dir, exist_ok=True)
         self._path = os.path.join(dataset_dir, "saleha_training.jsonl")
+        self._dir_ready = False
+
+    def _ensure_dir(self) -> None:
+        if not self._dir_ready:
+            os.makedirs(self.dataset_dir, exist_ok=True)
+            self._dir_ready = True
 
     def add_sample(self, prompt: str, completion: str,
                    quality_score: float = 1.0, source: str = "manual",
                    tags: Optional[List[str]] = None) -> TrainingSample:
         """Add a new training sample to the dataset."""
         import hashlib
+        self._ensure_dir()
         sample_id = hashlib.sha256(f"{prompt}{completion}{time.time()}".encode()).hexdigest()[:16]
         sample = TrainingSample(
             sample_id=sample_id,

@@ -10136,3 +10136,246 @@ threshold_serves_an_unrelated_answer`) surfaced on the first full run;
 confirmed pre-existing and test-order-dependent, not caused by this
 change -- 23/23 clean in isolation, and a second full-suite run came
 back clean at 2337/2337.
+
+## Pass 138: continued the `saleha/core/` never-audited sweep -- a fake-green bug in the real test runner, and a silent-skip bug in the LSP engine (2026-09-21)
+
+Picked the next candidates by real importer count among the 69 core modules
+never named in this file or `CLAUDE.md` (a subagent cross-referenced all 242
+`saleha/core/*.py` filenames against both files by bare-word grep to produce
+this list, rather than guessing). Read the four highest-priority (4-importer)
+modules in full: `test_runner.py`, `training_collector.py`, `lsp_engine.py`,
+`speech.py`. Two genuine defects found and fixed; two modules confirmed
+already honest.
+
+**`test_runner.py` -- a fabricated-green bug in the module every other
+"did the fix actually work" check in this lineage (ttc_solver, tester agent)
+depends on.** `run_suite()` parses a real subprocess execution of the
+combined solution+test script and returns `passed = exec_res.success and not
+result.failures`. If the test code contributes zero actual test methods --
+comments only, a malformed class, an empty body -- `unittest` runs 0 tests,
+exits 0 (success), and produces zero failures. The old logic therefore
+reported `passed=True, ran=0`: a suite that verified nothing looked
+identical to a suite that proved the solution correct. Measured directly:
+
+```
+res = TestRunner().run_suite(code, test_code="# TODO: write tests later\n")
+# before fix: passed=True, ran=0
+# after fix:  passed=False, ran=0, error="test suite ran 0 tests -- nothing was verified"
+```
+
+Confirmed this is not a hypothetical: `saleha/core/ttc_solver.py:66` uses
+`test_result.passed` alone to decide whether a test-time-compute candidate is
+verified correct, and `saleha/agents/tester.py:168` reports agent success off
+the same field -- both would have accepted a zero-assertion test suite as
+proof. Fixed with an explicit `ran == 0` guard before the success check.
+The existing `test_real_test_runner.py` had a `test_bare_smoke_mode_without_
+tests` case that legitimately asserts `passed=True, ran=0` for the *no
+test_code supplied at all* path (a different, correct code path -- a bare
+smoke test only checks the solution runs, not that tests passed) -- this fix
+does not touch that branch, only the "test_code given but empty" branch,
+verified by running the full existing suite unchanged plus one new
+regression test. Teeth-checked: the new test fails (`AssertionError: True is
+not false`) against the pre-fix module via `git stash`, passes after.
+
+**`lsp_engine.py` -- a fabricated-clean report for languages it cannot check
+at all.** Docstring and CLI both claimed "compiler-grade... across Python,
+TypeScript/JavaScript, Go, and Rust." `check_file()` only has a branch for
+`.py`; every other extension silently `return []`. `check_directory()` walks
+`.js/.ts/.go/.rs` files right alongside `.py` files but discards their
+results into the same empty list, so a directory containing only a
+syntactically broken JS file reported `total_diagnostics=0` -- indistinguishable
+from a directory that was genuinely checked and found clean. The live CLI
+command (`saleha lsp`, `misc_tools.py`) printed the unconditional
+"[bold green]Clean! Zero compiler or type errors detected.[/]" panel for
+exactly this case. Measured before fixing:
+
+```
+eng.check_file('bad.js')  # a JS file with a real syntax typo ("retrun")
+# -> []  (no error), same as a genuinely clean file
+```
+
+Same shape as pass 44's `code_quality_auditor.py` and pass 32's
+`quality_guard.py` -- a silent partial scan reported as a clean bill of
+health. Fixed: `DiagnosticReport` now carries `files_analyzed` and
+`files_skipped_unsupported`; `check_directory` counts `.js/.ts/.go/.rs` files
+into the latter instead of silently dropping them; the CLI prints an explicit
+"N file(s) were not analyzed -- this engine only checks Python" note and
+folds the analyzed-file count into both the clean and dirty summary lines
+(also removed two decorative emoji from the CLI output, Rule 3). Docstring
+corrected to state plainly that only Python is actually analyzed. Verified
+end-to-end through the real CLI (`click.testing.CliRunner`) against a
+directory with one broken `.js` file and one Python file with a real mutable-
+default-argument bug: the Python bug is correctly flagged, the JS file is
+correctly reported skipped rather than silently passed. New regression test
+teeth-checked: fails against pre-fix `check_directory` (`files_analyzed=0,
+files_skipped_unsupported=0` for a directory of two non-Python files, instead
+of the expected `0, 2`).
+
+**`training_collector.py` -- genuinely honest (plain JSONL harvesting for
+fine-tuning exports, no fabricated claims), but had the same import-time
+filesystem side effect pass 66 fixed in five other modules.** The
+module-level singleton `training_collector = TrainingCollector()` called
+`os.makedirs(dataset_dir, exist_ok=True)` in `__init__`, so merely importing
+`saleha.core.self_evolving_loop` (which imports the singleton) created
+`~/.saleha/training_data/` on a user's machine with no opt-in. Fixed to defer
+directory creation to the first actual write (`_ensure_dir()`, called from
+`add_sample()` only), matching the lazy-init pattern pass 66 established.
+Added `saleha/tests/test_training_collector.py` (no test file existed for
+this module before): 5 tests, including a regression asserting construction
+alone does not touch the filesystem.
+
+**`speech.py` -- read in full, confirmed genuinely honest.** Real
+`faster-whisper`/`pyttsx3` availability checks via `importlib.import_module`,
+real transcription/speech calls with real exception-to-`success=False`
+mapping, no fabricated results. `voice_assistant.py`'s caller already checks
+`res.success` and surfaces `res.error` correctly. No production caller
+ignores a failure. No change needed.
+
+**`user_store.py` (3-importer, checked opportunistically since it manages
+authentication) -- read in full, confirmed genuinely solid.** Real PBKDF2-
+HMAC-SHA256 with per-user salts, real `hmac.compare_digest`/`secrets.
+compare_digest` timing-safe comparisons, a genuine decoy-hash computation for
+unknown usernames so login timing does not leak account existence, real
+session token hashing (only the SHA-256 digest is persisted, not the raw
+token), real expiry pruning, and honest design-notes docstring that
+explicitly states the in-memory throttle's limitation rather than hiding it.
+Verified `resolve_session` correctly round-trips a real create-user →
+authenticate → resolve-session flow. `saleha user` CLI and `web_server.py`'s
+18 authorization call sites both genuinely enforce it (not decorative). No
+fabrication, no fix needed.
+
+Measured: full suite 2337 -> **2344 passed, 13 skipped, 0 failures** (7 new
+tests: 1 in `test_real_test_runner.py`, 5 in new `test_training_collector.py`,
+1 in `test_lsp_engine.py`), zero regressions. ~65 of the 69 never-audited
+`saleha/core/` modules remain; next candidates by importer count (3 each):
+`hybrid_gateway.py`, `ai_reviewer.py`, `tree_context_ranker.py`,
+`session_tracer.py`, `semantic_memory_cache.py`, `repo_watcher.py`,
+`github_integrator.py`, `docker_sandbox.py`, `load_tester.py`, `p2p_mesh.py`,
+`multi_repo_graph.py`, `api_fuzzer.py`, `visual_diff.py`, `db_optimizer.py`,
+`iot_domotics.py`, `nexus_mobile_bridge.py`. Several of the remaining
+modules (`p2p_mesh`, `iot_domotics`, `nexus_mobile_bridge`,
+`unimax_bridge` -- grandiose naming, low importer counts) match the
+naming-vs-substance pattern flagged repeatedly in prior passes (`jarvis/`,
+pre-fix `p2p_swarm.py`) and are worth reading with that specifically in mind,
+though none has been opened yet to confirm real vs. fabricated.
+
+## Pass 139: repo-wide directory structure audit -- dead files, cache scatter, install-script/docs duplication (2026-09-21)
+
+User provided a 9-category structural audit of the whole repo (fragmented
+.saleha/ cache locations, dead backup files, root-level clutter, duplicate
+scripts/docs, tools/skills scatter, saleha/core/ flat monolith, missing
+__init__.py, contracts nesting, test-suite monolith). Verified every claim
+against the real repo before acting -- several were not what they first
+appeared to be.
+
+**Verified and fixed (genuinely safe, zero functional risk):**
+
+- **saleha/cli/commands.py.old (285KB, git-tracked) deleted.** Confirmed
+  zero references anywhere in the codebase or build config; the CLI package
+  split (commit ab277e8) had already fully superseded it. saleha.cli.
+  commands.cli still registers 162 commands with it gone.
+- **Stray .saleha/ sub-tree caches removed**: saleha/core/.saleha/ and
+  saleha/tools/.saleha/ were leftover per-workspace audit caches from
+  earlier "saleha doom audit saleha/core" / "saleha doom audit saleha/tools"
+  runs -- both untracked, both confirmed stale (small, outdated cache
+  entries), both will regenerate correctly on the next real audit of those
+  paths. This is NOT a bug in doom_workspace_engine.py: its
+  workspace_dir-relative cache placement is deliberate (pass 61, so
+  auditing a different repo doesn't collide caches) -- the scatter was
+  just accumulated disk clutter from prior legitimate runs, not a design
+  flaw needing a code fix.
+- **Root .saleha/test_cp_tmp/, test_mem_tmp.json, test_plugins_tmp/
+  removed.** Confirmed inert: the owning tests (test_swarm_pipeline_and_
+  bus.py's SemanticMemoryCacheTests, etc.) call .clear() in both setUp and
+  tearDown regardless of prior state -- these were leftovers from an
+  interrupted run, not fixtures anything depends on. Noted but not fixed:
+  conftest.py does not isolate .saleha/ for tests that hardcode a path
+  like ".saleha/test_mem_tmp.json" instead of using tmp_path -- a genuine
+  test-hygiene gap, left as a recorded finding since fixing it means
+  auditing every test using a literal ".saleha/..." path, a separate task
+  from cleanup.
+- **datasets/_pre_cleanup_backup_20260906/ deleted** (untracked, already
+  in .gitignore; the purge it backs up was verified and committed in
+  pass 46 -- this was pure stale disk clutter, never touched git).
+- **Root-level stray test/scratch output deleted**: test_dynamic_ws/
+  (confirmed to be test_blindspot_improvements.py::
+  test_dynamic_file_tree_workspace_sync's own generated output, recreated
+  each run via a real /api/workspace/sync call), workspace/ (trivial
+  generated app.js/index.html/schema.sql/server.py stub files), scratch/
+  (training-script scratch dumps -- DPO/GRPO/self-play/LoRA test artifacts
+  from prior manual script runs), and empty logs/. All four confirmed
+  untracked and unreferenced as fixtures -- threat_modeler.py already
+  lists scratch/test_dynamic_ws in its own scan-exclusion set, confirming
+  the project already treats these as scratch output, not source.
+- **saleha/specs/, saleha/experimental/, saleha/experimental/aionx/,
+  saleha/experimental/jarvis/ given __init__.py.** Confirmed nothing
+  imports any of them via a dotted path today (file-level imports only),
+  so this is a pure packaging correctness fix -- pyproject.toml's
+  include = ["saleha*"] now sees regular packages instead of relying on
+  implicit namespace packages. jarvis/__init__.py's docstring records the
+  pass-44/62 history (four fabricating files deleted, three genuine ones
+  kept) so a future reader does not have to re-derive it.
+- **Install script duplication resolved.** Root install.ps1/install.sh
+  and scripts/install.ps1/scripts/install.sh had diverged (different
+  banner text, different Ollama-detection logic, scripts/install.sh
+  additionally depended on requirements.txt while root used
+  "pip install -e ." directly) and neither was referenced by any doc or
+  CI config -- confirmed by grep, no canonical version existed. Kept the
+  root pair (matches the public curl/irm one-liners already in their own
+  usage comments) and deleted scripts/install.ps1/scripts/install.sh.
+  Removed decorative emoji from both kept scripts (Rule 3 -- these print
+  to real end-user terminals during install, some of which will not
+  render emoji).
+- **saleha/server/dashboard_reference.jsx (464-line React file with zero
+  callers) moved to docs/reference/dashboard_reference.jsx.** Confirmed
+  dead: no Python module in saleha/server/ reads or serves it, no frontend
+  build (apps/desktop, apps/web, packages/ui) includes it; the real
+  desktop dashboard is apps/desktop/src/App.tsx (already audited pass 42).
+  This is design-exploration content, not a duplicate of anything
+  shipped, so relocated to a reference folder rather than deleted -- a
+  Python backend package is simply the wrong home for it.
+
+**Investigated and found NOT to be problems (claims that did not survive
+verification):**
+
+- **Root ARCHITECTURE.md vs docs/ARCHITECTURE.md -- not a stale
+  duplicate.** docs/ARCHITECTURE.md is "saleha doc-gen"'s committed,
+  auto-generated output (already fixed and regenerated in pass 136); root
+  ARCHITECTURE.md is the hand-written narrative doc. Different purposes,
+  already documented as such. No action.
+- **Root SECURITY.md / docs/SECURITY_MODEL.md / docs/threat_model.md --
+  three genuinely different document types**, not duplicates: GitHub's
+  standard supported-versions/reporting-policy convention file, an
+  architecture-level security design doc, and a STRIDE risk analysis. No
+  action. Notebook/SECURITY.md is GitHub's unedited default template
+  sitting inside the gitignored, explicitly-untouched research vault
+  (CLAUDE.md: "Notebook/ itself is untouched") -- left alone per that
+  standing instruction.
+- **swe_bench_runner.py vs swebench_runner.py, self_healing.py vs
+  self_healer.py -- not dead duplicates.** Both pairs have real,
+  independent, non-overlapping production callers (verified by grep):
+  swe_bench_runner.py is the official-SWE-bench-harness integration
+  (pass 92), swebench_runner.py is a separate runner used by
+  testing_bench.py/harness/__init__.py; self_healing.py is called by
+  debugger.py/orchestrator.py, self_healer.py by local_supremacy.py.
+  Confusingly similar names, but renaming either pair safely requires
+  tracing and updating every caller -- a real refactor, not a quick
+  dedup, and out of scope for this pass. Recorded for a future rename
+  pass, not touched here.
+
+**Not yet done this pass (larger, riskier structural moves still queued):**
+the saleha/core/ 243-file flat-module reorganization into its 9 mostly-
+empty category folders (cognitive/, graph/, harness/, loop/, platform/,
+rag/, swarm/, telemetry/, verification/), the saleha/tests/ 282-file
+flat-to-subpackage split, and the tools/skills/personas 5-way
+consolidation (tools/, saleha/tools/, saleha/skills/, .agents/skills/,
+saleha/agents/) are all real, described accurately by the user's audit,
+but each touches hundreds of import sites -- continuing in a following
+pass with careful caller-tracing rather than a bulk git mv, per this
+repo's own rule that structural changes must be verified against a full
+test run at each step, not assumed safe from the shape of the change
+alone.
+
+Measured: full suite re-run after all of Stage 1/2 above: **2344 passed,
+13 skipped, 0 failures** -- unchanged from before this pass, confirming
+none of the deletions/moves touched anything load-bearing.

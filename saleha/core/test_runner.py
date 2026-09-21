@@ -204,6 +204,13 @@ class TestRunner:
                 test_name=str(item.get("test", "<unknown>")),
                 traceback=str(item.get("traceback", "")),
             ))
+        if result.ran == 0:
+            # test_code was provided but contributed zero actual test methods
+            # (e.g. comments-only, malformed test names) -- nothing was verified,
+            # so this must not be reported as a pass.
+            result.passed = False
+            result.error = result.error or "test suite ran 0 tests -- nothing was verified"
+            return result
         result.passed = exec_res.success and not result.failures
         if not result.passed and not result.failures and not exec_res.success:
             result.error = exec_res.error or f"runner exit {exec_res.exit_code}"

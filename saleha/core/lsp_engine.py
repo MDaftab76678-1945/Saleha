@@ -1,8 +1,11 @@
 """
 Saleha Core: Compiler-Grade LSP & Type-Checking Diagnostic Engine
 
-Provides deep static analysis, type-checking diagnostics, and compiler-level
-error localization across Python, TypeScript/JavaScript, Go, and Rust.
+Provides deep AST-based static analysis and type-annotation diagnostics for
+Python. JavaScript/TypeScript/Go/Rust files are recognized by extension but
+NOT analyzed -- no parser exists for them here; `check_file` returns an empty
+diagnostic list for them and `check_directory` counts them under
+`files_skipped_unsupported` rather than silently treating them as clean.
 """
 
 import ast
@@ -28,6 +31,8 @@ class DiagnosticReport:
     error_count: int
     warning_count: int
     diagnostics: List[LSPDiagnostic] = field(default_factory=list)
+    files_analyzed: int = 0
+    files_skipped_unsupported: int = 0
 
 
 class LSPEngine:
@@ -107,15 +112,25 @@ class LSPEngine:
         return []
 
     def check_directory(self, dir_path: str) -> DiagnosticReport:
-        """Audits an entire workspace directory for compiler and type diagnostics."""
+        """Audits an entire workspace directory for compiler and type diagnostics.
+
+        Only .py files are actually analyzed. .js/.ts/.go/.rs files are counted
+        in `files_skipped_unsupported` rather than being silently treated as
+        clean -- there is no parser for them here.
+        """
         all_diags = []
+        analyzed = 0
+        skipped = 0
         for root, _, files in os.walk(dir_path):
             if any(p in root for p in [".git", "__pycache__", "venv", ".venv", "node_modules", ".saleha"]):
                 continue
             for f in files:
-                if f.endswith((".py", ".js", ".ts", ".go", ".rs")):
+                if f.endswith(".py"):
                     full_p = os.path.join(root, f)
                     all_diags.extend(self.check_file(full_p))
+                    analyzed += 1
+                elif f.endswith((".js", ".ts", ".go", ".rs")):
+                    skipped += 1
 
         err_cnt = sum(1 for d in all_diags if d.severity == "ERROR")
         warn_cnt = sum(1 for d in all_diags if d.severity == "WARNING")
@@ -124,7 +139,9 @@ class LSPEngine:
             total_diagnostics=len(all_diags),
             error_count=err_cnt,
             warning_count=warn_cnt,
-            diagnostics=all_diags
+            diagnostics=all_diags,
+            files_analyzed=analyzed,
+            files_skipped_unsupported=skipped,
         )
 
 

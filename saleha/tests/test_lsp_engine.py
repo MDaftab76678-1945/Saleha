@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.lsp_engine import LSPEngine, LSPDiagnostic, DiagnosticReport
+from saleha.core.lsp_engine import DiagnosticReport, LSPEngine
 
 
 class LSPEngineTests(unittest.TestCase):
@@ -52,6 +52,23 @@ class LSPEngineTests(unittest.TestCase):
         report = self.engine.check_directory(self.root)
         self.assertIsInstance(report, DiagnosticReport)
         self.assertEqual(report.error_count, 0)
+        self.assertEqual(report.files_analyzed, 1)
+        self.assertEqual(report.files_skipped_unsupported, 0)
+
+    def test_js_ts_go_rust_files_are_reported_skipped_not_clean(self):
+        # Regression: this engine has no parser for these languages. A directory
+        # containing only a broken JS file must not be reported as "0 errors" --
+        # that reads identically to "this file was checked and found clean" when
+        # in fact nothing looked at it. It must show up as skipped instead.
+        with open(os.path.join(self.root, "broken.js"), "w", encoding="utf-8") as f:
+            f.write("function add(a, b) { retrun a + b }\n")
+        with open(os.path.join(self.root, "broken.go"), "w", encoding="utf-8") as f:
+            f.write("func add(a, b int int { retrun a + b }\n")
+
+        report = self.engine.check_directory(self.root)
+        self.assertEqual(report.total_diagnostics, 0)
+        self.assertEqual(report.files_analyzed, 0)
+        self.assertEqual(report.files_skipped_unsupported, 2)
 
 
 if __name__ == "__main__":

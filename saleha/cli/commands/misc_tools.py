@@ -567,13 +567,18 @@ def lsp_cmd(target: str, as_json: bool) -> None:
         errs = sum((1 for d in diags if d.severity == 'ERROR'))
         warns = sum((1 for d in diags if d.severity == 'WARNING'))
         from saleha.core.lsp_engine import DiagnosticReport
-        report = DiagnosticReport(total_diagnostics=len(diags), error_count=errs, warning_count=warns, diagnostics=diags)
+        is_py = target.endswith('.py')
+        report = DiagnosticReport(
+            total_diagnostics=len(diags), error_count=errs, warning_count=warns, diagnostics=diags,
+            files_analyzed=1 if is_py else 0,
+            files_skipped_unsupported=0 if is_py else 1,
+        )
     else:
         report = _cmds.lsp_engine.check_directory(target)
     if as_json:
-        click.echo(json.dumps({'total': report.total_diagnostics, 'errors': report.error_count, 'warnings': report.warning_count, 'diagnostics': [d.__dict__ for d in report.diagnostics]}, ensure_ascii=False, indent=2))
+        click.echo(json.dumps({'total': report.total_diagnostics, 'errors': report.error_count, 'warnings': report.warning_count, 'files_analyzed': report.files_analyzed, 'files_skipped_unsupported': report.files_skipped_unsupported, 'diagnostics': [d.__dict__ for d in report.diagnostics]}, ensure_ascii=False, indent=2))
         return
-    table = Table(title=f'🔍 Compiler & Type Diagnostics ({target})', show_header=True, header_style='bold magenta', expand=True)
+    table = Table(title=f'Compiler & Type Diagnostics ({target})', show_header=True, header_style='bold magenta', expand=True)
     table.add_column('Location', style='bold cyan', width=25)
     table.add_column('Severity', width=10)
     table.add_column('Rule ID', width=18)
@@ -582,10 +587,12 @@ def lsp_cmd(target: str, as_json: bool) -> None:
         sev_color = 'red' if d.severity == 'ERROR' else 'yellow'
         table.add_row(f'{os.path.basename(d.file_path)}:{d.line_number}:{d.column}', f'[{sev_color}]{d.severity}[/]', d.rule_id, d.message)
     console.print(table)
+    if report.files_skipped_unsupported:
+        console.print(f"[dim]Note: {report.files_skipped_unsupported} .js/.ts/.go/.rs file(s) were not analyzed -- this engine only checks Python.[/]")
     if report.total_diagnostics == 0:
-        console.print('[bold green]✅ Clean! Zero compiler or type errors detected.[/]\n')
+        console.print(f'[bold green]Zero compiler or type errors detected in {report.files_analyzed} Python file(s) analyzed.[/]\n')
     else:
-        console.print(f'[bold yellow]Found {report.error_count} Errors, {report.warning_count} Warnings.[/]\n')
+        console.print(f'[bold yellow]Found {report.error_count} Errors, {report.warning_count} Warnings across {report.files_analyzed} Python file(s) analyzed.[/]\n')
 
 @cli.command(name='chaos')
 @click.option('--iterations', default=10, help='Number of randomized fault injection iterations')
