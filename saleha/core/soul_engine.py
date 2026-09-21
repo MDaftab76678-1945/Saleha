@@ -9,7 +9,6 @@ agent souls defined in the souls/ directory.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -92,11 +91,13 @@ class SoulEngine:
         
         self._active_file = self.config_dir / "active_soul.json"
         self._cache: Dict[str, SoulPackage] = {}
+        self.load_errors: Dict[str, str] = {}
         self.reload()
 
     def reload(self) -> None:
         """Scan and load all souls from the souls/ directory."""
         self._cache.clear()
+        self.load_errors.clear()
         if not self.souls_dir.exists():
             return
 
@@ -139,9 +140,10 @@ class SoulEngine:
                             path=str(item),
                         )
                         self._cache[package.name] = package
-                    except Exception as e:
-                        # Log error but don't crash
-                        pass
+                    except Exception as ex:
+                        # Record but don't crash: one broken soul must
+                        # neither take down the engine nor vanish silently.
+                        self.load_errors[item.name] = str(ex) or type(ex).__name__
 
     def list_souls(self) -> List[SoulPackage]:
         """Return all registered souls sorted by name."""
@@ -183,17 +185,27 @@ class SoulEngine:
         return self._cache.get(name)
 
     def set_active_soul(self, name: str) -> SoulPackage:
-        """Set the active soul and persist preference to disk."""
+        """Set the active soul and persist preference to disk.
+
+        Raises OSError if the preference cannot actually be written. Found
+        by direct probe: the old version swallowed any write failure and
+        still returned the target soul, so a caller believed the switch had
+        succeeded while get_active_soul_name() -- which re-reads the same
+        file -- kept reporting a different, stale soul on every subsequent
+        call. Silently returning success here is exactly the "reassuring
+        default" this project's audit rules exist to forbid.
+        """
         target = self.get_soul(name)
         if not target:
             raise KeyError(f"Soul '{name}' not found. Available: {list(self._cache.keys())}")
 
-        try:
-            self.config_dir.mkdir(parents=True, exist_ok=True)
-            with open(self._active_file, "w", encoding="utf-8") as f:
-                json.dump({"active_soul": target.name, "version": target.version}, f, indent=2)
-        except Exception:
-            pass
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        # Atomic write so a crash mid-write cannot leave a half-written
+        # preference file behind for get_active_soul_name() to misread.
+        tmp_file = self._active_file.with_name(self._active_file.name + ".tmp")
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump({"active_soul": target.name, "version": target.version}, f, indent=2)
+        tmp_file.replace(self._active_file)
 
         return target
 

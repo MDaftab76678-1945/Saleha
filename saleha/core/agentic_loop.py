@@ -105,6 +105,45 @@ def _is_test_path(rel_path: str) -> bool:
             or norm.startswith("test/"))
 
 
+def _changed_code_lines(old_text: str, new_text: str) -> set:
+    """1-indexed line numbers changed in the new text, blanks and pure
+    comments excluded. A patch that only reformats or comments has no
+    code lines -- that is a fact about the diff, reported as an empty
+    set, never an error."""
+    import difflib
+    old_lines = (old_text or "").splitlines()
+    new_lines = (new_text or "").splitlines()
+    changed: set = set()
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines,
+                                      autojunk=False)
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        for n in range(j1 + 1, j2 + 1):
+            stripped = new_lines[n - 1].strip()
+            if stripped and not stripped.startswith("#"):
+                changed.add(n)
+    return changed
+
+
+def _parse_failed_node_ids(output: str) -> List[str]:
+    """Pull pytest node IDs (test_x.py::test_y) out of FAILED summary lines.
+    Capped: coverage targets cost a traced run each, so a handful of the
+    failing tests is the signal -- not the whole red suite."""
+    ids: List[str] = []
+    for line in (output or "").splitlines():
+        if not line.startswith("FAILED "):
+            continue
+        node = line[len("FAILED "):].split(" - ", 1)[0].strip()
+        # Skip the verdict head line itself (`FAILED (exit 1) -- ran ...`);
+        # real node IDs never start with "(".
+        if node and not node.startswith("("):
+            ids.append(node)
+        if len(ids) >= 5:
+            break
+    return ids
+
+
 def _loads_lenient(payload: str) -> Optional[Dict]:
     """Parse a model-written JSON object, tolerating raw newlines in strings.
 
@@ -730,6 +769,228 @@ Never invent tool outputs. One block per reply. Be efficient."""
         body = summary or _truncate(output, 1500)
         return f"{head}\n{body}"
 
+    def _revert_check(self, patched: List[str],
+                      snapshot: Dict[str, Optional[str]]
+                      ) -> Tuple[Optional[bool], str, str]:
+        """Counterfactual: does the suite still pass WITHOUT the patch?
+
+        Returns (verdict, detail, full_output). True = the suite fails without the
+        patch, so the test genuinely guards the fix. False = it passes
+        either way -- the patch is unproven and must not be reported as
+        verified. None = could not evaluate (unreadable state, unrunnable
+        command); not evidence either way.
+
+        Restores the patched content before returning in every path. A
+        failed restore raises OSError -- the caller must fail the run
+        loudly then, never leave the repo reverted in silence. Costs one
+        extra full-suite run per file state; the caller caches nothing
+        here because a new mutation already resets the whole chain.
+        """
+        if not patched:
+            return (None, "revert-check skipped: nothing was patched")
+        # Phase 1: read everything first -- no writes yet, so any failure
+        # here leaves the tree untouched and honestly unevaluated.
+        patched_now: Dict[str, Optional[str]] = {}
+        for rel in patched:
+            abs_p = self._safe_path(rel)
+            if not abs_p or not os.path.isfile(abs_p):
+                return (None, f"revert-check skipped: {rel} is not readable")
+            try:
+                with open(abs_p, "r", encoding="utf-8",
+                          errors="replace") as f:
+                    patched_now[rel] = f.read()
+            except OSError:
+                return (None, f"revert-check skipped: {rel} unreadable")
+        # Phase 2+3: restore originals, run the suite, restore the patch.
+        # The finally guarantees the fix comes back even when the suite
+        # itself errors; an OSError inside either write propagates so the
+        # run fails loudly instead of continuing on a half-restored tree.
+        reverted: List[str] = []
+        try:
+            for rel in patched:
+                if rel not in snapshot:
+                    continue
+                abs_p = self._safe_path(rel) or ""
+                orig = snapshot[rel]
+                if orig is None:
+                    if os.path.isfile(abs_p):
+                        os.remove(abs_p)
+                else:
+                    with open(abs_p, "w", encoding="utf-8") as f:
+                        f.write(orig)
+                reverted.append(rel)
+            verdict_obs = self._tool_run_tests()
+        finally:
+            for rel in reverted:
+                current = patched_now.get(rel)
+                if current is None:
+                    continue
+                abs_p = self._safe_path(rel) or ""
+                with open(abs_p, "w", encoding="utf-8") as f:
+                    f.write(current)
+        detail = verdict_obs.splitlines()[0] if verdict_obs else "empty output"
+        if verdict_obs.startswith("PASSED "):
+            return (False, detail, verdict_obs)
+        if verdict_obs.startswith("FAILED "):
+            return (True, detail, verdict_obs)
+        return (None, detail, verdict_obs)
+
+    # Runner for the coverage gate: stdlib trace only, zero new
+    # dependencies, so it works in any target repo with just Python.
+    # Written to a tempdir, never inside the repo under repair. The
+    # -p no:cacheprovider flag and PYTHONDONTWRITEBYTECODE follow the
+    # pass-102 lesson: cache files racing a Windows temp cleanup turn a
+    # green run red after its assertions already passed.
+    _COVERAGE_RUNNER = (
+        "import os, sys, trace\n"
+        "coverdir = sys.argv[1]\n"
+        "targets = sys.argv[2:]\n"
+        "import pytest\n"
+        "ignored = [sys.prefix, sys.exec_prefix, "
+        "os.path.dirname(os.__file__)]\n"
+        "tracer = trace.Trace(count=1, trace=0, ignoredirs=ignored)\n"
+        "tracer.runfunc(pytest.main, ['-q', '-p', 'no:cacheprovider'] + targets)\n"
+        "tracer.results().write_results(show_missing=True, summary=False, "
+        "coverdir=coverdir)\n"
+    )
+
+    @staticmethod
+    def _read_cover_executed(coverdir: str, rel: str,
+                             source_lines: List[str]
+                             ) -> Optional[set]:
+        """Line numbers the traced run executed in one patched file.
+
+        Matches the measured stdlib trace format exactly (`    N: source`
+        executed, `>>>>>> source` missed, bare lines blank) and validates
+        1:1 alignment against the file's own lines first: any shape or
+        content mismatch returns None (unknown) rather than a verdict
+        built on misaligned rows.
+        """
+        stem = rel.replace("\\", "/")
+        if stem.endswith("/__init__.py"):
+            stem = stem[: -len("/__init__.py")]
+        elif stem.endswith(".py"):
+            stem = stem[: -len(".py")]
+        dotted = stem.replace("/", ".")
+        short = dotted.rsplit(".", 1)[-1]
+        for name in (dotted + ".cover", short + ".cover"):
+            path = os.path.join(coverdir, name)
+            if not os.path.isfile(path):
+                continue
+            try:
+                with open(path, "r", encoding="utf-8",
+                          errors="replace") as f:
+                    cover_lines = f.read().splitlines()
+            except OSError:
+                return None
+            if len(cover_lines) != len(source_lines):
+                return None
+            executed: set = set()
+            for num, (cline, src) in enumerate(
+                    zip(cover_lines, source_lines, strict=True), 1):
+                if ":" in cline:
+                    prefix, _, content = cline.partition(":")
+                    if prefix.strip().isdigit():
+                        if content.strip() != src.strip():
+                            return None
+                        executed.add(num)
+                        continue
+                if cline.startswith(">>>>>>"):
+                    if cline[len(">>>>>>"):].strip() != src.strip():
+                        return None
+                    continue
+                if cline.strip():
+                    return None
+            return executed
+        return None
+
+    def _coverage_check(self, targets: List[str],
+                        files: Dict[str, Tuple[str, List[str]]]
+                        ) -> Tuple[Optional[bool], str]:
+        """Did the failing tests execute the changed lines?
+
+        Runs the given test targets under stdlib trace and requires every
+        patched Python file with code changes to have at least one changed
+        line executed. True = reached; False = a file's changes never ran
+        (dead code, wrong file, or invisible change); None = could not
+        evaluate (no data, unrunnable, non-pytest project) -- an unknown,
+        never evidence. A nonzero pytest exit is expected here (these are
+        the FAILING tests) and never counts against the verdict; only the
+        executed lines do.
+        """
+        import tempfile
+        if not targets:
+            return (None, "coverage skipped: no test targets to run")
+        # Drop targets whose file part does not resolve: a garbage target
+        # makes pytest exit on collection error with nothing traced, which
+        # would otherwise surface as mysteriously missing cover data.
+        usable: List[str] = []
+        for tgt in targets:
+            chk = self._safe_path(tgt.split("::", 1)[0])
+            if chk and os.path.isfile(chk):
+                usable.append(tgt)
+        if not usable:
+            return (None, "coverage skipped: no resolvable test targets")
+        targets = usable
+        py_files = [r for r in files if r.endswith(".py")]
+        if not py_files:
+            return (None, "coverage skipped: no Python files patched")
+        discovered, _why = self._discover_test_command()
+        if not discovered or "pytest" not in " ".join(discovered):
+            return (None, "coverage skipped: test command is not pytest")
+        tmp = tempfile.mkdtemp()
+        runner = os.path.join(tmp, "saleha_covrun.py")
+        coverdir = os.path.join(tmp, "cover")
+        try:
+            os.makedirs(coverdir, exist_ok=True)
+            with open(runner, "w", encoding="utf-8") as f:
+                f.write(self._COVERAGE_RUNNER)
+        except OSError as err:
+            return (None, f"coverage skipped: cannot stage runner ({err})")
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        try:
+            subprocess.run(
+                [sys.executable, runner, coverdir] + targets,
+                cwd=self.root_dir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.test_timeout_sec,
+                env=env,
+            )
+        except FileNotFoundError as err:
+            return (None,
+                    f"coverage skipped: interpreter not runnable ({err})")
+        except subprocess.TimeoutExpired:
+            return (None,
+                    f"coverage skipped: traced run timed out after "
+                    f"{self.test_timeout_sec}s")
+        checked = 0
+        unreached: List[str] = []
+        evidence: List[str] = []
+        for rel in sorted(py_files):
+            old_text, new_lines = files[rel]
+            changed = _changed_code_lines(old_text, "\n".join(new_lines))
+            if not changed:
+                continue
+            executed = self._read_cover_executed(coverdir, rel, new_lines)
+            if executed is None:
+                continue
+            checked += 1
+            hit = sorted(changed & executed)
+            evidence.append(
+                f"{rel}: {len(hit)}/{len(changed)} changed lines executed")
+            if not hit:
+                unreached.append(rel)
+        if checked == 0:
+            return (None, "coverage skipped: no cover data for patched files")
+        detail = ("coverage over failing tests [" + ", ".join(targets) + "]: "
+                  + "; ".join(evidence))
+        if unreached:
+            return (False, detail + " -- UNREACHED: " + ", ".join(unreached))
+        return (True, detail)
+
     def _tool_write_file(self, path: str, content: str) -> str:
         if not self.allow_write:
             return "BLOCKED: write tool disabled (enable allow_write=True)"
@@ -1078,6 +1339,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # mutation, since a fresh edit needs a fresh verdict. None = not run
         # yet; otherwise (passed: bool, detail: str).
         auto_test_verdict: Optional[Tuple[bool, str]] = None
+        # Cached coverage verdict for the same file state: a traced suite
+        # run costs multiples of a plain one, so a rejected finish retried
+        # without a new mutation reuses it instead of re-running.
+        coverage_verdict: Optional[Tuple[Optional[bool], str]] = None
         # Consecutive read-only calls since the last mutation attempt.
         # Measured against a real repo bug: after the pass-88 navigation
         # fixes, qwen3:8b found the right test at step 6 and the right
@@ -1122,6 +1387,16 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # get_file_outline on this set turns "file not found" (which the
         # model was ignoring) into a hard rejection naming a real path.
         confirmed_files: set = set()
+        # Test files this run actually read (successful reads only). The
+        # depth gate admits a repair-goal success only when the model
+        # looked at a test.
+        test_files_read: set = set()
+        # Pre-patch content per successfully patched path (None = the file
+        # did not exist before this run created it). The revert-check
+        # restores these to prove the suite actually guards the fix.
+        # setdefault semantics: the earliest image wins, so a second edit
+        # to the same file does not overwrite the true original.
+        pre_patch_snapshot: Dict[str, Optional[str]] = {}
 
         def _norm_rel(p: str) -> str:
             return p.strip().replace("\\", "/").lstrip("./")
@@ -1404,6 +1679,168 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         )
                         continue
 
+                # Depth gate: a green suite proves the tests pass, not that
+                # the model diagnosed the bug. Measured (pass 106): the loop
+                # stayed honest only because the suite stayed red; had it
+                # gone green by coincidence, a fix the model never understood
+                # would have been admitted -- the patch edited a default the
+                # target test always overrides explicitly, a fact visible in
+                # the test file the model never opened. So a repair-goal
+                # success additionally requires the model to have read at
+                # least one test file: a mechanical observation, never
+                # prose. Repos with no discoverable test command cannot
+                # satisfy it, so the exemption the auto-verify gate already
+                # grants extends here too. (An import-path gate was tried
+                # here and removed -- see the note below -- after it proved
+                # redundant with the revert-check and harmful to transitive
+                # and data-file fixes.)
+                if (self.allow_write and mutations_succeeded > 0
+                        and _looks_like_a_repair_goal(goal)
+                        and not (auto_test_verdict is not None
+                                 and auto_test_verdict[1].startswith(
+                                     "no test command found:"))):
+                    if not test_files_read:
+                        observation = (
+                            "REJECTED: the test suite is green, but you have "
+                            "not read a single test file this run -- a green "
+                            "verdict you never looked at proves nothing about "
+                            "your patch. The bug's real expectations live in "
+                            "its test.\n"
+                            "DO THIS NEXT: call read_file on the test file "
+                            "covering this goal, read what it asserts, and "
+                            "call finish() again only if those assertions "
+                            "match what your patch does."
+                        )
+                        result.steps.append(LoopStep(
+                            step_no, "finish-rejected", "", observation))
+                        emit({"step": step_no, "action": "finish-rejected",
+                              "observation": observation})
+                        transcript_parts.append(
+                            f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                        )
+                        continue
+                    # Revert-check: would the suite pass WITHOUT the patch?
+                    # Runs after the test-read gate (no point spending a
+                    # suite run when the model hasn't even opened a test)
+                    # and before the import-path gate. A loud OSError here
+                    # means the tree may be half-restored, so the run fails
+                    # instead of continuing on unknown file state.
+                    try:
+                        proven, revert_detail, revert_full = self._revert_check(
+                            sorted(pre_patch_snapshot), pre_patch_snapshot)
+                    except OSError as err:
+                        result.error = (
+                            "revert-check could not restore patched files: "
+                            f"{err}. Stopping rather than leaving the repo "
+                            "in an unknown state.")
+                        emit({"step": step_no, "action": "revert-check-error",
+                              "observation": result.error})
+                        return result
+                    result.steps.append(LoopStep(
+                        step_no, "revert-check", "",
+                        _truncate(revert_detail, 800)))
+                    emit({"step": step_no, "action": "revert-check",
+                          "observation": revert_detail})
+                    if proven is False:
+                        observation = (
+                            "REJECTED: the test suite passes WITH and WITHOUT "
+                            "your patch -- so the test does not guard your "
+                            "fix, and this green proves nothing. An unproven "
+                            "patch is not a verified one.\n"
+                            f"Revert run said: {revert_detail}\n"
+                            "DO THIS NEXT: find the test that fails on the "
+                            "unpatched code (run_tests with a \"target\" "
+                            "naming that test file), read what it asserts, "
+                            "and only then re-patch the code it exercises."
+                        )
+                        result.steps.append(LoopStep(
+                            step_no, "finish-rejected", "", observation))
+                        emit({"step": step_no, "action": "finish-rejected",
+                              "observation": observation})
+                        transcript_parts.append(
+                            f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                        )
+                        continue
+                    # proven True: the suite fails without the patch -- the
+                    # test guards the fix. proven None: could not evaluate;
+                    # the passing suite stands with the test-read check
+                    # above as the remaining evidence.
+                    #
+                    # Deliberately no import-path gate here: one was built
+                    # (patched file must be imported by a read test) and
+                    # removed after measurement. The revert-check above
+                    # already catches the off-path-patch shape it was built
+                    # for, while the import check additionally false-rejected
+                    # legitimate transitive fixes (a helper imported by the
+                    # source, not the test) and data-file fixes no import
+                    # graph can see. (The coverage gate below now proves
+                    # reachability; call-graph lookahead stays open.)
+
+                    # Coverage gate: did the failing tests execute the
+                    # change? Inside this repair-gated block, revert_full is
+                    # always bound (the revert-check above ran). The
+                    # revert-check proved the suite flips without the patch;
+                    # this proves the failing tests actually REACH the
+                    # changed lines -- a patch whose lines never run is dead
+                    # code, a wrong-file guess, or a change the tests cannot
+                    # see, and a green suite around it proves nothing. Per
+                    # patched Python file with code changes, at least one
+                    # changed line must be executed; files with no cover
+                    # data, non-Python patches, and comment-only diffs are
+                    # unknowns, never verdicts. The failing-test targets come
+                    # from the revert run above, falling back to the read
+                    # test files; the verdict is cached per file-state like
+                    # the auto-verify one.
+                    if coverage_verdict is None:
+                        revert_failures = _parse_failed_node_ids(revert_full)
+                        cov_targets = revert_failures or sorted(test_files_read)
+                        cov_files: Dict[str, Tuple[str, List[str]]] = {}
+                        for cov_rel in sorted(pre_patch_snapshot):
+                            if not cov_rel.endswith(".py"):
+                                continue
+                            cov_abs = self._safe_path(cov_rel)
+                            if not cov_abs:
+                                continue
+                            try:
+                                with open(cov_abs, "r", encoding="utf-8",
+                                          errors="replace") as _f:
+                                    cov_lines = _f.read().splitlines()
+                            except OSError:
+                                continue
+                            cov_files[cov_rel] = (
+                                pre_patch_snapshot.get(cov_rel) or "", cov_lines)
+                        if cov_files and cov_targets:
+                            coverage_verdict = self._coverage_check(
+                                cov_targets, cov_files)
+                        else:
+                            coverage_verdict = (
+                                None, "coverage skipped: nothing checkable")
+                        result.steps.append(LoopStep(
+                            step_no, "coverage-check", "",
+                            _truncate(coverage_verdict[1], 800)))
+                        emit({"step": step_no, "action": "coverage-check",
+                              "observation": coverage_verdict[1]})
+                    if coverage_verdict[0] is False:
+                        observation = (
+                            "REJECTED: the failing tests never executed your "
+                            "changed lines -- "
+                            f"{coverage_verdict[1]}. A fix the tests do not run "
+                            "is dead code or a wrong-file guess, and the green "
+                            "suite around it proves nothing.\n"
+                            "DO THIS NEXT: run the failing test yourself "
+                            "(run_tests with a \"target\" naming it), confirm it "
+                            "executes the function you changed, and move your "
+                            "fix into code that test actually reaches."
+                        )
+                        result.steps.append(LoopStep(
+                            step_no, "finish-rejected", "", observation))
+                        emit({"step": step_no, "action": "finish-rejected",
+                              "observation": observation})
+                        transcript_parts.append(
+                            f"[step {step_no}] finish (REJECTED)\nOBSERVATION: {observation}"
+                        )
+                        continue
+
                 if self.require_evidence and self.ledger is not None:
                     # Route through VERIFYING -> ACCEPTED so the recorded
                     # history always shows verification preceded acceptance.
@@ -1581,6 +2018,21 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 )
                 continue
 
+            # Snapshot the file BEFORE a mutating call runs, so the
+            # revert-check can later restore the pre-patch state. Read here
+            # rather than after: after the call, the original is gone.
+            pre_patch_text: Optional[str] = None
+            pre_patch_rel = ""
+            if tool_name in ("patch_file", "write_file"):
+                pre_patch_rel = _norm_rel(str(args.get("path", "") or ""))
+                _pre_abs = self._safe_path(pre_patch_rel) if pre_patch_rel else None
+                if _pre_abs and os.path.isfile(_pre_abs):
+                    try:
+                        with open(_pre_abs, "r", encoding="utf-8",
+                                  errors="replace") as _f:
+                            pre_patch_text = _f.read()
+                    except OSError:
+                        pre_patch_text = None
             handler = tools.get(tool_name)
             call_failed = False
             if handler is None:
@@ -1685,6 +2137,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         rel = line.split(":", 1)[0]
                         if rel and not rel.startswith("["):
                             confirmed_files.add(_norm_rel(rel))
+            elif not call_failed and tool_name == "read_file":
+                rel = _norm_rel(str(args.get("path", "")))
+                if rel and _is_test_path(rel):
+                    test_files_read.add(rel)
 
             # Repeat detection. A small model re-reads the same file instead of
             # acting on it: an earlier SWE-bench run here spent 6 of 12 turns on
@@ -1789,10 +2245,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         or observation.startswith("path traversal blocked:")
                         or observation.startswith("Tool forge failed")):
                     mutations_succeeded += 1
+                    if pre_patch_rel:
+                        pre_patch_snapshot.setdefault(
+                            pre_patch_rel, pre_patch_text)
                     # A new successful edit invalidates any prior test
                     # verdict -- it was measured against the file as it
                     # stood before this change.
                     auto_test_verdict = None
+                    coverage_verdict = None
             elif tool_name in _READ_ONLY_TOOLS and not call_failed:
                 reads_since_mutation_attempt += 1
                 if reads_since_mutation_attempt == _READ_ONLY_NUDGE_AFTER:

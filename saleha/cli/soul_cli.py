@@ -69,7 +69,7 @@ def use_soul_cmd(name: str):
             f"[bold white]Description:[/] {active.description}\n"
             f"[bold white]Tags:[/] {', '.join(active.tags)}\n\n"
             f"[dim]All autonomous agents and reasoning loops will now operate under this soul.[/]",
-            title="[bold green]🌌 Soul Transition Complete[/]",
+            title="[bold green]Soul Transition Complete[/]",
             border_style="green"
         ))
         console.print()
@@ -78,6 +78,14 @@ def use_soul_cmd(name: str):
         console.print(Panel(
             f"[bold red]Error:[/] {e}\n\n"
             f"[dim]Run [bold cyan]saleha soul list[/] to see all available archetypes.[/]",
+            title="[bold red]Activation Failed[/]",
+            border_style="red"
+        ))
+        console.print()
+    except OSError as e:
+        console.print()
+        console.print(Panel(
+            f"[bold red]Could not persist the active soul to disk:[/] {e}",
             title="[bold red]Activation Failed[/]",
             border_style="red"
         ))

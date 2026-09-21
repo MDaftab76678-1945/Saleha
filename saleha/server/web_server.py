@@ -3028,6 +3028,8 @@ still required before merging -- neither ran here."""
                 })
             except KeyError as err:
                 self._send_json(404, {"error": str(err)})
+            except OSError as err:
+                self._send_json(500, {"error": f"could not persist active soul: {err}"})
             return
 
         if path == "/api/octopus/run":

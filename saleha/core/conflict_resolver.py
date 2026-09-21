@@ -11,9 +11,8 @@ from __future__ import annotations
 import os
 import re
 import ast
-import subprocess
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass
+from typing import List, Optional
 
 
 @dataclass
@@ -99,13 +98,16 @@ class ConflictResolver:
                 if l not in ours_statements:
                     merged_lines.append(l)
 
-            # Pick return statement
-            ret_line = "    return True"
+            # Pick a return statement only if either side actually returns.
+            # Inventing one (e.g. a hardcoded "return True") would put code
+            # into the merge that neither side wrote.
+            ret_line = None
             for l in theirs_body + ours_body:
                 if l.strip().startswith("return "):
                     ret_line = l
                     break
-            merged_lines.append(ret_line)
+            if ret_line is not None:
+                merged_lines.append(ret_line)
 
             merged_code = "\n".join(merged_lines)
             ast.parse(merged_code) # verify valid AST syntax
@@ -113,10 +115,32 @@ class ConflictResolver:
         except Exception:
             return None
 
+    @staticmethod
+    def _strip_blank_lines(lines: List[str]) -> str:
+        """Joins lines, trimming leading/trailing BLANK lines only.
+
+        Real bug found auditing this module: `"\\n".join(lines).strip()`
+        strips whitespace from the *string*, which for a single-line hunk
+        (the most common real conflict shape -- one changed line inside an
+        indented block) strips that line's own leading indentation, since
+        there is nothing else in the joined string to protect it.
+        Confirmed by direct probe: a one-line hunk `"    z = y + 1"` came
+        back as `"z = y + 1"`. Python's grammar happened to catch every
+        case tried as a resulting SyntaxError (so `is_valid_ast` still
+        correctly refused to report RESOLVED), but the underlying
+        resolution was wrong for what should be a cleanly mergeable
+        single-line change.
+        """
+        while lines and not lines[0].strip():
+            lines = lines[1:]
+        while lines and not lines[-1].strip():
+            lines = lines[:-1]
+        return "\n".join(lines)
+
     def _resolve_hunk(self, hunk: ConflictHunk) -> str:
         """Applies AST semantic heuristics to resolve a conflict hunk."""
-        ours_str = "\n".join(hunk.ours_lines).strip()
-        theirs_str = "\n".join(hunk.theirs_lines).strip()
+        ours_str = self._strip_blank_lines(hunk.ours_lines)
+        theirs_str = self._strip_blank_lines(hunk.theirs_lines)
 
         # Strategy 1: If both sides are pure imports, merge them
         if all(l.startswith(("import ", "from ")) or not l.strip() for l in hunk.ours_lines + hunk.theirs_lines):

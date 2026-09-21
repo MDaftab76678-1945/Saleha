@@ -43,17 +43,49 @@ def _field_matches(value: int, field_expr: str, max_value: int) -> bool:
     if field_expr == "*":
         return True
     for part in field_expr.split(","):
-        if part.startswith("*/"):
-            step = int(part[2:])
-            if step > 0 and value % step == 0:
-                return True
-        elif "-" in part:
-            lo, hi = part.split("-")
-            if int(lo) <= value <= int(hi):
-                return True
-        elif part.isdigit() and int(part) == value:
-            return True
+        try:
+            if part.startswith("*/"):
+                step = int(part[2:])
+                if step > 0 and value % step == 0:
+                    return True
+            elif "-" in part:
+                lo, hi = part.split("-")
+                if int(lo) <= value <= int(hi):
+                    return True
+            elif part.isdigit():
+                num = int(part)
+                if num == value:
+                    return True
+                # Standard cron spells Sunday as either 0 or 7.
+                if max_value == 6 and num == 7 and value == 0:
+                    return True
+        except ValueError:
+            # A malformed stored expression matches nothing instead of
+            # crashing the scheduler loop that evaluates it.
+            continue
     return False
+
+
+def _validate_cron_expression(cron_expression: str) -> None:
+    """Rejects malformed cron expressions with a clear reason instead of
+    letting them crash deep inside the scheduler with a bare ValueError."""
+    parts = cron_expression.strip().split()
+    if len(parts) != 5:
+        raise ValueError(
+            "Invalid cron expression %r: expected 5 fields "
+            "(minute hour day month weekday)." % cron_expression)
+    for part in parts:
+        if part == "*":
+            continue
+        for atom in part.split(","):
+            body = atom[2:] if atom.startswith("*/") else atom
+            for bound in body.split("-"):
+                if bound == "*" or bound == "":
+                    continue
+                if not bound.isdigit():
+                    raise ValueError(
+                        "Invalid cron expression %r: field %r is not a "
+                        "number, range, or step." % (cron_expression, part))
 
 
 def cron_matches(cron_expression: str, when: datetime) -> bool:
@@ -64,12 +96,20 @@ def cron_matches(cron_expression: str, when: datetime) -> bool:
     if len(parts) != 5:
         return False
     minute, hour, day, month, weekday = parts
+    # Standard cron numbers weekdays Sunday=0 .. Saturday=6. Python's
+    # datetime.weekday() numbers them Monday=0 .. Sunday=6 -- a genuine
+    # off-by-one-day bug if used directly: a task scheduled for "every
+    # Monday" (`1` in cron) would fire on Tuesday instead, confirmed by
+    # direct probe (cron_matches("0 9 * * 1", <a real Monday>) returned
+    # False before this fix). isoweekday() % 7 converts Python's
+    # Monday=1..Sunday=7 into cron's Sunday=0..Saturday=6.
+    cron_weekday = when.isoweekday() % 7
     return (
         _field_matches(when.minute, minute, 59)
         and _field_matches(when.hour, hour, 23)
         and _field_matches(when.day, day, 31)
         and _field_matches(when.month, month, 12)
-        and _field_matches(when.weekday(), weekday, 6)
+        and _field_matches(cron_weekday, weekday, 6)
     )
 
 
@@ -98,9 +138,23 @@ class TaskSchedulerEngine:
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-            self._tasks = {tid: ScheduledTask(**data) for tid, data in raw.items()}
-        except (OSError, json.JSONDecodeError, TypeError):
+        except (OSError, json.JSONDecodeError):
             self._tasks = {}
+            return
+        if not isinstance(raw, dict):
+            self._tasks = {}
+            return
+        # Each stored task loads independently: one malformed entry must
+        # not wipe every other valid task (measured: a single bad entry
+        # discarded the whole file and the engine silently reseeded
+        # defaults over the user's real tasks).
+        tasks: Dict[str, ScheduledTask] = {}
+        for tid, data in raw.items():
+            try:
+                tasks[tid] = ScheduledTask(**data)
+            except TypeError:
+                continue
+        self._tasks = tasks
 
     def _save(self) -> None:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -123,6 +177,7 @@ class TaskSchedulerEngine:
 
     def register_task(self, cron_expression: str, goal: str, agent_target: str = "Swarm") -> ScheduledTask:
         clean_cron = cron_expression.strip()
+        _validate_cron_expression(clean_cron)
         task_id = f"task_{uuid.uuid4().hex[:8]}"
         task = ScheduledTask(
             task_id=task_id,

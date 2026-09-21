@@ -1413,10 +1413,12 @@ class RunTestsToolTests(unittest.TestCase):
         agent = ScriptedAgent([
             _tool_call("patch_file", path="calc.py",
                       search="return x", replace="return x * 2"),
+            # The depth gate requires the test to be read before success.
+            _tool_call("read_file", path="test_calc.py"),
             _finish("fixed double() to actually double"),
         ])
         result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
-                           max_steps=3).run("fix the bug in double()")
+                           max_steps=4).run("fix the bug in double()")
         self.assertTrue(result.success, msg=result.error)
 
     def test_no_discoverable_test_command_does_not_block_finish(self) -> None:
@@ -1447,13 +1449,232 @@ class RunTestsToolTests(unittest.TestCase):
         agent = ScriptedAgent([
             _tool_call("patch_file", path="calc.py",
                       search="return x", replace="return x * 2"),
+            # The depth gate requires the test to be read before success.
+            _tool_call("read_file", path="test_calc.py"),
+            _finish("fixed"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=4).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+        verify_steps = [s for s in result.steps if s.action == "auto-verify-tests"]
+        self.assertEqual(len(verify_steps), 1, result.steps)
+
+    # ---- depth gates: test-read + import-path ----------------------
+    # Measured lineage (pass 106): the loop stayed honest only because the
+    # suite stayed red. These gates require the two cheapest diagnostic
+    # facts before a repair-goal success: the model read a test file, and
+    # a patched file is imported by a test file it read.
+
+    def _write_calc_repo(self) -> None:
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+
+    def test_repair_success_requires_reading_a_test_file(self) -> None:
+        """A green suite the model never looked at proves nothing: finish()
+        after a correct patch but zero test reads must be rejected, and the
+        same run admitted once the test is read."""
+        self._write_calc_repo()
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _finish("fixed without ever reading the test"),
+            _tool_call("read_file", path="test_calc.py"),
+            _finish("fixed, and the test asserts double(3) == 6"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=6).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertTrue(
+            any("not read a single test file" in s.observation
+                for s in rejected),
+            msg=[s.observation for s in result.steps])
+
+    def test_irrelevant_patch_rejected_by_revert_check(self) -> None:
+        """A patch in a file the suite never needed: green with and without
+        it. The revert-check catches this shape -- an import-path gate built
+        for it was removed after measurement showed it false-rejected
+        transitive and data-file fixes this check already covers."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x * 2\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        self._write("unrelated.py", "def helper():\n    return 1\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="unrelated.py",
+                      search="return 1", replace="return 2"),
+            _tool_call("read_file", path="test_calc.py"),
             _finish("fixed"),
         ])
         result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
                            max_steps=3).run("fix the bug in double()")
+        self.assertFalse(result.success, msg=result.final_message)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertTrue(
+            any("WITH and WITHOUT" in s.observation for s in rejected),
+            msg=[s.observation for s in result.steps])
+        with open(os.path.join(self.root, "unrelated.py"), encoding="utf-8") as f:
+            self.assertIn("return 2", f.read(),
+                          msg="the patch must be restored after the revert run")
+
+    def test_depth_gates_skip_repos_with_no_test_command(self) -> None:
+        """A repo the loop cannot test must not fail a repair for having no
+        test to read -- the auto-verify exemption extends to both gates."""
+        self._write("calc.py", "def double(x):\n    return x\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _finish("fixed double() to actually double"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
         self.assertTrue(result.success, msg=result.error)
-        verify_steps = [s for s in result.steps if s.action == "auto-verify-tests"]
-        self.assertEqual(len(verify_steps), 1, result.steps)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertFalse(rejected, msg=[s.observation for s in rejected])
+
+    # ---- revert-check: the suite must fail without the patch --------
+    # A green suite that stays green with the fix removed proves nothing
+    # about the fix -- the test is too weak to guard it.
+
+    def test_revert_check_rejects_a_patch_the_suite_does_not_need(self) -> None:
+        """Green with the patch AND green without it means the test does
+        not guard the fix -- an unproven patch, not a verified one. The
+        patch must also be restored afterwards, not left reverted."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x * 2\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x * 2", replace="return 2 * x"),
+            _tool_call("read_file", path="test_calc.py"),
+            _finish("tidied double()"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertFalse(result.success, msg=result.final_message)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertTrue(
+            any("WITH and WITHOUT" in s.observation for s in rejected),
+            msg=[s.observation for s in result.steps])
+        self.assertTrue(
+            any(s.action == "revert-check" for s in result.steps),
+            msg="the counterfactual run must be on the transcript")
+        with open(os.path.join(self.root, "calc.py"), encoding="utf-8") as f:
+            self.assertIn("return 2 * x", f.read(),
+                          msg="the patch must be restored after the revert run")
+
+    def test_revert_check_admits_a_patch_the_suite_needs(self) -> None:
+        """Red without the patch, green with it: the test guards the fix,
+        so the run is admitted and the fix left in place."""
+        self._write_calc_repo()
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _tool_call("read_file", path="test_calc.py"),
+            _finish("fixed double()"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+        with open(os.path.join(self.root, "calc.py"), encoding="utf-8") as f:
+            self.assertIn("return x * 2", f.read(),
+                          msg="the proven patch must survive the revert run")
+
+    def test_revert_check_skips_repos_with_no_test_command(self) -> None:
+        """Same exemption as the other gates: nothing to verify against
+        means no counterfactual to run."""
+        self._write("calc.py", "def double(x):\n    return x\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _finish("fixed double() to actually double"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the bug in double()")
+        self.assertTrue(result.success, msg=result.error)
+        reverted = [s for s in result.steps if s.action == "revert-check"]
+        self.assertFalse(reverted, msg="no suite to run means no revert run")
+
+    # ---- coverage helpers: units -----------------------------------
+    def test_changed_code_lines_ignores_blanks_and_comments(self) -> None:
+        from saleha.core.agentic_loop import _changed_code_lines
+        old = "def f():\n    return 1\n"
+        new = "def f():\n    # tuned\n    return 2\n"
+        self.assertEqual(_changed_code_lines(old, new), {3})
+        self.assertEqual(_changed_code_lines(old, old), set())
+
+    def test_parse_failed_node_ids(self) -> None:
+        from saleha.core.agentic_loop import _parse_failed_node_ids
+        out = ("FAILED (exit 1) -- ran `python -m pytest -q` in /tmp/x [why]\n"
+               "pytest: 0 passed, 1 failed\n"
+               "FAILED test_a.py::test_x - assert 1 == 2\n"
+               "ERROR test_b.py::test_y - boom\n")
+        ids = _parse_failed_node_ids(out)
+        # The verdict head line itself (`FAILED (exit 1) ...`) must not
+        # become a target: it once made pytest exit on collection error
+        # with nothing traced, surfacing as missing cover data.
+        self.assertEqual(ids, ["test_a.py::test_x"])
+        self.assertEqual(_parse_failed_node_ids("all green\n1 passed\n"), [])
+
+    # ---- coverage gate: integration --------------------------------
+    def test_coverage_gate_rejects_unexecuted_change(self) -> None:
+        """calc.py carries the real fix (executed, suite flips) while
+        dead.py is imported but its changed function is never called: the
+        per-file rule rejects the run and names dead.py."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("calc.py", "def double(x):\n    return x\n")
+        self._write("dead.py", "def never_called():\n    return 1\n")
+        self._write("test_calc.py",
+                    "from calc import double\n"
+                    "import dead\n"
+                    "def test_double():\n"
+                    "    assert double(3) == 6\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py",
+                      search="return x", replace="return x * 2"),
+            _tool_call("patch_file", path="dead.py",
+                      search="return 1", replace="return 999"),
+            _tool_call("read_file", path="test_calc.py"),
+            _finish("fixed double and tuned helper"),
+            _finish("really fixed"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=5).run("fix the bug in double()")
+        self.assertFalse(result.success, msg=result.final_message)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertTrue(
+            any("never executed" in s.observation for s in rejected),
+            msg=[s.observation for s in result.steps])
+
+    def test_coverage_gate_skips_non_python_patches(self) -> None:
+        """A suite flipped by a data file has no cover data -- unknown, not
+        a verdict (the same reason the import-path gate died)."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\n")
+        self._write("data.txt", "wrong\n")
+        self._write("test_data.py",
+                    "def test_data():\n"
+                    "    with open('data.txt', encoding='utf-8') as f:\n"
+                    "        assert f.read().strip() == 'right'\n")
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="data.txt",
+                      search="wrong", replace="right"),
+            _tool_call("read_file", path="test_data.py"),
+            _finish("fixed the data"),
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=3).run("fix the data file")
+        self.assertTrue(result.success, msg=result.error)
+        rejected = [s for s in result.steps if "REJECTED" in s.observation]
+        self.assertFalse(rejected, msg=[s.observation for s in rejected])
 
 
 class patch_gate:

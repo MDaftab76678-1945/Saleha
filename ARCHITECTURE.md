@@ -21,9 +21,9 @@ saleha-0.1/
 ├── saleha/               # Python package: the actual agent runtime
 │   ├── agents/            # PlannerAgent, CoderAgent, TesterAgent, DebuggerAgent, base classes
 │   ├── cli/                # Click CLI (100+ subcommands), TUI, REPL, dashboards
-│   ├── core/               # ~220 modules: agentic loop, indexing, sandboxing, memory, routing, souls, etc.
+│   ├── core/               # 252 modules: agentic loop, indexing, sandboxing, memory, routing, souls, etc.
 │   ├── server/             # Dependency-light HTTP/SSE REST API + browser UI
-│   └── tests/               # ~200 test files, 955 collected tests
+│   └── tests/               # 280 test files, 2303 passed (as of pass 109)
 ├── souls/                # SoulSpec persona packages (soul.json + SOUL.md/IDENTITY.md/STYLE.md per persona)
 ├── rust/                 # Experimental Rust crates (zkVM/blockchain research) — separate subsystem
 ├── contracts/             # Solidity contracts — separate subsystem
@@ -66,9 +66,14 @@ Several modules use "swarm" and consensus-related terminology in their names and
 
 These are genuine pieces of logic worth describing plainly. Framing them as "PBFT Byzantine consensus" or "sovereign swarm intelligence" overstates what a single-process voting/scoring function does.
 
-### Formal verification (templates, not a real prover)
+### Formal verification (one real prover, one scaffold)
 
-`formal_verifier.py` and `formal_smt_verifier.py` generate Lean 4- and SMT/Z3-shaped text (theorem statements, "certificate" strings) from simple heuristics about a function's structure. **Neither module invokes an actual Lean or Z3 toolchain**, so nothing they produce is a checked mathematical proof. If real formal verification is added later, it belongs in [ROADMAP.md](ROADMAP.md) until it exists.
+`formal_smt_verifier.py` genuinely calls Z3 (`z3.Solver()`): division-by-zero
+safety and guarded-index obligations are checked for real, extended to linear
+expressions (passes 39/67). Only `formal_verifier.py`'s Lean 4 output is still
+an unverified scaffold (`lean_verified=False` by construction) -- real Lean
+checking needs a toolchain not installed here. If that changes, it belongs in
+[ROADMAP.md](ROADMAP.md) until it exists.
 
 ### The orchestrator family, audited 2026-09-07
 
@@ -148,11 +153,11 @@ None of these are disqualifying on their own — same conclusion as the swarm/co
 
 ### Souls (persona) system
 
-`soul_engine.py` loads persona packages from `souls/<name>/`, each with a `soul.json` (name, archetype, cognitive params like temperature/top_p, allowed tool list) validated against a schema in `souls/schema/v1/`, plus `SOUL.md`/`IDENTITY.md`/`STYLE.md` prose files. `SoulPackage.render_system_prompt()` assembles these into a system prompt injected into an agent's context. Ten personas ship today: `architect`, `artisan`, `auditor`, `sage`, `sentinel`, `sovereign`, `speedrunner`, `sre`, `alchemist`, `minimalist`. This is a real and reasonably well-structured prompt-engineering layer for giving agents a consistent voice/constraint set — it changes what gets put in the system prompt, not the model's underlying capabilities.
+`soul_engine.py` loads persona packages from `souls/<name>/`, each with a `soul.json` (name, archetype, cognitive params like temperature/top_p, allowed tool list) validated against a schema in `souls/schema/v1/`, plus `SOUL.md`/`IDENTITY.md`/`STYLE.md` prose files. `SoulPackage.render_system_prompt()` assembles these into a system prompt injected into an agent's context. Ten soul packages ship today: `architect`, `artisan`, `auditor`, `sage`, `sentinel`, `sovereign`, `speedrunner`, `sre`, `alchemist`, `minimalist`. This is a real and reasonably well-structured prompt-engineering layer for giving agents a consistent voice/constraint set — it changes what gets put in the system prompt, not the model's underlying capabilities.
 
 ### Other notable modules
 
-`agentic_loop.py` (the ReAct loop behind `saleha agent`/`saleha run`: eight repo-sandboxed tools -- `list_dir`, `read_file` with optional line ranges, `get_file_outline`, `find_symbols`, `search_repo`, `run_code`, plus `patch_file`/`write_file` under `--write` and the approval gate. Completion is gated on evidence, not on the model's word: a crashed call, a duplicate call, and a policy-blocked write all license nothing, and a run whose every patch attempt failed is refused rather than reported green -- see `NOTEBOOK_IMPORT.md` pass 53 for the measured defects behind each gate), `browser_agent.py`/`browser_runner.py` (headless browser DOM/console checks), `real_task_bench.py` (**the honest measurement path** — twelve self-contained problems, each carrying a deliberately wrong implementation that the test must fail against before any run starts; exposed as `saleha benchmark-local`), `swe_bench_harness.py` (a sandbox self-check — it executes pre-written correct code to confirm the executor observes its output; it is **not** SWE-bench and invokes no model, see its own docstring), `swe_bench_runner.py` (real SWE-bench `predictions.jsonl` generation against an actual repo checkout, for when scored-SWE-bench infrastructure is available), `mcp_engine.py`/`mcp_hub.py` (Model Context Protocol client/server support), `pr_generator.py` (PR body/diff generation), `changelog_generator.py`, `chaos_engine.py`/`load_tester.py` (basic fault-injection and load-testing helpers), `voice_engine.py`/`full_duplex_voice.py` (local STT/TTS wiring, hardware/driver-dependent). Not all ~220 modules in `saleha/core/` are equally exercised by tests or CLI commands; the test suite (`saleha/tests/`) is the most reliable signal for what's actively maintained.
+`agentic_loop.py` (the ReAct loop behind `saleha agent`/`saleha run`: eight repo-sandboxed tools -- `list_dir`, `read_file` with optional line ranges, `get_file_outline`, `find_symbols`, `search_repo`, `run_code`, plus `patch_file`/`write_file` under `--write` and the approval gate. Completion is gated on evidence, not on the model's word: a crashed call, a duplicate call, and a policy-blocked write all license nothing, and a run whose every patch attempt failed is refused rather than reported green -- see `NOTEBOOK_IMPORT.md` pass 53 for the measured defects behind each gate), `browser_agent.py`/`browser_runner.py` (headless browser DOM/console checks), `real_task_bench.py` (**the honest measurement path** — twelve self-contained problems, each carrying a deliberately wrong implementation that the test must fail against before any run starts; exposed as `saleha benchmark-local`), `swe_bench_harness.py` (a sandbox self-check — it executes pre-written correct code to confirm the executor observes its output; it is **not** SWE-bench and invokes no model, see its own docstring), `swe_bench_runner.py` (real SWE-bench `predictions.jsonl` generation against an actual repo checkout, for when scored-SWE-bench infrastructure is available), `mcp_engine.py`/`mcp_hub.py` (Model Context Protocol client/server support), `pr_generator.py` (PR body/diff generation), `changelog_generator.py`, `chaos_engine.py`/`load_tester.py` (basic fault-injection and load-testing helpers), `voice_engine.py`/`full_duplex_voice.py` (local STT/TTS wiring, hardware/driver-dependent). Not all 252 modules in `saleha/core/` are equally exercised by tests or CLI commands; the test suite (`saleha/tests/`) is the most reliable signal for what's actively maintained.
 
 ---
 
@@ -196,4 +201,4 @@ The frontend previously rendered a "Chain-of-Thought Reasoning" panel with hardc
 python -m pytest saleha/tests/ -q
 ```
 
-`saleha/tests/` currently collects 955 tests across roughly 200 files, covering CLI commands, core modules, and the web server's REST surface. Some tests are environment-dependent (Docker, a running Ollama instance, browser drivers); check locally for current pass/fail status.
+`saleha/tests/` currently collects 2303 passed tests (13 skipped) across 280 files, covering CLI commands, core modules, and the web server's REST surface (as of pass 109). Some tests are environment-dependent (Docker, a running Ollama instance, browser drivers); check locally for current pass/fail status.

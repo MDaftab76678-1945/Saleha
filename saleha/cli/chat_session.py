@@ -11,9 +11,7 @@ Provides a rich, interactive terminal playground for conversational pair-program
 
 from __future__ import annotations
 
-import sys
-import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -34,7 +32,6 @@ from saleha.agents.notebook_architect import notebook_architect
 from saleha.agents.voice_architect import voice_architect
 from saleha.agents.screen_copilot import screen_copilot
 from saleha.agents.chaos_resilience import chaos_resilience
-from saleha.core.notebook_engine import notebook_engine
 from saleha.core.task_scheduler import task_scheduler
 from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
 from saleha.core.dataset_synthesizer import dataset_synthesizer
@@ -236,9 +233,18 @@ class SwarmChatSession:
             return True
 
         if cmd.startswith("/schedule ") or cmd.startswith("schedule "):
-            parts = cmd.split(" ", 2)
-            cron = parts[1].strip() if len(parts) > 1 else "0 * * * *"
-            goal = parts[2].strip() if len(parts) > 2 else "Autonomous Security Audit"
+            # A cron expression is 5 space-separated fields, so the cron
+            # is the next 5 tokens and everything after it is the goal.
+            # Splitting only twice used to send cron="0" with a goal of
+            # "* * * * Auto Audit" -- registering a task that could never
+            # fire while reporting success.
+            tokens = cmd.split()
+            if len(tokens) >= 7:
+                cron = " ".join(tokens[1:6])
+                goal = " ".join(tokens[6:]).strip() or "Autonomous Security Audit"
+            else:
+                cron = "0 * * * *"
+                goal = " ".join(tokens[1:]).strip() or "Autonomous Security Audit"
             self._execute_schedule_command(cron, goal)
             return True
 
@@ -487,9 +493,13 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_schedule_command(self, cron: str, goal: str) -> None:
-        self.console.print(f"\n[bold cyan]⏰ Registering Background Cron Task:[/] [yellow]\"{cron}\"[/] -> [green]\"{goal}\"[/]")
-        task = task_scheduler.register_task(cron, goal)
-        self.console.print(f"[bold green]✨ Task Registered Successfully (Task ID: {task.task_id})![/bold green]\n")
+        self.console.print(f"\n[bold cyan]Registering Background Cron Task:[/] [yellow]\"{cron}\"[/] -> [green]\"{goal}\"[/]")
+        try:
+            task = task_scheduler.register_task(cron, goal)
+        except ValueError as err:
+            self.console.print(f"[bold red]Invalid schedule ({err}) -- task not registered.[/]")
+            return
+        self.console.print(f"[bold green]Task Registered Successfully (Task ID: {task.task_id})![/bold green]\n")
 
     def _execute_tasks_command(self) -> None:
         self.console.print(f"\n[bold cyan]⏰ Registered Background Cron Tasks:[/bold cyan]\n")

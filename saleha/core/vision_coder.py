@@ -5,9 +5,8 @@ Synthesizes production-ready, accessible, and responsive UI components (React + 
 HTML5/CSS, Flutter) from wireframe descriptions, UI design specifications, and visual layout metadata.
 """
 
-import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 
 from saleha.orchestrator import SalehaOrchestrator
 
@@ -18,14 +17,14 @@ class VisionCodeResult:
     component_name: str
     code: str
     dependencies: List[str] = field(default_factory=list)
-    used_vision: bool = False          # B-naya: real multimodal model use hua?
-    model_used: str = ""               # kaunsa vision/LLM model laga
+    used_vision: bool = False          # did a real multimodal model run?
+    model_used: str = ""               # which vision/LLM model ran
     source_note: str = ""              # template | llm-text | llm-vision | file:xyz
 
 
 class VisionCoder:
     """Synthesizes pixel-perfect UI code from wireframe specs, layout prompts,
-    aur (naya) ACTUAL screenshots via local Ollama vision models."""
+    and actual screenshots via local Ollama vision models."""
 
     FRAMEWORK_PROMPTS = {
         "react": (
@@ -51,12 +50,13 @@ class VisionCoder:
                       image_source: Optional[str] = None, use_llm: bool = False) -> VisionCodeResult:
         """Generates frontend component code based on layout specification.
 
-        Naya priority order:
-        1. `image_source` (file path / base64 / data-URL) diya ho -> REAL
-           vision model (llava/qwen-vl) screenshot analyze karta hai.
-        2. Warna `use_llm=True` ho to text-spec se orchestrator LLM path.
-        3. Warna fast template preview (dry_run behavior -- web studio ka
-           default, deterministic aur instant).
+        Priority order:
+        1. If `image_source` (file path / base64 / data-URL) is given, a real
+           vision model (llava/qwen-vl) analyzes the screenshot.
+        2. Otherwise, if `use_llm=True`, the text-spec goes through the
+           orchestrator's LLM path.
+        3. Otherwise, a fast template preview (the web studio's default --
+           deterministic and instant).
         """
         clean_fw = framework.lower().strip()
         if clean_fw not in self.FRAMEWORK_PROMPTS:
@@ -100,7 +100,17 @@ class VisionCoder:
                 f"<body>\n  <div class='container'>\n    <h1>{layout_spec[:40]}</h1>\n  </div>\n</body>\n</html>"
             )
 
-        if dry_run and not image_source:
+        # Real bug found auditing this module: `use_llm` was accepted and
+        # documented (priority 2 above) as its own path, but never checked
+        # anywhere in this function -- only `dry_run` gated the template
+        # return. Confirmed by direct probe: use_llm=True with dry_run=True
+        # returned the plain template, silently ignoring use_llm entirely.
+        # The one real caller (web_server.py) already had to work around
+        # this itself by computing dry_run=not (image_b64 or use_llm)
+        # before calling in -- so the parameter did nothing on its own for
+        # any other, more direct caller. Checked here instead, so the
+        # documented contract holds regardless of how dry_run was set.
+        if dry_run and not image_source and not use_llm:
             return VisionCodeResult(
                 framework=clean_fw,
                 component_name=component_name,
@@ -111,7 +121,7 @@ class VisionCoder:
             )
 
         # ------------------------------------------------------------------
-        # REAL VISION PATH (naya): image diya gaya hai
+        # Real vision path: an image was supplied.
         # ------------------------------------------------------------------
         if image_source:
             from saleha.core import vision_backend
@@ -134,8 +144,7 @@ class VisionCoder:
                     used_vision=True, model_used=model_used,
                     source_note=f"llm-vision via {media_note}",
                 )
-            # Vision unavailable/fail -> text-LLM fallback niche fall-through
-            fallback_note = "vision model unavailable"
+            # Vision unavailable/fail -> falls through to the text-LLM path below.
 
         system_instruction = self.FRAMEWORK_PROMPTS[clean_fw]
         prompt = (

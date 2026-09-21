@@ -16,7 +16,7 @@ dynamic client/server bridging with Saleha's autonomous agents.
 
 from __future__ import annotations
 
-import os
+import shutil
 import sys
 import json
 from dataclasses import dataclass, field
@@ -158,30 +158,67 @@ class UniversalMCPHub:
             parent_dir = Path(target_file).parent
             if parent_dir and not parent_dir.exists():
                 parent_dir.mkdir(parents=True, exist_ok=True)
-            with open(target_file, "w", encoding="utf-8") as f:
+            # Atomic write: a crash mid-write must not leave a half-written
+            # config behind (same tmp+replace pattern as task_scheduler).
+            tmp_file = Path(str(target_file) + ".tmp")
+            with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(json_str)
+            tmp_file.replace(target_file)
 
         return target_file, config_data
 
     def connect_server(self, name: str) -> Dict[str, Any]:
-        """Tests and registers live connection to a configured MCP server."""
+        """Checks whether a configured MCP server's command can actually be
+        launched, and reports honestly what was and wasn't verified.
+
+        Real bug found auditing this module: this used to be a fabrication
+        -- its own comment said "Simulated successful handshake" and it
+        unconditionally returned success=True/status=connected for any
+        registered server name, with zero process spawned and zero JSON-RPC
+        exchanged. Confirmed live: connect_server('postgres') reported
+        "Successfully initialized MCP connection" with no Postgres instance
+        running anywhere. The real CLI caller (`saleha mcp connect`)
+        surfaces this return value directly to the user as a green
+        checkmark. A full JSON-RPC initialize handshake would mean actually
+        running `npx` (network access, package downloads, side effects) --
+        disproportionate for a connectivity check -- so this verifies the
+        one thing that is both cheap and honest: whether the server's
+        launch command actually resolves on this machine's PATH. It does
+        not claim the underlying service (a database, an API) is reachable,
+        since that would need the full handshake this deliberately avoids.
+        """
         server = self.get_server(name)
         if not server:
             return {"success": False, "error": f"MCP server '{name}' not found in registry."}
 
-        # Simulated successful handshake
+        resolved = shutil.which(server.command)
+        if not resolved:
+            return {
+                "success": False,
+                "server": name,
+                "status": "command_not_found",
+                "transport": server.transport,
+                "error": f"'{server.command}' is not on PATH -- cannot launch '{name}'.",
+            }
+
         self._active_connections[name] = {
-            "status": "connected",
+            "status": "command_resolved",
             "transport": server.transport,
-            "command": server.command,
+            "command": resolved,
             "args": server.args
         }
         return {
             "success": True,
             "server": name,
-            "status": "connected",
+            "status": "command_resolved",
             "transport": server.transport,
-            "message": f"Successfully initialized MCP connection with '{name}' ({server.description})."
+            "message": (
+                f"'{server.command}' resolves to {resolved} for '{name}' "
+                f"({server.description}). This confirms the launch command "
+                f"exists -- it does not confirm the underlying service "
+                f"(database, API, etc.) is reachable; that needs a real "
+                f"JSON-RPC handshake with the running server."
+            )
         }
 
     def _initialize_builtin_servers(self):

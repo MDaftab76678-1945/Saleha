@@ -33,8 +33,8 @@ had not done. Not missing features — false claims. Examples from git history:
 - the solution cache served one model's answer as another's
 - `/autopr` fabricated "5/5 PASSED" and "0 CWE vulnerabilities"
 
-This is tracked pass by pass in `NOTEBOOK_IMPORT.md` (13 passes as of
-2026-09-07). Each pass: find something that claims more than it does, replace
+This is tracked pass by pass in `NOTEBOOK_IMPORT.md` (109 passes as of
+2026-09-21). Each pass: find something that claims more than it does, replace
 the fake half with something measured, write down the measurement.
 
 ### The rule that matters
@@ -132,7 +132,7 @@ The user has had to repeat this. Do not make them repeat it again.
 
 ---
 
-## Known open work (as of 2026-09-07)
+## Known open work (as of 2026-09-07; entries below predate passes 66-109 -- verify against NOTEBOOK_IMPORT.md before acting)
 
 Verify these are still true before acting — they may have been fixed since.
 
@@ -1929,8 +1929,8 @@ remain; next candidates by importer count: `task_scheduler.py`,
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
-- Test suite: `python -m pytest saleha/tests/ -q` — 2207 passed, 13 skipped,
-  ~110-300s (as of pass 91). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
+- Test suite: `python -m pytest saleha/tests/ -q` — 2303 passed, 13 skipped,
+  172 subtests, ~227s (as of pass 109, measured this session). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
   sets `SALEHA_TEST_MODE=1` for the whole run automatically — no manual
   export needed as of pass 30. Before that fix the suite had never once

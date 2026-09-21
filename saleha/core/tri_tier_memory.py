@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import collections
 import json
-import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -46,7 +45,7 @@ class GraphTriple:
 class WorkingMemory:
     """Tier 1: In-Memory Fast Ring Buffer (< 1MB RAM)."""
 
-    def __init__(self, max_turns: int = 16):
+    def __init__(self, max_turns: int = 16) -> None:
         self.max_turns = max_turns
         self.ring: collections.deque[WorkingMemoryTurn] = collections.deque(maxlen=max_turns)
         self._current_id = 0
@@ -64,29 +63,40 @@ class WorkingMemory:
     def get_recent_context(self, limit: int = 5) -> List[WorkingMemoryTurn]:
         return list(self.ring)[-limit:]
 
-    def clear(self):
+    def clear(self) -> None:
         self.ring.clear()
 
 
 class EpisodicMemory:
     """Tier 2: Persistent Task & Error Logs on NVMe/Disk."""
 
-    def __init__(self, storage_path: str = ".saleha/episodic_memory.jsonl"):
+    def __init__(self, storage_path: str = ".saleha/episodic_memory.jsonl") -> None:
         self.storage_path = Path(storage_path)
         self.records: List[EpisodicRecord] = []
         self._load()
 
-    def _load(self):
+    def _load(self) -> None:
         if not self.storage_path.exists():
             return
+        # Real bug found auditing this module: the try/except wrapped the
+        # whole loop, so one corrupted line (e.g. from a crash mid-write)
+        # silently discarded every record after it, not just that line.
+        # Confirmed by direct probe: a 3-line file with one bad middle line
+        # loaded only the first record, losing a perfectly valid third one.
+        # Each line now fails independently.
         try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        data = json.loads(line)
-                        self.records.append(EpisodicRecord(**data))
-        except Exception:
-            pass
+            f = open(self.storage_path, "r", encoding="utf-8")
+        except OSError:
+            return
+        with f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    self.records.append(EpisodicRecord(**data))
+                except (json.JSONDecodeError, TypeError):
+                    continue
 
     def record(self, agent_id: int, summary: str, status: str, tags: Optional[List[str]] = None) -> EpisodicRecord:
         rec = EpisodicRecord(
@@ -120,22 +130,36 @@ class EpisodicMemory:
 class SemanticKnowledgeGraph:
     """Tier 3: Permanent Semantic Graph (.salehagraph on Disk)."""
 
-    def __init__(self, storage_path: str = ".saleha/semantic_graph.json"):
+    def __init__(self, storage_path: str = ".saleha/semantic_graph.json") -> None:
         self.storage_path = Path(storage_path)
         self.triples: List[GraphTriple] = []
         self._load()
 
-    def _load(self):
+    def _load(self) -> None:
         if not self.storage_path.exists():
             return
         try:
             with open(self.storage_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self.triples = [GraphTriple(**t) for t in data]
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(data, list):
+            return
+        # Same class of bug as EpisodicMemory._load above: converting every
+        # element in one list comprehension meant one malformed triple (a
+        # dict missing a required field) raised and lost the whole graph,
+        # not just that entry. Confirmed by direct probe: 3 triples, one
+        # missing "object", loaded 0 -- not the 2 valid ones. Each
+        # conversion now fails independently.
+        triples = []
+        for t in data:
+            try:
+                triples.append(GraphTriple(**t))
+            except TypeError:
+                continue
+        self.triples = triples
 
-    def insert_fact(self, subject: str, predicate: str, obj: str, confidence: float = 1.0):
+    def insert_fact(self, subject: str, predicate: str, obj: str, confidence: float = 1.0) -> None:
         # Avoid duplicate triples
         for t in self.triples:
             if t.subject == subject and t.predicate == predicate and t.object == obj:
@@ -158,11 +182,15 @@ class SemanticKnowledgeGraph:
             if kw in t.subject.lower() or kw in t.predicate.lower() or kw in t.object.lower()
         ]
 
-    def _save(self):
+    def _save(self) -> None:
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            with open(self.storage_path, "w", encoding="utf-8") as f:
+            # Atomic write: a crash mid-write must not leave a half-written
+            # graph behind (same tmp+replace pattern as task_scheduler).
+            tmp_path = self.storage_path.with_name(self.storage_path.name + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump([asdict(t) for t in self.triples], f, indent=2)
+            tmp_path.replace(self.storage_path)
         except Exception:
             pass
 
@@ -170,7 +198,7 @@ class SemanticKnowledgeGraph:
 class TriTierMemoryEngine:
     """Unified Tri-Tier Memory Controller for Saleha Agents."""
 
-    def __init__(self, base_dir: str = ".saleha"):
+    def __init__(self, base_dir: str = ".saleha") -> None:
         base_path = Path(base_dir)
         self.working = WorkingMemory(max_turns=16)
         self.episodic = EpisodicMemory(str(base_path / "episodic_memory.jsonl"))

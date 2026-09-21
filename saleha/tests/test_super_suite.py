@@ -1,24 +1,24 @@
 """Unit and Integration Test Suite for Saleha Sovereign Super-Suite (Advanced Sovereign Feature Matrix)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from saleha.agents.deep_researcher import DeepResearcherAgent, deep_researcher
 from saleha.agents.slides_architect import SlidesArchitectAgent, slides_architect
 from saleha.agents.sheets_analyst import SheetsAnalystAgent, sheets_analyst
 from saleha.agents.browser_claw import SovereignClawAgent, browser_claw
-from saleha.core.task_scheduler import TaskSchedulerEngine, task_scheduler
+from saleha.core.task_scheduler import TaskSchedulerEngine
 from saleha.cli.chat_session import SwarmChatSession
 
 
 class TestDeepResearcherAgent:
-    def test_execute_agent_response(self):
+    def test_execute_agent_response(self) -> None:
         agent = DeepResearcherAgent()
         res = agent.execute("Distributed consensus in blockchain")
         assert res.success is True
         assert "Key Empirical Findings" in res.content
         assert res.tokens_used > 0
 
-    def test_conduct_research_structure(self):
+    def test_conduct_research_structure(self) -> None:
         report = deep_researcher.conduct_research("Vector databases and ANN indexing")
         assert report.topic == "Vector databases and ANN indexing"
         assert len(report.citations) >= 3
@@ -28,13 +28,13 @@ class TestDeepResearcherAgent:
 
 
 class TestSlidesArchitectAgent:
-    def test_execute_agent_response(self):
+    def test_execute_agent_response(self) -> None:
         agent = SlidesArchitectAgent()
         res = agent.execute("High throughput ring buffer")
         assert res.success is True
         assert "marp: true" in res.content
 
-    def test_synthesize_deck(self):
+    def test_synthesize_deck(self) -> None:
         deck = slides_architect.synthesize_deck("Microservices Hexagonal Architecture")
         assert len(deck.slides) == 4
         assert "marp: true" in deck.marp_markdown
@@ -43,14 +43,14 @@ class TestSlidesArchitectAgent:
 
 
 class TestSheetsAnalystAgent:
-    def test_execute_agent_response(self):
+    def test_execute_agent_response(self) -> None:
         agent = SheetsAnalystAgent()
         res = agent.execute("Monthly API token usage and cost")
         assert res.success is True
         assert "Tabular Analysis" in res.content
         assert "SELECT" in res.content
 
-    def test_analyze_tabular_query(self):
+    def test_analyze_tabular_query(self) -> None:
         res = sheets_analyst.analyze_tabular_query("Latency and Memory Spike Telemetry")
         assert res.total_rows == 10000
         assert len(res.columns) == 5
@@ -60,13 +60,13 @@ class TestSheetsAnalystAgent:
 
 
 class TestSovereignClawAgent:
-    def test_execute_agent_response(self):
+    def test_execute_agent_response(self) -> None:
         agent = SovereignClawAgent()
         res = agent.execute("https://docs.saleha.ai")
         assert res.success is True
         assert "Sovereign Claw Navigation Result" in res.content
 
-    def test_crawl_and_extract(self):
+    def test_crawl_and_extract(self) -> None:
         res = browser_claw.crawl_and_extract("https://github.com/MDaftab76678-1945/Saleha")
         assert res.http_status == 200
         assert res.dom_elements_scanned >= 1000
@@ -75,7 +75,7 @@ class TestSovereignClawAgent:
 
 
 class TestTaskSchedulerEngine:
-    def test_register_and_list_tasks(self):
+    def test_register_and_list_tasks(self) -> None:
         engine = TaskSchedulerEngine()
         initial_count = len(engine.list_tasks())
         task = engine.register_task("0 0 * * *", "Daily AST Hygiene Audit", "RefactorSpecialistAgent")
@@ -83,7 +83,7 @@ class TestTaskSchedulerEngine:
         assert task.cron_expression == "0 0 * * *"
         assert len(engine.list_tasks()) == initial_count + 1
 
-    def test_trigger_and_cancel_task(self):
+    def test_trigger_and_cancel_task(self) -> None:
         from unittest.mock import patch
 
         engine = TaskSchedulerEngine()
@@ -102,7 +102,7 @@ class TestTaskSchedulerEngine:
 
 
 class TestSwarmChatSessionSuperSuiteCommands:
-    def test_super_suite_slash_commands(self):
+    def test_super_suite_slash_commands(self) -> None:
         mock_console = MagicMock()
         session = SwarmChatSession(console=mock_console)
 
@@ -112,3 +112,16 @@ class TestSwarmChatSessionSuperSuiteCommands:
         assert session.process_command("/claw https://saleha.ai") is True
         assert session.process_command("/schedule 0 * * * * Auto Audit") is True
         assert session.process_command("/tasks") is True
+
+    def test_schedule_parses_five_field_cron_not_first_word(self) -> None:
+        """The /schedule parser used to split only twice, sending cron="0"
+        with a goal of "* * * * Auto Audit" -- registering a task that
+        could never fire while printing success. The cron must be the
+        next five tokens and everything after it the goal."""
+        mock_console = MagicMock()
+        session = SwarmChatSession(console=mock_console)
+        with patch(
+            "saleha.cli.chat_session.task_scheduler.register_task"
+        ) as mock_register:
+            assert session.process_command("/schedule 0 * * * * Auto Audit") is True
+        mock_register.assert_called_once_with("0 * * * *", "Auto Audit")

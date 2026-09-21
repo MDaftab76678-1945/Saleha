@@ -9,7 +9,7 @@ as well as an MCP Client to consume tools from external MCP servers.
 import sys
 import json
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Callable
 
 from saleha import __version__
@@ -129,7 +129,13 @@ class MCPServer:
         try:
             res = self.tools[name].handler(arguments)
             return {"content": [{"type": "text", "text": json.dumps(res, ensure_ascii=False, indent=2)}]}
-        except (TypeError, ValueError, KeyError) as e:
+        except Exception as e:
+            # Real bug found auditing this module: catching only
+            # (TypeError, ValueError, KeyError) let an AttributeError from a
+            # handler (confirmed by direct probe) propagate all the way out
+            # of call_tool and crash the whole MCP server process -- an
+            # isolated tool call failing must not take down the long-running
+            # server an IDE has a live connection to.
             return {"isError": True, "content": [{"type": "text", "text": f"Tool execution failed: {str(e)}"}]}
 
     def handle_json_rpc(self, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -263,7 +269,13 @@ class MCPServer:
                 resp = self.handle_json_rpc(req)
                 sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
                 sys.stdout.flush()
-            except (json.JSONDecodeError, OSError, KeyError) as e:
+            except Exception as e:
+                # call_tool already narrows most tool failures to a clean
+                # isError response; this outer catch is the last line of
+                # defense against a malformed request line or an
+                # unanticipated crash reaching handle_json_rpc itself,
+                # which must not kill the whole stdio loop the IDE is
+                # depending on for every future request in the session.
                 err_resp = {
                     "jsonrpc": "2.0",
                     "id": None,
@@ -292,6 +304,8 @@ class MCPClient:
                 input=json.dumps(req) + "\n",
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=15
             )
             if proc.returncode == 0 and proc.stdout:

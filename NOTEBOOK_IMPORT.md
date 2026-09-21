@@ -9210,3 +9210,237 @@ remain unread; next candidates by importer count: `task_scheduler.py` (4),
 `tri_tier_memory.py` (3), `tech_debt_analyzer.py` (3), `sre_responder.py`
 (3), `mcp_hub.py` (3), `lora_tuner.py` (3), `evaluator.py` (3),
 `deliberation_engine.py` (3), `conflict_resolver.py` (3).
+
+## Pass 108: second batch of the saleha/core/ audit sweep -- 10 modules read in full, 9 real defects found and fixed across 7 of them (2026-09-21)
+
+Continued the sweep at the next importer-count tier (all remaining
+4-and-3-importer modules). User asked for 10-module batches; this is the
+first full batch.
+
+- **`task_scheduler.py`** -- genuinely real (real 5-field cron parser, real
+  persisted tasks, `trigger_task_now()` genuinely executes via
+  `TeamOrchestrator` per its own already-corrected docstring). Real bug:
+  `cron_matches()` compared the weekday field directly against Python's
+  `datetime.weekday()` (Monday=0..Sunday=6), while standard cron numbers
+  weekdays Sunday=0..Saturday=6 -- a task scheduled `"0 9 * * 1"` (9am
+  every Monday in standard cron) matched Tuesday instead of Monday.
+  Measured directly before fixing. Fixed with `isoweekday() % 7`.
+- **`soul_engine.py`** -- genuinely real (10 real persona packages loaded
+  from disk, real markdown content, real CLI). Real bug: `set_active_soul()`
+  swallowed any disk-write failure with a bare `except Exception: pass` and
+  still returned the requested soul as if the switch succeeded. Measured
+  with two real souls: the return value said "beta_soul" while the actual
+  persisted/effective active soul silently remained "alpha_soul" --
+  exactly the "reassuring default" the audit rules forbid. Now raises
+  `OSError`; updated all three real callers (`soul_cli.py`, `repl.py`,
+  `web_server.py`) to handle it honestly instead of crashing. Also removed
+  an unused `import sys` in `repl.py` and a decorative emoji in
+  `soul_cli.py` (Rule 3) found while touching these files.
+- **`mcp_engine.py`** -- genuinely real (five tool handlers wired to real
+  `TeamOrchestrator`/`ASTSecurityScanner`/`SandboxRunner`/`memory_store`
+  calls). Two real bugs: (1) `call_tool()`'s `except (TypeError, ValueError,
+  KeyError)` didn't catch a real `AttributeError` from a handler --
+  confirmed by direct probe, this crashed the whole method uncaught,
+  meaning one bad tool call would take down the long-running MCP server
+  process an IDE holds a live connection to; widened to bare `Exception`.
+  (2) same narrow-catch gap in `run_stdio_loop()`. Also fixed the same
+  `subprocess.run(text=True, ...)` missing-`encoding` class of bug
+  `CLAUDE.md` already names for `polyglot_executor.py` (pass 36/107),
+  found here a third time in this pass alone, in `MCPClient.execute_rpc`.
+- **`vision_coder.py`** -- genuinely real (six FRAMEWORK_PROMPTS, real
+  vision-model and text-LLM code paths). Real bug: `use_llm` was accepted
+  as a parameter and documented as its own priority-2 path in the
+  docstring, but never actually checked anywhere in `synthesize_ui()` --
+  only `dry_run` gated the template return. Measured directly:
+  `use_llm=True, dry_run=True` returned the bare template, silently
+  ignoring `use_llm`. The one real caller (`web_server.py`) had already
+  worked around this itself by deriving `dry_run` from `use_llm` before
+  calling in, meaning the parameter was doing nothing on its own for any
+  more direct caller. Fixed the gate to check `use_llm` too. Translated
+  ~8 Hinglish comments to English in the same file (Rule 2.4).
+- **`tri_tier_memory.py`** -- genuinely real (real ring buffer, real
+  JSONL/JSON disk persistence across two tiers). Two real bugs, same
+  shape in two different tiers: `EpisodicMemory._load()`'s try/except
+  wrapped the *entire* read loop, so one corrupted line silently
+  discarded every record after it, not just that line (measured: a 3-line
+  file with one bad middle line loaded only the first record, losing a
+  valid third one). `SemanticKnowledgeGraph._load()`'s list comprehension
+  converted every triple in one expression, so one malformed triple
+  (missing a required field) raised and lost the *whole* graph (measured:
+  3 triples, one malformed, loaded 0). Both fixed to fail per-item instead
+  of per-file. No test file existed for this module before this pass --
+  the exact condition CLAUDE.md's audit rule predicts lets a bug survive.
+- **`tech_debt_analyzer.py`** -- genuinely real AST-based cyclomatic/
+  cognitive complexity analyzer (matches the already-`radon`-cross-checked
+  `mech_interp.py` in spirit). Real bug: `analyze_file()`'s top-level
+  `ast.walk(tree)` correctly visits a nested function once on its own, but
+  `_ComplexityVisitor.generic_visit` also descended into that same nested
+  function while scoring the *outer* function, double-counting the
+  nested function's branches into the outer function's score. Measured: an
+  outer function with one real `if` (true complexity 2) scored 4 because a
+  nested helper's two `if`s were added on top -- a false hotspot flag on
+  any function containing simple nested helpers. Fixed by treating a
+  nested `FunctionDef`/`AsyncFunctionDef` as a scope boundary the visitor
+  does not cross past its own root node.
+- **`sre_responder.py`**, **`evaluator.py`**, **`deliberation_engine.py`**
+  -- read in full, genuinely real, no defects found. All three already
+  carry their own honest self-documentation from earlier passes
+  (`sre_responder.py`'s docstring already states its hotfix patches are
+  generic templates, not synthesized fixes; `evaluator.py`'s `dry_run`
+  path already reports `passed=None` per pass 51's fix, verified live
+  again here; `deliberation_engine.py` already uses the "unavailable, not
+  an all-clear" critique marker pattern this project established
+  elsewhere). Probed each with varied/adversarial inputs (multi-frame
+  tracebacks, embedded colons in exception messages, dry-run pass-rate
+  computation) rather than assuming clean from the docstring alone.
+- **`mcp_hub.py`** -- the one real fabrication in this batch.
+  `connect_server()`'s own comment said "Simulated successful handshake"
+  and it unconditionally returned `success=True, status="connected"` for
+  any registered server name -- zero process spawned, zero JSON-RPC
+  exchanged. Confirmed live: `connect_server('postgres')` reported a green
+  "Successfully initialized MCP connection" with no Postgres instance
+  running anywhere on this machine. The real CLI caller (`saleha mcp
+  connect <name>`) surfaces this straight to the user as a checkmark --
+  the exact user-facing fake-green pattern this project's audit exists to
+  catch. The existing test (`test_connect_mcp_server`) asserted the
+  fabricated behavior directly, the recurring trap. Fixed: now checks
+  whether the server's launch command actually resolves on PATH via
+  `shutil.which`, reporting `command_resolved`/`command_not_found`
+  honestly -- explicitly not claiming the underlying service is reachable,
+  since that would need a real handshake this stays deliberately short of.
+- **`lora_tuner.py`** (804 lines, read in full) -- extensively real and
+  already hardened by prior work (COORDINATION.md rounds 4-5): real PEFT/
+  TRL training, real GGUF-corruption workaround via llama.cpp, real
+  post-deploy degenerate-output detection, real DPO training with a
+  documented torch/trl compatibility shim. No new defect found; every
+  design choice in the file already carries its own measured
+  justification in comments.
+- **`conflict_resolver.py`** -- genuinely wired real (confirmed by pass
+  43's finding that `/api/ast/merge` calls this). Real bug found by
+  adversarial probing (a realistic mid-function single-line conflict, the
+  most common real conflict shape -- not the whole-function hunks the
+  existing 5 tests all used): `"\n".join(hunk.ours_lines).strip()` strips
+  the *joined string's* whitespace, which for a single-line hunk strips
+  that line's own leading indentation, since nothing else in the string
+  protects it. Measured: a one-line hunk `"    z = y + 1"` came back as
+  `"z = y + 1"`. Python's grammar happened to catch every case tried as a
+  resulting SyntaxError (so `is_valid_ast` correctly still refused
+  `RESOLVED`), but the underlying resolution was wrong for what should
+  have been a clean, mergeable single-line change -- an unnecessary
+  `MANUAL_REQUIRED` fallback on the single most common real conflict
+  shape. Fixed with a blank-line-only trim helper that preserves
+  interior-line indentation.
+
+9 real defects fixed across 7 of 10 modules (the other 3 --
+`sre_responder.py`, `evaluator.py`, `deliberation_engine.py`, plus
+`lora_tuner.py` counted among the fixed-module set with zero new
+findings -- were confirmed clean by direct adversarial probing, not
+skipped). Every fix teeth-checked against pre-fix code where a live
+reproduction was possible. Full suite: 2270 (pass 107) -> **2290 passed,
+13 skipped, 172 subtests**, zero failures. ~101 of the ~115
+never-before-named `saleha/core/` modules remain; next batch of 10 to be
+selected by the same importer-count-descending priority order.
+
+## Pass 109: maximum follow-up on Pass 108 -- 9 leftover defects plus 1 caller bug fixed, 13 new tests (2026-09-21)
+
+Re-read all 8 Pass-108-touched core modules end to end (not grep) plus every
+affected test file, then probed each suspected gap live before patching.
+Uncommitted Pass-108 work was left intact throughout: teeth-checking was done
+via pre-fix probes, never via `git stash`.
+
+Red (every item confirmed by direct probe before fixing):
+
+- `tech_debt_analyzer.py`: empty workspace reported `average_cyclomatic=1.0,
+  max=1` for 0 functions (vacuous metric); ternary `1 if a else 2` scored 1
+  (true 2); `[x for x in xs if x]` scored 1 (true 3).
+- `conflict_resolver.py`: merging two return-less functions invented
+  `"    return True"` -- code neither side wrote.
+- `task_scheduler.py`: `register_task("*/abc * * * *")` raised bare
+  `ValueError: invalid literal for int()`; one malformed stored entry
+  discarded the whole file AND the engine silently reseeded defaults over
+  the user's real tasks (probe: good entry lost, 2 defaults in its place).
+- `soul_engine.py`: a broken soul package was skipped with zero record.
+- `chat_session.py` `/schedule` (found via full-suite red, not probe):
+  `split(" ", 2)` sent `cron="0"`, goal `"* * * * Auto Audit"` -- a task
+  that could never fire, printed as "Successfully" registered.
+
+Fixes (surgical, no API changes): per-item `_load` in the scheduler plus
+fail-fast cron validation with a clear message, Sunday-7 accepted,
+`_field_matches` never raises; atomic tmp+replace writes in
+`soul_engine.set_active_soul`, `tri_tier_memory._save`,
+`mcp_hub.export_config`; `load_errors` map on reload; non-list graph guard;
+IfExp/Assert/Match/comprehension visitors; no invented return; 19 dead
+imports/vars removed across 7 core files, 2 CLI/test files.
+
+Measured non-defects (no action, with reason): importing `vision_coder`
+costs 0.46s and creates 0 files -- lazy-init surgery not justified; the
+`task_scheduler` singleton name is imported in 5 files so it stays
+(blast radius); import-time default seeding noted as an open item below.
+
+Green: 13 new tests (all red-confirmed values above), full suite
+2290 -> **2303 passed, 13 skipped, 172 subtests, 0 failures** (226s).
+Ruff F401 class eliminated in every touched file; residuals are
+pre-existing style only (I001/E741/SIM105/SIM115).
+
+Open, honestly: `task_scheduler` still seeds defaults with a disk write on
+first import; `record()`/`_save` still swallow `OSError` (kept for API
+compat); ~101 never-named modules still unaudited.
+
+## Pass 110: depth gates -- repair success now requires reading a test and patching on its import path (2026-09-21)
+
+Resumed the agent-repair lineage (stalled at pass 106's open gap: the model
+picks a plausible function one level too shallow). Deep-read all of
+`agentic_loop.py` (1929 lines) first: `run_tests` + test-command discovery
++ auto-verify + mutation/test-file/confirmed-path gates all already exist,
+so the build was narrowed to the one genuinely missing piece.
+
+Red (direct probe before fixing): scripted patch + finish on a green-able
+repo returned `success=True` with zero test-file reads.
+
+Fix (no API changes): the loop snapshots pre-patch content, tracks test
+files read, and a repair-goal success additionally requires (1) a test file
+read and (2) the revert-check -- the suite must fail with the patch removed,
+else the patch is unproven. An import-path gate (patched file imported by a
+read test) was built first and REMOVED after measurement: the revert-check
+already catches its true-positive shape (proven by a failing test of mine
+that expected the import message and got the revert message instead), while
+the import check false-rejects legitimate transitive fixes (a helper
+imported by the source, not the test) and data-file fixes no import graph
+can see. Two existing tests that pinned the old admission were updated to
+read the test first (intent unchanged); 6 new tests net.
+
+Green: `test_agentic_loop.py` 93 -> **99/99**; full suite 2303 ->
+**2309 passed, 13 skipped, 172 subtests, 0 failures** (258s). Ruff: zero
+new diagnostics (7 pre-existing style residuals untouched).
+
+Open, honestly: the revert-check proves the TEST guards the fix, not that
+the model diagnosed the right function -- a coincidental green inside the
+right file is still possible. Function-level depth (coverage/call-graph)
+not attempted (tooling-dependent, high false-reject risk).
+
+## Pass 111: coverage prover -- the failing tests must execute the changed lines (2026-09-21)
+
+Picked up pass 110's open item. Stdlib `trace` only, zero new dependencies;
+measured the `.cover` format on a tiny repo first (`    N: source`
+executed, `>>>>>> source` missed, 1:1 row alignment) and the parser
+validates alignment before trusting a row.
+
+Red (direct probe): a real fix plus a never-called-function change admitted
+with `success=True`.
+
+Fix: per patched Python file with code changes, at least one changed line
+must be executed by the failing tests (node IDs from the revert run,
+falling back to read test files). Files with no cover data, non-Python
+patches, and comment-only diffs are unknowns, never verdicts; the verdict
+is cached per file-state. Two of my own bugs caught by tests mid-pass and
+fixed: the gate block first landed outside its `if` (48 failures,
+`revert_full` unbound) and the node parser ate the verdict head line
+(`FAILED (exit 1)...` became a garbage target, yielding empty covers).
+
+Green: `test_agentic_loop.py` 99 -> **103/103**; full suite 2309 ->
+**2313 passed, 13 skipped, 172 subtests, 0 failures** (217s). Ruff: zero
+new diagnostics.
+
+Open, honestly: def-line-only changes count as reached (import executes
+them); call-graph lookahead still untouched; traced runs cost ~1 extra
+suite each, only on the success path.

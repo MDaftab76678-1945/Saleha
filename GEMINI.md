@@ -97,7 +97,7 @@ Every engineering decision in this repo is guided by foundational builders and m
 ```text
 saleha-0.1/
 ├── saleha/                         # Core Python Engine
-│   ├── core/                       # ~220 specialized domain & algorithmic modules
+│   ├── core/                       # 252 specialized domain & algorithmic modules
 │   │   ├── bm25.py                 # Real BM25 lexical search
 │   │   ├── math_logic.py           # Complexity scoring engine (0.0 to 10.0)
 │   │   ├── formal_smt_verifier.py  # Z3-based SMT contract verification
@@ -112,14 +112,14 @@ saleha-0.1/
 │   │   ├── sandbox_jail.py         # Cross-platform sandbox runner (Windows safe)
 │   │   ├── ast_security_verifier.py# AST static security auditor
 │   │   └── v5_production_core.py   # Production runtime kernel
-│   └── tests/                      # ~1661 Unit & Integration Tests
-├── packages/                       # TypeScript Monorepo (pnpm + Turbo)
-│   ├── core/                       # Shared TypeScript interfaces & models
-│   └── [8 packages total]          # Must pass 'npx turbo run typecheck' 8/8
+│   └── tests/                      # 280 test files (2303 passed, 13 skipped, as of pass 109)
+├── packages/                       # TS libraries: api, auth, core, db, ui (5)
+├── apps/                           # TS apps: desktop, landing, web (3)
+│                                   # 8 workspaces total; 'npx turbo run typecheck' must be 8/8
 ├── docs/                           # Architectural Truth & Catalogs
-│   ├── AGENT_PROFILES.md           # 20 Specialized Persona Definitions
+│   ├── AGENT_PROFILES.md           # 30 Specialized Persona Definitions
 │   └── ARCHITECTURE.md             # Subsystem integrity & honest command ledger
-├── NOTEBOOK_IMPORT.md              # The Audit Ledger (Passes 1-29+, all findings & numbers)
+├── NOTEBOOK_IMPORT.md              # The Audit Ledger (Passes 1-109, all findings & numbers)
 ├── COORDINATION.md                 # Parallel Agent Coordination Hub (Claude + Gemini)
 └── CLAUDE.md / AGENTS.md           # Session Operating Handbooks
 ```
@@ -133,7 +133,7 @@ saleha-0.1/
   - `.\.venv\` (Python 3.14 / >=3.12): **Default development environment.** All daily coding, auditing, and testing MUST run here.
   - `.\.venv_train\` (Python 3.11): Reserved strictly for offline torch/PEFT training scripts. Never run everyday tests here.
 - **Local Ollama Networking & Constraints:**
-  - Installed models: `qwen2.5-coder:3b` (primary fast coder), `qwen3:8b`, `qwen3.5:9b`, `deepseek-coder:6.7b`, `deepseek-r1:7b`.
+  - Installed models (verified via `ollama list`, 2026-09-21): `qwen2.5-coder:3b` (1.9 GB, primary fast coder), `qwen3:8b` (5.2 GB), `qwen3.5:9b` (6.6 GB), `qwen3.5:4b` (3.4 GB), `deepseek-coder:6.7b` (3.8 GB), `deepseek-r1:7b` (4.7 GB), `nomic-embed-text` (274 MB, embeddings), `gemma4:31b-cloud`.
   - Host binding: `OLLAMA_HOST` binds to `0.0.0.0:11434`. Always normalize to `http://127.0.0.1:11434` before making urllib/HTTP requests.
   - Context & Prompt limits: 3B/8B models have strict context bounds (~2048-4096 tokens). Never feed raw massive multi-file dumps into a single prompt.
   - Anti-Premature Finish: In multi-step agent loops, enforce `min_actions_before_finish >= 1`.

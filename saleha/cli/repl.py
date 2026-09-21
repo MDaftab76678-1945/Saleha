@@ -5,7 +5,6 @@ Provides a rich multi-turn conversational terminal shell with instant persona
 switching, AST scanning, security audits, memory search, and sandboxed execution.
 """
 
-import sys
 import os
 from typing import Optional, List, Dict
 
@@ -31,7 +30,7 @@ console = Console(safe_box=True)
 
 
 class SalehaREPL:
-    def __init__(self, initial_profile: Optional[str] = None, model: str = "auto"):
+    def __init__(self, initial_profile: Optional[str] = None, model: str = "auto") -> None:
         self.model = model
         self.active_profile_id = initial_profile or "agent_software_engineer"
         self.history: List[Dict[str, str]] = []
@@ -40,7 +39,7 @@ class SalehaREPL:
         self.security_mode = "guard"  # auto | guard | readonly
         self._set_agent()
 
-    def _set_agent(self):
+    def _set_agent(self) -> None:
         profile = profile_registry.get(self.active_profile_id)
         if profile:
             self.agent = ProfileAgent(profile=profile, model=self.model)
@@ -49,7 +48,7 @@ class SalehaREPL:
             self.agent = BaseAgent(role=self.active_profile_id, model=self.model)
             self.role_title = self.active_profile_id
 
-    def print_welcome(self):
+    def print_welcome(self) -> None:
         console.print(Panel.fit(
             f"[bold green]🧠 Saleha Interactive Pair-Programming REPL[/] [dim]v{__version__}[/]\n"
             f"[bold cyan]Active Persona:[/] [yellow]{self.role_title}[/]\n"
@@ -59,7 +58,7 @@ class SalehaREPL:
             border_style="green"
         ))
 
-    def print_help(self):
+    def print_help(self) -> None:
         table = Table(title="💬 REPL Slash Commands", show_header=True, header_style="bold magenta")
         table.add_column("Command", style="cyan")
         table.add_column("Description", style="yellow")
@@ -333,10 +332,13 @@ class SalehaREPL:
                 t.add_column("Name", style="bold yellow")
                 t.add_column("Lines", style="green")
                 for node in tree.body:
+                    ntype, nname = "", ""
                     if isinstance(node, ast.ClassDef):
-                        t.add_row("class", node.name, f"{node.lineno}-{node.end_lineno}")
+                        ntype, nname = "class", node.name
                     elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        t.add_row("def", node.name, f"{node.lineno}-{node.end_lineno}")
+                        ntype, nname = "def", node.name
+                    if ntype:
+                        t.add_row(ntype, nname, f"{node.lineno}-{node.end_lineno}")
                 console.print(t)
             except Exception as ex:
                 console.print(f"[red]Outline error: {ex}[/]")
@@ -401,6 +403,8 @@ class SalehaREPL:
                 console.print(f"[bold green]✓ Activated SoulSpec Persona:[/] [bold yellow]{activated.display_name}[/] ({activated.archetype})")
             except KeyError:
                 console.print(f"[red]Soul '{arg}' not found. Use /souls to list all available personas.[/]")
+            except OSError as err:
+                console.print(f"[red]Could not persist the active soul to disk: {err}[/]")
             return True
 
         if cmd == "/cost":
@@ -462,7 +466,11 @@ class SalehaREPL:
                 console.print(t)
                 if rep.issues:
                     for iss in rep.issues[:8]:
-                        sev_color = "red" if iss.severity == "CRITICAL" else ("yellow" if iss.severity == "MAJOR" else "blue")
+                        sev_color = (
+                            "red" if iss.severity == "CRITICAL"
+                            else "yellow" if iss.severity == "MAJOR"
+                            else "blue"
+                        )
                         console.print(f"  • [{sev_color}]{iss.severity}[/] [dim]L{iss.line_number}:[/] {iss.message}")
             else:
                 summary = quality_guard.check_workspace(root_dir=target, max_files=40)
@@ -586,7 +594,7 @@ class SalehaREPL:
             else:
                 console.print("[dim]Please enter 'y', 'n', 'd', or 'e'.[/dim]")
 
-    def run(self):
+    def run(self) -> None:
         self.print_welcome()
         while True:
             try:
@@ -632,6 +640,6 @@ class SalehaREPL:
                 break
 
 
-def start_repl(initial_profile: Optional[str] = None, model: str = "auto"):
+def start_repl(initial_profile: Optional[str] = None, model: str = "auto") -> None:
     repl = SalehaREPL(initial_profile=initial_profile, model=model)
     repl.run()
