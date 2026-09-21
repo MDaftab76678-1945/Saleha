@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List
 
 
 @dataclass
@@ -39,7 +39,9 @@ class CoderOutputContract:
             try:
                 tree = ast.parse(self.source_code)
                 self.classes_defined = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
-                self.functions_defined = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+                self.functions_defined = [
+                    n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                ]
                 self.is_ast_valid = True
                 return True
             except SyntaxError:

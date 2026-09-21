@@ -122,7 +122,11 @@ class ApprovalGate:
     """Object-oriented interface for human-in-the-loop permission checking."""
 
     def __init__(self, mode: Optional[str] = None) -> None:
-        self._override_mode = mode
+        if mode:
+            clean = mode.strip().lower()
+            self._override_mode: Optional[str] = _MODE_ALIASES.get(clean, clean)
+        else:
+            self._override_mode = None
         self.history: List[ApprovalDecision] = []
 
     def get_mode(self) -> str:

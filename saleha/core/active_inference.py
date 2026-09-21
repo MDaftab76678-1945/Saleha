@@ -54,8 +54,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
-
+from typing import Any, Dict, List, Optional
 
 # A bare referent with nothing to refer to: "fix it", "make this better".
 _BARE_REFERENT = re.compile(
@@ -101,7 +100,7 @@ class Uncertainty:
     actionable: bool
     reasons: List[str] = field(default_factory=list)
     question: str = ""                 # the one question worth asking
-    signals: dict = field(default_factory=dict)
+    signals: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def should_ask(self) -> bool:

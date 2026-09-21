@@ -10,7 +10,7 @@ from __future__ import annotations
 import concurrent.futures
 import time
 from dataclasses import dataclass
-from typing import Callable, Any, Optional, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -25,7 +25,7 @@ class WorkerTaskResult:
 class AgentWorkerPool:
     """Bounded Concurrency Worker Pool for Multi-Agent Task Isolation."""
 
-    def __init__(self, max_workers: int = 4):
+    def __init__(self, max_workers: int = 4) -> None:
         self.max_workers = max_workers
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self._active_tasks: Dict[str, concurrent.futures.Future] = {}
