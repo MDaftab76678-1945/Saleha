@@ -71,7 +71,7 @@ class AgentProfileRegistry:
         self.search_dir = search_dir
         self.reload()
 
-    def reload(self, directory: Optional[str] = None):
+    def reload(self, directory: Optional[str] = None) -> None:
         """Scans directory and loads all agent_*.md profiles."""
         target_dir = directory or self.search_dir
         self._profiles.clear()
@@ -86,8 +86,7 @@ class AgentProfileRegistry:
                     profile = self.parse_profile_file(file_path)
                     if profile:
                         self.register(profile)
-                except Exception as e:
-                    # Ignore invalid files to prevent crash
+                except Exception:
                     continue
 
     @staticmethod
@@ -129,7 +128,7 @@ class AgentProfileRegistry:
             source_file=file_path,
         )
 
-    def register(self, profile: AgentProfile):
+    def register(self, profile: AgentProfile) -> None:
         self._profiles[profile.id] = profile
 
     def get(self, id_or_name: str) -> Optional[AgentProfile]:

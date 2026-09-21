@@ -226,29 +226,52 @@ class CodebaseDependencyGraph:
 
     def detect_cycles(self) -> List[List[str]]:
         """
-        Detects circular dependencies in the file import graph using DFS cycle traversal.
+        Detects circular dependencies in the file import graph using iterative
+        DFS cycle traversal.
+
+        The recursive implementation crashed on workspaces with more than ~1000
+        Python files in a single import chain -- Python's default recursion limit
+        is 1000, and the saleha/core directory alone already has 252 modules.
+        An explicit stack replaces the call stack, so depth is bounded only by
+        heap memory.
+
         Returns a list of cycle paths, e.g. [['a.py', 'b.py', 'a.py']].
         """
         adj = self.get_file_dependency_graph()
-        visited: Dict[str, int] = {}  # 0: unvisited, 1: visiting, 2: visited
+        # 0: unvisited, 1: on stack (visiting), 2: done
+        visited: Dict[str, int] = {}
         cycles: List[List[str]] = []
-        path: List[str] = []
 
-        def dfs(node: str) -> None:
-            visited[node] = 1
-            path.append(node)
-            for neighbor in sorted(adj.get(node, set())):
-                if visited.get(neighbor, 0) == 1:
-                    cycle_start = path.index(neighbor)
-                    cycles.append(path[cycle_start:] + [neighbor])
-                elif visited.get(neighbor, 0) == 0:
-                    dfs(neighbor)
-            path.pop()
-            visited[node] = 2
+        for start in sorted(self.files_indexed):
+            if visited.get(start, 0) != 0:
+                continue
 
-        for f in sorted(self.files_indexed):
-            if visited.get(f, 0) == 0:
-                dfs(f)
+            # Each stack frame: (node, iterator-over-neighbors, path-snapshot)
+            # We push (node, neighbors_iter, current_path) tuples.
+            path: List[str] = []
+            stack: List[tuple] = [(start, iter(sorted(adj.get(start, set()))), path)]
+            visited[start] = 1
+            path.append(start)
+
+            while stack:
+                node, neighbors, _ = stack[-1]
+                try:
+                    neighbor = next(neighbors)
+                    state = visited.get(neighbor, 0)
+                    if state == 1:
+                        # Back edge: cycle found
+                        cycle_start = path.index(neighbor)
+                        cycles.append(path[cycle_start:] + [neighbor])
+                    elif state == 0:
+                        visited[neighbor] = 1
+                        path.append(neighbor)
+                        stack.append((neighbor,
+                                      iter(sorted(adj.get(neighbor, set()))),
+                                      path))
+                except StopIteration:
+                    visited[node] = 2
+                    path.pop()
+                    stack.pop()
 
         return cycles
 
