@@ -68,7 +68,7 @@ Before submitting or staging any change:
 # 1. Run surgical module test
 python -m pytest saleha/tests/test_math_logic.py -v
 
-# 2. Run full test suite (2174 passed, 13 skipped as of 2026-09-20)
+# 2. Run full test suite (2332 passed, 13 skipped, 172 subtests as of pass 135, 2026-09-21)
 python -m pytest saleha/tests/ -q
 
 # 3. Check code style and diagnostics

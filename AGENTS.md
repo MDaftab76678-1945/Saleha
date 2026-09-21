@@ -49,7 +49,7 @@ Saleha is not just another wrapper; it is an autonomous, self-improving coding i
 
 ## 3. The Defect Graveyard (Past Failure Signatures — NEVER REPEAT)
 
-Over 29 audit passes, the following concrete fabrications were uncovered and eradicated. Every agent is strictly forbidden from repeating these patterns:
+Over 135 audit passes (see `NOTEBOOK_IMPORT.md` for the full ledger), the following concrete fabrications were uncovered and eradicated. Every agent is strictly forbidden from repeating these patterns:
 
 | Historical Defect | Module / Area | Forbidden Anti-Pattern |
 | --- | --- | --- |
@@ -97,7 +97,7 @@ Every engineering decision in this repo is guided by foundational builders and m
 ```text
 saleha-0.1/
 ├── saleha/                         # Core Python Engine
-│   ├── core/                       # 252 specialized domain & algorithmic modules
+│   ├── core/                       # 243 specialized domain & algorithmic modules
 │   │   ├── bm25.py                 # Real BM25 lexical search
 │   │   ├── math_logic.py           # Complexity scoring engine (0.0 to 10.0)
 │   │   ├── formal_smt_verifier.py  # Z3-based SMT contract verification
@@ -112,14 +112,14 @@ saleha-0.1/
 │   │   ├── sandbox_jail.py         # Cross-platform sandbox runner (Windows safe)
 │   │   ├── ast_security_verifier.py# AST static security auditor
 │   │   └── v5_production_core.py   # Production runtime kernel
-│   └── tests/                      # 280 test files (2303 passed, 13 skipped, as of pass 109)
-├── packages/                       # TS libraries: api, auth, core, db, ui
-├── apps/                           # TS apps: desktop, landing, web
+│   └── tests/                      # 2332 passed, 13 skipped, 172 subtests (as of pass 135)
+├── packages/                       # 5 TS libraries: api, auth, core, db, ui
+├── apps/                           # 3 TS apps: desktop, landing, web
 │                                   # 8 workspaces total; 'npx turbo run typecheck' must be 8/8
 ├── docs/                           # Architectural Truth & Catalogs
 │   ├── AGENT_PROFILES.md           # 30 Specialized Persona Definitions
 │   └── ARCHITECTURE.md             # Subsystem integrity & honest command ledger
-├── NOTEBOOK_IMPORT.md              # The Audit Ledger (Passes 1-109, all findings & numbers)
+├── NOTEBOOK_IMPORT.md              # The Audit Ledger (Passes 1-135, all findings & numbers)
 ├── COORDINATION.md                 # Parallel Agent Coordination Hub (Claude + Gemini)
 └── CLAUDE.md / GEMINI.md           # Session Operating Handbooks
 ```
