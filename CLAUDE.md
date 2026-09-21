@@ -1901,6 +1901,105 @@ remain; next candidates by importer count: `task_scheduler.py`,
 `mcp_hub.py`, `lora_tuner.py`, `evaluator.py`, `deliberation_engine.py`,
 `conflict_resolver.py` (3 each). Detail: `NOTEBOOK_IMPORT.md`, "Pass 107."
 
+**Passes 108-111 — the `saleha/core/` sweep continued, then the agent-repair
+lineage got a depth/coverage gate.** Pass 108 read the next 10-module batch
+(all remaining 4-and-3-importer modules): 9 real defects fixed across 7 of
+them, including a cron weekday-numbering mismatch (`task_scheduler.py`), a
+swallowed disk-write failure that let `soul_engine.py` report a soul switch
+as successful while the persisted active soul silently stayed unchanged, and
+`mcp_hub.py`'s `connect_server()` — the same "Simulated successful handshake"
+pattern this project's audit exists to catch, now checking `shutil.which()`
+instead of unconditionally returning `success=True`. Pass 109 followed up
+with 9 leftover defects plus 1 caller bug (`chat_session.py`'s `/schedule`
+mis-split a cron string, registering a task that could never fire while
+printing "Successfully"), all red-confirmed by direct probe before fixing,
+13 new tests. Pass 110 closed pass 106's open gap (the agent picks a
+plausible function one level too shallow): repair-goal success now
+additionally requires a real test-file read plus a revert-check (the suite
+must fail with the patch removed, or the fix is unproven). Pass 111 went one
+level deeper with a stdlib-`trace`-based coverage prover — the failing
+tests must actually execute at least one changed line, not just still exist.
+Suite: 2290 (pass 108) → 2303 → 2309 → **2313 passed, 13 skipped, 172
+subtests** (pass 111). Detail: `NOTEBOOK_IMPORT.md`, "Pass 108" through
+"Pass 111."
+
+**Passes 112-117 — six more itemized `saleha/core/` audit passes, each with
+real defects found and fixed.** `vault.py`'s save path crashed outright on
+Windows for a bare filename (`os.makedirs('')` → `FileNotFoundError`), and
+its `rekey()` was not atomic — a crash mid-write could permanently lock the
+vault under a new key with the old salt still on disk; both fixed (pass
+112). `dependency_graph.py`'s cycle detector used recursive DFS, risking
+`RecursionError` past ~1000 files in an import chain (this repo's own
+`saleha/core/` already has 252 modules) — rewritten as an iterative,
+stack-based DFS (pass 113), plus a same-day follow-up fixing a real
+`float(None)` `TypeError` risk and a missing `disable_reasoning`/`**kwargs`
+parameter gap between `ProfileAgent.think` and `BaseAgent.think`. Pass 114
+was confirmed fully mechanical (type hints, `contextlib.suppress`, import
+sorting) with no defect claimed or found. Pass 115 found a real measurement
+bug: `change_impact.py`'s blast-radius denominator walked the whole repo
+with **no directory pruning**, so every `.py` file under `.venv`/
+`node_modules`/`build` inflated the file count and deflated every blast-radius
+percentage — fixed to prune the same directories the file's own caller-search
+already pruned. Pass 116 found `approval_gate.py`'s constructor bypassing its
+own `_MODE_ALIASES` normalization table (the module-level function used it
+correctly; the class constructor didn't), and `agent_contracts.py` silently
+excluding every `async def` from `functions_defined`. Pass 117's `text()`
+closure fix in `debate_consensus_orchestrator.py` was checked against the
+diff and found to be a defensive ruff-B023 fix, not a live bug (the closure
+is always called synchronously within the same loop iteration it's defined
+in) — recorded precisely rather than taken at the commit message's word;
+`persona_debate.py`'s five-emoji markdown report headers were a genuine
+Rule 3 fix. Detail for all six: `NOTEBOOK_IMPORT.md`, "Pass 112" through
+"Pass 117."
+
+**Passes 118-132 — fifteen one-line-commit-message "hardening" passes,
+read in full rather than trusted: mostly mechanical, with three real
+fabrications and several real robustness bugs mixed in.** The bulk of
+~65 touched files across this range are confirmed purely mechanical
+(`-> None` annotations, modernized `list[str]`/`dict[str, Any]` generics,
+dead-import removal, `contextlib.suppress` conversions, Rule-3 emoji
+removal) — but reading every diff rather than accepting "hardening" at
+face value surfaced real content:
+
+- **Two fabricated-success responses found and fixed in `voice_live.py`
+  (pass 126).** `_default_executor()` returned hardcoded outcome claims
+  for voice commands that never actually ran anything — "All tests now
+  passing," "100% tests passed," "Score is 98/100, zero critical issues,"
+  a STATUS reply inventing "20 agents active... 558 tests green." Same
+  fabricated-outcome shape this project's whole audit history exists to
+  catch, found in a live voice-command path. Fixed to state only that an
+  action is starting, not its invented result. The same pass also fixed a
+  real crash: `voice_assistant.py`'s auto-exec path called a
+  `SalehaOrchestrator.run_task()` method that **does not exist** (the real
+  method is `execute_task`) — every real call through that lambda would
+  have raised `AttributeError`, and it called the (nonexistent) method up
+  to three times per invocation besides.
+- **One fabrication found and left unfixed — flagged here as open, not
+  resolved by pass 130.** `sidecar_daemon.py` (a real, reachable local
+  HTTP daemon wired to the live `saleha sidecar` CLI command) still
+  returns the **unmodified input code** claiming `"Handled edge cases
+  safely"` for its Auto-Fix action, and a fixed `assertTrue(True)` stub
+  for Gen Tests regardless of what was submitted. Pass 130's actual diff
+  for this file only touched emoji/whitespace — the fabricated bodies are
+  untouched. A real user clicking Auto-Fix or Gen Tests in the sidecar
+  today gets a fabricated success claim.
+- Real, smaller robustness fixes recur across the range: `sys.executable`
+  preferred over `shutil.which("python3")` for running generated code (4
+  separate files: `polyglot_executor.py`, `project_builder.py`,
+  `code_executor.py`, consistent with `sandbox_runner.py`'s pre-existing
+  behavior) so generated code runs under the same interpreter as Saleha
+  itself rather than an unrelated `python3` on PATH; a real double-count
+  bug in `code_migrator.py` (`changes += 1` duplicated on one line,
+  inflating the reported migration change count by one); and the same
+  PID-suffixed atomic-temp-file pattern (`f"{path}.tmp.{os.getpid()}"` +
+  `os.replace()`) applied to `stats_tracker.py`, `diff_engine.py`,
+  `project_memory.py`, `cloud_deployer.py`, and `deployer.py`.
+
+No full-suite pass/fail count is recorded in any of these 15 commit
+messages for this specific range (most report only a ruff-clean claim or a
+file-scoped test count) — none is invented here to fill the gap. Detail for
+all fifteen: `NOTEBOOK_IMPORT.md`, "Passes 118-132."
+
 ---
 
 ## Environment facts worth knowing

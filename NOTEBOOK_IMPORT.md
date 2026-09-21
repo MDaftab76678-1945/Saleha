@@ -9444,3 +9444,289 @@ new diagnostics.
 Open, honestly: def-line-only changes count as reached (import executes
 them); call-graph lookahead still untouched; traced runs cost ~1 extra
 suite each, only on the success path.
+
+## Pass 112: vault.py's save path crashed on Windows for a bare filename; a rekey crash could permanently lock the vault (2026-09-21)
+
+Read `vault.py`, `metrics.py`, `code_executor.py`, `model_provider.py`,
+`smart_router.py` (the highest-importer core modules never before named in
+this file's line-by-line detail). Three of the five were confirmed clean
+(prior passes' fixes still in place). Two real defects, both verified
+against the diff:
+
+- **`vault.py`: `_save_vault` crashed on a bare filename.**
+  `os.makedirs(os.path.dirname(vault_path), exist_ok=True)` -- `dirname()`
+  on a bare filename (no directory component) returns `''`, and
+  `os.makedirs('')` raises `FileNotFoundError` (WinError 3) on Windows.
+  `set_secret()` was silently returning `False` as a result. Fixed with
+  `os.path.abspath()` first, so `dirname()` always resolves to a real
+  directory.
+- **`vault.py`: `rekey()` was not atomic.** The new salt was written with a
+  plain `open(...).write()`; a crash mid-write would leave the vault
+  encrypted under the new key while the on-disk salt file still held the
+  old one -- permanently unreadable either way. Fixed with a temp-file +
+  `os.replace()` atomic write, with an explicit rollback of
+  `passphrase`/`_salt`/`_derived_key` to the pre-rekey values if the write
+  fails.
+- `metrics.py`: `MetricsTracker.__init__` given a `-> None` return
+  annotation (no behavior change).
+
+2 new tests for the vault fixes (11 total in `test_vault.py`, diff
+confirmed both). No suite-wide count given in the commit message.
+
+## Pass 113: dependency_graph.py's cycle detector used recursive DFS -- would crash past ~1000 files in an import chain (2026-09-21)
+
+Read `dependency_graph.py`, `agent_profile_loader.py`, `audit_log.py`,
+`swarm_pipeline_engine.py`, `self_healing.py`. Three confirmed clean.
+
+- **`dependency_graph.py`: `detect_cycles()` used recursive DFS.** Python's
+  default recursion limit is 1000; `saleha/core/` alone has 252 modules, so
+  a moderately deep cross-import chain in a larger codebase would already
+  risk `RecursionError`. Rewritten as an explicit stack-based iterative DFS
+  (each frame is `(node, neighbor_iterator, path)`), so depth is bounded by
+  heap memory rather than the call stack. Confirmed the rewrite is a real
+  algorithmic change, not just a syntax rename: the old version's recursive
+  `dfs()` closure is gone entirely, replaced by an explicit `stack` list
+  processed in a `while` loop. The commit message's own verification
+  (`[a.py->b.py->c.py->a.py]` cycle still detected correctly) is consistent
+  with the diff's back-edge check (`state == 1` on the neighbor).
+- `agent_profile_loader.py`: dead `except Exception as e: continue` variable
+  cleaned to `except Exception: continue`, plus `-> None` annotations on
+  `reload()`/`register()`.
+- A same-day follow-up commit (`f8035be`, IDE-error fixup on this file) is a
+  real bug fix, not cosmetic: `raw_temp` from `llm_routing` could be `None`,
+  and `float(None)` raises `TypeError` -- previously only caught
+  incidentally by the surrounding `except (TypeError, ValueError)`, made
+  explicit with an early raise for clarity. Separately, `ProfileAgent.think`
+  was missing `disable_reasoning`/`**kwargs` from its signature versus
+  `BaseAgent.think`, meaning a `ProfileAgent` call site had no way to
+  disable a reasoning model's `<think>` block (the pass-87 fix) -- added
+  both parameters, forwarded to `super().think()`.
+
+Commit message states suite at 2314 passed, 13 skipped (net +11 over the
+2303 baseline, from pass-112's 2 vault tests plus other net additions) --
+not independently re-run this pass, taken from the commit's own record per
+this task's scope (documentation of already-completed, previously
+unlogged work).
+
+## Pass 114: mechanical cleanup, no defects found -- constitutional_guard, agent_message_bus, incremental_ast_cache, memory_store, bm25 (2026-09-21)
+
+Read all five files' diffs in full. Every change is `-> None` return
+annotations, import sorting (`from __future__ import annotations` added
+where missing), and `try/except Exception: pass` collapsed to
+`contextlib.suppress(...)`. Confirmed no behavior change in any of the
+five: the nested-if simplification in `incremental_ast_cache.py`
+(`isinstance(...) and not node.name.startswith("_")`) preserves the same
+short-circuit order as the original nested `if`. No defect found or
+claimed by the commit message itself ("All 2314 pytest tests pass (0
+failures). Ruff check 0 errors.") -- an honest mechanical pass.
+
+## Pass 115: change_impact.py's blast-radius denominator counted .venv/build/dist files, inflating every score (2026-09-21)
+
+Read `change_impact.py`, `vector_store.py`, `semantic_search.py`,
+`fast_search.py`, `codebase_indexer.py`.
+
+- **`change_impact.py`: a real measurement bug.** `analyze_impact()`'s
+  "blast radius" percentage divides affected-file count by a
+  `total_files` count built from `os.walk(repo_root)` with **no directory
+  pruning at all** -- every `.py` file under `.venv`, `.venv_train`,
+  `node_modules`, `build`, and `dist` was counted in the denominator,
+  silently deflating the blast-radius percentage for any real repo with a
+  populated virtualenv (this repo's own `.venv` alone would have skewed
+  every call). `_find_callers()` already pruned those same directories 130
+  lines below in the same file -- the denominator walk was the one path
+  that didn't. Fixed by pruning `__pycache__`/`.git`/`.venv`/`.venv_train`/
+  `node_modules`/`build`/`dist` in both walks identically.
+  `_symbol_referenced_regex_fallback`'s loop was also collapsed to a
+  single `any(...)` generator expression -- same short-circuit result,
+  confirmed no logic change.
+- `vector_store.py`: Hindi/Hinglish docstrings and comments translated to
+  English (Rule 2.4 -- "Naya (B1): embedding backend LAZILY choose hota
+  hai" etc. rewritten in plain English), `-> None` annotations, and
+  `zip(all_docs, vectors, strict=True)` added so a length-mismatched
+  dense-embedding response fails loudly instead of silently truncating.
+- `semantic_search.py`/`fast_search.py`/`codebase_indexer.py`: dead-import
+  removal (`Set`, `field`, `time`, `Any`, unused `codebase_indexer` import
+  in `semantic_search.py`), `l` renamed to `line` (E741 ambiguous
+  single-letter variable), `-> None` annotations.
+
+Commit message: "Targeted test suite: 33 passed, 0 failed. Ruff check: 0
+errors on all 5 files" -- taken as recorded, not independently re-run this
+pass.
+
+## Pass 116: approval_gate.py's constructor bypassed its own mode-alias table (2026-09-21)
+
+Read `approval_gate.py`, `agent_permissions.py`, `agent_contracts.py`,
+`agent_worker_pool.py`, `active_inference.py`.
+
+- **`approval_gate.py`: a real consistency bug.** The module already had a
+  module-level `_MODE_ALIASES` dict and used it correctly in the
+  module-level `get_effective_mode()`-style function (line 83), but
+  `ApprovalGate.__init__` stored `mode` directly with no normalization at
+  all (`self._override_mode = mode`) -- so constructing `ApprovalGate` with
+  an alias (e.g. a short form the function-level path would have
+  recognized) behaved differently from the function-level entry point.
+  Fixed to run the same `.strip().lower()` + `_MODE_ALIASES.get()`
+  normalization in the constructor.
+- **`agent_contracts.py`: a real coverage gap.** `functions_defined` was
+  populated via `ast.walk(tree)` filtered to `ast.FunctionDef` only --
+  `async def` functions were invisible to the coder-output contract
+  entirely. Fixed to include `ast.AsyncFunctionDef` alongside
+  `ast.FunctionDef`.
+- `agent_permissions.py`: unused `Dict` import removed.
+- `agent_worker_pool.py`: `-> None` on `__init__`, import sort.
+- `active_inference.py`: `signals: dict` field on the `Uncertainty`
+  dataclass given a real type (`Dict[str, Any]`) instead of the bare
+  untyped `dict`.
+
+Commit message: "Targeted test suite: 58 passed, 0 failed, 28 subtests
+passed. Ruff check: 0 errors on all 5 files" -- taken as recorded.
+
+## Pass 117: persona_debate.py's markdown report had decorative emoji in five section headers; a defensive (not live) closure fix in debate_consensus_orchestrator.py (2026-09-21)
+
+Read `architecture_debater.py`, `debate_consensus_orchestrator.py`,
+`deliberation_engine.py`, `persona_debate.py`, `structured_reasoner.py`.
+
+- **`persona_debate.py`: Rule 3 fix.** `build_report()`'s markdown output
+  (a real, user-facing report -- see pass 117's own scope, this is the
+  live "Hardened Engineering Contract" document) had five section headers
+  with decorative emoji (⚖️, 🏛️, 🛡️, 🩹, 🚀, 📜) baked directly into the
+  string, the exact cp1252-crash risk `CLAUDE.md` rule 3 names. Removed;
+  headers are now plain `## Executive Consensus` etc.
+- **`debate_consensus_orchestrator.py`: re-checked the commit message's
+  "bind loop variables in text() closure (B023)" claim against the
+  diff, since B023 (loop-variable-capture-in-closure) is a ruff lint rule
+  that often flags code that isn't actually buggy.** In this file,
+  `text(name)` is a nested closure defined inside a `for r in
+  range(...)` loop and captures `r`/`replies` by reference -- but it is
+  only ever called synchronously, within the same loop iteration it is
+  defined in (`skeptic_rebuttal=text("skeptic")` three lines below the
+  `def`), never stored for later. Because of that, the closure's captured
+  variables cannot have changed between definition and call in this
+  code as written, so this is a **defensive fix for a lint warning, not a
+  fix for an observed wrong-output bug** -- the pre-fix code could not
+  actually have produced a wrong round number here. Recording this
+  precisely rather than accepting the commit message's "bind loop
+  variables" framing as evidence of a live defect: it is correct,
+  ruff-clean practice, and correctly guards against the pattern
+  becoming a real bug if `text` is ever deferred later, but it was not
+  observably broken before.
+- `deliberation_engine.py`: dead imports (`os`, `sys`, `field`, `Dict`)
+  removed, `contextlib.suppress` conversion, `-> None` annotations.
+- `architecture_debater.py`: dead imports (`time`, `Dict`, `Tuple`, `Any`).
+- `structured_reasoner.py`: unused `Tuple` import removed, import sort.
+
+Commit message: "Targeted test suite: 44 passed, 0 failed, 10 subtests
+passed. Ruff check: 0 errors on all 5 files" -- taken as recorded.
+
+## Passes 118-132: mechanical type-hint/lint hardening across ~65 core modules, with three fabricated stub responses found (not all fixed) and several real robustness bugs fixed along the way (2026-09-21)
+
+Fifteen one-line-commit-message passes ("fix(core): audit pass N - <area>
+hardening"), each touching 3-6 files. Every commit's full diff was read
+directly (not the commit message alone) to check whether "hardening" meant
+mechanical cleanup or hid a real behavior change. The large majority of the
+~65 touched files across this range are confirmed **purely mechanical**:
+`-> None` return annotations, `from __future__ import annotations` +
+`list[str]`/`dict[str, Any]` modernized generics, import sorting/dedup,
+dead-import removal, `try/except: pass` collapsed to
+`contextlib.suppress(...)`, nested-`if` collapse via `and`, and decorative
+emoji removed from log/report strings (Rule 3). Several of these are logically
+verified equivalent, not just assumed: e.g. pass 119's `polyglot_indexer.py`
+`or`/`and` parenthesization change is a no-op under Python's operator
+precedence (confirmed with a direct interpreter check), and pass 119's
+`itertools.islice(f, n)` replacing `zip(range(n), f)` is a drop-in
+equivalent for "read the first n lines."
+
+Real, behavior-affecting fixes found inside this range (this is not "all
+cosmetic" -- reading closely enough mattered):
+
+- **Pass 118 (`b3c4f3b`), `polyglot_executor.py`: `_dispatch_execution`'s
+  Python path now prefers `sys.executable`** over `shutil.which("python3")`,
+  so generated Python code runs under the same interpreter as Saleha itself
+  rather than whatever `python3` happens to resolve to first on PATH (a
+  real risk of a venv mismatch). The same `sys.executable`-first fix
+  recurs in `project_builder.py` (pass 120), `code_executor.py`'s
+  `_find_python_executable()` (pass 121), and was already the default in
+  `sandbox_runner.py` -- consistent, not duplicated by accident.
+- **Pass 118, `multi_file_editor.py`: the write-phase loop guarded
+  `os.makedirs(os.path.dirname(abs_p), ...)` against an empty dirname**
+  (previously unconditional, matching the same class of bug pass-113's
+  vault.py fix addressed for a bare filename) and gated the write itself
+  on `abs_p` being truthy.
+- **Pass 121 (`4acb3e4`), `code_migrator.py`: a real double-count bug.**
+  `migrate_unittest_to_pytest()` had `changes += 1` written twice in a
+  row after the same `code.replace("unittest.main()", "pytest.main()")`
+  call, so the reported `changes_count` over-counted that one substitution
+  by one. Fixed by deleting the duplicate line. Confirmed in the diff: two
+  consecutive `changes += 1` lines collapsed to one.
+- **Pass 125 (`db31d7e`), `stats_tracker.py`: `_save()` given the same
+  empty-dirname guard plus a PID-suffixed atomic temp file**
+  (`f"{path}.tmp.{os.getpid()}"` + `os.replace()`, replacing a bare
+  `path + ".tmp"`), closing a real concurrent-write race if two processes
+  ever call `_save()` on the same path at once. The same PID-suffixed
+  temp-file pattern also lands in pass 120's `diff_engine.py` and
+  `project_memory.py`, and pass 129's `cloud_deployer.py`/`deployer.py`
+  asset-writers -- a real, repeated hardening theme across this range, not
+  a one-off.
+- **Pass 126 (`b83384c`), `voice_assistant.py`: a real crash fix.**
+  `process_voice_input`'s auto-execute path built
+  `executor_fn = lambda p: orch.run_task(p).summary if hasattr(...) else
+  str(orch.run_task(p))` -- calling `orch.run_task(p)` **up to three times**
+  per invocation for a side-effecting call, and `SalehaOrchestrator` has no
+  `run_task` method at all (confirmed: `saleha/orchestrator.py` only
+  defines `execute_task`), so every real call through this path would have
+  raised `AttributeError`. Replaced with a proper `_auto_exec(p)` function
+  that calls `orch.execute_task(p)` exactly once and reads
+  `getattr(task_res, "final_code", str(task_res))`.
+- **Pass 126, `voice_live.py`: two fabricated-success responses removed.**
+  `_default_executor()` returned hardcoded outcome claims for intents that
+  were never actually run: `"Auto-healing errors in '{target}'. All tests
+  now passing."`, `"Ran test suite on '{target}'. 100% tests passed."`,
+  `"Completed OWASP review on '{target}'. Score is 98/100, zero critical
+  issues."`, `"Surgical diff generated. 2 hunks modified with low risk
+  score 2/10."`, and a STATUS reply of `"Saleha v2.0 is running with 20
+  agents active, memory synced, 558 tests green."` -- all invented numbers,
+  none backed by any actual execution in this function. This is the same
+  fabricated-outcome shape this project's entire audit history exists to
+  catch, found here in a live voice-command path. Fixed to state only that
+  an action is starting (`"Auto-healing errors in '{target}'."`,
+  `"Running test suite on '{target}'."`, etc.), not its invented result.
+- **Pass 130 (`b495d22`) left a live fabrication untouched -- flagged here,
+  not fixed by that pass.** `sidecar_daemon.py`'s `SidecarHandler` (a real,
+  reachable local HTTP daemon -- confirmed wired to the live `saleha
+  sidecar` CLI command via `saleha/cli/commands/sandbox_exec.py`) still
+  contains, after pass 130's diff, two hardcoded fake responses: the "fix"
+  action returns the **unmodified input code** appended with the comment
+  `"# Handled edge cases safely."` (nothing was fixed), and the "test"
+  action returns a **fixed, input-independent** `assertTrue(True)` stub
+  regardless of what code was submitted. Pass 130's actual diff for this
+  file only touches whitespace/emoji (`🧠`/`🔍`/`🩹`/`🧪`/`🛡️`/`✅` removed,
+  Rule 3) and adds a `-> None` annotation to `log_message` -- it did not
+  touch the fabricated response bodies at all, despite the commit message
+  calling this "hardening." **This is an open finding, not yet fixed**:
+  a real user hitting the sidecar's Auto-Fix or Gen Tests button gets a
+  fabricated success claim.
+- Pass 132 (`55c6890`), `cognitive_engine.py`: `O(n³)` (superscript three,
+  non-ASCII) changed to `O(n^3)` in an `observations` string -- a real
+  Rule-3-shaped fix (the same cp1252-crash class as decorative emoji),
+  distinct from the file's other mechanical changes.
+
+**What did not change:** `sandboxed_mcp_client.py` (pass 122) still
+returns simulated/hardcoded MCP tool responses (`"Simulated content of
+{path}"`, a fixed `commit_hash: "a1b2c3d"`, `rows_returned: 5` regardless
+of query) -- pre-existing from before this range, self-evidently a stub
+(no real subprocess/socket code anywhere near it), and untouched by pass
+122's diff (import sorting + elif-chain flattening only). Not a new
+finding, but noted since it sits in a file this range touched.
+`mock_server.py` (pass 131) is explicitly a synthetic test-mocking utility
+by design and docstring, not a fabrication.
+
+**Suite/test counts:** most of these 15 commit messages report a
+"targeted"/file-scoped test count (e.g. "0 errors" via ruff, or no count
+at all), not a full-suite run. None claim a full `pytest saleha/tests/`
+total for this specific range in the commit message text itself, so no
+full-suite before/after number is recorded here for passes 118-132 --
+consistent with this task's instruction not to invent one. `CLAUDE.md`'s
+environment section separately records the suite at "2303 passed, 13
+skipped" as of pass 109 and "as of pass 109, measured this session" for
+the ~227s runtime figure; no later full-suite re-measurement was logged
+in any of these 21 commit messages.
