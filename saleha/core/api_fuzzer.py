@@ -6,9 +6,10 @@ format strings, and malformed JSON payloads) against API endpoints and code func
 unhandled 500 crashes and zero-day vulnerabilities.
 """
 
-import time
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Dict, List
 
 from saleha.core.code_executor import CodeExecutor
 
@@ -47,7 +48,7 @@ MUTATION_PAYLOADS: List[Dict[str, str]] = [
 class APIFuzzer:
     """Automated security fuzzing and mutation testing engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.executor = CodeExecutor()
 
     def fuzz_function(self, code: str, func_name: str = "process", mutations: int = 10) -> FuzzingReport:

@@ -12,10 +12,8 @@ from __future__ import annotations
 import ast
 import random
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
-
-from saleha.core.ephemeral_container_runner import container_runner, ContainerExecutionResult
+from dataclasses import dataclass
+from typing import Any, List, Optional
 
 
 @dataclass
@@ -33,7 +31,7 @@ class FuzzPropertyResult:
 class SPICSFuzzEngine:
     """Property-based invariant fuzz test synthesis and resilience auditor."""
 
-    def __init__(self, default_trials: int = 100):
+    def __init__(self, default_trials: int = 100) -> None:
         self.default_trials = max(10, default_trials)
 
     def _generate_fuzz_corpus(self, num_trials: int) -> List[Any]:
@@ -49,7 +47,7 @@ class SPICSFuzzEngine:
             "",
             "   ",
             "\x00\xff\xfe",
-            "🚀🔥✨",
+            "\U0001F680\U0001F525\U00002728",
             [],
             [None, 0, ""],
             {},
@@ -77,7 +75,7 @@ class SPICSFuzzEngine:
         # 1. AST Validation
         try:
             ast.parse(code)
-        except SyntaxError as e:
+        except SyntaxError:
             return FuzzPropertyResult(
                 function_name=function_name,
                 total_fuzz_trials=trials,

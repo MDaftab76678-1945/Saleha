@@ -5,12 +5,13 @@ Executes multi-threaded HTTP traffic generation to benchmark throughput (RPS),
 calculate percentile latencies (p50, p95, p99), and discover backend performance bottlenecks.
 """
 
+from __future__ import annotations
+
 import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from dataclasses import dataclass
 
 ALLOWED_SCHEMES = ("http", "https")
 
@@ -67,7 +68,7 @@ class LoadTester:
         failures = 0
         start_time = time.time()
 
-        def _make_req():
+        def _make_req() -> tuple[bool, float]:
             t0 = time.time()
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "Saleha-LoadTester/1.0"})

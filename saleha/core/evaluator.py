@@ -5,9 +5,11 @@ Automated evaluation harness for benchmarking local Ollama coding models
 (HumanEval-style coding challenges) measuring Pass@1 accuracy, latency, and self-healing rate.
 """
 
+from __future__ import annotations
+
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from saleha.core.code_executor import CodeExecutor
 
@@ -67,7 +69,7 @@ class BenchmarkScore:
 class ModelBenchmarkEvaluator:
     """Runs coding benchmarks on LLM models to assess generation quality and Pass@1."""
 
-    def __init__(self, tasks: Optional[List[BenchmarkTask]] = None):
+    def __init__(self, tasks: Optional[List[BenchmarkTask]] = None) -> None:
         self.tasks = tasks or BENCHMARK_TASKS
         self.executor = CodeExecutor()
 

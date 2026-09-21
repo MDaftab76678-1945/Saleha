@@ -43,7 +43,9 @@ class HardenedSandboxEngine:
 
     def __init__(self, prefer_docker: bool = True) -> None:
         self.prefer_docker = prefer_docker
-        self.docker_runner = DockerSandboxRunner() if prefer_docker else None
+        self.docker_runner: Optional[DockerSandboxRunner] = (
+            DockerSandboxRunner() if prefer_docker else None
+        )
 
     def execute_code(
         self,
@@ -56,9 +58,12 @@ class HardenedSandboxEngine:
         """Executes code in the strongest available security sandbox tier."""
         # Tier 1: Docker Sandbox
         if self.prefer_docker and is_docker_available():
+            if self.docker_runner is None:
+                self.docker_runner = DockerSandboxRunner()
+            runner = self.docker_runner
             net = "bridge" if allow_network else "none"
             start_t = time.time()
-            res = self.docker_runner.run_code(
+            res = runner.run_code(
                 code=code,
                 language=language,
                 timeout=timeout,

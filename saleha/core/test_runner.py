@@ -1,34 +1,36 @@
 """
 Saleha Core: Real Test Runner (A1 -- honesty gap fix)
 
-Pehle "Tester" sirf syntax/safety check karta tha -- unittest suites kabhi
-EXECUTE nahi hoti thi (README claim vs reality gap). Ye module asli mein:
+Previously, "Tester" only performed syntax/safety checks -- unittest suites were
+never EXECUTED (closing the README claim vs reality gap). This module actually:
 
-1. User code + test code ko ek runner script me compose karta hai
-2. Sandboxed CodeExecutor se chalata hai
-3. unittest results ko structured JSON me parse karta hai:
-   ran / failures / errors / tracebacks (healer ko feed hone ke liye)
+1. Composes user code and test code into a unified runner script
+2. Executes the combined script via sandboxed CodeExecutor
+3. Parses unittest results into structured JSON:
+   ran / failures / errors / tracebacks (for consumption by self-healing routines)
 
-Runner script user code ko concatenate karta hai (tests same namespace ke
-names reference karte hain), lekin `if __name__ == "__main__": unittest.main()`
-guard-blocks strip kar deta hai warna wo hamara JSON emitter hijack kar lete.
+The runner script concatenates user code (tests reference names in the same namespace),
+while stripping `if __name__ == "__main__": unittest.main()` guard blocks so they do
+not hijack our structured JSON emitter.
 """
+
+from __future__ import annotations
 
 import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 
 TEST_JSON_MARKER = "SALEHA_TEST_JSON:"
 _MAX_TRACEBACK_CHARS = 1200
 _MAX_RAW_OUTPUT = 20_000
 
-# `if __name__ == "__main__": ...` guard block (unittest.main/pytest.main yahin hota hai)
+# `if __name__ == "__main__": ...` guard block (matches unittest.main / pytest.main blocks)
 _MAIN_GUARD_RE = re.compile(
     r"^[ \t]*if\s+__name__\s*==\s*['\"]__main__['\"]\s*:[ \t]*\n(?:[ \t]+.*\n?)*",
     re.MULTILINE,
 )
-# Standalone runner invocations (guard ke bahar likhe ho to bhi)
+# Standalone runner invocations outside guards
 _STANDALONE_RUNNER_RE = re.compile(
     r"^[ \t]*(?:unittest|pytest)\.main\([^)]*\)[ \t]*$",
     re.MULTILINE,
@@ -64,7 +66,7 @@ class TestSuiteResult:
         return base
 
     def failure_report(self, max_chars: int = 2000) -> str:
-        """Healer/reflexion prompts ke liye compact failure text."""
+        """Compact failure report for self-healing and reflexion prompts."""
         if self.error:
             return self.error
         parts = []
@@ -76,7 +78,7 @@ class TestSuiteResult:
 
 
 def sanitize_test_code(test_code: str) -> str:
-    """__main__ guards aur standalone runner calls hatao."""
+    """Strips __main__ guards and standalone runner calls."""
     cleaned = _MAIN_GUARD_RE.sub("", test_code or "")
     cleaned = _STANDALONE_RUNNER_RE.sub("", cleaned)
     return cleaned.strip()
@@ -111,28 +113,26 @@ def build_runner_script(code: str, test_code: str) -> str:
 
 
 class TestRunner:
-    """unittest suites ko sach mein execute karta hai (sandboxed).
+    """Executes unittest suites inside an isolated sandbox environment.
 
-    Security model: user segments (solution + tests) ko hum KHUD
-    safety_patterns se validate karte hain -- dono segments blocked-import ya
-    dangerous-pattern free hone chahiye. Phir combined script
-    `allow_dangerous=True` ke saath chalta hai kyunki uska sirf extra hissa
-    hamara trusted harness-footer hai (io/json/sys/unittest -- result
-    reporting tak simit, koi network/filesystem access nahi). Pehle poora
-    script generic check hota tha jisme hamara hi harness `sys` import par
-    block ho jaata tha.
+    Security model: User segments (solution + tests) are directly validated
+    against safety_patterns -- both segments must be free of blocked imports
+    and dangerous patterns. The combined runner script is then executed with
+    allow_dangerous=True because the only appended code is our trusted harness footer
+    (io/json/sys/unittest -- scoped strictly to result reporting with zero network
+    or filesystem access).
     """
     __test__ = False
 
-    def __init__(self, executor=None):
-        # Lazy import: code_executor chain heavy-ish hai
+    def __init__(self, executor: Optional[Any] = None) -> None:
+        # Lazy import: avoid circular dependencies with code_executor
         from saleha.core.code_executor import CodeExecutor
         self.executor = executor or CodeExecutor(timeout=15)
 
     def _validate_segment(self, label: str, segment: str) -> Optional[str]:
         if not segment or not segment.strip():
             return None
-        from saleha.core.safety_patterns import check_dangerous, _check_blocked_imports
+        from saleha.core.safety_patterns import _check_blocked_imports, check_dangerous
 
         danger = check_dangerous(segment)
         if danger:
@@ -144,13 +144,11 @@ class TestRunner:
 
     def run_suite(self, code: str, test_code: Optional[str] = None,
                   timeout: Optional[int] = None) -> TestSuiteResult:
-        """test_code diya ho to full unittest execution, warna bare runtime
-        smoke-test (exit-code based)."""
+        """Executes full unittest suite if test_code is provided; otherwise runs a bare smoke test."""
         effective_timeout = timeout or getattr(self.executor, "timeout", 15)
 
         if test_code and test_code.strip():
-            # Dono user segments ki apni validation (executor-level generic
-            # check skip hoga, ye replacement hai -- bypass nahi)
+            # Validate each user segment individually against safety policy
             for label, segment in (("solution", code), ("tests", test_code)):
                 violation = self._validate_segment(label, segment)
                 if violation:
@@ -176,7 +174,7 @@ class TestRunner:
             return result
 
         if not test_code or not test_code.strip():
-            # Bare smoke: exit-code hi verdict hai
+            # Bare smoke test: exit code determines success
             result.passed = exec_res.success
             if not exec_res.success:
                 result.error = exec_res.error or exec_res.output or f"exit {exec_res.exit_code}"
@@ -184,7 +182,7 @@ class TestRunner:
 
         marker_line = self._extract_marker(result.raw_output)
         if marker_line is None:
-            # Script crash hua JSON print se pehle (import error / syntax / timeout)
+            # Script crashed prior to emitting JSON marker (import error, syntax, or timeout)
             result.passed = False
             result.error = (
                 exec_res.error.strip()
@@ -210,6 +208,7 @@ class TestRunner:
         if not result.passed and not result.failures and not exec_res.success:
             result.error = exec_res.error or f"runner exit {exec_res.exit_code}"
         return result
+
     @staticmethod
     def _extract_marker(output: str) -> Optional[str]:
         for line in reversed((output or "").splitlines()):
