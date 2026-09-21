@@ -33,7 +33,7 @@ missing rather than guessing.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from saleha.core.benchmark_reporter import BenchmarkReporter, BenchmarkRun
 from saleha.core.real_task_bench import (
@@ -57,12 +57,12 @@ class TaskResult:
 class LocalTaskBenchmark:
     """Runs the real local task suite and records the run."""
 
-    def __init__(self, reporter: Optional[BenchmarkReporter] = None):
+    def __init__(self, reporter: Optional[BenchmarkReporter] = None) -> None:
         self.reporter = reporter or BenchmarkReporter()
 
     def run_suite(self, model: str = DEFAULT_MODEL,
                   limit: Optional[int] = None,
-                  on_task=None) -> BenchmarkRun:
+                  on_task: Optional[Callable[..., Any]] = None) -> BenchmarkRun:
         """Run every task against a real model and record the result.
 
         A run that refuses to start (because a test cannot fail) or whose

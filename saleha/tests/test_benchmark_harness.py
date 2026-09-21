@@ -1,9 +1,10 @@
 """Unit tests for Autonomous Benchmark & Evaluation Harness."""
 
-import unittest
-import tempfile
 import shutil
-from saleha.core.benchmark_harness import BenchmarkHarness, BenchmarkTask, BenchmarkSummary
+import tempfile
+import unittest
+
+from saleha.core.benchmark_harness import BenchmarkHarness, BenchmarkSummary
 
 
 class TestBenchmarkHarness(unittest.TestCase):
@@ -32,7 +33,7 @@ class TestBenchmarkHarness(unittest.TestCase):
             results=[],
         )
         md = self.harness.render_markdown(summary)
-        self.assertIn("# 📊 Saleha Autonomous Benchmark Report", md)
+        self.assertIn("# Saleha Autonomous Benchmark Report", md)
         self.assertIn("100.0%", md)
 
 

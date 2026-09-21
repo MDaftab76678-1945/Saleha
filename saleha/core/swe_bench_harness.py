@@ -29,9 +29,11 @@ tests fail against it first. For real SWE-bench predictions, see
 `saleha/core/swe_bench_runner.py`.
 """
 
+from __future__ import annotations
+
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from saleha.core.code_executor import CodeExecutor
 
@@ -165,7 +167,7 @@ SWE_BENCH_TASKS: List[SWEBenchTask] = [
 class SandboxSelfCheck:
     """Executes known-good code and checks the sandbox observes its output."""
 
-    def __init__(self, tasks: Optional[List[SWEBenchTask]] = None):
+    def __init__(self, tasks: Optional[List[SWEBenchTask]] = None) -> None:
         self.tasks = tasks or SWE_BENCH_TASKS
         self.executor = CodeExecutor()
 

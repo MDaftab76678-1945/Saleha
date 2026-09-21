@@ -60,7 +60,7 @@ class SWEBenchPrediction:
 class SWEBenchExporter:
     """Writes predictions in SWE-bench submission format, and an honest scorecard."""
 
-    def __init__(self, model_name: str = "saleha-v2.0"):
+    def __init__(self, model_name: str = "saleha-v2.0") -> None:
         self.model_name = model_name
 
     def export_predictions(
@@ -123,7 +123,7 @@ class SWEBenchExporter:
         md += [
             f"**Benchmark**: `{benchmark_label}`  ",
             f"**Evaluated at**: `{ts}`  ",
-            f"**Execution**: local, no cloud API calls",
+            "**Execution**: local, no cloud API calls",
             "",
             "## Result",
             "",

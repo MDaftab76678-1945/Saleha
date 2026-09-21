@@ -5,14 +5,16 @@ Runs standardized software engineering benchmarks to measure model accuracy,
 self-healing capability, pass@1 and pass@k rates, and token efficiency.
 """
 
-import os
+from __future__ import annotations
+
+import contextlib
 import json
+import os
 import time
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from dataclasses import asdict, dataclass, field
+from typing import List, Optional
 
 from saleha.orchestrator import SalehaOrchestrator
-from saleha.core.recursive_solver import RecursiveSolver
 
 
 @dataclass
@@ -87,7 +89,7 @@ class BenchmarkHarness:
         ),
     ]
 
-    def __init__(self, model: str = "auto", output_dir: str = ".saleha/benchmarks"):
+    def __init__(self, model: str = "auto", output_dir: str = ".saleha/benchmarks") -> None:
         """Initializes the benchmark harness."""
         self.model = model
         self.output_dir = output_dir
@@ -151,9 +153,9 @@ class BenchmarkHarness:
         self.save_report(summary)
         return summary
 
-    def save_report(self, summary: BenchmarkSummary):
+    def save_report(self, summary: BenchmarkSummary) -> None:
         """Saves evaluation results to JSON and Markdown format."""
-        try:
+        with contextlib.suppress(OSError):
             os.makedirs(self.output_dir, exist_ok=True)
             json_path = os.path.join(self.output_dir, "benchmark_results.json")
             with open(json_path, "w", encoding="utf-8") as f:
@@ -162,13 +164,11 @@ class BenchmarkHarness:
             md_path = os.path.join(self.output_dir, "BENCHMARK_REPORT.md")
             with open(md_path, "w", encoding="utf-8") as f:
                 f.write(self.render_markdown(summary))
-        except (OSError, IOError):
-            pass  # noqa
 
     def render_markdown(self, summary: BenchmarkSummary) -> str:
         """Renders the benchmark summary report as clean GitHub Flavored Markdown."""
         lines = [
-            "# 📊 Saleha Autonomous Benchmark Report",
+            "# Saleha Autonomous Benchmark Report",
             f"- **Total Tasks Evaluated**: {summary.total_tasks}",
             f"- **Pass@1 Rate**: `{summary.pass_at_1_rate}%`",
             f"- **Pass@k (Self-Healed) Rate**: `{summary.pass_at_k_rate}%`",
@@ -177,7 +177,7 @@ class BenchmarkHarness:
             "| :--- | :--- | :---: | :---: | :---: |",
         ]
         for r in summary.results:
-            status = "✅ PASS" if r.passed else "❌ FAIL"
+            status = "[PASS]" if r.passed else "[FAIL]"
             lines.append(f"| `{r.task_id}` | {r.name} | {status} | {r.attempts_required} | {r.duration_sec}s |")
         return "\n".join(lines)
 

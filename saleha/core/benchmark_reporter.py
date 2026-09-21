@@ -19,12 +19,13 @@ different benchmark, and are never sorted against our own score.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-
+from typing import Any, Dict, List, Optional
 
 DEFAULT_SCORES_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "benchmark_scores.jsonl")
 
@@ -63,15 +64,16 @@ class BenchmarkRun:
 class BenchmarkReporter:
     """Tracks benchmark scores and generates leaderboard comparison reports."""
 
-    def __init__(self, scores_path: str = DEFAULT_SCORES_PATH):
+    def __init__(self, scores_path: str = DEFAULT_SCORES_PATH) -> None:
         self.scores_path = scores_path
-        os.makedirs(os.path.dirname(scores_path), exist_ok=True)
+        dirname = os.path.dirname(scores_path)
+        if dirname:
+            os.makedirs(dirname, exist_ok=True)
 
     def record_run(self, model: str, suite: str, total: int, solved: int,
                    avg_time_sec: float = 0.0, notes: str = "",
                    metadata: Optional[Dict[str, Any]] = None) -> BenchmarkRun:
         """Record a completed benchmark run."""
-        import hashlib
         run_id = hashlib.sha256(f"{model}{suite}{time.time()}".encode()).hexdigest()[:12]
         score = round((solved / max(total, 1)) * 100, 2)
         run = BenchmarkRun(
@@ -101,15 +103,13 @@ class BenchmarkReporter:
                 line = line.strip()
                 if not line:
                     continue
-                try:
+                with contextlib.suppress(Exception):
                     data = json.loads(line)
                     if suite and data.get("suite") != suite:
                         continue
                     meta = data.pop("metadata", {})
                     run = BenchmarkRun(**data, metadata=meta)
                     runs.append(run)
-                except Exception:
-                    continue
         return runs
 
     def best_score(self, suite: str = "local_tasks") -> Optional[float]:
