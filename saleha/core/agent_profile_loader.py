@@ -232,20 +232,30 @@ class ProfileAgent(BaseAgent):
         # provider option hai -- clamp 0.05..0.9
         raw_temp = (profile.llm_routing or {}).get("temperature")
         try:
+            if raw_temp is None:
+                raise TypeError("no temperature in llm_routing")
             t = float(raw_temp)
             self.temperature = max(0.05, min(0.9, t))
         except (TypeError, ValueError):
-            self.temperature = None  # provider default use hoga
+            self.temperature = None  # provider default will be used
 
-    def think(self, prompt: str, previous_error_reflexion: Optional[str] = None,
-              complexity_score: float = 0.0) -> AgentResponse:
+    def think(
+        self,
+        prompt: str,
+        previous_error_reflexion: Optional[str] = None,
+        complexity_score: float = 0.0,
+        disable_reasoning: bool = False,
+        **kwargs: Any,
+    ) -> AgentResponse:
         persona_context = self.profile.format_persona_prompt()
         enhanced_prompt = f"{persona_context}\n\n[USER TASK]:\n{prompt}"
         effective_complexity = max(complexity_score, self.complexity_floor)
         return super().think(
             prompt=enhanced_prompt,
             previous_error_reflexion=previous_error_reflexion,
-            complexity_score=effective_complexity
+            complexity_score=effective_complexity,
+            disable_reasoning=disable_reasoning,
+            **kwargs,
         )
 
 
