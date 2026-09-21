@@ -114,7 +114,7 @@ def create_memory_panel() -> Panel:
 
 
 def create_history_table() -> Table:
-    table = Table(title="📜 Recent Task History & Execution", show_header=True, header_style="bold magenta", expand=True)
+    table = Table(title="Recent Task History & Execution", show_header=True, header_style="bold magenta", expand=True)
     table.add_column("Status", justify="center", width=8)
     table.add_column("Time", style="dim", width=19)
     table.add_column("Model / Source", style="cyan", width=18)

@@ -2,6 +2,8 @@
 
 import os
 import json
+from pathlib import Path
+
 import pytest
 from unittest.mock import MagicMock
 
@@ -22,7 +24,7 @@ from saleha.cli.chat_session import SwarmChatSession
 
 
 class TestNeuroSymbolicEngine:
-    def test_score_valid_clean_code(self):
+    def test_score_valid_clean_code(self) -> None:
         engine = NeuroSymbolicEngine()
         code = """def add_numbers(a: int, b: int) -> int:
     \"\"\"Calculates sum of two integers.\"\"\"
@@ -35,7 +37,7 @@ class TestNeuroSymbolicEngine:
         assert score.composite_score >= 0.9
         assert "AST: Clean Syntax" in score.feedback_notes[0]
 
-    def test_score_syntax_error_code(self):
+    def test_score_syntax_error_code(self) -> None:
         engine = NeuroSymbolicEngine()
         code = "def broken(;"
         score = engine.score_code(code)
@@ -43,7 +45,7 @@ class TestNeuroSymbolicEngine:
         assert score.composite_score < 0.5
         assert "AST Syntax Error" in score.feedback_notes[0]
 
-    def test_score_insecure_code(self):
+    def test_score_insecure_code(self) -> None:
         engine = NeuroSymbolicEngine()
         code = """import os
 def dangerous_run(cmd: str):
@@ -53,7 +55,42 @@ def dangerous_run(cmd: str):
         assert score.ast_valid is True
         assert score.security_score < 0.5
 
-    def test_rank_candidates(self):
+    def test_score_insecure_code_via_from_import_alias(self) -> None:
+        # Regression guard: the security check used substring matching
+        # ("os.system(" in code), which missed a realistic evasion --
+        # importing the dangerous name under a local alias. Measured before
+        # the fix: this scored "OWASP Top-10 SAST Clean" (1.0).
+        engine = NeuroSymbolicEngine()
+        code = """from os import system
+def dangerous_run(cmd: str):
+    system(cmd)
+"""
+        score = engine.score_code(code)
+        assert score.ast_valid is True
+        assert score.security_score < 0.5
+        assert "High Risk" in " ".join(score.feedback_notes)
+
+    def test_score_insecure_code_via_renamed_import(self) -> None:
+        engine = NeuroSymbolicEngine()
+        code = """from subprocess import call as run_shell
+def dangerous_run(cmd):
+    run_shell(cmd)
+"""
+        score = engine.score_code(code)
+        assert score.security_score < 0.5
+
+    def test_unrelated_os_import_is_not_flagged(self) -> None:
+        # The fix must not turn every `from os import X` into a false
+        # positive -- only the two specific dangerous names.
+        engine = NeuroSymbolicEngine()
+        code = """from os import path
+def f():
+    return path.exists(".")
+"""
+        score = engine.score_code(code)
+        assert score.security_score == 1.0
+
+    def test_rank_candidates(self) -> None:
         engine = NeuroSymbolicEngine()
         candidates = [
             "def broken(: pass",
@@ -68,7 +105,7 @@ def dangerous_run(cmd: str):
 
 
 class TestSalehaDatasetSynthesizer:
-    def test_synthesize_dataset_chatml(self, tmp_path):
+    def test_synthesize_dataset_chatml(self, tmp_path: Path) -> None:
         synthesizer = SalehaDatasetSynthesizer()
         out_file = str(tmp_path / "test_chatml.jsonl")
         count = synthesizer.synthesize_dataset(output_path=out_file, sample_count=10, format_type="chatml")
@@ -81,7 +118,7 @@ class TestSalehaDatasetSynthesizer:
         assert "messages" in lines[0]
         assert lines[0]["messages"][0]["role"] == "system"
 
-    def test_synthesize_dataset_alpaca(self, tmp_path):
+    def test_synthesize_dataset_alpaca(self, tmp_path: Path) -> None:
         synthesizer = SalehaDatasetSynthesizer()
         out_file = str(tmp_path / "test_alpaca.jsonl")
         count = synthesizer.synthesize_dataset(output_path=out_file, sample_count=5, format_type="alpaca")
@@ -91,14 +128,14 @@ class TestSalehaDatasetSynthesizer:
         assert "instruction" in sample
         assert "output" in sample
 
-    def test_get_dataset_summary(self):
+    def test_get_dataset_summary(self) -> None:
         summary = dataset_synthesizer.get_dataset_summary()
         assert summary["total_seed_templates"] >= 3
         assert "chatml" in summary["supported_formats"]
 
 
 class TestModelDistillationPipeline:
-    def test_generate_lora_training_yaml(self, tmp_path):
+    def test_generate_lora_training_yaml(self, tmp_path: Path) -> None:
         pipeline = ModelDistillationPipeline()
         yaml_path = str(tmp_path / "lora_config.yaml")
         content = pipeline.generate_lora_training_yaml(yaml_path)
@@ -106,7 +143,7 @@ class TestModelDistillationPipeline:
         assert "lora_r: 16" in content
         assert os.path.exists(yaml_path)
 
-    def test_generate_training_script(self, tmp_path):
+    def test_generate_training_script(self, tmp_path: Path) -> None:
         pipeline = ModelDistillationPipeline()
         script_path = str(tmp_path / "train.py")
         content = pipeline.generate_training_script(script_path)
@@ -115,7 +152,7 @@ class TestModelDistillationPipeline:
 
 
 class TestChatSessionNeuroSymbolicCommands:
-    def test_chat_session_commands(self, tmp_path):
+    def test_chat_session_commands(self, tmp_path: Path) -> None:
         mock_console = MagicMock()
         session = SwarmChatSession(console=mock_console)
         dataset_path = str(tmp_path / "chat_dataset.jsonl")

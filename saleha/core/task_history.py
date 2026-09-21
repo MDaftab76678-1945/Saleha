@@ -112,7 +112,7 @@ class TaskHistory:
             return "No task history yet."
         lines = [f"Last {len(records)} tasks:"]
         for r in records:
-            status = "✅" if r.success else "❌"
+            status = "OK" if r.success else "FAIL"
             lines.append(
                 f"  {status} [{r.timestamp}] ({r.model}, {r.attempts} attempt(s)): {r.goal[:60]}"
             )

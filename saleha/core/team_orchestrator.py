@@ -116,7 +116,7 @@ class TeamOrchestrator:
         Web Studio SSE isse REAL streaming karta hai (pehle poora workflow
         chal kar events ko ek saath dump karta tha).
         """
-        log = f"🚀 Starting Multi-Agent Team Swarm for Goal: {goal}\n" + "=" * 70 + "\n"
+        log = f"Starting Multi-Agent Team Swarm for Goal: {goal}\n" + "=" * 70 + "\n"
         stages_done = []
         _event_counter = {"n": 0}
 
@@ -155,15 +155,15 @@ class TeamOrchestrator:
                     "stage_index": _event_counter["n"],
                 })
             except Exception as cb_err:  # callback kabhi pipeline na tode
-                log += f"⚠️ on_event callback failed: {cb_err}\n"
+                log += f"WARNING: on_event callback failed: {cb_err}\n"
 
         if debate:
-            log += "🤝 Multi-Agent Debate mode enabled: Architecture consensus will be deliberated.\n"
+            log += "Multi-Agent Debate mode enabled: Architecture consensus will be deliberated.\n"
 
         # ======================================================================
         # Stage 1: Product Management (PRD & User Stories)
         # ======================================================================
-        log += "\n[Stage 1/5] 📋 Product Manager: Drafting PRD & Acceptance Criteria...\n"
+        log += "\n[Stage 1/5] Product Manager: Drafting PRD & Acceptance Criteria...\n"
         pm_agent = self._get_agent("agent_product_manager", "Product Manager")
         pm_prompt = f"""
 Task: Create a concise, structured Product Requirement Document (PRD) for the following project:
@@ -179,13 +179,13 @@ Structure:
         prd_text = pm_resp.content if pm_resp.success else f"Feature Goal: {goal}"
         stages_done.append("Product Management")
         handoff("Product Manager", "Software Designer", prd_text)
-        log += "✅ PRD created successfully.\n"
+        log += "PRD created successfully.\n"
         emit("Product Manager (PRD)", prd_text)
 
         # ======================================================================
         # Stage 2: Software Designer / Architect (LLD & Contracts)
         # ======================================================================
-        log += "\n[Stage 2/5] 📐 Software Designer: Defining Low-Level Design & Interfaces...\n"
+        log += "\n[Stage 2/5] Software Designer: Defining Low-Level Design & Interfaces...\n"
         designer_agent = self._get_agent("agent_software_designer", "Software Designer")
         designer_prompt = f"""
 Task: Based on this PRD, produce a Low-Level Design (LLD) with data models, class diagrams, and interface contracts.
@@ -202,7 +202,7 @@ Include:
         design_text = designer_resp.content if designer_resp.success else "Interface contracts defined."
 
         if debate:
-            log += "   ⚔️ Deliberating with Security Engineer and SDE for Consensus...\n"
+            log += "   Deliberating with Security Engineer and SDE for Consensus...\n"
             # The two critics review the same design and never read each
             # other, so they are independent -- run them together instead of
             # paying for two round trips in sequence.
@@ -214,17 +214,17 @@ Include:
             if refined_resp.success:
                 design_text = refined_resp.content
             stages_done.append("Architecture & Consensus Deliberation")
-            log += "✅ Architecture consensus reached across Security & SDE.\n"
+            log += "Architecture consensus reached across Security & SDE.\n"
         else:
             stages_done.append("Architecture & LLD")
-            log += "✅ Architecture design & contracts specified.\n"
+            log += "Architecture design & contracts specified.\n"
         handoff("Software Designer", "Senior Software Engineer", design_text)
         emit("Software Designer (LLD Architecture)", design_text)
 
         # ======================================================================
         # Stage 3: Software Engineer (Production Implementation)
         # ======================================================================
-        log += "\n[Stage 3/5] 💻 Software Engineer: Generating Production Code...\n"
+        log += "\n[Stage 3/5] Software Engineer: Generating Production Code...\n"
         coder_agent = self._get_agent("agent_software_engineer", "Senior Software Engineer")
         coder_prompt = f"""
 Task: Implement clean, modular, production-ready Python code fulfilling this PRD and Architecture specification.
@@ -245,20 +245,20 @@ Requirements:
         raw_code = coder_resp.content if coder_resp.success else ""
         extracted_code = self._extract_code(raw_code)
         if not extracted_code:
-            log += "❌ Coder failed to return executable code.\n"
+            log += "FAILED: Coder did not return executable code.\n"
             return TeamResult(
                 success=False, goal=goal, prd=prd_text, design=design_text,
                 code=raw_code, log=log, stages_completed=stages_done
             )
         stages_done.append("Implementation")
         handoff("Senior Software Engineer", "Security Engineer", extracted_code)
-        log += "✅ Code implementation generated.\n"
+        log += "Code implementation generated.\n"
         emit("Senior SDE (Implementation)", extracted_code)
 
         # ======================================================================
         # Stage 4: Security Engineer (Security & Safety Audit)
         # ======================================================================
-        log += "\n[Stage 4/5] 🛡️ Security Engineer: Performing Security Audit...\n"
+        log += "\n[Stage 4/5] Security Engineer: Performing Security Audit...\n"
         sec_agent = self._get_agent("agent_security_engineer", "Security Engineer")
         sec_prompt = f"""
 Task: Perform a strict security review on this code.
@@ -273,17 +273,30 @@ Format output as:
 - Audit Findings Summary
 """
         sec_resp = sec_agent.think(sec_prompt)
-        security_text = sec_resp.content if sec_resp.success else "Security audit completed (Standard clearance)."
+        # A failed model call is not a clean review -- it is no review at
+        # all. The old fallback text ("Security audit completed (Standard
+        # clearance).") contained neither VULNERABLE nor WARNINGS, so the
+        # parser below read it as APPROVED: a security check that never ran
+        # was indistinguishable from one that ran and found nothing wrong.
+        # UNAVAILABLE is a third, explicit state so a real failure never
+        # gets silently coerced into a pass.
+        security_call_failed = not sec_resp.success
+        security_text = sec_resp.content if sec_resp.success else (
+            f"Security review unavailable: {sec_resp.error_message}"
+        )
         stages_done.append("Security Audit")
         handoff("Security Engineer", "Test Automation Architect", security_text)
-        # SECURITY GATE (naya): pehle LLM ka APPROVED/VULNERABLE verdict sirf
-        # report me likha jaata tha -- execution gate nahi karta tha (cosmetic).
-        # Ab VULNERABLE verdict par AST SAST scanner ground-truth deta hai:
-        # HIGH-severity finding => code ko heal kiya jaata hai, phir bhi
-        # vulnerable rahe to pipeline fail-closed hoti hai.
-        security_verdict = "VULNERABLE" if "VULNERABLE" in security_text[:400].upper() else (
-            "WARNINGS" if "WARNINGS" in security_text[:400].upper() else "APPROVED"
-        )
+        # Security gate: the LLM's APPROVED/VULNERABLE verdict alone used to
+        # be cosmetic (never gated execution). A VULNERABLE verdict is now
+        # cross-checked against the AST SAST scanner's ground truth: a
+        # HIGH-severity finding triggers remediation, and the pipeline
+        # fails closed if the code is still vulnerable afterward.
+        if security_call_failed:
+            security_verdict = "UNAVAILABLE"
+        else:
+            security_verdict = "VULNERABLE" if "VULNERABLE" in security_text[:400].upper() else (
+                "WARNINGS" if "WARNINGS" in security_text[:400].upper() else "APPROVED"
+            )
         high_findings: list = []
         if security_verdict == "VULNERABLE":
             try:
@@ -294,10 +307,10 @@ Format output as:
                 ]
             except Exception as scan_err:
                 high_findings = []
-                log += f"⚠️ SAST cross-check failed: {scan_err}\n"
+                log += f"WARNING: SAST cross-check failed: {scan_err}\n"
 
             if high_findings:
-                log += f"🚨 Security Gate: {len(high_findings)} HIGH-severity finding(s) confirmed by AST scan.\n"
+                log += f"Security Gate: {len(high_findings)} HIGH-severity finding(s) confirmed by AST scan.\n"
                 for v in high_findings[:5]:
                     log += f"   - [{v.rule_id}] line {v.line_number}: {v.description}\n"
                 log += "   Triggering Debugger to remediate security findings...\n"
@@ -313,17 +326,17 @@ Format output as:
                 )
                 if sec_debug.success and sec_debug.fixed_code:
                     extracted_code = self._extract_code(sec_debug.fixed_code) or extracted_code
-                    log += "✅ Security remediation applied by Debugger.\n"
+                    log += "Security remediation applied by Debugger.\n"
                     security_verdict = "WARNINGS"  # downgraded, ab verification loop decide karega
                 else:
-                    log += "🚫 Security Gate FAILED-CLOSED: unresolved HIGH vulnerabilities; skipping execution.\n"
+                    log += "Security Gate FAILED-CLOSED: unresolved HIGH vulnerabilities; skipping execution.\n"
                     stages_done.append("Test Automation")
                     result = TeamResult(
                         success=False, goal=goal, prd=prd_text, design=design_text,
                         code=extracted_code, security_report=security_text,
                         test_code="", execution_output="",
                         execution_error="Blocked by security gate (HIGH severity findings)",
-                        log=log + "\n🚫 Pipeline halted at Security Gate.\n",
+                        log=log + "\nPipeline halted at Security Gate.\n",
                         stages_completed=stages_done, attempts=1
                     )
                     self.history.log(
@@ -338,15 +351,15 @@ Format output as:
                     return result
 
         if security_verdict == "APPROVED":
-            log += "✅ Security audit completed (verdict: APPROVED).\n"
+            log += "Security audit completed (verdict: APPROVED).\n"
         else:
-            log += f"⚠️ Security audit completed (verdict: {security_verdict}).\n"
+            log += f"Security audit completed (verdict: {security_verdict}).\n"
         emit("Security Engineer (SAST Audit)", security_text)
 
         # ======================================================================
         # Stage 5: Test Automation Engineer (Unit / Integration Tests)
         # ======================================================================
-        log += "\n[Stage 5/5] 🧪 Test Automation Architect: Creating Test Suite...\n"
+        log += "\n[Stage 5/5] Test Automation Architect: Creating Test Suite...\n"
         qa_agent = self._get_agent("agent_test_automation_engineer", "Test Automation Architect")
         qa_prompt = f"""
 Task: Write a Python unittest test suite for the following code.
@@ -366,24 +379,24 @@ Requirements:
         raw_tests = qa_resp.content if qa_resp.success else ""
         extracted_tests = self._extract_code(raw_tests)
         stages_done.append("Test Automation")
-        log += "✅ Test suite generated.\n"
+        log += "Test suite generated.\n"
         handoff("Test Automation Architect", "Verifier", extracted_tests)
         emit("QA Test Architect (Automated Tests)", extracted_tests)
 
         # ======================================================================
         # Stage 6: Code Verification & Self-Healing Loop
         # ======================================================================
-        log += "\n[Verification] ⚡ Running Code & Validating Test Suite...\n"
+        log += "\n[Verification] Running Code & Validating Test Suite...\n"
         combined_script = self._build_combined_test_runner(extracted_code, extracted_tests)
         exec_result = self.executor.execute(combined_script)
         attempts = 1
 
         while not exec_result.success and attempts < self.max_healing_attempts:
             if exec_result.blocked:
-                log += f"🚫 Security execution block: {exec_result.block_reason}\n"
+                log += f"Security execution block: {exec_result.block_reason}\n"
                 break
 
-            log += f"⚠️ Test Execution Failed (Attempt {attempts}/{self.max_healing_attempts}): {exec_result.error[:150]}\n"
+            log += f"Test Execution Failed (Attempt {attempts}/{self.max_healing_attempts}): {exec_result.error[:150]}\n"
             log += "   Triggering Debugger Agent for Self-Healing...\n"
             attempts += 1
 
@@ -410,9 +423,9 @@ Requirements:
 
         final_success = exec_result.success and not exec_result.blocked
         if final_success:
-            log += f"✅ All Tests Passed successfully in {attempts} attempt(s)!\n"
+            log += f"All Tests Passed successfully in {attempts} attempt(s)!\n"
         else:
-            log += f"⚠️ Completed with warnings: {exec_result.error[:150] if exec_result.error else 'Unverified'}\n"
+            log += f"Completed with warnings: {exec_result.error[:150] if exec_result.error else 'Unverified'}\n"
         emit(
             "Verification (Execution)",
             exec_result.output if final_success else (exec_result.error or "Unverified"),
@@ -433,7 +446,7 @@ Requirements:
                 test_code=extracted_tests,
                 exec_output=exec_result.output
             )
-            log += f"\n📁 Team Deliverables saved to: {final_output_dir}\n"
+            log += f"\nTeam Deliverables saved to: {final_output_dir}\n"
 
         self.history.log(
             goal=f"[Team Swarm] {goal}",

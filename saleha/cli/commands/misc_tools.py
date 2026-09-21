@@ -304,19 +304,19 @@ def history(limit: int, failed_only: bool, as_json: bool) -> None:
         if as_json:
             click.echo(json.dumps({'tasks': []}, ensure_ascii=False))
             return
-        console.print('[yellow]Abhi tak koi task history nahi hai.[/]')
+        console.print('[yellow]No task history yet.[/]')
         return
     if as_json:
         click.echo(json.dumps({'tasks': [record.__dict__ for record in records]}, ensure_ascii=False))
         return
-    table = Table(title='📜 Task History', show_header=True, header_style='bold magenta')
+    table = Table(title='Task History', show_header=True, header_style='bold magenta')
     table.add_column('Status', justify='center')
     table.add_column('Time', style='dim')
     table.add_column('Model', style='cyan')
     table.add_column('Attempts', justify='right')
     table.add_column('Goal', style='yellow')
     for r in records:
-        status = '[green]✅[/]' if r.success else '[red]❌[/]'
+        status = '[green]OK[/]' if r.success else '[red]FAIL[/]'
         table.add_row(status, r.timestamp, r.model, str(r.attempts), r.goal[:60])
     console.print(table)
 

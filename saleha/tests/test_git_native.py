@@ -184,6 +184,51 @@ class HardResetGateTests(StagingSafetyTests):
         self.assertEqual(res.get("mode"), "--soft")
 
 
+class TaskBranchTests(unittest.TestCase):
+    """
+    create_task_branch()'s `git checkout -B` return code used to be ignored,
+    so it returned a truthy branch name even when the checkout genuinely
+    failed -- repo_orchestrator.py's `if created: branch_created = True`
+    had no way to tell a real branch switch from a no-op.
+    """
+
+    def setUp(self) -> None:
+        self.repo = tempfile.mkdtemp(prefix="saleha_test_git_branch_")
+        self._git("init", "-q")
+        self._git("config", "user.email", "t@t.t")
+        self._git("config", "user.name", "t")
+        self._write("base.txt", "base\n")
+        self._git("add", ".")
+        self._git("commit", "-qm", "base")
+        self.engine = GitAutomationEngine(repo_path=self.repo)
+
+    def _git(self, *args) -> subprocess.CompletedProcess:
+        return subprocess.run(["git"] + list(args), cwd=self.repo,
+                              capture_output=True, text=True)
+
+    def _write(self, name, content):
+        with open(os.path.join(self.repo, name), "w", encoding="utf-8") as fh:
+            fh.write(content)
+
+    def test_successful_checkout_returns_the_branch_name(self) -> None:
+        result = self.engine.create_task_branch("fix the bug")
+        self.assertEqual(result, "saleha/fix-the-bug")
+        self.assertEqual(self.engine.get_current_branch(), "saleha/fix-the-bug")
+
+    def test_failed_checkout_returns_empty_not_a_fake_branch_name(self) -> None:
+        # A genuine failure: lock the git index so checkout cannot run.
+        before_branch = self.engine.get_current_branch()
+        lock_path = os.path.join(self.repo, ".git", "index.lock")
+        with open(lock_path, "w", encoding="utf-8") as fh:
+            fh.write("locked")
+        try:
+            result = self.engine.create_task_branch("fix the bug")
+        finally:
+            os.remove(lock_path)
+        self.assertEqual(result, "")
+        self.assertEqual(self.engine.get_current_branch(), before_branch)
+
+
 class CallerStagingTests(unittest.TestCase):
     """
     The three call sites all passed `files=None`, which is what made the

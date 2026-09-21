@@ -69,6 +69,31 @@ class TeamOrchestratorTests(unittest.TestCase):
                 self.assertIn("def solve():", result.code)
                 self.assertTrue(os.path.isfile(os.path.join(tmpdir, "solution.py")))
 
+    def test_security_stage_failure_is_not_reported_as_approved(self):
+        # Regression guard: a failed security-agent model call used to fall
+        # back to the literal string "Security audit completed (Standard
+        # clearance)." -- which contains neither VULNERABLE nor WARNINGS, so
+        # the verdict parser read it as APPROVED. A security check that
+        # never ran must never be indistinguishable from one that ran clean.
+        with patch.object(self.orchestrator, "_get_agent") as mock_get_agent:
+            mock_agent = MagicMock()
+            mock_agent.think.side_effect = [
+                MagicMock(success=True, content="1. PRD Content"),
+                MagicMock(success=True, content="2. LLD Architecture"),
+                MagicMock(success=True, content="```python\ndef solve():\n    return 42\n```"),
+                MagicMock(success=False, content="", error_message="provider timeout"),
+                MagicMock(success=True, content="```python\nimport unittest\nclass Test(unittest.TestCase):\n    def test_solve(self):\n        self.assertEqual(solve(), 42)\n```"),
+            ]
+            mock_get_agent.return_value = mock_agent
+
+            result: TeamResult = self.orchestrator.run_team_workflow(goal="Test Team Goal")
+
+        self.assertNotIn("APPROVED", result.security_report)
+        self.assertIn("unavailable", result.security_report.lower())
+        self.assertIn("provider timeout", result.security_report)
+        self.assertIn("UNAVAILABLE", result.log)
+        self.assertNotIn("verdict: APPROVED", result.log)
+
     def test_cli_team_json_returns_payload(self):
         fake_team_result = TeamResult(
             success=True,

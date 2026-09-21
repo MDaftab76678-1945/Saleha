@@ -89,8 +89,36 @@ class NeuroSymbolicEngine:
             feedback.append("Type Safety: Skipped due to AST error")
 
         # 3. OWASP & SAST Security Gate (30% weight)
+        #
+        # The substring checks below (`"os.system(" in code`) miss a common,
+        # realistic evasion: importing the dangerous name under a different
+        # local name, e.g. `from os import system` then `system(...)`, or
+        # `from subprocess import call as run_shell`. Measured directly: both
+        # patterns scored "OWASP Top-10 SAST Clean" before this fix. The AST
+        # is already parsed above (`tree`), so resolved names are checked
+        # alongside the literal substrings rather than replacing them --
+        # this still cannot catch a name reassigned to a local variable
+        # (`run = os.system`), which is a materially harder taint-tracking
+        # problem neither this check nor saleha/core/security_scanner.py's
+        # ASTSecurityScanner attempts.
+        aliased_shell_call_used = False
+        if ast_valid:
+            dangerous_shell_names = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module in ("os", "subprocess"):
+                    for alias in node.names:
+                        if (node.module, alias.name) in (("os", "system"), ("subprocess", "call")):
+                            dangerous_shell_names.add(alias.asname or alias.name)
+            if dangerous_shell_names:
+                called_names = {
+                    n.func.id for n in ast.walk(tree)
+                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                }
+                aliased_shell_call_used = bool(dangerous_shell_names & called_names)
+
         security_points = 1.0
-        if "os.system(" in code or "subprocess.call(" in code:
+        if ("os.system(" in code or "subprocess.call(" in code
+                or aliased_shell_call_used):
             security_points = 0.2
             feedback.append("Security: High Risk Insecure Shell Execution Detected")
         elif "eval(" in code or "exec(" in code:
