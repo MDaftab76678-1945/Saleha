@@ -2023,6 +2023,27 @@ at 7/8 failing against the unfixed file. Full suite: 2314 → **2321
 passed, 13 skipped, 0 failures**. Detail: `NOTEBOOK_IMPORT.md`,
 "Pass 133."
 
+**Pass 134 — `agentic_loop.py` read in full (2391 lines, user-requested
+audit); `test_timeout_sec` was not bounded by the run's own
+`timeout_sec`.** This is the most heavily hardened file in the repo
+(passes 53, 85-111) and the read confirmed almost all of it clean — one
+real gap survived. `test_timeout_sec` defaults to 600s, `timeout_sec`
+300s, and nothing bounded the former by the latter: the outer per-step
+deadline check cannot interrupt a `subprocess.run` call already in
+flight. Confirmed real exposure by reading the caller: `saleha agent`
+exposes a user-facing `--timeout` flag (30-7200s, printed in its own
+startup panel) but never passes `test_timeout_sec` — a user setting
+`--timeout 30` could have the run block up to 20x longer than promised
+the moment the repair-goal auto-verify or coverage-check gate fired a
+real test run. `swe_bench_runner.py` has the same exposure from the
+other side. Fixed with `_bounded_test_timeout()`, capping
+`test_timeout_sec` against whatever remains of `timeout_sec` (floor
+1.0s). 5 new tests; teeth-checked at 5/5 failing against the unfixed
+file. Live probe: a real 10s-sleeping test, run with ~1s of budget
+remaining, was actually cut off at ~1.02s. Full suite: 2321 → **2326
+passed, 13 skipped, 0 failures**. Detail: `NOTEBOOK_IMPORT.md`,
+"Pass 134."
+
 ---
 
 ## Environment facts worth knowing

@@ -9794,3 +9794,69 @@ Quality gate: `sidecar_daemon.py` 52.0 -> 88.0/100 (no CRITICAL/MAJOR
 remaining -- one pre-existing MINOR TYPE-001 unrelated to this fix, not
 addressed here); `test_sidecar_daemon.py` 100.0/100. Full suite: 2314
 -> **2321 passed, 13 skipped, 0 failures**.
+
+## Pass 134: agentic_loop.py's test_timeout_sec was not bounded by the run's own timeout_sec (2026-09-21)
+
+A full read-through audit of `agentic_loop.py` (2391 lines, read in full
+per this project's own rule, not grepped) requested by the user directly
+-- this is the file at the center of the passes 53/85-111 repair-loop
+lineage and already the most heavily hardened file in the repo, so most
+of the read confirmed prior fixes rather than finding new ones. One real
+gap survived all of that hardening.
+
+`test_timeout_sec` defaults to 600s, `timeout_sec` defaults to 300s, and
+nothing bounded the former by the latter. The outer per-step deadline
+check (`time.time() - start_time > self.timeout_sec`, line 1452 at the
+time of this read) only runs between loop steps -- it cannot interrupt a
+`subprocess.run` call already in flight inside `_tool_run_tests` or the
+coverage-check runner. Both call sites passed `self.test_timeout_sec`
+straight to `subprocess.run` with no relationship to the run's own
+budget at all.
+
+**Real-world exposure, confirmed by reading the production caller, not
+assumed:** `saleha agent` (`core_agentic.py`) exposes a user-facing
+`--timeout` flag with `click.IntRange(30, 7200)`, and prints the chosen
+value in its own startup panel ("Timeout: <n>s"). It threads that value
+into `timeout_sec` but never passes `test_timeout_sec` at all -- so a
+user running `saleha agent "fix X" --write --timeout 30`, trusting the
+number the CLI just showed them, could have the run block for up to
+600s (20x the stated timeout) the moment the repair-goal auto-verify
+gate or coverage-check gate fired a real `run_tests` call. Both gates
+fire unconditionally once a mutation succeeds -- not something a user
+opts into. `swe_bench_runner.py:173-174` has the same exposure from the
+other direction: it passes neither timeout, so every SWE-bench
+measurement runs under the unbounded defaults with no way to tune
+either from that caller.
+
+Fixed with `_bounded_test_timeout()`: caps `test_timeout_sec` against
+whatever time actually remains of `timeout_sec` (floor 1.0s, so a call
+already past the nominal deadline still gets one real attempt instead
+of an instantly-doomed 0s/negative timeout). Wired into both
+`subprocess.run` call sites. `run()` now sets `self._run_start_time`
+before the loop body executes and clears it in a `finally`, so the new
+bound and the pre-existing per-step deadline check agree on the exact
+same zero point; a tool method called directly outside an active
+`run()` -- which is what every existing test in `RunTestsToolTests`
+already does -- falls back to the unbounded constant unchanged, so no
+existing test needed to change.
+
+5 new tests (`test_bounded_timeout_falls_back_to_constant_outside_a_run`,
+`_is_capped_by_remaining_run_budget`, `_never_goes_below_one_second`,
+`_respects_a_smaller_test_timeout_sec`, `test_run_sets_and_clears_run_start_time`).
+Teeth-checked: all 5 fail (`AttributeError`/`AssertionError`) against
+the pre-fix file via `git stash`; 5/5 pass with the fix restored. Live
+probe, not just unit-level: a real nested pytest test that sleeps 10s,
+run through `_tool_run_tests` with an artificially small remaining
+budget (4 of 5s already elapsed), was actually cut off at ~1.02s
+wall-clock instead of running to completion -- confirmed against a real
+subprocess, not a mock.
+
+Quality gate: `agentic_loop.py` 0 CRITICAL/MAJOR (76.0/100, an
+unchanged pre-existing range for this file's size, not moved by this
+fix); `test_agentic_loop.py` 100.0/100. Full suite: 2321 -> **2326
+passed, 13 skipped, 0 failures**.
+
+No other defect was found in the full 2391-line read. The file's
+existing gates (repair-goal finish blocking, revert-check, coverage
+prover, repeat detection, confirmed-path gating) were all re-verified
+by reading rather than assumed clean from their commit history.
