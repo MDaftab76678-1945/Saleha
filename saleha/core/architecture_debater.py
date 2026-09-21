@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import os
 import re
-import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Optional
 
 from saleha.agents.base_agent import BaseAgent
 
@@ -46,7 +45,7 @@ class ADRDocument:
 class ArchitectureDebater:
     """Orchestrates multi-agent technical debates and synthesizes Architecture Decision Records."""
 
-    def __init__(self, model: str = "auto"):
+    def __init__(self, model: str = "auto") -> None:
         self.model = model
         self.advocate_agent = BaseAgent(role="Innovation & Scalability Advocate", model=model)
         self.skeptic_agent = BaseAgent(role="Risk & SRE Skeptic", model=model)

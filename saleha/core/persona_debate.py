@@ -14,8 +14,8 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from dataclasses import asdict, dataclass, field
+from typing import Any, List
 
 from saleha.agents.base_agent import BaseAgent
 
@@ -60,7 +60,7 @@ class PersonaDebateEngine:
         arbiter_persona: str = "Sovereign",
         model: str = "auto",
         provider: Any = None,
-    ):
+    ) -> None:
         self.proposer_name = proposer_persona
         self.critic_name = critic_persona
         self.arbiter_name = arbiter_persona
@@ -193,7 +193,7 @@ Deliberation History:
             arbiter_prompt += f"[{dr.proposer_turn.persona}]: {dr.proposer_turn.argument}\n"
             arbiter_prompt += f"[{dr.critic_turn.persona}]: {dr.critic_turn.argument}\n"
 
-        arbiter_prompt += f"""
+        arbiter_prompt += """
 Synthesize a hardened engineering contract addressing both positions.
 Provide:
 1. Final Decision & Consensus
@@ -230,33 +230,33 @@ Provide:
         approved = cp_wbft >= 0.70
 
         # Build comprehensive markdown report
-        md_report = f"""# ⚖️ Hardened Engineering Contract: {topic}
+        md_report = f"""# Hardened Engineering Contract: {topic}
 
 [![Consensus: Sovereign CP-WBFT](https://img.shields.io/badge/Consensus-CP--WBFT%20{int(cp_wbft*100)}%25-brightgreen.svg)]()
 [![Status: {'APPROVED' if approved else 'REVISE'}](https://img.shields.io/badge/Status-{'APPROVED' if approved else 'REVISE'}-blue.svg)]()
 [![Debate: {self.proposer_name}%20vs%20{self.critic_name}](https://img.shields.io/badge/Dialectic-{self.proposer_name}%20vs%20{self.critic_name}-purple.svg)]()
 
-## 🏛️ Executive Consensus
+## Executive Consensus
 {arb_content if arb_content else f"The Sovereign Arbiter has unified '{topic}' by approving {self.proposer_name}'s architecture while incorporating {self.critic_name}'s zero-trust resilience mitigations."}
 
 ---
 
-## 🛡️ Critical Invariants
+## Critical Invariants
 {chr(10).join(f"- **INV-{i+1:02d}**: {inv}" for i, inv in enumerate(invariants))}
 
 ---
 
-## 🩹 Adversarial Mitigations
+## Adversarial Mitigations
 {chr(10).join(f"- **MIT-{i+1:02d}**: {mit}" for i, mit in enumerate(mitigations))}
 
 ---
 
-## 🚀 Phased Implementation Steps
+## Phased Implementation Steps
 {chr(10).join(f"{i+1}. {step}" for i, step in enumerate(steps))}
 
 ---
 
-## 📜 Dialectic Debate Log
+## Dialectic Debate Log
 """
         for dr in debate_rounds:
             md_report += f"\n### Round {dr.round_number}\n"

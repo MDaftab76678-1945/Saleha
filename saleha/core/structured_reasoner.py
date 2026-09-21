@@ -16,10 +16,10 @@ Provides sovereign structured reasoning tokens and open XML tool calling:
 
 from __future__ import annotations
 
-import re
 import json
+import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

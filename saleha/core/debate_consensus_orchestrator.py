@@ -88,7 +88,7 @@ class DebateConsensusOrchestrator:
     """Multi-persona architectural debate. Every position is model-generated."""
 
     def __init__(self, model: str = DEFAULT_MODEL,
-                 inference: Optional[Any] = None):
+                 inference: Optional[Any] = None) -> None:
         self.model = model
         # Injected in tests; built lazily so importing this module opens no
         # connection.
@@ -140,13 +140,13 @@ class DebateConsensusOrchestrator:
             replies = {res.tag: res
                        for res in self._engine().run_batch(reqs, use_cache=False)}
 
-            def text(name: str) -> str:
-                res = replies.get(name)
+            def text(name: str, rep: Dict[str, Any] = replies, round_idx: int = r) -> str:
+                res = rep.get(name)
                 if res is None:
                     return _UNAVAILABLE.format("no reply")
                 if res.success and res.content.strip():
                     return res.content.strip()
-                errors.append(f"round {r} {name}: {res.error or 'empty reply'}")
+                errors.append(f"round {round_idx} {name}: {res.error or 'empty reply'}")
                 return _UNAVAILABLE.format(res.error or "empty reply")
 
             rnd = DebateRound(

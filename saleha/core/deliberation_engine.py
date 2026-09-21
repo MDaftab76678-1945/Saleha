@@ -11,15 +11,14 @@ Orchestrates multi-agent debate and refinement rounds:
 
 from __future__ import annotations
 
-import os
-import sys
+import contextlib
 import re
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Tuple
+from dataclasses import dataclass
+from typing import Any, List, Optional, Tuple
 
-from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
+from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 from saleha.core.code_executor import CodeExecutor
 from saleha.core.memory_store import memory_store
 
@@ -48,8 +47,12 @@ class DeliberationResult:
 
 
 class DeliberationEngine:
-    def __init__(self, model: str = "auto", max_healing_attempts: int = 3,
-                 inference=None):
+    def __init__(
+        self,
+        model: str = "auto",
+        max_healing_attempts: int = 3,
+        inference: Optional[Any] = None,
+    ) -> None:
         """Initializes the multi-agent deliberation engine."""
         self.model = model
         self.max_healing_attempts = max_healing_attempts
@@ -107,7 +110,8 @@ Include:
         yields an explicit "unavailable" marker, never a reassuring default.
         """
         from saleha.core.fast_inference import (
-            FastInference, InferenceRequest,
+            FastInference,
+            InferenceRequest,
         )
 
         engine = getattr(self, "inference", None) or FastInference()
@@ -203,10 +207,8 @@ SDE Performance Critique:
         final_success = exec_result.success and not exec_result.blocked
         if final_success:
             logs.append(f"Consensus verified! All TDD tests passed in {attempts} attempt(s).")
-            try:
+            with contextlib.suppress(IOError, OSError, TypeError):
                 memory_store.remember(goal=goal, code=final_code, model=self.model, tags=["consensus", "deliberation"])
-            except (IOError, OSError, TypeError):
-                pass  # noqa
         else:
             logs.append("Finished with warnings.")
 
