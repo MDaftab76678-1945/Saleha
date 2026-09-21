@@ -8,9 +8,9 @@ routes commands to the Autonomous Agent loop, and synthesizes audio responses.
 from __future__ import annotations
 
 import os
+import struct
 import time
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Tuple
 
 from saleha.agents.base_agent import BaseAgent
 
@@ -28,7 +28,7 @@ class VoiceInteractionResult:
 class VoiceAssistantEngine:
     """Provides speech-to-intent and text-to-speech hands-free coding assistant capabilities."""
 
-    def __init__(self, model: str = "auto"):
+    def __init__(self, model: str = "auto") -> None:
         self.model = model
         self.agent = BaseAgent(role="Voice Engineering Assistant", model=model)
 
@@ -57,11 +57,10 @@ Explain the action you will take to solve their request."""
         # Optional audio synthesis simulation
         audio_path = ""
         if simulate_audio:
-            audio_dir = os.path.expanduser("~/.saleha/audio")
+            audio_dir = os.path.join(os.path.expanduser("~"), ".saleha", "audio")
             os.makedirs(audio_dir, exist_ok=True)
             audio_path = os.path.join(audio_dir, "response.wav")
             try:
-                import struct
                 sample_rate = 8000
                 num_samples = 400
                 raw_data = b"\x00\x00" * num_samples

@@ -8,11 +8,11 @@ executes the autonomous engineering loop, and speaks concise audio responses.
 
 from __future__ import annotations
 
-import os
+import contextlib
 import re
 import time
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Tuple, Callable, List
+from typing import Callable, List, Optional
 
 from saleha.core.speech import PyttsxTTS, WhisperSTT
 
@@ -42,7 +42,7 @@ class VoiceLiveAssistant:
         tts_engine: Optional[PyttsxTTS] = None,
         stt_engine: Optional[WhisperSTT] = None,
         executor_callback: Optional[Callable[[VoiceCommand], str]] = None,
-    ):
+    ) -> None:
         self.tts = tts_engine or PyttsxTTS()
         self.stt = stt_engine or WhisperSTT()
         self.executor = executor_callback or self._default_executor
@@ -94,15 +94,15 @@ class VoiceLiveAssistant:
     def _default_executor(self, cmd: VoiceCommand) -> str:
         """Executes the classified intent."""
         if cmd.intent == "FIX":
-            return f"Auto-healing errors in '{cmd.target_arg}'. All tests now passing."
+            return f"Auto-healing errors in '{cmd.target_arg}'."
         elif cmd.intent == "TEST":
-            return f"Ran test suite on '{cmd.target_arg}'. 100% tests passed."
+            return f"Running test suite on '{cmd.target_arg}'."
         elif cmd.intent == "REVIEW":
-            return f"Completed OWASP review on '{cmd.target_arg}'. Score is 98/100, zero critical issues."
+            return f"Running security review on '{cmd.target_arg}'."
         elif cmd.intent == "DIFF":
-            return "Surgical diff generated. 2 hunks modified with low risk score 2/10."
+            return "Generating surgical diff."
         elif cmd.intent == "STATUS":
-            return "Saleha v2.0 is running with 20 agents active, memory synced, 558 tests green."
+            return "Saleha voice assistant is active and listening."
         elif cmd.intent == "EXIT":
             return "Stopping voice assistant. Happy coding!"
         else:
@@ -116,10 +116,8 @@ class VoiceLiveAssistant:
 
         spoken = action_summary
         if speak and hasattr(self.tts, "speak"):
-            try:
+            with contextlib.suppress(Exception):
                 self.tts.speak(spoken)
-            except Exception:
-                pass
 
         elapsed = max(0.001, round(time.time() - t0, 3))
         turn = VoiceLiveTurn(

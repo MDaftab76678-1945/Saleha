@@ -8,12 +8,12 @@ Implements an autonomous local voice interface for Saleha:
 4. Seamless fallback for headless/server and CI environments without audio drivers.
 """
 
-import os
-import sys
-import time
+from __future__ import annotations
+
 import importlib
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Callable
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Optional
 
 
 @dataclass
@@ -35,9 +35,9 @@ class VoiceAssistant:
     """Jarvis-style Voice Assistant Engine for Saleha."""
 
     WAKE_WORDS = {"jarvis", "saleha", "assistant", "hey saleha"}
-    EXIT_WORDS = {"exit", "quit", "goodbye", "stop", "shant ho jao"}
+    EXIT_WORDS = {"exit", "quit", "goodbye", "stop", "quiet", "silence"}
 
-    def __init__(self, wake_word: str = "saleha", tts_enabled: bool = True):
+    def __init__(self, wake_word: str = "saleha", tts_enabled: bool = True) -> None:
         """Initializes the Jarvis voice assistant engine with audio fallbacks."""
         self.wake_word = wake_word.lower()
         self.tts_enabled = tts_enabled
@@ -45,7 +45,7 @@ class VoiceAssistant:
         self._tts_driver = None
         self._init_audio_drivers()
 
-    def _init_audio_drivers(self):
+    def _init_audio_drivers(self) -> None:
         """Attempts to initialize speech_recognition and pyttsx3 with graceful fallbacks."""
         try:
             self._stt_driver = importlib.import_module("speech_recognition")
@@ -58,7 +58,7 @@ class VoiceAssistant:
         except (ImportError, Exception):
             self._tts_driver = None
 
-    def speak(self, text: str):
+    def speak(self, text: str) -> None:
         """Audibly speaks the given response text or prints in simulated audio mode."""
         if not text:
             return
@@ -117,7 +117,7 @@ class VoiceAssistant:
         if executor_fn:
             try:
                 exec_output = executor_fn(task_goal)
-                response_msg = f"Task completed successfully."
+                response_msg = "Task completed successfully."
                 self.speak(response_msg)
                 return VoiceCommandResult(
                     success=True,
@@ -164,7 +164,12 @@ class VoiceAssistant:
         if auto_execute and not executor_fn:
             from saleha.orchestrator import SalehaOrchestrator
             orch = SalehaOrchestrator()
-            executor_fn = lambda p: orch.run_task(p).summary if hasattr(orch.run_task(p), "summary") else str(orch.run_task(p))
+
+            def _auto_exec(p: str) -> str:
+                task_res = orch.execute_task(p)
+                return getattr(task_res, "final_code", str(task_res))
+
+            executor_fn = _auto_exec
 
         return self.process_voice_input(prompt, executor_fn=executor_fn)
 

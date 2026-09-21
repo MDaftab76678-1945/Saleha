@@ -9,9 +9,8 @@ Provides:
 from __future__ import annotations
 
 import threading
-import time
 from dataclasses import dataclass
-from typing import Optional, Callable
+from typing import Optional
 
 
 @dataclass
@@ -28,7 +27,7 @@ class FullDuplexVoiceEngine:
     Manages non-blocking full-duplex speech synthesis and recognition.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self.is_speaking = False
         self.is_listening = True
