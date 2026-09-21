@@ -7,13 +7,12 @@ Provides sub-millisecond AST symbol and token search across large codebases:
 3. Zero network latency and zero privacy leakage.
 """
 
-import os
 import ast
+import os
 import re
-import time
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import List, Dict, Set, Optional, Any
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 
 @dataclass
@@ -30,12 +29,16 @@ class SearchMatch:
 class FastSearchEngine:
     """In-memory zero-latency inverted symbol index."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the fast search engine."""
         self.symbol_index: Dict[str, List[SearchMatch]] = defaultdict(list)
         self.indexed_files_count: int = 0
 
-    def index_directory(self, root_dir: str, extensions: tuple = (".py", ".v", ".sv", ".js", ".ts", ".html")):
+    def index_directory(
+        self,
+        root_dir: str,
+        extensions: Tuple[str, ...] = (".py", ".v", ".sv", ".js", ".ts", ".html"),
+    ) -> None:
         """Indexes all code files under the given directory."""
         self.symbol_index.clear()
         count = 0
@@ -51,7 +54,7 @@ class FastSearchEngine:
 
         self.indexed_files_count = count
 
-    def _index_file(self, file_path: str):
+    def _index_file(self, file_path: str) -> None:
         """Indexes AST symbols or regex tokens in a single file."""
         try:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:

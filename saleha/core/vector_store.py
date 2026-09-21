@@ -10,7 +10,7 @@ import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.core.embedding_backends import dense_dot as dense_cosine
 
@@ -34,7 +34,7 @@ class VectorSearchResult:
 class SparseVectorEmbedder:
     """Subword character n-gram + word token TF-IDF embedder."""
 
-    def __init__(self, ngram_range: Tuple[int, int] = (3, 5)):
+    def __init__(self, ngram_range: Tuple[int, int] = (3, 5)) -> None:
         self.ngram_range = ngram_range
         self.doc_count: int = 0
         self.term_doc_freq: Dict[str, int] = defaultdict(int)
@@ -51,7 +51,7 @@ class SparseVectorEmbedder:
                         tokens.append(w[i:i + n])
         return tokens
 
-    def fit(self, texts: List[str]):
+    def fit(self, texts: List[str]) -> None:
         """Fits vocabulary and computes Document Frequencies."""
         self.doc_count = len(texts)
         self.term_doc_freq.clear()
@@ -97,14 +97,14 @@ def cosine_similarity(v1: Dict[str, float], v2: Dict[str, float]) -> float:
 class VectorStore:
     """In-memory Vector Database for local RAG retrieval.
 
-    Naya (B1): embedding backend LAZILY choose hota hai --
-      1. Dense (Ollama nomic-embed-text) available ho to semantic quality zyada
-      2. Warna legacy TF-IDF sparse fallback (offline-safe)
-    Mode switch hone par poora index dirty mark hota hai (re-embed).
-    Mutations sirf `_dirty` flag set karte hain; reindex next search par ek baar.
+    Lazily selects the embedding backend:
+      1. Dense (Ollama nomic-embed-text) when available for higher semantic quality.
+      2. Sparse TF-IDF fallback when offline or unavailable.
+    Switching modes marks the entire index dirty for re-embedding.
+    Mutations mark the `_dirty` flag; reindexing runs once on the next search.
     """
 
-    def __init__(self, enable_dense: bool = True, dense_embedder=None):
+    def __init__(self, enable_dense: bool = True, dense_embedder: Optional[Any] = None) -> None:
         self.embedder = SparseVectorEmbedder()
         self.documents: Dict[str, VectorDocument] = {}
         self._dirty = False
@@ -114,7 +114,7 @@ class VectorStore:
         self.dense_embedder = dense_embedder  # lazy init on first reindex if None
 
     def _resolve_mode(self) -> str:
-        """Ek hi baar probe karke embedding mode decide karta hai."""
+        """Probes once to determine the embedding mode."""
         if self._mode_resolved:
             return self.mode
         self._mode_resolved = True
@@ -131,25 +131,25 @@ class VectorStore:
             self.mode = "sparse"
         return self.mode
 
-    def add_document(self, doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = None):
+    def add_document(self, doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = None) -> None:
         self.documents[doc_id] = VectorDocument(doc_id=doc_id, text=text, metadata=metadata or {})
         self._dirty = True
 
-    def add_documents(self, docs: List[Tuple[str, str, Optional[Dict[str, Any]]]]):
+    def add_documents(self, docs: List[Tuple[str, str, Optional[Dict[str, Any]]]]) -> None:
         for doc_id, text, meta in docs:
             self.documents[doc_id] = VectorDocument(doc_id=doc_id, text=text, metadata=meta or {})
         if docs:
             self._dirty = True
 
     def remove_document(self, doc_id: str) -> bool:
-        """Single document ko remove karta hai (incremental delete)."""
+        """Removes a single document from the index (incremental delete)."""
         if doc_id in self.documents:
             del self.documents[doc_id]
             self._dirty = True
             return True
         return False
 
-    def _reindex(self):
+    def _reindex(self) -> None:
         all_docs = list(self.documents.values())
         if not all_docs:
             return
@@ -157,10 +157,10 @@ class VectorStore:
         if self._resolve_mode() == "dense" and self.dense_embedder is not None:
             vectors = self.dense_embedder.embed_batch([d.text for d in all_docs])
             if vectors is not None and len(vectors) == len(all_docs):
-                for doc, vec in zip(all_docs, vectors):
+                for doc, vec in zip(all_docs, vectors, strict=True):
                     doc.vector = vec
                 return
-            # Dense fail hua (Ollama band ho gaya?) -> sparse pe degrade
+            # Dense embedding failed; fallback to sparse TF-IDF
             self.mode = "sparse"
 
         # Sparse path (legacy TF-IDF)
@@ -168,7 +168,7 @@ class VectorStore:
         for doc in all_docs:
             doc.vector = self.embedder.embed(doc.text)
 
-    def _ensure_index(self):
+    def _ensure_index(self) -> None:
         if self._dirty:
             self._reindex()
             self._dirty = False
@@ -220,7 +220,7 @@ class VectorStore:
     def count(self) -> int:
         return len(self.documents)
 
-    def clear(self):
+    def clear(self) -> None:
         self.documents.clear()
         self._dirty = False
 

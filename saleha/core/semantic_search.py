@@ -7,15 +7,14 @@ to pinpoint functions, classes, docstrings, and architectural logic from natural
 
 from __future__ import annotations
 
+import math
 import os
 import re
-import math
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Set, Any
 from collections import Counter
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.core.dependency_graph import dependency_graph
-from saleha.core.codebase_indexer import codebase_indexer
 from saleha.core.path_utils import safe_relpath
 
 
@@ -33,7 +32,7 @@ class SearchResult:
 class SemanticSearchEngine:
     """Hybrid BM25 + TF-IDF Vector Semantic Code Search across multi-file codebases."""
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
         self._documents: List[Dict[str, Any]] = []
         self._doc_frequencies: Dict[str, int] = Counter()
@@ -61,7 +60,7 @@ class SemanticSearchEngine:
                     tokens.append(sw.lower())
         return [tok for tok in tokens if len(tok) >= 2]
 
-    def index_codebase(self, root_dir: Optional[str] = None):
+    def index_codebase(self, root_dir: Optional[str] = None) -> None:
         """Builds combined lexical inverted index and vector representations for all codebase symbols."""
         if root_dir:
             self.root_dir = os.path.abspath(root_dir)

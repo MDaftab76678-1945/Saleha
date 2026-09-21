@@ -8,10 +8,11 @@ code change. Provides "blast radius" estimation before applying any diff.
 from __future__ import annotations
 
 import ast
+import contextlib
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 
 @dataclass
@@ -85,21 +86,20 @@ class ChangeImpactAnalyzer:
 
         impacted_dependents: List[str] = []
         if dependency_graph is not None:
-            try:
+            with contextlib.suppress(Exception):
                 impacted_dependents = sorted(list(set(dependency_graph.get_impacted_files(file_path))))
-            except Exception:
-                pass
 
         if ast_cache is not None:
-            try:
+            with contextlib.suppress(Exception):
                 ast_cache.invalidate(file_path)
                 if dependency_graph is not None:
                     ast_cache.invalidate_dependents(file_path, dependency_graph)
-            except Exception:
-                pass
 
         # Blast radius: fraction of codebase affected
-        total_files = sum(1 for _, _, fs in os.walk(repo_root) for f in fs if f.endswith(".py"))
+        total_files = 0
+        for _, dirs, fs in os.walk(repo_root):
+            dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git", ".venv", ".venv_train", "node_modules", "build", "dist")]
+            total_files += sum(1 for f in fs if f.endswith(".py"))
         affected_count = len(set(affected_callers)) + len(affected_tests) + len(impacted_dependents)
 
         raw_blast = int((affected_count / max(total_files, 1)) * 100) + (10 if changed_symbols else 0)
@@ -194,10 +194,7 @@ class ChangeImpactAnalyzer:
             return bool(referenced.intersection(targets))
         except Exception:
             # Fallback for non-parsable files: strict word-boundary regex (no substring bleeding)
-            for t in targets:
-                if re.search(rf"\b{re.escape(t)}\b", content):
-                    return True
-            return False
+            return any(bool(re.search(rf"\b{re.escape(t)}\b", content)) for t in targets)
 
     def _find_callers(self, symbol_names: List[str], repo_root: str,
                       exclude_path: str) -> List[str]:
@@ -218,7 +215,7 @@ class ChangeImpactAnalyzer:
         norm_exclude = os.path.abspath(exclude_path) if exclude_path else ""
 
         for root, dirs, files in os.walk(repo_root):
-            dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git", ".venv", "node_modules")]
+            dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git", ".venv", ".venv_train", "node_modules", "build", "dist")]
             for fname in files:
                 if not fname.endswith(".py"):
                     continue

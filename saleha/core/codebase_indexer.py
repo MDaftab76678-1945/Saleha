@@ -8,12 +8,13 @@ tracks cross-file dependency call graphs, and enables surgical diff patching.
 
 from __future__ import annotations
 
-import os
 import ast
-import re
 import difflib
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Set, Any, Tuple
+import os
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 from saleha.core.path_utils import safe_relpath
 
 
@@ -55,7 +56,7 @@ class FileIndex:
 class CodebaseIndexer:
     """Scans and indexes a codebase using Python AST parsing."""
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
         self.files: Dict[str, FileIndex] = {}
         self.symbol_map: Dict[str, List[str]] = {}  # symbol_name -> list of file paths
@@ -181,7 +182,7 @@ class CodebaseIndexer:
             calls=calls
         )
 
-    def _register_symbols(self, rel_path: str, file_index: FileIndex):
+    def _register_symbols(self, rel_path: str, file_index: FileIndex) -> None:
         for cls_name, cls_sym in file_index.classes.items():
             self.symbol_map.setdefault(cls_name, []).append(rel_path)
             for m_name in cls_sym.methods:
@@ -293,14 +294,14 @@ class SmartPatcher:
                 return (i, n_search)
 
         # 2. Strip trailing whitespace match
-        clean_search = [l.rstrip() for l in search_lines]
+        clean_search = [line.rstrip() for line in search_lines]
         for i in range(len(source_lines) - n_search + 1):
-            clean_source = [l.rstrip() for l in source_lines[i:i + n_search]]
+            clean_source = [line.rstrip() for line in source_lines[i:i + n_search]]
             if clean_source == clean_search:
                 return (i, n_search)
 
         # 3. Strip leading & trailing whitespace match (indentation-tolerant)
-        trimmed_search = [l.strip() for l in search_lines if l.strip()]
+        trimmed_search = [line.strip() for line in search_lines if line.strip()]
         if not trimmed_search:
             return None
 
@@ -447,7 +448,7 @@ class SmartPatcher:
         return {
             "success": True,
             "diff": diff,
-            "lines_changed": len([l for l in diff.splitlines() if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))])
+            "lines_changed": len([line for line in diff.splitlines() if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))])
         }
 
 
