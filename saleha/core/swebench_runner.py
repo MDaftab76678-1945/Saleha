@@ -26,13 +26,15 @@ needs, the assertion fails with a NameError, which is reported honestly
 as unresolved.
 """
 
+from __future__ import annotations
+
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.smart_router import smart_router
+from saleha.orchestrator import SalehaOrchestrator
 
 
 @dataclass
@@ -74,7 +76,7 @@ class SWEBenchBenchmarkReport:
 class SWEBenchRunner:
     """SWE-Bench-style evaluation and scorecard harness."""
 
-    def __init__(self, model: str = "auto"):
+    def __init__(self, model: str = "auto") -> None:
         """Initializes the SWE-bench runner with dynamic model resolution."""
         self.model = self._resolve_model(model)
         self.default_instances = [
@@ -114,8 +116,8 @@ class SWEBenchRunner:
         namespace: Dict[str, Any] = {}
         try:
             if generated_code:
-                exec(generated_code, namespace)
-            exec(assertion_str, namespace)
+                exec(generated_code, namespace)  # saleha: allow-exec
+            exec(assertion_str, namespace)  # saleha: allow-exec
             return True
         except Exception:
             return False

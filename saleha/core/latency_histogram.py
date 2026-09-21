@@ -7,8 +7,7 @@ p50 (Median), p90, p99, and p99.99 (Maximum Jitter) latency percentiles.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 HISTOGRAM_BUCKETS = 1000  # Tracks 0ns to 10,000ns in 10ns steps
 
@@ -18,14 +17,14 @@ class NanosecondLatencyHistogram:
     Fixed-memory latency histogram tracker without heap reallocations.
     """
 
-    def __init__(self, num_buckets: int = HISTOGRAM_BUCKETS):
+    def __init__(self, num_buckets: int = HISTOGRAM_BUCKETS) -> None:
         self.num_buckets = num_buckets
         self.buckets: List[int] = [0] * num_buckets
         self.total_samples: int = 0
         self.min_ns: int = 2**63 - 1
         self.max_ns: int = 0
 
-    def record(self, latency_ns: int):
+    def record(self, latency_ns: int) -> None:
         self.total_samples += 1
         if latency_ns < self.min_ns:
             self.min_ns = latency_ns

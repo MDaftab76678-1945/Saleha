@@ -50,7 +50,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 DEFAULT_MODEL = "qwen2.5-coder:3b"
 
@@ -300,11 +300,11 @@ def extract_code(text: str) -> str:
     elif "<think>" in text:
         # Opened and never closed -- the model ran out of budget mid-thought.
         after = re.split(r"<think>", text, maxsplit=1)[1]
-        fenced = re.findall(r"```(?:python)?\s*\n(.*?)```", after, re.DOTALL)
-        text = max(fenced, key=len) if fenced else ""
+        fenced: List[str] = re.findall(r"```(?:python)?\s*\n(.*?)```", after, re.DOTALL)
+        text = max(fenced, key=lambda s: len(s)) if fenced else ""
 
-    fences = re.findall(r"```(?:python)?\s*\n(.*?)```", text, re.DOTALL)
-    code = max(fences, key=len).strip() if fences else text.strip()
+    fences: List[str] = re.findall(r"```(?:python)?\s*\n(.*?)```", text, re.DOTALL)
+    code = (max(fences, key=lambda s: len(s)) if fences else text).strip()
 
     try:
         tree = ast.parse(code)
@@ -362,7 +362,7 @@ def verify_tests_can_fail(tasks: Optional[List[Task]] = None) -> List[str]:
 def run_benchmark(model: str = DEFAULT_MODEL,
                   tasks: Optional[List[Task]] = None,
                   limit: Optional[int] = None,
-                  on_task=None) -> BenchRunReport:
+                  on_task: Optional[Callable[[TaskOutcome], Any]] = None) -> BenchRunReport:
     """Run every task against a real model and report what actually passed.
 
     Refuses to run -- rather than reporting a score -- if any test passes

@@ -26,11 +26,14 @@ gets an honest empty patch -- the official harness scores an empty
 patch as unresolved, not a fabricated success.
 """
 
+from __future__ import annotations
+
 import difflib
 import json
 import os
+import subprocess
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 
 @dataclass
@@ -63,7 +66,7 @@ def build_prompt(problem_statement: str, hints_text: str = "",
 
 
 def synth_newfile_patch(final_code: str, filename: str = "saleha_solution.py") -> str:
-    """Final code ko single new-file unified diff bana deta hai (format-valid)."""
+    """Converts final code into a single new-file unified diff (format-valid)."""
     diff = difflib.unified_diff(
         [], final_code.splitlines(keepends=True),
         fromfile="/dev/null", tofile=f"/dev/null -> {filename}",
@@ -72,8 +75,8 @@ def synth_newfile_patch(final_code: str, filename: str = "saleha_solution.py") -
 
 
 def real_diff_from_repo(local_repo_dir: str, changed_files: Dict[str, str]) -> str:
-    """Agar user ne repo checkout diya ho to ORIGINAL vs NEW ka real unified
-    diff banata hai (changed_files = {rel_path: new_full_content})."""
+    """Generates a real unified diff of ORIGINAL vs NEW if a repo checkout is
+    provided (changed_files = {rel_path: new_full_content})."""
     patches = []
     for rel, new_content in changed_files.items():
         old_path = os.path.join(local_repo_dir, rel)
@@ -92,7 +95,7 @@ def real_diff_from_repo(local_repo_dir: str, changed_files: Dict[str, str]) -> s
 
 
 def iter_instances(instances_path: str) -> Iterator[Dict[str, Any]]:
-    """predictions input JSONL stream karta hai (ek line = ek instance)."""
+    """Streams prediction input records from a JSONL file (one line per instance)."""
     with open(instances_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -107,7 +110,9 @@ def iter_instances(instances_path: str) -> Iterator[Dict[str, Any]]:
 
 
 def write_predictions(predictions: List[SWEBenchPrediction], out_path: str) -> int:
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    out_dir = os.path.dirname(os.path.abspath(out_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     count = 0
     with open(out_path, "w", encoding="utf-8") as f:
         for p in predictions:
@@ -119,7 +124,7 @@ def write_predictions(predictions: List[SWEBenchPrediction], out_path: str) -> i
 def run_benchmark(instances_path: str, output_path: str,
                   model: str = "auto", limit: Optional[int] = None,
                   max_steps: int = 15, allow_write: bool = True,
-                  on_event=None) -> Dict[str, Any]:
+                  on_event: Optional[Callable[[Dict[str, Any]], Any]] = None) -> Dict[str, Any]:
     """
     Full loop: instances read -> real multi-file AgentLoop run against a
     real repo checkout -> predictions write.
@@ -143,9 +148,8 @@ def run_benchmark(instances_path: str, output_path: str,
     official SWE-bench harness scores an empty patch as unresolved, not a
     fabricated success) instead of a fake new-file diff.
     """
-    import subprocess
-    from saleha.core.agentic_loop import AgentLoop
     from saleha.agents.base_agent import BaseAgent
+    from saleha.core.agentic_loop import AgentLoop
 
     predictions: List[SWEBenchPrediction] = []
     skipped = 0
@@ -158,7 +162,7 @@ def run_benchmark(instances_path: str, output_path: str,
         patch = ""
         attempts = 0
         if not local_repo or not os.path.isdir(local_repo):
-            # Official format: empty patch bhi record hota hai (score 0) --
+            # Official format: empty patch is recorded as well (score 0) --
             # no repo means no real fix is possible, so this is honest, not
             # a bug to work around with a fabricated diff.
             skipped += 1

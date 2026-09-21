@@ -16,13 +16,14 @@ Usage:
     best = tracker.best_model_for(task_type="coding")
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from typing import Optional
-
 
 DEFAULT_STATS_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "stats.json")
 
@@ -48,7 +49,7 @@ class ModelStats:
 
 
 class StatsTracker:
-    def __init__(self, path: str = DEFAULT_STATS_PATH):
+    def __init__(self, path: str = DEFAULT_STATS_PATH) -> None:
         self.path = path
         self._data = self._load()
 
@@ -69,11 +70,13 @@ class StatsTracker:
                 pass
             return {}
 
-    def _save(self):
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+    def _save(self) -> None:
+        dir_name = os.path.dirname(self.path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         # Write to temp file then replace -- avoids a half-written file if
         # the process dies mid-write.
-        tmp_path = self.path + ".tmp"
+        tmp_path = f"{self.path}.tmp.{os.getpid()}"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=2, ensure_ascii=False)
         os.replace(tmp_path, self.path)
@@ -84,10 +87,10 @@ class StatsTracker:
         success: bool,
         attempts: int = 1,
         task_type: str = "general",
-    ):
-        """Ek task ka result record karo. task_type se alag category track hoti hai
-        (e.g. 'coding' vs 'chat') taaki router har category ke liye alag best-model
-        nikal sake."""
+    ) -> None:
+        """Record the result of a task. task_type tracks categories independently
+        (e.g. 'coding' vs 'chat') so the router can identify the best model
+        for each category."""
         bucket = self._data.setdefault(task_type, {})
         entry = bucket.setdefault(model, {
             "uses": 0, "successes": 0, "total_attempts": 0, "last_used": None,
@@ -110,8 +113,8 @@ class StatsTracker:
         )
 
     def best_model_for(self, task_type: str = "general", min_uses: int = 2) -> Optional[str]:
-        """Sabse zyada success-rate wala model return karta hai (jinke paas kam-se-kam
-        min_uses data points hain, taaki 1-use-100%-success flukes na jeetein)."""
+        """Returns the model with the highest success rate having at least
+        min_uses data points, preventing 1-use 100%-success anomalies from winning."""
         bucket = self._data.get(task_type, {})
         candidates = []
         for model, entry in bucket.items():
@@ -128,7 +131,7 @@ class StatsTracker:
         if not bucket:
             return f"No stats yet for task_type='{task_type}'."
         lines = [f"Stats for task_type='{task_type}':"]
-        for model, entry in sorted(bucket.items(), key=lambda kv: -kv[1]["uses"]):
+        for model, _entry in sorted(bucket.items(), key=lambda kv: -kv[1]["uses"]):
             stats = self.get_model_stats(model, task_type)
             lines.append(
                 f"  {model}: {stats.uses} uses, {stats.success_rate}% success, "
