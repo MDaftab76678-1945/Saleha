@@ -27,7 +27,6 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-
 # Repo-root/templates, resolved relative to this file.
 _TEMPLATES_ROOT = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "templates")
@@ -67,7 +66,7 @@ def _substitute(text: str, project_name: str, project_slug: str) -> str:
 class ProjectScaffolder:
     """Deterministic starter-project generator from bundled templates."""
 
-    def __init__(self, templates_root: str = _TEMPLATES_ROOT):
+    def __init__(self, templates_root: str = _TEMPLATES_ROOT) -> None:
         self.templates_root = templates_root
 
     def available_stacks(self) -> List[str]:

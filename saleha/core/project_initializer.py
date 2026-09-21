@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import os
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import List
 
 from saleha.core.dependency_graph import dependency_graph
 
@@ -28,7 +28,7 @@ class ProjectInitSummary:
 class ProjectInitializer:
     """Initializes new or existing codebases for Saleha autonomous engineering."""
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
 
     def detect_stack(self) -> List[str]:

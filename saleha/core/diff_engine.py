@@ -169,9 +169,9 @@ class DiffEngine:
         """Format a colorized terminal-friendly diff preview."""
         lines = [
             f"\n{'='*60}",
-            f"📄 File: {diff.file_path}",
-            f"📊 Changes: {diff.change_summary}",
-            f"⚠️  Risk: {diff.risk_score}/10 — {diff.risk_reason}",
+            f"File: {diff.file_path}",
+            f"Changes: {diff.change_summary}",
+            f"Risk: {diff.risk_score}/10 -- {diff.risk_reason}",
             f"{'='*60}",
         ]
         for hunk in diff.hunks[:10]:
@@ -195,7 +195,7 @@ class DiffEngine:
                     backup_content = f.read()
                 with open(backup_path, "w", encoding="utf-8") as f:
                     f.write(backup_content)
-            tmp_path = file_path + ".tmp"
+            tmp_path = f"{file_path}.tmp.{os.getpid()}"
             with open(tmp_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
             os.replace(tmp_path, file_path)

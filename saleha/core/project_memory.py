@@ -8,13 +8,13 @@ across sessions. Kills Mem0 and MemGPT ($20+/mo) with local SQLite + vectors.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import os
 import time
-import hashlib
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 DEFAULT_MEMORY_DIR = os.path.join(os.path.expanduser("~"), ".saleha", "project_memory")
 
@@ -37,7 +37,7 @@ class ProjectMemory:
     working fixes, architecture choices, and coding conventions.
     """
 
-    def __init__(self, project_name: str, memory_dir: str = DEFAULT_MEMORY_DIR):
+    def __init__(self, project_name: str, memory_dir: str = DEFAULT_MEMORY_DIR) -> None:
         self.project = project_name
         self.memory_dir = memory_dir
         self._path = os.path.join(memory_dir, f"{self._safe_name(project_name)}.jsonl")
@@ -61,11 +61,9 @@ class ProjectMemory:
                 line = line.strip()
                 if not line:
                     continue
-                try:
+                with contextlib.suppress(Exception):
                     data = json.loads(line)
                     self._cache.append(MemoryEntry(**data))
-                except Exception:
-                    continue
         self._loaded = True
 
     def _save_entry(self, entry: MemoryEntry) -> None:
@@ -127,7 +125,7 @@ class ProjectMemory:
 
     def _rewrite(self) -> None:
         """Rewrite the memory file (after deletions)."""
-        tmp = self._path + ".tmp"
+        tmp = f"{self._path}.tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as f:
             for entry in self._cache:
                 f.write(json.dumps(entry.__dict__, ensure_ascii=False) + "\n")

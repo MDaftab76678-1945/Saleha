@@ -25,19 +25,18 @@ Limitations (honest scope):
 
 from __future__ import annotations
 
-import sys
+import json
 import os
 import re
-import json
-import subprocess
 import shutil
+import subprocess
+import sys
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 from saleha.agents.coder import CoderAgent
 from saleha.agents.tester import TesterAgent
-
 
 DEFAULT_PROJECTS_DIR = os.path.join(os.path.expanduser("~"), "saleha_projects")
 
@@ -68,7 +67,7 @@ class ProjectResult:
 
 
 class ProjectBuilder:
-    def __init__(self, model: str = "auto", projects_dir: str = DEFAULT_PROJECTS_DIR):
+    def __init__(self, model: str = "auto", projects_dir: str = DEFAULT_PROJECTS_DIR) -> None:
         """Initializes the multi-file project builder."""
         self.model = model
         self.planner_agent = BaseAgent(role="ProjectPlanner", model=model)
@@ -97,7 +96,7 @@ Respond ONLY in this JSON format, no other text:
         if not response.success:
             return []
 
-        # JSON array nikaalo response se (agar model ne extra text daal diya ho)
+        # Extract JSON array from response if model included conversational text
         match = re.search(r"\[.*\]", response.content, re.DOTALL)
         json_text = match.group(0) if match else response.content
 
@@ -270,7 +269,7 @@ Respond ONLY in this JSON format, no other text:
 
     def _verify_entry_point(self, project_dir: str, entry_filename: str) -> Tuple[bool, str]:
         """Verifies entry point execution in a bounded timeout subprocess."""
-        python_cmd = shutil.which("python3") or shutil.which("python")
+        python_cmd = sys.executable or shutil.which("python3") or shutil.which("python")
         if not python_cmd:
             return False, "Neither 'python' nor 'python3' found on PATH."
 
