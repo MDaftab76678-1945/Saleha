@@ -53,7 +53,7 @@ class PolicyDecision:
 
 
 def _reset_probe_cache() -> None:
-    """Reset Docker probe cache — for test isolation only."""
+    """Reset Docker probe cache -- for test isolation only."""
     _probe_cache["done"] = False
     _probe_cache["available"] = False
 

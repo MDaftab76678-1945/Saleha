@@ -10,16 +10,15 @@ Provides multi-tier code isolation for executing untrusted scripts safely:
 from __future__ import annotations
 
 import os
-import sys
-import time
 import shutil
-import tempfile
 import subprocess
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from typing import Optional
 
-from saleha.core.docker_sandbox import is_docker_available, DockerSandboxRunner
-from saleha.core.sandbox_runner import SandboxResult
+from saleha.core.docker_sandbox import DockerSandboxRunner, is_docker_available
 
 
 @dataclass
@@ -42,7 +41,7 @@ class HardenedExecutionResult:
 class HardenedSandboxEngine:
     """Multi-tier security sandbox for running arbitrary code safely."""
 
-    def __init__(self, prefer_docker: bool = True):
+    def __init__(self, prefer_docker: bool = True) -> None:
         self.prefer_docker = prefer_docker
         self.docker_runner = DockerSandboxRunner() if prefer_docker else None
 

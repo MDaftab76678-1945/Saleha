@@ -9,11 +9,9 @@ Autonomously migrates legacy codebases into modern type-safe equivalents:
 
 from __future__ import annotations
 
-import os
-import re
 import ast
+import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
 
 
 @dataclass
@@ -176,7 +174,6 @@ class CodeMigrator:
         if "unittest.main()" in code:
             code = code.replace("unittest.main()", "pytest.main()")
             changes += 1
-            changes += 1
 
         # Remove if __name__ == '__main__': unittest.main()
         code = re.sub(r"if\s+__name__\s*==\s*['\"]__main__['\"]:\s*\n\s*unittest\.main\(\)", "", code)
@@ -203,20 +200,19 @@ class CodeMigrator:
         s, t = source.lower().strip(), target.lower().strip()
         if (s in ("js", "javascript")) and (t in ("ts", "typescript")):
             return self.migrate_js_to_ts(code)
-        elif (s == "flask") and (t == "fastapi"):
+        if (s == "flask") and (t == "fastapi"):
             return self.migrate_flask_to_fastapi(code)
-        elif (s == "unittest") and (t == "pytest"):
+        if (s == "unittest") and (t == "pytest"):
             return self.migrate_unittest_to_pytest(code)
-        else:
-            return MigrationResult(
-                original_code=code,
-                migrated_code=code,
-                source_framework=source,
-                target_framework=target,
-                changes_count=0,
-                is_valid_syntax=True,
-                summary=f"No migration rule found for {source} -> {target}.",
-            )
+        return MigrationResult(
+            original_code=code,
+            migrated_code=code,
+            source_framework=source,
+            target_framework=target,
+            changes_count=0,
+            is_valid_syntax=True,
+            summary=f"No migration rule found for {source} -> {target}.",
+        )
 
 
 # Global instance

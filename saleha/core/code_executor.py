@@ -18,20 +18,23 @@ Already present:
 4. Pattern-based dangerous-code check (from safety_patterns.py)
 """
 
-import subprocess
-import tempfile
+import contextlib
 import os
 import shutil
+import subprocess
+import sys
+import tempfile
 from dataclasses import dataclass
 from typing import Optional
 
+from saleha.core.audit_log import AuditLog
+from saleha.core.execution_policy import build_docker_command, ensure_image, resolve_backend
 from saleha.core.safety_patterns import (
-    check_dangerous,
     _check_blocked_imports as _sp_check_blocked_imports,
 )
-from saleha.core.execution_policy import resolve_backend, build_docker_command, ensure_image
-from saleha.core.audit_log import AuditLog
-
+from saleha.core.safety_patterns import (
+    check_dangerous,
+)
 
 MAX_OUTPUT_CHARS = 50_000  # ~50KB -- enough for normal script output
 
@@ -50,7 +53,9 @@ class ExecutionResult:
 
 
 def _find_python_executable() -> Optional[str]:
-    """Prefers python3 (more consistent across systems), falls back to python."""
+    """Prefers sys.executable or python3, falls back to python."""
+    if sys.executable:
+        return sys.executable
     for candidate in ("python3", "python"):
         path = shutil.which(candidate)
         if path:
@@ -66,7 +71,7 @@ def _check_blocked_imports(code: str) -> Optional[str]:
 
 
 class CodeExecutor:
-    def __init__(self, timeout: int = 30, audit: bool = True):
+    def __init__(self, timeout: int = 30, audit: bool = True) -> None:
         self.timeout = timeout
         self.python_cmd = _find_python_executable()
         self.audit_log = AuditLog() if audit else None
@@ -187,10 +192,8 @@ class CodeExecutor:
                 self.audit_log.record(code=code, allowed=True, reason=str(e), executed=True, success=False, exit_code=-1)
             return ExecutionResult(success=False, output="", error=str(e), exit_code=-1, backend=backend)
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 os.unlink(temp_file)
-            except Exception:
-                pass  # noqa
 
 
 code_executor = CodeExecutor()
