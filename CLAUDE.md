@@ -2120,6 +2120,27 @@ runtime *data* (personas, skills, souls), not agent-facing docs.
 Full suite: 2332 → **2337 passed, 13 skipped, 0 failures**. Detail:
 `NOTEBOOK_IMPORT.md`, "Pass 136."
 
+**Pass 137 — closed pass 136's two open items, correcting one of my own
+claims along the way.** `AGENTSKILLS.md`'s Section 1 "Tool Identifier"
+table (`sandbox_jail`, `math_engine`, `ast_cache`, etc.) named strings
+that appear nowhere in the codebase as real identifiers — verified by
+grep; two exist only as ordinary local variable names. Reframed as a
+"Capability Module Index," matching what Section 2's own note already
+said. Separately: pass 136 called `CHANGELOG.md` "abandoned at v0.2.0,"
+which was **my own error** — I'd only sampled the file's tail; it is
+newest-first and current through `[2.6.0]`, matching `pyproject.toml`'s
+real version. The actual gap was that nothing covered the audit work
+since then — added an `[Unreleased]` section (pointing at
+`NOTEBOOK_IMPORT.md` rather than duplicating it) plus a correction for
+two stale claims found while reading the `[2.6.0]` entry in full:
+`saleha leaderboard` is listed as shipped but was deleted in pass 30
+(confirmed via `cli.commands` inspection), and "783/783 tests passed"
+is stale. Removed 50 decorative emoji and 3 Hinglish headings from
+`CHANGELOG.md`. Full suite: 2337 passed, 13 skipped, 0 failures
+(documentation-only change; one unrelated pre-existing test-order flake
+observed and confirmed not caused by this edit). Detail:
+`NOTEBOOK_IMPORT.md`, "Pass 137."
+
 ---
 
 ## Environment facts worth knowing

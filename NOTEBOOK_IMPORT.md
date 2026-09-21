@@ -10081,3 +10081,58 @@ Full suite: 2332 -> **2337 passed, 13 skipped, 0 failures**.
 registry (internal names presented as tool identifiers);
 `CHANGELOG.md` (abandoned at v0.2.0). Neither is loaded by any agent
 session; both are human-facing.
+
+## Pass 137: closed the two open items from pass 136 -- AGENTSKILLS.md's tool-identifier overclaim, and a wrong claim about CHANGELOG.md (2026-09-21)
+
+Pass 136 recorded two items as "open, not fixed." This pass closed both,
+and corrected one of its own claims in the process.
+
+**`AGENTSKILLS.md`'s Section 1** was headed "System Tooling Registry"
+with a "Tool Identifier" column naming `sandbox_jail`, `ast_verifier`,
+`math_engine`, `smt_verifier`, `bm25_search`, `ast_cache` as if an agent
+could invoke them by those names. Verified by grep across `saleha/`:
+none of the six strings appears anywhere as a real identifier;
+`math_engine` and `ast_cache` exist only as ordinary local
+variable/parameter names in `planner.py` and `change_impact.py`.
+Section 2's own note already warned these were "not the real tool
+identifiers, the loader uses" -- the section 1 heading now says so
+too, instead of silently contradicting it. Reframed as a "Capability
+Module Index"; all six implementation file paths independently verified
+to exist. Section 3's skill path and section 4's context-budget numbers
+(32768/40960/40960/32768) were checked against `context_budget.py`
+directly and found already accurate -- left untouched.
+
+**`CHANGELOG.md` -- correcting my own prior claim, not the file's.**
+Pass 136 called this "abandoned at v0.2.0." That was wrong: I had only
+sampled the file's tail, and the file is newest-first, current through
+`[2.6.0]` (2026-09-02), matching `pyproject.toml`'s real version exactly.
+The real gap was different -- nothing in the file covers the audit work
+done since 2026-09-02. Added an `[Unreleased]` section summarizing the
+shape of passes 1-136 (pointing at `NOTEBOOK_IMPORT.md`/`CLAUDE.md`
+rather than duplicating them), with current verified counts (2337
+passed, 162 registered CLI commands). Also found and corrected two
+stale claims inside the existing `[2.6.0]` entry itself while reading
+it in full: `saleha leaderboard` is listed as a shipped feature but was
+deleted in pass 30 (it compared Saleha to Devin/Claude Code/Cursor using
+hand-typed numbers with zero real measurement -- confirmed gone via
+`cli.commands` inspection: `'leaderboard' in cli.commands` is False,
+162 commands remain registered; `saleha harness leaderboard`, a
+different and genuine command ranking models from real stored run
+history, was never fabricating and is unaffected), and "100% Test Suite
+Pass: 783/783" is simply stale against the current count. Removed 50
+decorative emoji from section headings and translated three Hinglish
+headings ("Ab REAL", "pehli baar real", "aakhri genuine stub closed")
+to English; verified via diff that only emoji characters and the
+translated headings were removed, no content lines lost (20 version
+headings before and after).
+
+Neither file is loaded by Claude Code -- only `CLAUDE.md` is -- but both
+name other agents/contributors as their stated audience.
+
+Full suite re-run after both edits (documentation-only, zero Python
+changed): 2337 passed, 13 skipped, 0 failures. One unrelated flake
+(`test_semantic_cache.py::RandomVectorsAreBrokenTests::test_permissive_
+threshold_serves_an_unrelated_answer`) surfaced on the first full run;
+confirmed pre-existing and test-order-dependent, not caused by this
+change -- 23/23 clean in isolation, and a second full-suite run came
+back clean at 2337/2337.
