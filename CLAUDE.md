@@ -2044,6 +2044,47 @@ remaining, was actually cut off at ~1.02s. Full suite: 2321 → **2326
 passed, 13 skipped, 0 failures**. Detail: `NOTEBOOK_IMPORT.md`,
 "Pass 134."
 
+**Pass 135 — top-5 never-audited `saleha/core/` modules by importer
+count (a prior research agent found the "~111 unread" note stale: 118
+of 242 were already covered by passes 108-134, leaving 124 genuinely
+unread).** Read `team_orchestrator.py` (13 importers), `path_utils.py`
+(12), `git_native.py` (11), `task_history.py` (10),
+`neuro_symbolic_engine.py` (8) in full. All five genuinely real, two
+real defects confirmed by direct reproduction:
+
+- **`team_orchestrator.py`** — a failed security-agent model call fell
+  back to fixed text containing neither VULNERABLE nor WARNINGS, so the
+  verdict parser read a review that never ran as `APPROVED` — the same
+  fake-green shape pass 30 fixed once in `pr_generator.py`, found a
+  second time. Fixed with an explicit `UNAVAILABLE` verdict.
+- **`git_native.py`** — `create_task_branch()` never checked `git
+  checkout -B`'s return code, so it returned a truthy branch name even
+  when the checkout genuinely failed (reproduced with a locked git
+  index: branch never changed, function still returned the name).
+  `repo_orchestrator.py` treats that return as proof a branch was
+  created — the same shape as pass 65's unchecked `git checkout` in
+  `self_healing.py`/`self_improve.py`. Fixed to return `""` on failure.
+- **`neuro_symbolic_engine.py`** — its security-scoring dimension used
+  substring matching, defeated by a realistic import-alias evasion
+  (`from os import system` then `system(cmd)`), measured to score
+  "OWASP Top-10 SAST Clean" before the fix. This scorer is a real
+  ranking signal for the self-play arena, MCTS search, GRPO trainer,
+  and self-evolving loop. Fixed via AST alias resolution; deliberately
+  does not attempt full taint tracking (`run = os.system` remains
+  undetected — confirmed to be a gap the repo's more thorough
+  `ASTSecurityScanner` shares, not unique to this file).
+- `path_utils.py`/`task_history.py` — both genuinely correct;
+  Rule 1/3 cleanup only. Several Rule 3 emoji removals across this pass
+  were measured, not assumed, to *not* be live crashers via their real
+  entry points (an existing UTF-8-reconfigure guard or explicit
+  UTF-8 subprocess encoding already protects them) — verified directly
+  rather than repeating the "crash risk" framing from files where it's
+  proven true.
+
+11 new/regression tests, teeth-checked against git-stashed pre-fix
+code. Full suite: 2327 → **2332 passed, 13 skipped, 0 failures**.
+Detail: `NOTEBOOK_IMPORT.md`, "Pass 135."
+
 ---
 
 ## Environment facts worth knowing

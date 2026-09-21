@@ -9860,3 +9860,124 @@ No other defect was found in the full 2391-line read. The file's
 existing gates (repair-goal finish blocking, revert-check, coverage
 prover, repeat detection, confirmed-path gating) were all re-verified
 by reading rather than assumed clean from their commit history.
+
+## Pass 135: top-5 never-audited saleha/core/ modules by importer count -- two real defects confirmed by reproduction, plus Rule 1/3 cleanup (2026-09-21)
+
+A prior research agent this session reconciled the full pass 1-134
+history against the current file list and found the "~111 unread
+modules" note (pass 107) was stale: passes 108-134 had already covered
+roughly 118 of 242 real core modules, leaving 124 genuinely unread.
+Ranked by real importer count (`grep -rl` for each candidate module
+name, same method as passes 107/108), the top five were read in full
+this pass: `team_orchestrator.py` (13 importers), `path_utils.py` (12),
+`git_native.py` (11), `task_history.py` (10), `neuro_symbolic_engine.py`
+(8).
+
+All five are genuinely real -- no fabricated results, no zero-model-call
+templates. Two real, reproduced defects and one lower-severity gap:
+
+- **`team_orchestrator.py`** -- a failed security-agent model call fell
+  back to `"Security audit completed (Standard clearance)."`, which
+  contains neither VULNERABLE nor WARNINGS, so the verdict parser read
+  it as `APPROVED`. A security review that never ran was
+  indistinguishable from one that ran clean -- the exact "fake green"
+  shape pass 30 already fixed once in `pr_generator.py`, found here a
+  second time. Fixed with an explicit `UNAVAILABLE` verdict, distinct
+  from `APPROVED`, carrying the real error message. Teeth-checked: the
+  new test fails against the unfixed file (`AssertionError:
+  'security audit completed (standard clearance).'` contains no
+  "unavailable"). Also removed 27 decorative emoji and one Hindi
+  comment. Measured, not assumed: neither the real `saleha team` CLI
+  path nor `web_server.py`'s SSE path was actually crash-exposed by the
+  emoji -- `console.print()` genuinely crashes on this machine's real
+  cp1252 console when called raw (reproduced directly,
+  `UnicodeEncodeError` on 🚀), but both real callers already go through
+  an existing UTF-8-reconfigure guard or encode explicitly to UTF-8
+  before hitting a socket, so this specific fix is Rule 3 compliance,
+  not a live crash fix -- unlike the crash class CLAUDE.md already
+  names for other files.
+- **`git_native.py`** -- `create_task_branch()`'s `git checkout -B`
+  return code was never checked, so it returned a truthy branch name
+  even when the checkout genuinely failed. Reproduced directly: locked
+  the real `.git/index.lock` file, called `create_task_branch`, and it
+  returned `'saleha/fix-the-bug'` while `get_current_branch()` still
+  showed the pre-existing branch, unchanged. `repo_orchestrator.py`
+  treats a truthy return as `branch_created = True` with nothing else
+  checked -- the identical fabrication shape as pass 65's unchecked
+  `git checkout` in `self_improve.py`, found a second time in a
+  different file. Fixed to return `""` on a real failure. Also removed
+  a decorative emoji from the commit-message template this engine
+  writes into every real commit it makes (a more durable artifact than
+  a console print -- confirmed via a real `git commit` that the emoji
+  itself does not crash `subprocess.run(..., encoding="utf-8")`, so
+  again Rule 3 compliance rather than a crash fix), and one Hindi
+  docstring line.
+- **`neuro_symbolic_engine.py`** -- the security-scoring dimension used
+  substring matching (`"os.system(" in code`), which a realistic
+  import-alias evasion defeats. Measured directly: `from os import
+  system` then `system(cmd)`, and `from subprocess import call as
+  run_shell` then `run_shell(cmd)`, both scored `"OWASP Top-10 SAST
+  Clean"` (1.0) before the fix. This scorer is a real, load-bearing
+  ranking signal for `swarm_self_play_arena.py`,
+  `mcts_search_engine.py`, `grpo_reasoning_trainer.py`, and
+  `self_evolving_loop.py` -- an evadable check lets an obfuscated
+  dangerous candidate rank artificially high in real training/search
+  loops. Fixed by resolving import aliases via the AST (already parsed
+  as `tree` for the syntax check) alongside the existing substring
+  checks. Deliberately scoped: does not attempt full taint tracking --
+  `run = os.system; run(cmd)` (a variable reassignment, not an import
+  alias) remains undetected, confirmed to be a gap shared by the more
+  thorough `saleha/core/security_scanner.py::ASTSecurityScanner`
+  elsewhere in this repo (`scan_code` on the same reassignment pattern
+  returned zero findings) -- a materially harder problem, not unique to
+  this file, and out of scope for this pass.
+- **`path_utils.py`** -- genuinely correct. Reproduced the real Windows
+  cross-drive `ValueError` `safe_relpath()` exists to catch
+  (`os.path.relpath('C:/foo', 'D:/bar')` -> `ValueError: path is on
+  mount 'C:', start on mount 'D:'`). `posix_basename()` has a real
+  trailing-slash edge case (`"foo/bar/"` -> `""` instead of `"bar"`) but
+  zero real callers exist anywhere in the repo -- confirmed by grep, not
+  assumed -- so left as dead-code behavior rather than fixed
+  speculatively, matching this project's own precedent of not
+  hardening what nothing calls. Only Rule 1 (Hinglish docstrings)
+  needed fixing.
+- **`task_history.py`** -- genuinely correct (per-line corrupt-record
+  recovery in `_load()`, append-only JSONL so no read-modify-write
+  race). Rule 3 emoji removed from its own `summary()` method, which
+  has zero real callers (both real CLI paths call `.recent()`/
+  `.failed_tasks()` directly and format the table themselves). Auditing
+  those two real callers surfaced the same Rule 3 pattern live:
+  `misc_tools.py`'s `saleha history` command and one Hindi string in
+  its empty-state message, and `dashboard.py`'s TUI history table.
+  Verified end-to-end before writing this up: constructed a real
+  `TaskHistory` record and ran the actual `saleha.cli.commands:cli`
+  entry point (the real `pyproject.toml` console-script target) with
+  `PYTHONIOENCODING` unset -- it printed the record with `✅` correctly
+  and did not crash, because `saleha/cli/commands/__init__.py` already
+  reconfigures `sys.stdout`/`sys.stderr` to UTF-8 at import time and
+  runs before any command. So this, too, is a Rule 3 style fix
+  confirmed not to be a live crash via the real entry point, not an
+  assumption either way.
+
+11 new/regression tests across 3 test files, all teeth-checked against
+git-stashed pre-fix code: `team_orchestrator.py` 1/1 new test fails
+pre-fix; `git_native.py` 1/1 new checkout-failure test fails pre-fix
+(`AssertionError: 'saleha/fix-the-bug' != ''`); `neuro_symbolic_engine.py`
+2/3 new tests fail pre-fix (the unrelated-import false-positive guard
+correctly passes both before and after, since it was never expected to
+change). One pre-existing gate failure found and fixed while touching a
+file this pass needed clean to commit: `test_neuro_symbolic_and_
+distillation.py` was already below the pre-commit quality threshold
+before this pass touched it (score 60.0, confirmed via `git stash` --
+not caused by this pass's own edits, which only made it worse, 48.0,
+by adding three more untyped methods in the same pre-existing style);
+added `-> None`/`Path` type annotations across the whole file, now
+100.0.
+
+Full suite: 2327 -> **2332 passed, 13 skipped, 0 failures**. Next
+candidates by importer count: `neuro_symbolic_engine.py`'s tier is
+done; next is `skill_base.py` (7), `saleha_swarm_topology.py` (7),
+`ephemeral_container_runner.py` (7), `tool_forge.py` (6),
+`skill_registry.py` (6), `repo_context_packer.py` (6),
+`latency_histogram.py` (6) -- full ranked list of the remaining ~119
+unaudited modules is in this session's transcript, not re-derived here.
