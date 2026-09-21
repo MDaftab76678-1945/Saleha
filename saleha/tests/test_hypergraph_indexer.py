@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from typing import Optional
 
-from saleha.core.hypergraph_indexer import (
+from saleha.core.graph.hypergraph_indexer import (
     HypergraphIndexer,
     HypergraphIndexStats,
     SymbolNode,

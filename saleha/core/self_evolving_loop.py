@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from saleha.core.neuro_symbolic_engine import CodeInvariantScore, neuro_symbolic_engine
+from saleha.core.cognitive.neuro_symbolic_engine import CodeInvariantScore, neuro_symbolic_engine
 from saleha.core.training_collector import training_collector
 
 

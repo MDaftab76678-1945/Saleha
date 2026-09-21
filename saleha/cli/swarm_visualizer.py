@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 import time
 from typing import List
-from saleha.core.swarm_pipeline_engine import SwarmPipelineStage, SwarmExecutionResult
+from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineStage, SwarmExecutionResult
 
 
 class SwarmAsciiVisualizer:

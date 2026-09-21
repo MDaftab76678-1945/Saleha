@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.dependency_graph import dependency_graph
+from saleha.core.graph.dependency_graph import dependency_graph
 
 
 @dataclass

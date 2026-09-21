@@ -22,8 +22,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Optional
 
-from saleha.core.audit_log import AuditLog
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.telemetry.audit_log import AuditLog
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 MAX_POLYGLOT_OUTPUT_CHARS = 50_000
 

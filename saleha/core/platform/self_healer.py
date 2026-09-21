@@ -14,9 +14,8 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from saleha.agents.base_agent import BaseAgent
-from saleha.core.codebase_indexer import SmartPatcher
-from saleha.core.git_native import git_engine
+from saleha.core.graph.codebase_indexer import SmartPatcher
+from saleha.core.platform.git_native import git_engine
 
 
 @dataclass
@@ -57,6 +56,11 @@ class SelfHealingEngine:
     """Automates diagnosis, surgical patch generation, and re-test verification for failing commands."""
 
     def __init__(self, root_dir: str = ".", model: str = "auto"):
+        # Lazy import: saleha.agents.base_agent imports saleha.core.platform.model_provider,
+        # which would otherwise create a circular import at module-load time via this
+        # package's __init__.py eagerly importing this module.
+        from saleha.agents.base_agent import BaseAgent
+
         self.root_dir = os.path.abspath(root_dir)
         self.model = model
         self.agent = BaseAgent(role="Senior Autonomous BugFixer", model=model)
@@ -289,8 +293,20 @@ Rules:
         )
 
 
-# Global instance
-self_healer = SelfHealingEngine()
 SelfHealer = SelfHealingEngine
+
+_self_healer_instance: Optional[SelfHealingEngine] = None
+
+
+def __getattr__(name: str) -> Any:
+    # Lazy singleton (PEP 562): constructing SelfHealingEngine() imports
+    # saleha.agents.base_agent, which imports saleha.core.platform.model_provider --
+    # a circular import if this ran at module-load time via this package's __init__.py.
+    global _self_healer_instance
+    if name == "self_healer":
+        if _self_healer_instance is None:
+            _self_healer_instance = SelfHealingEngine()
+        return _self_healer_instance
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

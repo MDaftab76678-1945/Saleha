@@ -2,7 +2,7 @@ import unittest
 import tempfile
 import os
 from saleha.core.polyglot_indexer import PolyglotIndexer
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 class PolyglotIndexerTests(unittest.TestCase):

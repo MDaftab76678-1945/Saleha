@@ -3,7 +3,7 @@ import tempfile
 import os
 from unittest.mock import patch, MagicMock
 from saleha.ci.bot import PRReviewBot, ReviewReport
-from saleha.core.security_scanner import ScanReport, SecurityVulnerability
+from saleha.core.verification.security_scanner import ScanReport, SecurityVulnerability
 
 
 class CIBotTests(unittest.TestCase):

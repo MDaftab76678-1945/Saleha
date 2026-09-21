@@ -24,9 +24,10 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from saleha.core.fast_inference import InferenceResult
+from typing import Any
 
 
-def _engine(ok: bool = True, content: str = "real critique text"):
+def _engine(ok: bool = True, content: str = "real critique text") -> Any:
     fi = MagicMock()
     fi.run_batch.side_effect = lambda reqs, **kw: [
         InferenceResult(success=ok, content=content if ok else "",
@@ -39,11 +40,11 @@ def _engine(ok: bool = True, content: str = "real critique text"):
 
 
 class DeliberationCritiqueTests(unittest.TestCase):
-    def _engine_obj(self, fi):
-        from saleha.core.deliberation_engine import DeliberationEngine
+    def _engine_obj(self, fi: Any) -> Any:
+        from saleha.core.loop.deliberation_engine import DeliberationEngine
         return DeliberationEngine(inference=fi)
 
-    def test_failed_security_review_is_not_an_all_clear(self):
+    def test_failed_security_review_is_not_an_all_clear(self) -> None:
         sec, perf = self._engine_obj(_engine(ok=False))._run_critique_round(
             "build an auth service", "design")
         for text in (sec, perf):
@@ -53,26 +54,26 @@ class DeliberationCritiqueTests(unittest.TestCase):
         self.assertNotIn("No critical security blockers identified", sec)
         self.assertNotIn("Performance profile acceptable", perf)
 
-    def test_successful_reviews_are_returned_verbatim(self):
+    def test_successful_reviews_are_returned_verbatim(self) -> None:
         sec, perf = self._engine_obj(
             _engine(content="found an injection vector"))._run_critique_round(
             "goal", "design")
         self.assertEqual(sec, "found an injection vector")
         self.assertEqual(perf, "found an injection vector")
 
-    def test_both_critics_run_in_one_batch(self):
+    def test_both_critics_run_in_one_batch(self) -> None:
         fi = _engine()
         self._engine_obj(fi)._run_critique_round("goal", "design")
         self.assertEqual(fi.run_batch.call_count, 1)
         self.assertEqual(len(fi.run_batch.call_args.args[0]), 2)
 
-    def test_critics_get_different_instructions(self):
+    def test_critics_get_different_instructions(self) -> None:
         fi = _engine()
         self._engine_obj(fi)._run_critique_round("goal", "design")
         prompts = [r.prompt for r in fi.run_batch.call_args.args[0]]
         self.assertEqual(len(set(prompts)), 2)
 
-    def test_design_reaches_both_critics(self):
+    def test_design_reaches_both_critics(self) -> None:
         fi = _engine()
         self._engine_obj(fi)._run_critique_round("goal", "UNIQUE_DESIGN_XYZ")
         for req in fi.run_batch.call_args.args[0]:
@@ -80,24 +81,24 @@ class DeliberationCritiqueTests(unittest.TestCase):
 
 
 class TeamCritiqueTests(unittest.TestCase):
-    def _team(self, fi):
-        from saleha.core.team_orchestrator import TeamOrchestrator
+    def _team(self, fi: Any) -> Any:
+        from saleha.core.swarm.team_orchestrator import TeamOrchestrator
         t = TeamOrchestrator()
         t.inference = fi
         return t
 
-    def test_critics_run_concurrently(self):
+    def test_critics_run_concurrently(self) -> None:
         fi = _engine()
         self._team(fi)._parallel_critiques("design")
         self.assertEqual(fi.run_batch.call_count, 1)
         self.assertEqual(len(fi.run_batch.call_args.args[0]), 2)
 
-    def test_failed_review_is_marked_not_silently_empty(self):
+    def test_failed_review_is_marked_not_silently_empty(self) -> None:
         sec, sde = self._team(_engine(ok=False))._parallel_critiques("design")
         self.assertIn("NOT an all-clear", sec)
         self.assertIn("NOT an all-clear", sde)
 
-    def test_successful_reviews_pass_through(self):
+    def test_successful_reviews_pass_through(self) -> None:
         sec, sde = self._team(_engine(content="race condition in cache"))\
             ._parallel_critiques("design")
         self.assertEqual(sec, "race condition in cache")
@@ -107,11 +108,11 @@ class TeamCritiqueTests(unittest.TestCase):
 class ToTBranchRepairTests(unittest.TestCase):
     BASE = "def add(a, b):\n    return a - b\n"
 
-    def _tot(self, fi):
-        from saleha.core.tot_orchestrator import TreeOfThoughtsOrchestrator
+    def _tot(self, fi: Any) -> Any:
+        from saleha.core.loop.tot_orchestrator import TreeOfThoughtsOrchestrator
         return TreeOfThoughtsOrchestrator(inference=fi)
 
-    def test_branch_actually_uses_the_error_message(self):
+    def test_branch_actually_uses_the_error_message(self) -> None:
         """`error_msg` was accepted and never read."""
         fi = _engine(content="```python\ndef add(a, b):\n    return a + b\n```")
         self._tot(fi)._generate_branch_code(
@@ -120,13 +121,13 @@ class ToTBranchRepairTests(unittest.TestCase):
         self.assertIn("AssertionError: add(2,3) == 5", prompt)
         self.assertIn("add numbers", prompt)
 
-    def test_branch_returns_the_repaired_code(self):
+    def test_branch_returns_the_repaired_code(self) -> None:
         fi = _engine(content="```python\ndef add(a, b):\n    return a + b\n```")
         out = self._tot(fi)._generate_branch_code(self.BASE, 0, "err")
         self.assertIn("a + b", out)
         self.assertNotIn("if not True", out)   # the old cosmetic no-op
 
-    def test_branches_use_distinct_repair_strategies(self):
+    def test_branches_use_distinct_repair_strategies(self) -> None:
         fi = _engine(content="```python\nx = 1\n```")
         tot = self._tot(fi)
         prompts = []
@@ -135,23 +136,23 @@ class ToTBranchRepairTests(unittest.TestCase):
             prompts.append(fi.run.call_args.args[0].prompt)
         self.assertEqual(len(set(prompts)), 3)
 
-    def test_unreachable_model_returns_original_unchanged(self):
+    def test_unreachable_model_returns_original_unchanged(self) -> None:
         """A no-op variant scores like its parent and gets pruned -- honest.
         A cosmetic edit would look like a repair that never happened."""
         out = self._tot(_engine(ok=False))._generate_branch_code(self.BASE, 0, "err")
         self.assertEqual(out, self.BASE)
 
-    def test_empty_reply_falls_back_to_original(self):
+    def test_empty_reply_falls_back_to_original(self) -> None:
         fi = _engine(content="")
         self.assertEqual(
             self._tot(fi)._generate_branch_code(self.BASE, 0, "err"), self.BASE)
 
-    def test_branch_index_wraps_safely(self):
+    def test_branch_index_wraps_safely(self) -> None:
         fi = _engine(content="```python\nx = 1\n```")
         out = self._tot(fi)._generate_branch_code(self.BASE, 7, "err")
         self.assertIn("x = 1", out)
 
-    def test_repairs_are_not_cached(self):
+    def test_repairs_are_not_cached(self) -> None:
         """A cached repair would give every branch the same patch."""
         fi = _engine(content="```python\nx = 1\n```")
         self._tot(fi)._generate_branch_code(self.BASE, 0, "err")
@@ -173,7 +174,7 @@ class SalehaOrchestratorVerificationTests(unittest.TestCase):
     BROKEN = "def solve():\n    return 1 / 0\n\nsolve()\n"
     WORKING = "def solve():\n    return 1 + 1\n\nsolve()\n"
 
-    def _orch(self, code: str, approved: bool):
+    def _orch(self, code: str, approved: bool) -> Any:
         from saleha.agents.coder import CodeResult
         from saleha.agents.planner import PlanResult
         from saleha.agents.reviewer import ReviewResult
@@ -193,15 +194,15 @@ class SalehaOrchestratorVerificationTests(unittest.TestCase):
             approved=approved, feedback="needs work", model_used="fake-model"))
         return orch
 
-    def _run(self, orch):
+    def _run(self, orch: Any) -> Any:
         with patch("saleha.core.memory_store.memory_store.recall", return_value=None),              patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
             return orch.execute_task("do a thing", use_context=False)
 
-    def test_unapproved_broken_code_is_not_reported_as_success(self):
+    def test_unapproved_broken_code_is_not_reported_as_success(self) -> None:
         res = self._run(self._orch(self.BROKEN, approved=False))
         self.assertFalse(res.success)
 
-    def test_unapproved_code_is_actually_executed(self):
+    def test_unapproved_code_is_actually_executed(self) -> None:
         orch = self._orch(self.BROKEN, approved=False)
         spy = MagicMock(side_effect=orch.verifier.execute)
         orch.verifier.execute = spy
@@ -210,23 +211,23 @@ class SalehaOrchestratorVerificationTests(unittest.TestCase):
             spy.call_count, 1,
             "unapproved code must be executed before it is accepted")
 
-    def test_unapproved_but_working_code_is_accepted_and_flagged(self):
+    def test_unapproved_but_working_code_is_accepted_and_flagged(self) -> None:
         """Best-effort accept is fine; it just has to be honest about why."""
         res = self._run(self._orch(self.WORKING, approved=False))
         self.assertTrue(res.success)
         self.assertTrue(res.verified)
         self.assertIn("reviewer", res.unverified_reason.lower())
 
-    def test_approved_and_working_code_is_verified(self):
+    def test_approved_and_working_code_is_verified(self) -> None:
         res = self._run(self._orch(self.WORKING, approved=True))
         self.assertTrue(res.success)
         self.assertTrue(res.verified)
 
-    def test_approved_but_broken_code_still_fails(self):
+    def test_approved_but_broken_code_still_fails(self) -> None:
         res = self._run(self._orch(self.BROKEN, approved=True))
         self.assertFalse(res.success)
 
-    def test_memory_replay_is_success_but_not_verified_this_run(self):
+    def test_memory_replay_is_success_but_not_verified_this_run(self) -> None:
         from saleha.orchestrator import SalehaOrchestrator
         cached = MagicMock(code=self.WORKING, model="fake-model", hit_count=3)
         orch = SalehaOrchestrator(model="fake-model")
@@ -246,7 +247,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
     GOOD = "def solve():\n    return 1 + 1\n\nsolve()\n"
     BLOCKED = "import os\nos.system('rm -rf /')\n"
 
-    def _orch(self, code, approved=True):
+    def _orch(self, code: Any, approved: bool=True) -> Any:
         from saleha.agents.coder import CodeResult
         from saleha.agents.planner import PlanResult
         from saleha.agents.reviewer import ReviewResult
@@ -265,7 +266,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
             approved=approved, feedback="f", model_used="fake-model"))
         return o
 
-    def test_cache_records_how_the_solution_was_checked(self):
+    def test_cache_records_how_the_solution_was_checked(self) -> None:
         """
         Without a test suite the only check that ran is "it did not crash",
         which is much weaker than a passing test run. The cache stored both
@@ -279,7 +280,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
             orch.execute_task("goal", use_context=False, generate_tests=False)
         self.assertEqual(seen.get("source_type"), "ran_without_error")
 
-    def test_recall_does_not_claim_verification_that_never_happened(self):
+    def test_recall_does_not_claim_verification_that_never_happened(self) -> None:
         entry = MagicMock(code=self.GOOD, model="fake-model", hit_count=2,
                           source_type="ran_without_error")
         from saleha.orchestrator import SalehaOrchestrator
@@ -291,7 +292,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
         self.assertIn("no test suite", res.unverified_reason)
         self.assertNotIn("previously verified", res.unverified_reason)
 
-    def test_blocked_execution_checkpoints_as_failed(self):
+    def test_blocked_execution_checkpoints_as_failed(self) -> None:
         """
         This exit had no checkpoint, so the session stayed "in_progress" and
         `--resume` would pick a blocked task back up. It also skipped
@@ -306,7 +307,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertEqual(states[-1], "failed")
 
-    def test_resume_does_not_rematch_a_different_profile(self):
+    def test_resume_does_not_rematch_a_different_profile(self) -> None:
         """
         On resume the checkpoint's profile is authoritative. Re-deriving it
         could select a different profile than the run being resumed, which

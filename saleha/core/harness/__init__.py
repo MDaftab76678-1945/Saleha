@@ -17,18 +17,18 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
-from saleha.core.approval_gate import ApprovalGate, approval_gate
-from saleha.core.benchmark_harness import BenchmarkHarness, benchmark_harness
-from saleha.core.code_executor import CodeExecutor, code_executor
-from saleha.core.sandbox_runner import SandboxRunner, sandbox_runner
-from saleha.core.swebench_runner import (
+from saleha.core.harness.approval_gate import ApprovalGate, approval_gate
+from saleha.core.harness.benchmark_harness import BenchmarkHarness, benchmark_harness
+from saleha.core.harness.code_executor import CodeExecutor, code_executor
+from saleha.core.harness.sandbox_runner import SandboxRunner, sandbox_runner
+from saleha.core.harness.swebench_runner import (
     SWEBenchBenchmarkReport,
     SWEBenchRunner,
     SWEBenchTask,
     SWEBenchTaskOutcome,
     swebench_runner,
 )
-from saleha.core.test_runner import SuiteFailure, TestRunner, TestSuiteResult, test_runner
+from saleha.core.harness.test_runner import SuiteFailure, TestRunner, TestSuiteResult, test_runner
 
 
 @dataclass

@@ -1,21 +1,21 @@
 """Unit tests for Swarm PBFT Consensus Protocol."""
 
 import unittest
-from saleha.core.swarm_consensus import SwarmPBFTConsensus, SwarmProposal, ConsensusDecision
+from saleha.core.swarm.swarm_consensus import SwarmPBFTConsensus, SwarmProposal, ConsensusDecision
 
 
 class TestSwarmConsensus(unittest.TestCase):
     """Test suite for SwarmPBFTConsensus Byzantine Fault Tolerance and quorum voting."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.consensus = SwarmPBFTConsensus(["AgentA", "AgentB", "AgentC", "AgentD"])
 
-    def test_propose_creates_proposal(self):
+    def test_propose_creates_proposal(self) -> None:
         prop = self.consensus.propose("AgentA", "auth.py", "def login(): pass")
         self.assertIsInstance(prop, SwarmProposal)
         self.assertEqual(prop.proposer_agent_id, "AgentA")
 
-    def test_quorum_consensus_achieved(self):
+    def test_quorum_consensus_achieved(self) -> None:
         prop = self.consensus.propose("AgentA", "auth.py", "def login(): pass")
         for v in ["AgentA", "AgentB", "AgentC"]:
             self.consensus.cast_prepare_vote(prop.proposal_id, v, True)
@@ -26,7 +26,7 @@ class TestSwarmConsensus(unittest.TestCase):
         self.assertTrue(dec.committed)
         self.assertEqual(dec.prepare_votes, 3)
 
-    def test_rejection_when_votes_insufficient(self):
+    def test_rejection_when_votes_insufficient(self) -> None:
         prop = self.consensus.propose("AgentA", "bad.py", "malicious_code()")
         self.consensus.cast_prepare_vote(prop.proposal_id, "AgentA", True)
         self.consensus.cast_prepare_vote(prop.proposal_id, "AgentB", False)
@@ -34,12 +34,12 @@ class TestSwarmConsensus(unittest.TestCase):
         dec = self.consensus.evaluate_consensus(prop.proposal_id)
         self.assertFalse(dec.committed)
 
-    def test_unauthorized_voter_rejected(self):
+    def test_unauthorized_voter_rejected(self) -> None:
         prop = self.consensus.propose("AgentA", "mod.py", "pass")
         with self.assertRaises(PermissionError):
             self.consensus.cast_prepare_vote(prop.proposal_id, "RogueHackerAgent", True)
 
-    def test_duplicate_vote_not_counted_twice(self):
+    def test_duplicate_vote_not_counted_twice(self) -> None:
         prop = self.consensus.propose("AgentA", "mod.py", "pass")
         # AgentA votes 5 times
         for _ in range(5):
@@ -50,7 +50,7 @@ class TestSwarmConsensus(unittest.TestCase):
         self.assertEqual(dec.prepare_votes, 1)
         self.assertFalse(dec.committed)
 
-    def test_confidence_weighted_consensus_high_confidence(self):
+    def test_confidence_weighted_consensus_high_confidence(self) -> None:
         weighted_consensus = SwarmPBFTConsensus(
             ["ArchitectAgent", "SecurityAgent", "TesterAgent", "CoderAgent"],
             weights={"ArchitectAgent": 2.0, "SecurityAgent": 2.5, "TesterAgent": 1.5, "CoderAgent": 1.0}
@@ -66,7 +66,7 @@ class TestSwarmConsensus(unittest.TestCase):
         self.assertTrue(dec.committed)
         self.assertIn("CP-WBFT Weighted Consensus", dec.summary)
 
-    def test_confidence_weighted_consensus_low_confidence_rejected(self):
+    def test_confidence_weighted_consensus_low_confidence_rejected(self) -> None:
         weighted_consensus = SwarmPBFTConsensus(
             ["ArchitectAgent", "SecurityAgent", "TesterAgent", "CoderAgent"],
             weights={"ArchitectAgent": 1.0, "SecurityAgent": 1.0, "TesterAgent": 1.0, "CoderAgent": 1.0}

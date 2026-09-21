@@ -55,7 +55,7 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
     Example with real tests: saleha run "Build roman numerals converter" --tests
     Resume after crash: saleha run --resume
     """
-    from saleha.core.code_executor import CodeExecutor
+    from saleha.core.harness.code_executor import CodeExecutor
     if resume and goal:
         raise click.UsageError('--resume ke saath GOAL mat do -- saved session ka goal use hota hai.')
     if not goal and (not resume):
@@ -144,7 +144,7 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
 
     Example: saleha agent "find all API endpoints missing auth checks" --dir ./src
     """
-    from saleha.core.agentic_loop import AgentLoop
+    from saleha.core.loop.agentic_loop import AgentLoop
     from saleha.agents.base_agent import BaseAgent
     # The tool list here was hardcoded and stale: it omitted get_file_outline,
     # find_symbols and -- most misleadingly -- patch_file, the tool a user has
@@ -421,7 +421,7 @@ def status() -> None:
     except OSError:
         ollama_alive = False
     if ollama_alive:
-        from saleha.core.smart_router import get_installed_ollama_models
+        from saleha.core.platform.smart_router import get_installed_ollama_models
         live_models = get_installed_ollama_models()
         if live_models:
             console.print(f'[green]✅ Ollama:[/] Connected ({len(live_models)} model(s) installed)')
@@ -580,7 +580,7 @@ def tui_cmd(model: str) -> None:
 @click.argument('execution_id')
 def resume_cli_cmd(execution_id: str) -> None:
     """Resume an interrupted swarm execution from its last saved checkpoint."""
-    from saleha.core.swarm_pipeline_engine import swarm_engine
+    from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
     from saleha.cli.swarm_visualizer import visualizer
     console.print(f'[bold cyan]🔄 Resuming Swarm Execution:[/] [yellow]{execution_id}[/]')
     try:

@@ -67,7 +67,7 @@ class PersonaDebateEngine:
         self.model = model
 
         if provider is None and (model == "mock" or os.environ.get("SALEHA_TEST_MODE") == "1"):
-            from saleha.core.model_provider import MockProvider
+            from saleha.core.platform.model_provider import MockProvider
             provider = MockProvider()
 
         self.proposer_agent = BaseAgent(role=f"Lead Systems {proposer_persona}", model=model, provider=provider)

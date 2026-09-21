@@ -14,25 +14,25 @@ and autonomous self-healing execution:
 
 from __future__ import annotations
 
-from saleha.core.git_native import (
+from saleha.core.platform.git_native import (
     GitAutomationEngine,
     GitCommitResult,
     GitNativeManager,
     git_engine,
     git_native,
 )
-from saleha.core.lsp_engine import (
+from saleha.core.platform.lsp_engine import (
     DiagnosticReport,
     LSPDiagnostic,
     LSPEngine,
     lsp_engine,
 )
-from saleha.core.mcp_hub import (
+from saleha.core.platform.mcp_hub import (
     MCPServerConfig,
     UniversalMCPHub,
     mcp_hub,
 )
-from saleha.core.model_provider import (
+from saleha.core.platform.model_provider import (
     FallbackChainProvider,
     MockProvider,
     ModelProvider,
@@ -42,15 +42,26 @@ from saleha.core.model_provider import (
     default_provider,
     model_provider,
 )
-from saleha.core.self_healer import (
+from saleha.core.platform.self_healer import (
     SelfHealer,
     SelfHealingEngine,
-    self_healer,
 )
-from saleha.core.smart_router import (
+from saleha.core.platform.smart_router import (
     SmartRouter,
     smart_router,
 )
+
+
+def __getattr__(name: str):
+    # `self_healer` is a lazy singleton (see self_healer.py): constructing it
+    # imports saleha.agents.base_agent, which imports
+    # saleha.core.platform.model_provider -- importing it eagerly here, at
+    # this package's own load time, would be a circular import.
+    if name == "self_healer":
+        from saleha.core.platform.self_healer import self_healer
+
+        return self_healer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "SmartRouter",

@@ -20,8 +20,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.emergence_detector import emergence_detector
 from saleha.core.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
@@ -102,6 +101,11 @@ class TeamOrchestrator:
         return out[0], out[1]
 
     def _get_agent(self, profile_id: str, default_role_name: str) -> BaseAgent:
+        # Lazy import: saleha.core.agent_profile_loader imports saleha.agents,
+        # whose __init__ imports issue_resolver -> this package -- a circular
+        # import if this ran at module-load time.
+        from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
+
         profile = profile_registry.get(profile_id)
         if profile:
             return ProfileAgent(profile=profile, model=self.model)
@@ -300,7 +304,7 @@ Format output as:
         high_findings: list = []
         if security_verdict == "VULNERABLE":
             try:
-                from saleha.core.security_scanner import ASTSecurityScanner
+                from saleha.core.verification.security_scanner import ASTSecurityScanner
                 high_findings = [
                     v for v in ASTSecurityScanner().scan_code(extracted_code)
                     if v.severity == "HIGH"

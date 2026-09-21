@@ -79,7 +79,7 @@ class AutonomousRepoOrchestrator:
         self.repo_path = repo_path
 
     def _engine(self) -> Any:
-        from saleha.core.git_native import GitAutomationEngine
+        from saleha.core.platform.git_native import GitAutomationEngine
         return GitAutomationEngine(repo_path=self.repo_path)
 
     @staticmethod

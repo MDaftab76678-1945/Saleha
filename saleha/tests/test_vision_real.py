@@ -13,10 +13,11 @@ from saleha.core.vision_backend import (
     load_image_b64,
 )
 from saleha.core.vision_coder import VisionCoder
+from typing import Any
 
 
 class LoadImageTests(unittest.TestCase):
-    def test_file_path_loads_base64(self):
+    def test_file_path_loads_base64(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             f.write(b"\x89PNG\r\n\x1a\n" + b"pixeldata" * 10)
             path = f.name
@@ -27,18 +28,18 @@ class LoadImageTests(unittest.TestCase):
         finally:
             os.remove(path)
 
-    def test_data_url_parsed(self):
+    def test_data_url_parsed(self) -> None:
         raw = base64.b64encode(b"imgbytes").decode()
         b64, note = load_image_b64(f"data:image/png;base64,{raw}")
         self.assertEqual(base64.b64decode(b64), b"imgbytes")
         self.assertEqual(note, "data-url")
 
-    def test_raw_base64_accepted(self):
+    def test_raw_base64_accepted(self) -> None:
         raw = base64.b64encode(b"x" * 20).decode()
         b64, note = load_image_b64(raw)
         self.assertEqual(note, "raw-base64")
 
-    def test_garbage_rejected(self):
+    def test_garbage_rejected(self) -> None:
         with self.assertRaises(ValueError):
             load_image_b64("")
         with self.assertRaises(ValueError):
@@ -46,30 +47,30 @@ class LoadImageTests(unittest.TestCase):
 
 
 class FindVisionModelTests(unittest.TestCase):
-    def test_prefers_installed_vision_model(self):
-        with patch("saleha.core.smart_router.get_installed_ollama_models",
+    def test_prefers_installed_vision_model(self) -> None:
+        with patch("saleha.core.platform.smart_router.get_installed_ollama_models",
                    return_value={"qwen2.5-coder:7b", "llava:13b"}):
             self.assertEqual(find_vision_model(), "llava:13b")
 
-    def test_none_when_only_text_models(self):
-        with patch("saleha.core.smart_router.get_installed_ollama_models",
+    def test_none_when_only_text_models(self) -> None:
+        with patch("saleha.core.platform.smart_router.get_installed_ollama_models",
                    return_value={"qwen2.5-coder:7b", "deepseek-r1:8b"}):
             self.assertIsNone(find_vision_model())
 
 
-def _urlopen_cm(payload):
+def _urlopen_cm(payload: Any) -> Any:
     class R:
         status = 200
-        def read(self): return json.dumps(payload).encode()
-        def json(self): return payload
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def raise_for_status(self): pass
+        def read(self) -> Any: return json.dumps(payload).encode()
+        def json(self) -> Any: return payload
+        def __enter__(self) -> Any: return self
+        def __exit__(self, *a: Any) -> Any: return False
+        def raise_for_status(self) -> None: pass
     return MagicMock(return_value=R())
 
 
 class GenerateFromImageTests(unittest.TestCase):
-    def test_happy_path_returns_code_and_model(self):
+    def test_happy_path_returns_code_and_model(self) -> None:
         payload = {"response": "Here you go:\n```tsx\nexport default const X = 1;\n```"}
         with patch("requests.post", side_effect=_urlopen_cm(payload)) as mock_post:
             code, model = generate_code_from_image(
@@ -80,13 +81,13 @@ class GenerateFromImageTests(unittest.TestCase):
         self.assertEqual(sent["images"], ["abc123"])          # image b64 gaya
         self.assertIn("screenshot", sent["prompt"].lower())
 
-    def test_no_vision_model_returns_none(self):
+    def test_no_vision_model_returns_none(self) -> None:
         with patch("saleha.core.vision_backend.find_vision_model", return_value=None):
             code, model = generate_code_from_image("abc", "spec", "sys")
         self.assertIsNone(code)
         self.assertEqual(model, "")
 
-    def test_http_failure_returns_none_not_crash(self):
+    def test_http_failure_returns_none_not_crash(self) -> None:
         import requests as _req
         with patch("saleha.core.vision_backend.find_vision_model",
                    return_value="llava:13b"), \
@@ -96,7 +97,7 @@ class GenerateFromImageTests(unittest.TestCase):
 
 
 class VisionCoderIntegrationTests(unittest.TestCase):
-    def test_image_source_uses_vision_path(self):
+    def test_image_source_uses_vision_path(self) -> None:
         vc = VisionCoder(model="m")
         with patch("saleha.core.vision_backend.generate_code_from_image") as gen, \
              patch("saleha.core.vision_backend.load_image_b64",
@@ -109,7 +110,7 @@ class VisionCoderIntegrationTests(unittest.TestCase):
         self.assertIn("Hero", res.code)
         self.assertIn("vision", res.source_note)
 
-    def test_vision_fail_falls_back_to_template(self):
+    def test_vision_fail_falls_back_to_template(self) -> None:
         vc = VisionCoder(model="m")
         with patch("saleha.core.vision_backend.generate_code_from_image",
                    return_value=(None, "")), \
@@ -122,7 +123,7 @@ class VisionCoderIntegrationTests(unittest.TestCase):
         # orchestrator fail -> template
         self.assertIn("Saleha Vision Engine", res.code)
 
-    def test_dry_run_template_still_works(self):
+    def test_dry_run_template_still_works(self) -> None:
         vc = VisionCoder(model="m")
         res = vc.synthesize_ui("button", dry_run=True)
         self.assertFalse(res.used_vision)

@@ -325,7 +325,7 @@ def history(limit: int, failed_only: bool, as_json: bool) -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable summary + tail')
 def metrics(tail: int, as_json: bool) -> None:
     """Show run success-rate, avg attempts, per-model stats & recent events."""
-    from saleha.core.metrics import metrics_tracker
+    from saleha.core.telemetry.metrics import metrics_tracker
     summary = metrics_tracker.summary()
     recent = metrics_tracker.tail(limit=tail)
     if as_json:
@@ -439,7 +439,7 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
     """Diagnose local environment, Ollama models, Git, Sandbox, and Vault."""
     import shutil
     import subprocess
-    from saleha.core.smart_router import get_installed_ollama_models
+    from saleha.core.platform.smart_router import get_installed_ollama_models
     checks = []
     py_ver = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
     checks.append({'component': 'Python Environment', 'status': 'PASS' if sys.version_info >= (3, 9) else 'FAIL', 'detail': f'Python {py_ver} (64-bit)' if sys.maxsize > 2 ** 32 else f'Python {py_ver}'})
@@ -561,12 +561,12 @@ def lsp_cmd(target: str, as_json: bool) -> None:
     
     Example: saleha lsp ./src
     """
-    from saleha.core.lsp_engine import lsp_engine
+    from saleha.core.platform.lsp_engine import lsp_engine
     if os.path.isfile(target):
         diags = _cmds.lsp_engine.check_file(target)
         errs = sum((1 for d in diags if d.severity == 'ERROR'))
         warns = sum((1 for d in diags if d.severity == 'WARNING'))
-        from saleha.core.lsp_engine import DiagnosticReport
+        from saleha.core.platform.lsp_engine import DiagnosticReport
         is_py = target.endswith('.py')
         report = DiagnosticReport(
             total_diagnostics=len(diags), error_count=errs, warning_count=warns, diagnostics=diags,
@@ -931,7 +931,7 @@ def multi_repo_scan_cmd(workspace_dir: str) -> None:
     
     Example: saleha multi-repo scan .
     """
-    from saleha.core.multi_repo_graph import multi_repo_graph
+    from saleha.core.graph.multi_repo_graph import multi_repo_graph
     console.print(f'[bold cyan]🏢 Scanning multi-repository workspace:[/] [yellow]{workspace_dir}[/]')
     meta = multi_repo_graph.scan_workspace(workspace_dir)
     table = Table(title='🏢 Multi-Repository Swarm Index', show_header=True, header_style='bold blue', expand=True)

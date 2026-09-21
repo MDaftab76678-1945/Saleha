@@ -4,7 +4,7 @@ Unit & Integration Tests for Autonomous Issue & PR Resolver Bot & Live Wiring
 
 import unittest
 from saleha.agents.issue_resolver import AutonomousIssueResolver, IssueResolutionPlan, issue_resolver
-from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 
 
 class AutonomousIssueResolverTests(unittest.TestCase):

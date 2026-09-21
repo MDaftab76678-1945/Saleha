@@ -11,7 +11,7 @@ import json
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 from saleha.core.mech_interp import code_structure_engine
 
 SIDECAR_HTML = """<!DOCTYPE html>

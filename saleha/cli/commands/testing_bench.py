@@ -346,7 +346,7 @@ def benchmark_eval_cmd(model: str) -> None:
     
     Example: saleha benchmark-eval
     """
-    from saleha.core.benchmark_harness import BenchmarkHarness
+    from saleha.core.harness.benchmark_harness import BenchmarkHarness
     console.print(Panel('[bold yellow]📊 Saleha Autonomous Evaluation Benchmark Harness[/bold yellow]', border_style='yellow'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), transient=True) as progress:
         progress.add_task(description='Evaluating benchmark task suite...', total=None)
@@ -374,7 +374,7 @@ def swebench_eval_cmd() -> None:
     
     Example: saleha swebench-eval
     """
-    from saleha.core.swebench_runner import swebench_runner
+    from saleha.core.harness.swebench_runner import swebench_runner
     rep = swebench_runner.run_benchmark_suite()
     console.print(Panel(f'[bold cyan]📊 SWE-Bench Benchmark Scorecard[/bold cyan]\n{rep.summary}', border_style='cyan'))
 

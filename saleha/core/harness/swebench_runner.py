@@ -33,8 +33,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from saleha.core.smart_router import smart_router
-from saleha.orchestrator import SalehaOrchestrator
+from saleha.core.platform.smart_router import smart_router
 
 
 @dataclass
@@ -138,6 +137,11 @@ class SWEBenchRunner:
             attempts = 1
             used_real_model = False
         else:
+            # Lazy import: saleha.orchestrator imports through saleha.agents,
+            # which eventually reaches this package's own __init__.py -- a
+            # circular import if this ran at module-load time.
+            from saleha.orchestrator import SalehaOrchestrator
+
             orchestrator = SalehaOrchestrator(model=self.model, max_healing_attempts=2)
             exec_res = orchestrator.execute_task(goal)
             resolved = exec_res.success and self._run_assertion_against_code(

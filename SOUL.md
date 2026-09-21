@@ -20,7 +20,7 @@ These principles are meant to govern every plan, diff, and test run I produce. T
 
 I will not claim a mathematical or formal proof exists unless a real theorem-proving or SMT toolchain actually produced and checked one. The two verifiers differ, and the distinction matters:
 
-- `saleha/core/formal_smt_verifier.py` **does** invoke Z3 for real. It proves division-by-zero safety and `seq[i]` in-bounds obligations, including linear expressions in divisors (pass 39, pass 67). Its results are genuine proofs, labelled `proven_safe` / `not_proven`.
+- `saleha/core/verification/formal_smt_verifier.py` **does** invoke Z3 for real. It proves division-by-zero safety and `seq[i]` in-bounds obligations, including linear expressions in divisors (pass 39, pass 67). Its results are genuine proofs, labelled `proven_safe` / `not_proven`.
 - `saleha/core/formal_verifier.py` generates Lean 4-*shaped text* as a template — it does not invoke Lean, which would need `elan`/`lake`/Mathlib (several GB, not installed here). Its output is correctly labelled `lean_verified=False` / "UNVERIFIED SCAFFOLD".
 
 I describe scaffold output as a draft, never as a verified proof, and I expect anyone extending this codebase to do the same.
@@ -73,7 +73,7 @@ Autonomy is bounded by `approval_gate.py`/`execution_policy.py`. Destructive or 
 The mechanism behind "which voice is Saleha speaking in right now" is the **souls** system, and it is real and working code, not just this document's framing device.
 
 - Each persona lives under `souls/<name>/` as a `soul.json` (name, display name, version, archetype, tags, `cognitive_params` such as temperature/top_p, and an `allowed_tools` list), validated against a versioned schema in `souls/schema/v1/soul.json`, plus prose files `SOUL.md`, `IDENTITY.md`, and `STYLE.md`.
-- `saleha/core/soul_engine.py` discovers and loads these packages (`SoulPackage`) and renders them into a system prompt via `render_system_prompt()`, combining the persona's description, its invariants (from `SOUL.md`), and its communication style (from `STYLE.md`).
+- `saleha/core/cognitive/soul_engine.py` discovers and loads these packages (`SoulPackage`) and renders them into a system prompt via `render_system_prompt()`, combining the persona's description, its invariants (from `SOUL.md`), and its communication style (from `STYLE.md`).
 - Ten personas ship today: **architect** (systems/DDD-focused), **artisan**, **auditor**, **sage**, **sentinel** (security-focused), **sovereign**, **speedrunner** (perf-focused), **sre**, **alchemist**, and **minimalist**. `saleha soul list`/`saleha soul use <name>` (and `saleha/cli/soul_cli.py`) expose this from the CLI.
 - What this changes in practice: the system prompt, sampling parameters, and which tools an agent is allowed to call. It does not change the underlying model's weights or give the agent new capabilities beyond what the base model and available tools support — it's a structured way to constrain and flavor agent behavior consistently, which is a genuinely useful pattern for a team standardizing on house style or safety posture.
 

@@ -5,25 +5,26 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-from saleha.core.vector_store import VectorStore
+from saleha.core.rag.vector_store import VectorStore
 from saleha.core.embedding_backends import OllamaEmbedder, dense_dot
-from saleha.core.approval_gate import approve, get_mode, requires_approval
-from saleha.core.metrics import MetricsTracker
+from saleha.core.harness.approval_gate import approve, get_mode, requires_approval
+from saleha.core.telemetry.metrics import MetricsTracker
+from typing import Any
 
 
 # ---------------- B1: Embeddings ----------------
 
 class _FakeDenseEmbedder:
     """Deterministic 3-d vectors for testing (already normalized-ish)."""
-    def __init__(self):
+    def __init__(self) -> None:
         self.map = {}
         self.available_called = 0
 
-    def available(self):
+    def available(self) -> Any:
         self.available_called += 1
         return True
 
-    def embed_batch(self, texts):
+    def embed_batch(self, texts: Any) -> Any:
         out = []
         for t in texts:
             if "lock" in t:
@@ -36,7 +37,7 @@ class _FakeDenseEmbedder:
 
 
 class DenseVectorStoreTests(unittest.TestCase):
-    def test_dense_mode_ranks_semantically(self):
+    def test_dense_mode_ranks_semantically(self) -> None:
         emb = _FakeDenseEmbedder()
         vs = VectorStore(dense_embedder=emb)
         vs.add_documents([
@@ -47,7 +48,7 @@ class DenseVectorStoreTests(unittest.TestCase):
         self.assertEqual(vs.mode, "dense")
         self.assertEqual(hits[0].doc_id, "a")
 
-    def test_fallback_to_sparse_when_dense_unavailable(self):
+    def test_fallback_to_sparse_when_dense_unavailable(self) -> None:
         bad = OllamaEmbedder()
         vs = VectorStore(dense_embedder=bad)
         with patch.object(bad, "available", return_value=False):
@@ -56,10 +57,10 @@ class DenseVectorStoreTests(unittest.TestCase):
         self.assertEqual(vs.mode, "sparse")
         self.assertEqual(hits[0].doc_id, "a")
 
-    def test_mid_run_embed_failure_degrades_gracefully(self):
+    def test_mid_run_embed_failure_degrades_gracefully(self) -> Any:
         emb = _FakeDenseEmbedder()
 
-        def flaky(texts):
+        def flaky(texts: Any) -> Any:
             if len(texts) > 1:
                 return None  # reindex batch fail
             return [[0.0, 0.0, 1.0]] * len(texts)
@@ -72,21 +73,21 @@ class DenseVectorStoreTests(unittest.TestCase):
         self.assertEqual(hits[0].doc_id, "a")
         self.assertEqual(vs.mode, "sparse")
 
-    def test_ollama_embedder_parses_payload(self):
+    def test_ollama_embedder_parses_payload(self) -> Any:
         emb = OllamaEmbedder()
 
         class R:
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
+            def __enter__(self) -> Any: return self
+            def __exit__(self, *a: Any) -> Any: return False
             status = 200
-            def read(self_inner):
+            def read(self_inner: Any) -> Any:
                 return json.dumps({"embeddings": [[3.0, 4.0]]}).encode()
 
         with patch("urllib.request.urlopen", return_value=R()):
             vecs = emb.embed_batch(["hello"])
         self.assertEqual(vecs, [[0.6, 0.8]])  # normalized (3,4)->(.6,.8)
 
-    def test_dense_dot_similarity(self):
+    def test_dense_dot_similarity(self) -> None:
         self.assertAlmostEqual(dense_dot([1, 0], [1, 0]), 1.0)
         self.assertAlmostEqual(dense_dot([1, 0], [0, 1]), 0.0)
 
@@ -94,26 +95,26 @@ class DenseVectorStoreTests(unittest.TestCase):
 # ---------------- B2: Approval Gate ----------------
 
 class ApprovalGateTests(unittest.TestCase):
-    def tearDown(self):
+    def tearDown(self) -> None:
         os.environ.pop("SALEHA_APPROVAL", None)
 
-    def test_default_mode_off_auto_approves_everything(self):
+    def test_default_mode_off_auto_approves_everything(self) -> None:
         os.environ.pop("SALEHA_APPROVAL", None)
         self.assertEqual(get_mode(), "off")
         self.assertTrue(approve("shell_exec", "rm something", confirmer=lambda p: False))
 
-    def test_dangerous_mode_gates_only_dangerous_actions(self):
+    def test_dangerous_mode_gates_only_dangerous_actions(self) -> None:
         os.environ["SALEHA_APPROVAL"] = "dangerous"
         denied = []
         ok = approve("shell_exec", "run build", confirmer=lambda p: denied.append(p) or False)
         self.assertFalse(ok)
         self.assertTrue(approve("read_docs", "harmless", confirmer=lambda p: False))
 
-    def test_always_mode_gates_everything(self):
+    def test_always_mode_gates_everything(self) -> None:
         os.environ["SALEHA_APPROVAL"] = "always"
         self.assertTrue(requires_approval("read_docs"))
 
-    def test_approved_path_returns_true(self):
+    def test_approved_path_returns_true(self) -> None:
         os.environ["SALEHA_APPROVAL"] = "always"
         self.assertTrue(approve("git_commit", "msg", confirmer=lambda p: True))
 
@@ -121,10 +122,10 @@ class ApprovalGateTests(unittest.TestCase):
 # ---------------- B3: Metrics ----------------
 
 class MetricsTests(unittest.TestCase):
-    def _store(self, tmp):
+    def _store(self, tmp: Any) -> Any:
         return MetricsTracker(os.path.join(tmp, "metrics.jsonl"))
 
-    def test_record_and_tail_roundtrip(self):
+    def test_record_and_tail_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             m = self._store(tmp)
             m.record("run_completed", success=True, attempts=2, model="m1", duration_sec=1.5)
@@ -133,7 +134,7 @@ class MetricsTests(unittest.TestCase):
             self.assertEqual(len(events), 2)
             self.assertEqual(events[0]["attempts"], 2)
 
-    def test_summary_math(self):
+    def test_summary_math(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             m = self._store(tmp)
             m.record("run_completed", success=True, attempts=1, model="fast", duration_sec=1.0)
@@ -148,7 +149,7 @@ class MetricsTests(unittest.TestCase):
             self.assertEqual(s["by_model"]["fast"]["wins"], 2)
             self.assertAlmostEqual(s["avg_duration_sec"], 4.0)
 
-    def test_empty_store_summary_safe(self):
+    def test_empty_store_summary_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             s = self._store(tmp).summary()
             self.assertEqual(s["total_runs"], 0)

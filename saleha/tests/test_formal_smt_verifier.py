@@ -8,7 +8,7 @@ These check real behaviour -- Z3 either proves the guard or it does not.
 import unittest
 from typing import Callable, TypeVar
 
-from saleha.core.formal_smt_verifier import FormalSMTVerifier, Z3_AVAILABLE
+from saleha.core.verification.formal_smt_verifier import FormalSMTVerifier, Z3_AVAILABLE
 
 _F = TypeVar("_F", bound=Callable)
 

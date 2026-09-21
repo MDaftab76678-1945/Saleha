@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.dependency_graph import CodebaseDependencyGraph
+from saleha.core.graph.dependency_graph import CodebaseDependencyGraph
 
 
 class DependencyGraphTests(unittest.TestCase):

@@ -53,7 +53,7 @@ class TaskSchedulerTests(unittest.TestCase):
         t = self.engine.register_task("* * * * *", "x")
         fake_result = MagicMock(success=True, code="print(1)")
         with patch(
-            "saleha.core.team_orchestrator.TeamOrchestrator.run_team_workflow",
+            "saleha.core.swarm.team_orchestrator.TeamOrchestrator.run_team_workflow",
             return_value=fake_result,
         ):
             result = self.engine.trigger_task_now(t.task_id)

@@ -1,5 +1,5 @@
 import unittest
-from saleha.core.vector_store import VectorStore, SparseVectorEmbedder, cosine_similarity
+from saleha.core.rag.vector_store import VectorStore, SparseVectorEmbedder, cosine_similarity
 from saleha.core.memory_store import MemoryStore
 
 

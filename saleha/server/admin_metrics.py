@@ -5,15 +5,15 @@ Every figure this module returns is read from data the system actually recorded
 during real use. Sources that look like telemetry but are not are deliberately
 excluded, and the reasons are documented here so nobody re-adds them by mistake:
 
-- ``saleha.core.token_analytics`` is NOT surfaced. Its code is real, but nothing
-  in the product ever calls ``record_invocation()`` -- the only writer in the
-  repository is a test. The values on disk are identical synthetic fixtures, and
-  ``gpt4o_equivalent_saved`` is a fixed multiple of the Claude figure rather than
-  anything computed from GPT-4o rates. Showing token counts or "dollars saved"
-  from it would be inventing numbers.
-- ``saleha.core.session_tracer`` records genuine timings, but the singleton is
-  per-process and the web server never opens spans, so it would always report an
-  empty trace here.
+- ``saleha.core.telemetry.token_analytics`` is NOT surfaced. Its code is real,
+  but nothing in the product ever calls ``record_invocation()`` -- the only
+  writer in the repository is a test. The values on disk are identical
+  synthetic fixtures, and ``gpt4o_equivalent_saved`` is a fixed multiple of
+  the Claude figure rather than anything computed from GPT-4o rates. Showing
+  token counts or "dollars saved" from it would be inventing numbers.
+- ``saleha.core.telemetry.session_tracer`` records genuine timings, but the
+  singleton is per-process and the web server never opens spans, so it would
+  always report an empty trace here.
 - ``NanosecondLatencyHistogram`` has no shared instance and persists nothing;
   every caller builds a throwaway one.
 - ``/api/vault/ticker`` returns fixed mock prices (``DoomVaultFinTech.MOCK_PRICES``),
@@ -88,7 +88,7 @@ def runs(limit: int = 20) -> Dict[str, Any]:
     metrics.jsonl, so the result is reported as recent activity rather than an
     all-time total.
     """
-    from saleha.core.metrics import metrics_tracker
+    from saleha.core.telemetry.metrics import metrics_tracker
 
     summary = metrics_tracker.summary()
     recent = metrics_tracker.tail(limit=limit)
@@ -107,7 +107,7 @@ def audit(limit: int = 25) -> Dict[str, Any]:
     safety guard return their verdicts to the caller without persisting them, so
     denial counts have to come from here.
     """
-    from saleha.core.audit_log import audit_log
+    from saleha.core.telemetry.audit_log import audit_log
 
     recent = audit_log.recent(limit)
     blocked = _audit_cache.get_or_compute("blocked", lambda: audit_log.blocked_entries())
@@ -215,7 +215,7 @@ def overview() -> Dict[str, Any]:
     still render, and the failure is reported rather than shown as a zero.
     """
     from saleha import __version__
-    from saleha.core.approval_gate import approval_gate
+    from saleha.core.harness.approval_gate import approval_gate
 
     sections: Dict[str, Any] = {}
     errors: Dict[str, str] = {}

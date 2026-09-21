@@ -2,7 +2,7 @@
 
 import unittest
 from saleha.core.silicon_scanner import SiliconScanner, silicon_scanner
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 class TestSiliconScanner(unittest.TestCase):

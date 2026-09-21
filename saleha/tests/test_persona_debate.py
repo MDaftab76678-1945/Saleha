@@ -4,7 +4,7 @@ Unit tests for Saleha Core: Multi-Persona Adversarial Debate Engine
 
 import os
 import unittest
-from saleha.core.persona_debate import (
+from saleha.core.cognitive.persona_debate import (
     PersonaDebateEngine,
     PersonaTurn,
     DebateRound,

@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
-from saleha.core.dependency_graph import dependency_graph
+from saleha.core.graph.dependency_graph import dependency_graph
 from saleha.core.path_utils import safe_relpath
 
 

@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
 
-from saleha.core.soul_engine import soul_engine
+from saleha.core.cognitive.soul_engine import soul_engine
 
 console = Console(safe_box=True)
 

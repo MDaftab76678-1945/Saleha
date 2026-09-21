@@ -23,11 +23,11 @@ The SMT tests stay, because that module genuinely runs Z3.
 
 import unittest
 
-from saleha.core.formal_smt_verifier import (
+from saleha.core.verification.formal_smt_verifier import (
     FormalSMTVerifier,
     FormalProofContract,
 )
-from saleha.core.apex_97_validator import (
+from saleha.core.verification.apex_97_validator import (
     Apex97Validator,
     apex_97_validator,
     Apex97CertificationReport,
@@ -37,16 +37,16 @@ from saleha.core.apex_97_validator import (
 class FormalSMTTests(unittest.TestCase):
     """These check real behaviour: Z3 either proves the guard or it does not."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.verifier = FormalSMTVerifier()
 
-    def test_a_function_with_no_division_has_nothing_to_prove(self):
+    def test_a_function_with_no_division_has_nothing_to_prove(self) -> None:
         code = 'def solve(x: int) -> dict:\n    return {"res": x}\n'
         proof: FormalProofContract = self.verifier.verify_function_contract(
             code, function_name="solve")
         self.assertEqual(proof.divisions_found, 0)
 
-    def test_a_guarded_division_is_proven_safe(self):
+    def test_a_guarded_division_is_proven_safe(self) -> None:
         if not self.verifier.verify_function_contract(
                 "def f(a, b):\n    return a\n", function_name="f").z3_available:
             self.skipTest("z3-solver is not installed (it lives in the "
@@ -58,7 +58,7 @@ class FormalSMTTests(unittest.TestCase):
             guarded, function_name="safe_ratio")
         self.assertEqual(proof.divisions_proven_safe, 1)
 
-    def test_z3_availability_is_reported_not_assumed(self):
+    def test_z3_availability_is_reported_not_assumed(self) -> None:
         """
         The old test asserted `proof.z3_available` outright, so a clean install
         without the [formal] extra failed with an unhelpful `False is not
@@ -73,14 +73,14 @@ class FormalSMTTests(unittest.TestCase):
 
 class Apex97TargetTests(unittest.TestCase):
 
-    def test_report_is_labelled_as_unmeasured(self):
+    def test_report_is_labelled_as_unmeasured(self) -> None:
         """The property the module must never lose."""
         report: Apex97CertificationReport = (
             apex_97_validator.run_apex_certification())
         self.assertFalse(report.is_measured)
         self.assertIn("no benchmark", report.status_note.lower())
 
-    def test_targets_are_present_but_carry_no_rank_or_certificate(self):
+    def test_targets_are_present_but_carry_no_rank_or_certificate(self) -> None:
         report = Apex97Validator().run_apex_certification()
         self.assertEqual(len(report.domains), 8)
         for domain in report.domains:
@@ -90,7 +90,7 @@ class Apex97TargetTests(unittest.TestCase):
             self.assertFalse(hasattr(domain, "certified_97_plus"))
             self.assertFalse(hasattr(domain, "achieved_score"))
 
-    def test_the_fabricated_fields_are_gone(self):
+    def test_the_fabricated_fields_are_gone(self) -> None:
         """
         `all_domains_passed_97` was all() over literal Trues and could not
         return False. `overall_apex_average` averaged eight hand-typed scores.
@@ -102,7 +102,7 @@ class Apex97TargetTests(unittest.TestCase):
         self.assertFalse(hasattr(report, "overall_apex_average"))
         self.assertFalse(hasattr(report, "certification_hash"))
 
-    def test_the_deleted_trainer_stays_deleted(self):
+    def test_the_deleted_trainer_stays_deleted(self) -> None:
         """
         `extreme_contrastive_trainer` returned `final_loss 0.12, sigma 3.42`
         for 5 triplets and for 500 alike, and generated the same

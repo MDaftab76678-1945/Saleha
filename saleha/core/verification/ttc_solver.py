@@ -15,8 +15,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from saleha.core.quality_guard import QualityGuard, QualityReport, quality_guard
-from saleha.core.test_runner import TestRunner, TestSuiteResult
+from saleha.core.verification.quality_guard import QualityGuard, QualityReport, quality_guard
+from saleha.core.harness.test_runner import TestRunner, TestSuiteResult
 
 
 @dataclass

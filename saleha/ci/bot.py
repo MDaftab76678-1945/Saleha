@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 
 from saleha import __version__
-from saleha.core.security_scanner import ASTSecurityScanner, ScanReport
+from saleha.core.verification.security_scanner import ASTSecurityScanner, ScanReport
 from saleha.core.polyglot_indexer import PolyglotIndexer
 
 

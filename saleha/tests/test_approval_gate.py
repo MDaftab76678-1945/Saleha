@@ -1,5 +1,5 @@
 import os
-from saleha.core.approval_gate import (
+from saleha.core.harness.approval_gate import (
     ApprovalGate,
     DANGEROUS_ACTIONS,
     approve,
@@ -119,7 +119,7 @@ def test_check_still_accepts_an_injected_confirmer() -> None:
 
 
 def test_normalize_action() -> None:
-    from saleha.core.approval_gate import normalize_action
+    from saleha.core.harness.approval_gate import normalize_action
 
     assert normalize_action("file_delete") == "file_delete"
     assert normalize_action("fs:file_delete") == "file_delete"
@@ -128,7 +128,7 @@ def test_normalize_action() -> None:
 
 
 def test_get_action_risk_level() -> None:
-    from saleha.core.approval_gate import get_action_risk_level
+    from saleha.core.harness.approval_gate import get_action_risk_level
 
     assert get_action_risk_level("git_reset_hard") == "critical"
     assert get_action_risk_level("vault_write") == "critical"

@@ -1,32 +1,32 @@
 """Unit tests for the Recursive Intelligence Network Problem Solver."""
 
 import unittest
-from saleha.core.recursive_solver import RecursiveSolver, ReasoningPath, RecursiveSolveResult
+from saleha.core.loop.recursive_solver import RecursiveSolver, ReasoningPath, RecursiveSolveResult
 
 
 class TestRecursiveSolver(unittest.TestCase):
     """Test suite for RecursiveSolver 7-node intelligence network."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.solver = RecursiveSolver(model="mock")
 
-    def test_interpret_problem_generates_spec(self):
+    def test_interpret_problem_generates_spec(self) -> None:
         spec = self.solver._interpret_problem("Sort an array of integers in O(n log n)")
         self.assertIsInstance(spec, str)
         self.assertTrue(len(spec) > 0)
 
-    def test_activate_knowledge_returns_principles(self):
+    def test_activate_knowledge_returns_principles(self) -> None:
         principles = self.solver._activate_knowledge("Sort array", "Problem Spec")
         self.assertIsInstance(principles, list)
         self.assertTrue(len(principles) > 0)
 
-    def test_generate_reasoning_paths_returns_three_distinct_trajectories(self):
+    def test_generate_reasoning_paths_returns_three_distinct_trajectories(self) -> None:
         paths = self.solver._generate_reasoning_paths("Binary Search Tree lookup", "Spec")
         self.assertEqual(len(paths), 3)
         path_ids = {p.path_id for p in paths}
         self.assertEqual(path_ids, {"path_a", "path_b", "path_c"})
 
-    def test_cross_evaluate_paths_selects_best_score(self):
+    def test_cross_evaluate_paths_selects_best_score(self) -> None:
         paths = [
             ReasoningPath(path_id="a", name="Path A", strategy="A", score=7.0),
             ReasoningPath(path_id="b", name="Path B", strategy="B", score=9.5),
@@ -36,7 +36,7 @@ class TestRecursiveSolver(unittest.TestCase):
         self.assertEqual(winner_id, "b")
         self.assertEqual(winner.score, 9.5)
 
-    def test_solve_end_to_end(self):
+    def test_solve_end_to_end(self) -> None:
         result = self.solver.solve("Calculate factorial of n")
         self.assertIsInstance(result, RecursiveSolveResult)
         self.assertTrue(len(result.paths_explored) >= 3)
@@ -59,15 +59,16 @@ if __name__ == "__main__":
 import json as _json
 from unittest.mock import MagicMock
 
-from saleha.core.recursive_solver import ReasoningPath
+from saleha.core.loop.recursive_solver import ReasoningPath
 from saleha.core.fast_inference import InferenceResult
+from typing import Any
 
 
-def _engine(payloads):
+def _engine(payloads: Any) -> Any:
     """payloads: list of dicts (or None for a failed call), one per path."""
     fi = MagicMock()
 
-    def batch(reqs, **kw):
+    def batch(reqs: Any, **kw: Any) -> Any:
         out = []
         for pl, r in zip(payloads, reqs):
             out.append(InferenceResult(
@@ -81,13 +82,13 @@ def _engine(payloads):
     return fi
 
 
-def _payload(suitability, strategy="s"):
+def _payload(suitability: Any, strategy: str="s") -> Any:
     return {"strategy": strategy, "time_complexity": "O(n)",
             "space_complexity": "O(1)", "pros": ["p"], "cons": ["c"],
             "suitability": suitability}
 
 
-def test_paths_reflect_model_scores_not_hardcoded_constants():
+def test_paths_reflect_model_scores_not_hardcoded_constants() -> None:
     fi = _engine([_payload(3.0), _payload(9.5), _payload(4.0)])
     solver = RecursiveSolver(inference=fi)
     paths = solver._generate_reasoning_paths("goal", "spec")
@@ -96,7 +97,7 @@ def test_paths_reflect_model_scores_not_hardcoded_constants():
     assert {p.score for p in paths} != {8.5, 9.0, 8.0}
 
 
-def test_winner_follows_the_goal_specific_score():
+def test_winner_follows_the_goal_specific_score() -> None:
     """The old code always returned path_b; now any path can win."""
     solver = RecursiveSolver(inference=_engine(
         [_payload(9.0), _payload(2.0), _payload(3.0)]))
@@ -111,34 +112,34 @@ def test_winner_follows_the_goal_specific_score():
     assert win2 == "path_c"
 
 
-def test_each_path_asks_about_a_different_approach():
+def test_each_path_asks_about_a_different_approach() -> None:
     fi = _engine([_payload(5.0)] * 3)
     RecursiveSolver(inference=fi)._generate_reasoning_paths("g", "")
     prompts = [r.prompt for r in fi.run_batch.call_args.args[0]]
     assert len(set(prompts)) == 3
 
 
-def test_goal_reaches_every_path_prompt():
+def test_goal_reaches_every_path_prompt() -> None:
     fi = _engine([_payload(5.0)] * 3)
     RecursiveSolver(inference=fi)._generate_reasoning_paths("UNIQUE_GOAL_XYZ", "")
     for req in fi.run_batch.call_args.args[0]:
         assert "UNIQUE_GOAL_XYZ" in req.prompt
 
 
-def test_paths_are_generated_uncached():
+def test_paths_are_generated_uncached() -> None:
     fi = _engine([_payload(5.0)] * 3)
     RecursiveSolver(inference=fi)._generate_reasoning_paths("g", "")
     assert fi.run_batch.call_args.kwargs["use_cache"] is False
 
 
-def test_unreachable_model_scores_zero_so_nothing_wins_by_default():
+def test_unreachable_model_scores_zero_so_nothing_wins_by_default() -> None:
     solver = RecursiveSolver(inference=_engine([None, None, None]))
     paths = solver._generate_reasoning_paths("g", "")
     assert all(p.score == 0.0 for p in paths)
     assert all(p.complexity_time == "unknown" for p in paths)
 
 
-def test_malformed_json_does_not_crash_the_node():
+def test_malformed_json_does_not_crash_the_node() -> None:
     fi = MagicMock()
     fi.run_batch.side_effect = lambda reqs, **kw: [
         InferenceResult(success=True, content="not json at all", tag=r.tag)
@@ -148,14 +149,14 @@ def test_malformed_json_does_not_crash_the_node():
     assert all(p.score == 0.0 for p in paths)
 
 
-def test_scores_are_clamped_to_range():
+def test_scores_are_clamped_to_range() -> None:
     solver = RecursiveSolver(inference=_engine(
         [_payload(99.0), _payload(-5.0), _payload(5.0)]))
     scores = [p.score for p in solver._generate_reasoning_paths("g", "")]
     assert scores == [10.0, 0.0, 5.0]
 
 
-def test_a_tie_is_reported_not_hidden():
+def test_a_tie_is_reported_not_hidden() -> None:
     """All-equal scores mean the model did not discriminate; say so."""
     solver = RecursiveSolver()
     mk = lambda i, sc: ReasoningPath(path_id="path_" + i, name=i, strategy="", score=sc)
@@ -167,7 +168,7 @@ def test_a_tie_is_reported_not_hidden():
     assert solver.last_evaluation_was_tied is False
 
 
-def test_evaluating_no_paths_is_an_error_not_a_silent_pick():
+def test_evaluating_no_paths_is_an_error_not_a_silent_pick() -> None:
     try:
         RecursiveSolver()._cross_evaluate_paths([])
     except ValueError:

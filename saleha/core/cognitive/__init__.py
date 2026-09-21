@@ -15,32 +15,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from saleha.core.causal_world_model import (
+from saleha.core.cognitive.causal_world_model import (
     CausalEdge,
     CausalEvaluationReport,
     CausalVariable,
     CausalWorldModel,
     causal_world_model,
 )
-from saleha.core.neuro_symbolic_engine import (
+from saleha.core.cognitive.neuro_symbolic_engine import (
     InvariantScoreResult,
     NeuroSymbolicEngine,
     neuro_symbolic_engine,
 )
-from saleha.core.padic_ultrametric import (
+from saleha.core.cognitive.padic_ultrametric import (
     PadicIsolationValidator,
     PadicValuationNode,
     p_adic_valuation,
     padic_validator,
 )
-from saleha.core.persona_debate import (
+from saleha.core.cognitive.persona_debate import (
     DebateRound,
     HardenedContract,
     PersonaDebateEngine,
     PersonaTurn,
     persona_debate_engine,
 )
-from saleha.core.soul_engine import SoulEngine, SoulPackage, soul_engine
+from saleha.core.cognitive.soul_engine import SoulEngine, SoulPackage, soul_engine
 
 
 @dataclass

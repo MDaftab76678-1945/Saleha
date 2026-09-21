@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from saleha.core.model_provider import MockProvider
+from saleha.core.platform.model_provider import MockProvider
 from saleha.core.streaming_ui import StreamRenderer
 
 
@@ -22,7 +22,7 @@ class StreamingUiTests(unittest.TestCase):
     def test_stream_to_terminal_reports_provider_failure(self) -> None:
         class FailingProvider(MockProvider):
             def stream_generate(self, model, prompt, callback, options=None):
-                from saleha.core.model_provider import ProviderResponse
+                from saleha.core.platform.model_provider import ProviderResponse
                 return ProviderResponse(success=False, content="", error_message="offline")
 
         with patch("saleha.core.streaming_ui.default_provider", FailingProvider()):

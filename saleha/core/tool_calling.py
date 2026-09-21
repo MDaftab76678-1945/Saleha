@@ -24,7 +24,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from saleha.core.safety_guard import SafetyGuard
+from saleha.core.verification.safety_guard import SafetyGuard
 
 
 @dataclass
@@ -265,7 +265,7 @@ class ToolRegistry:
 
         # 4. shell_exec tool
         def _shell_exec(command: str, timeout: int = 15) -> str:
-            from saleha.core.approval_gate import approve
+            from saleha.core.harness.approval_gate import approve
             if not approve("shell_exec", f"Run shell command: {command[:120]}"):
                 return "Execution Blocked: human approval denied/required (SALEHA_APPROVAL)."
             guard = SafetyGuard()

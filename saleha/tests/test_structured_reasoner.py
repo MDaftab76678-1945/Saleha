@@ -8,7 +8,7 @@ from saleha.core.tool_calling import ToolDispatcher, ToolCall
 
 
 class TestStructuredReasoner(unittest.TestCase):
-    def test_parse_thinking_and_clean_response(self):
+    def test_parse_thinking_and_clean_response(self) -> None:
         text = """
 <THINKING>
 1. We need to inspect auth.py.
@@ -21,7 +21,7 @@ I will now inspect the auth.py file for any security flaws.
         self.assertIn("inspect the auth.py file", turn.clean_response)
         self.assertNotIn("<THINKING>", turn.clean_response)
 
-    def test_parse_scratchpad_variant(self):
+    def test_parse_scratchpad_variant(self) -> None:
         text = """
 <scratchpad>
 Step A: analyze AST.
@@ -32,7 +32,7 @@ Done analyzing.
         self.assertEqual(turn.thinking, "Step A: analyze AST.")
         self.assertEqual(turn.clean_response, "Done analyzing.")
 
-    def test_parse_tool_call_json_style(self):
+    def test_parse_tool_call_json_style(self) -> None:
         text = """
 <tool_call>
 {"name": "read_file", "arguments": {"path": "src/main.py"}}
@@ -43,7 +43,7 @@ Done analyzing.
         self.assertEqual(turn.tool_calls[0].name, "read_file")
         self.assertEqual(turn.tool_calls[0].arguments, {"path": "src/main.py"})
 
-    def test_parse_tool_call_xml_tags_style(self):
+    def test_parse_tool_call_xml_tags_style(self) -> None:
         text = """
 <tool_call>
 <name>write_file</name>
@@ -55,7 +55,7 @@ Done analyzing.
         self.assertEqual(turn.tool_calls[0].name, "write_file")
         self.assertEqual(turn.tool_calls[0].arguments["content"], "hello")
 
-    def test_parse_citations(self):
+    def test_parse_citations(self) -> None:
         text = 'Verified according to <co file="auth.py" line="42">def verify_token(): pass</co>.'
         turn = structured_reasoner.parse_turn(text)
         self.assertEqual(len(turn.citations), 1)
@@ -63,7 +63,7 @@ Done analyzing.
         self.assertEqual(turn.citations[0].line_number, 42)
         self.assertEqual(turn.citations[0].content, "def verify_token(): pass")
 
-    def test_dispatcher_parses_structured_tool_call(self):
+    def test_dispatcher_parses_structured_tool_call(self) -> None:
         dispatcher = ToolDispatcher()
         text = """
 <THINKING>Let us read config.</THINKING>
@@ -76,7 +76,7 @@ Done analyzing.
         self.assertEqual(call.tool_name, "read_file")
         self.assertEqual(call.arguments, {"path": "settings.json"})
 
-    def test_format_system_prompt_and_tool_response(self):
+    def test_format_system_prompt_and_tool_response(self) -> None:
         prompt = structured_reasoner.format_system_prompt_with_tools("Base Assistant", [{"name": "read_file"}])
         self.assertIn("<tools>", prompt)
         self.assertIn("<THINKING>", prompt)
@@ -98,22 +98,22 @@ class TruncatedReasoningTests(unittest.TestCase):
     a model failure. It was not one.
     """
 
-    def test_closed_block_is_stripped(self):
+    def test_closed_block_is_stripped(self) -> None:
         out = StructuredReasoner.strip_reasoning(
             "<think>reasoning here</think>\ndef solve():\n    return 1\n")
         self.assertNotIn("think", out.lower())
         self.assertIn("def solve", out)
 
-    def test_truncated_block_is_stripped(self):
+    def test_truncated_block_is_stripped(self) -> None:
         """The regression this class exists for."""
         out = StructuredReasoner.strip_reasoning("<think>reasoning never finished")
         self.assertNotIn("think", out.lower())
 
-    def test_truncated_block_does_not_leak_into_code(self):
+    def test_truncated_block_does_not_leak_into_code(self) -> None:
         reply = "<think>I should write a function\ndef solve():\n    return 1\n"
         self.assertNotIn("<think>", StructuredReasoner.strip_reasoning(reply))
 
-    def test_every_tag_spelling_is_handled_open_or_closed(self):
+    def test_every_tag_spelling_is_handled_open_or_closed(self) -> None:
         for tag in ("think", "THINKING", "thinking", "SCRATCHPAD", "scratchpad"):
             with self.subTest(tag=tag, closed=True):
                 text = "<{0}>x</{0}>\ncode".format(tag)
@@ -126,15 +126,15 @@ class TruncatedReasoningTests(unittest.TestCase):
                     tag.lower(),
                     StructuredReasoner.strip_reasoning(text).lower())
 
-    def test_text_without_tags_is_untouched(self):
+    def test_text_without_tags_is_untouched(self) -> None:
         code = "def solve():\n    return 1"
         self.assertEqual(StructuredReasoner.strip_reasoning(code), code)
 
-    def test_empty_input(self):
+    def test_empty_input(self) -> None:
         self.assertEqual(StructuredReasoner.strip_reasoning(""), "")
         self.assertEqual(StructuredReasoner.extract_reasoning(""), "")
 
-    def test_reasoning_is_recoverable_from_both_shapes(self):
+    def test_reasoning_is_recoverable_from_both_shapes(self) -> None:
         self.assertEqual(
             StructuredReasoner.extract_reasoning("<think>my reasoning</think>code"),
             "my reasoning")
@@ -142,7 +142,7 @@ class TruncatedReasoningTests(unittest.TestCase):
             StructuredReasoner.extract_reasoning("<think>my truncated reasoning"),
             "my truncated reasoning")
 
-    def test_agentic_loop_uses_the_shared_stripper(self):
+    def test_agentic_loop_uses_the_shared_stripper(self) -> None:
         """
         agentic_loop.py carried its own three re.sub calls, all paired-only.
         Duplicated stripping is how one copy gets fixed and the other does
@@ -151,7 +151,7 @@ class TruncatedReasoningTests(unittest.TestCase):
         import ast
         from pathlib import Path
 
-        import saleha.core.agentic_loop as loop_module
+        import saleha.core.loop.agentic_loop as loop_module
 
         source = Path(loop_module.__file__).read_text(encoding="utf-8")
         tree = ast.parse(source)

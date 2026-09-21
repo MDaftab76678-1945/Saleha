@@ -3,7 +3,7 @@
 import unittest
 import tempfile
 import os
-from saleha.core.graph_memory import HierarchicalGraphMemory, GraphNode, GraphEdge
+from saleha.core.graph.graph_memory import HierarchicalGraphMemory, GraphNode, GraphEdge
 
 
 class TestHierarchicalGraphMemory(unittest.TestCase):

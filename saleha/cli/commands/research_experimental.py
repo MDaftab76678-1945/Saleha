@@ -226,7 +226,7 @@ def causal_eval_cmd(target: str) -> None:
 
     Example: saleha causal-eval --target latency_ms
     """
-    from saleha.core.causal_world_model import causal_world_model
+    from saleha.core.cognitive.causal_world_model import causal_world_model
     rep = causal_world_model.simulate_l2_intervention({'use_async_io': True, 'has_memory_cache': True}, target)
     console.print(Panel(f'[bold cyan]Causal model ({rep.inquiry_level})[/bold cyan]\n{rep.reasoning}',
                         border_style='cyan'))

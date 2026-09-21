@@ -1,7 +1,7 @@
 """Unit tests for SWE-Bench Real-World Benchmark Harness."""
 
 import unittest
-from saleha.core.swebench_runner import SWEBenchRunner, SWEBenchBenchmarkReport, SWEBenchTask
+from saleha.core.harness.swebench_runner import SWEBenchRunner, SWEBenchBenchmarkReport, SWEBenchTask
 
 
 class TestSWEBenchRunner(unittest.TestCase):

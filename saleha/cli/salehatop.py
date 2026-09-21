@@ -134,7 +134,7 @@ class SalehaTopDashboard:
         return table
 
     def generate_event_log(self) -> Panel:
-        from saleha.core.agent_message_bus import message_bus
+        from saleha.core.swarm.agent_message_bus import message_bus
         bus_events = message_bus.get_history(limit=6)
 
         if bus_events:

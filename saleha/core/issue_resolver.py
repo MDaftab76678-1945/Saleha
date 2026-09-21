@@ -296,7 +296,7 @@ class IssueResolver:
         Inspects git status to find modified files and computes a real DiffResult.
         """
         from saleha.agents.base_agent import BaseAgent
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
 
         goal_parts = [f"Goal: Resolve issue - {issue.title}"]
         if issue.body:

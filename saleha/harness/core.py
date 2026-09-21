@@ -12,7 +12,7 @@ from typing import List, Dict, Optional, Any
 from saleha.harness.benchmarks import BenchmarkCatalog, BenchmarkTaskSpec
 from saleha.harness.metrics import HarnessTaskResult, compute_benchmark_summary, estimate_pass_at_k
 from saleha.harness.reporter import HarnessReport, reporter
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 from saleha.orchestrator import SalehaOrchestrator
 
 

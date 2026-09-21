@@ -246,7 +246,7 @@ def doom_padic_cmd() -> None:
     
     Example: saleha doom padic
     """
-    from saleha.core.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
+    from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
     node_a = PadicValuationNode.from_raw([25, 125, 5, 0, 10, 50, 0, 0])
     node_b = PadicValuationNode.from_raw([50, 250, 10, 0, 20, 100, 0, 0])
     node_c = PadicValuationNode.from_raw([75, 375, 15, 0, 30, 150, 0, 0])

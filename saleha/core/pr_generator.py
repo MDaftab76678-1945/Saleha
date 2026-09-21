@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from saleha.core.github_integrator import GitHubIntegrator
-from saleha.core.team_orchestrator import TeamOrchestrator, TeamResult
+from saleha.core.swarm.team_orchestrator import TeamOrchestrator, TeamResult
 
 
 @dataclass

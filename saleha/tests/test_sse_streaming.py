@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
-from saleha.core.team_orchestrator import TeamResult
+from saleha.core.swarm.team_orchestrator import TeamResult
 
 
 class SSEStreamingTests(unittest.TestCase):

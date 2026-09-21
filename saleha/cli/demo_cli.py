@@ -17,12 +17,12 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from saleha import __version__
-from saleha.core.model_provider import default_provider
+from saleha.core.platform.model_provider import default_provider
 from saleha.core.hyperbolic_engine import MultiAttractorLandscape
 from saleha.core.saleha_swarm_topology import SalehaSwarmTopology, SwarmMessage
 from saleha.core.self_healing import SelfHealingEngine
 from saleha.core.latency_histogram import NanosecondLatencyHistogram
-from saleha.core.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
+from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
 
 console = Console()
 
@@ -55,7 +55,7 @@ def dogfood_cmd():
         # mode this is a real Ollama round trip.
         t1 = progress.add_task("[cyan]1. Model provider cascade...", total=1)
         if os.environ.get("SALEHA_TEST_MODE") == "1":
-            from saleha.core.model_provider import MockProvider
+            from saleha.core.platform.model_provider import MockProvider
             res = MockProvider().generate("qwen2.5-coder:3b", "def verify(): return True")
         else:
             res = default_provider.generate("qwen2.5-coder:3b", "def verify(): return True")

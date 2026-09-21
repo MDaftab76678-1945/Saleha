@@ -39,9 +39,9 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from saleha.agents.coder import CoderAgent
-from saleha.core.formal_smt_verifier import FormalSMTVerifier
-from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.verification.formal_smt_verifier import FormalSMTVerifier
+from saleha.core.cognitive.neuro_symbolic_engine import neuro_symbolic_engine
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 @dataclass

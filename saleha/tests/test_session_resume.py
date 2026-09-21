@@ -6,10 +6,11 @@ from unittest.mock import MagicMock, patch
 
 from saleha.core.session_store import SessionStore, SessionState
 from saleha.orchestrator import SalehaOrchestrator, OrchestrationResult
+from typing import Any
 
 
 class SessionStoreTests(unittest.TestCase):
-    def test_roundtrip(self):
+    def test_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = SessionStore(os.path.join(tmp, "s.json"))
             st = SessionState(goal="build cache", attempts=2,
@@ -21,21 +22,21 @@ class SessionStoreTests(unittest.TestCase):
             self.assertEqual(loaded.attempts, 2)
             self.assertEqual(loaded.status, "in_progress")
 
-    def test_clear_removes_file(self):
+    def test_clear_removes_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = SessionStore(os.path.join(tmp, "s.json"))
             store.save(SessionState(goal="x", current_code="y"))
             store.clear()
             self.assertIsNone(store.load())
 
-    def test_load_missing_returns_none(self):
+    def test_load_missing_returns_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = SessionStore(os.path.join(tmp, "none.json"))
             self.assertIsNone(store.load())
 
 
 class ResumeFlowTests(unittest.TestCase):
-    def _orchestrator(self):
+    def _orchestrator(self) -> Any:
         orch = SalehaOrchestrator(model="test-model", max_healing_attempts=3)
 
         # Planner/Coder ko kabhi call NAHI hona chahiye resume par
@@ -61,14 +62,14 @@ class ResumeFlowTests(unittest.TestCase):
         orch.verifier.execute = MagicMock(return_value=exec_res)
         return orch
 
-    def _no_memory(self):
+    def _no_memory(self) -> Any:
         """Global ~/.saleha memory se isolation -- recall kabhi hit na ho."""
         mem = MagicMock()
         mem.recall.return_value = None
         mem.remember.return_value = None
         return mem
 
-    def test_resume_skips_planning_and_completes(self):
+    def test_resume_skips_planning_and_completes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             import saleha.core.session_store as ss_module
             store = SessionStore(os.path.join(tmp, "s.json"))
@@ -84,7 +85,7 @@ class ResumeFlowTests(unittest.TestCase):
             orch = self._orchestrator()
             with patch.object(ss_module, "session_store", store), \
                  patch("saleha.orchestrator.memory_store", self._no_memory()), \
-                 patch("saleha.core.git_native.git_engine") as mock_git:
+                 patch("saleha.core.platform.git_native.git_engine") as mock_git:
                 mock_git.is_git_repo.return_value = False
                 result = orch.execute_task("", resume_session=True)
 
@@ -95,7 +96,7 @@ class ResumeFlowTests(unittest.TestCase):
             final = store.load()
             self.assertEqual(final.status, "completed")
 
-    def test_resume_without_session_fails_gracefully(self):
+    def test_resume_without_session_fails_gracefully(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             import saleha.core.session_store as ss_module
             store = SessionStore(os.path.join(tmp, "empty.json"))
@@ -105,7 +106,7 @@ class ResumeFlowTests(unittest.TestCase):
             self.assertFalse(result.success)
             self.assertIn("resumable", result.log.lower())
 
-    def test_normal_run_writes_checkpoint_and_completes_it(self):
+    def test_normal_run_writes_checkpoint_and_completes_it(self) -> None:
         """Non-resume flow bhi checkpoints likhta hai (crash recovery ke liye)."""
         with tempfile.TemporaryDirectory() as tmp:
             import saleha.core.session_store as ss_module
@@ -115,7 +116,7 @@ class ResumeFlowTests(unittest.TestCase):
             with patch.object(ss_module, "session_store", store), \
                  patch.object(orch.planner, "create_plan") as mock_plan, \
                  patch("saleha.orchestrator.memory_store", self._no_memory()), \
-                 patch("saleha.core.git_native.git_engine") as mock_git:
+                 patch("saleha.core.platform.git_native.git_engine") as mock_git:
                 plan = MagicMock()
                 plan.success = True
                 plan.steps = ["step1"]

@@ -29,7 +29,7 @@ Three defects, each measured on this box:
 
 import unittest
 
-from saleha.core.smart_router import SmartRouter
+from saleha.core.platform.smart_router import SmartRouter
 
 
 class CatalogSizeTests(unittest.TestCase):

@@ -15,7 +15,7 @@ from typing import Optional
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.token_analytics import token_analytics
+from saleha.core.telemetry.token_analytics import token_analytics
 
 
 class _DashboardHandler(BaseHTTPRequestHandler):

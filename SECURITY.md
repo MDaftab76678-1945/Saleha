@@ -23,8 +23,8 @@ We take the security of Saleha AI extremely seriously. If you discover a vulnera
 Saleha includes a few security-relevant modules, described plainly (see ARCHITECTURE.md for details):
 
 - **Rule-based code audit** (`saleha constitutional-check <path>`, `saleha/core/constitutional_guard.py`): static checks against a fixed set of rules (e.g. flags obviously destructive or exfiltration-shaped patterns). It is a heuristic linter, not a runtime sandbox enforcement mechanism.
-- **Static security scanner** (`saleha sast <path>`, `saleha/core/security_scanner.py`): AST-level checks for common Python issues (`shell=True`, bare `except`, hardcoded secrets, string-built SQL), with limited Verilog/SystemVerilog pattern checks.
-- **Sandboxed execution** (`saleha sandbox <file>`, `saleha/core/sandbox_runner.py` / `docker_sandbox.py`): runs generated or untrusted code in a resource-limited subprocess or Docker container rather than directly on the host. This reduces blast radius; it is not a formally verified isolation guarantee.
+- **Static security scanner** (`saleha sast <path>`, `saleha/core/verification/security_scanner.py`): AST-level checks for common Python issues (`shell=True`, bare `except`, hardcoded secrets, string-built SQL), with limited Verilog/SystemVerilog pattern checks.
+- **Sandboxed execution** (`saleha sandbox <file>`, `saleha/core/harness/sandbox_runner.py` / `docker_sandbox.py`): runs generated or untrusted code in a resource-limited subprocess or Docker container rather than directly on the host. This reduces blast radius; it is not a formally verified isolation guarantee.
 - **Hash-chained audit log** (`saleha merkle-audit`, `saleha/core/merkle_provenance.py`): verifies that the recorded action log has not been tampered with, using a SHA-256 hash chain.
 
 None of the above is a substitute for an independent security review of your own deployment.

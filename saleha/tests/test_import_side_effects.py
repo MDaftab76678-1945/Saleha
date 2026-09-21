@@ -25,8 +25,8 @@ REPO_ROOT = str(Path(__file__).resolve().parents[2])
 
 # Singletons whose construction used to create directories relative to cwd.
 CWD_SENSITIVE_MODULES = [
-    "saleha.core.swarm_checkpoint_store",
-    "saleha.core.tot_orchestrator",
+    "saleha.core.swarm.swarm_checkpoint_store",
+    "saleha.core.loop.tot_orchestrator",
     "saleha.core.plugin_loader",
     "saleha.core.plugin_manifest",
     "saleha.core.dpo_dataset_engine",
@@ -138,7 +138,7 @@ def test_plugin_dirs_env_var_opts_a_directory_back_in() -> None:
 
 def test_checkpoint_store_still_persists_when_used() -> None:
     """Moving the mkdir out of __init__ must not break real saving."""
-    from saleha.core.swarm_checkpoint_store import (
+    from saleha.core.swarm.swarm_checkpoint_store import (
         SwarmCheckpoint, SwarmCheckpointStore,
     )
 

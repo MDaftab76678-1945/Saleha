@@ -9,10 +9,10 @@ from saleha.cli.commands import cli
 class TestMerkleProvenance(unittest.TestCase):
     """Test suite for MerkleProvenanceLedger cryptographic integrity and root hashing."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.ledger = MerkleProvenanceLedger()
 
-    def test_record_event_and_verify_integrity(self):
+    def test_record_event_and_verify_integrity(self) -> None:
         leaf1 = self.ledger.record_event("code_patch", "CoderAgent", "def solve(): return 42")
         leaf2 = self.ledger.record_event("test_run", "TesterAgent", "test_solve PASSED")
         self.assertIsInstance(leaf1, MerkleAuditLeaf)
@@ -22,7 +22,7 @@ class TestMerkleProvenance(unittest.TestCase):
         self.assertTrue(is_valid)
         self.assertIn("verified", msg.lower())
 
-    def test_tamper_detection(self):
+    def test_tamper_detection(self) -> None:
         self.ledger.record_event("code_patch", "CoderAgent", "original_code")
         self.ledger.record_event("security_audit", "SecurityAgent", "passed")
 
@@ -41,11 +41,11 @@ class MerkleSwarmWiringTests(unittest.TestCase):
     prove swarm_pipeline_engine.py actually records a leaf per stage now,
     not just that the ledger's own hashing works in isolation."""
 
-    def test_execute_swarm_records_one_leaf_per_stage(self):
+    def test_execute_swarm_records_one_leaf_per_stage(self) -> None:
         import os
         os.environ["SALEHA_TEST_MODE"] = "1"
         from saleha.core.merkle_provenance import merkle_provenance_ledger
-        from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 
         before = len(merkle_provenance_ledger.leaves)
         engine = SwarmPipelineEngine()
@@ -62,10 +62,10 @@ class MerkleLeavesCLITests(unittest.TestCase):
     """Tests for `saleha merkle-leaves`, which lists individual audit leaves
     (merkle-audit only reports pass/fail on the whole chain)."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.runner = CliRunner()
 
-    def test_empty_ledger_is_reported_honestly_not_as_an_error(self):
+    def test_empty_ledger_is_reported_honestly_not_as_an_error(self) -> None:
         # A fresh ledger in this test process, distinct from whatever the
         # module-level singleton holds from other tests in this file --
         # verifies the command's own empty-state message, not that the
@@ -94,10 +94,10 @@ class MerkleLeavesCLITests(unittest.TestCase):
         swarm_pipeline_engine.merkle_provenance_ledger = fresh
         return fresh
 
-    def test_populated_ledger_shows_real_leaves(self):
+    def test_populated_ledger_shows_real_leaves(self) -> None:
         import os
         os.environ["SALEHA_TEST_MODE"] = "1"
-        from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 
         self._fresh_ledger_used_everywhere()
         SwarmPipelineEngine().execute_swarm("Build a rate limiter")
@@ -107,10 +107,10 @@ class MerkleLeavesCLITests(unittest.TestCase):
         self.assertIn('CoderAgent', result.output)
         self.assertIn('Root hash', result.output)
 
-    def test_json_output_is_valid_and_limit_respected(self):
+    def test_json_output_is_valid_and_limit_respected(self) -> None:
         import os, json
         os.environ["SALEHA_TEST_MODE"] = "1"
-        from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 
         self._fresh_ledger_used_everywhere()
         SwarmPipelineEngine().execute_swarm("Build a rate limiter")

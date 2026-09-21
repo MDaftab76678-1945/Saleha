@@ -12,7 +12,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List
 
-from saleha.core.dependency_graph import CodebaseDependencyGraph
+from saleha.core.graph.dependency_graph import CodebaseDependencyGraph
 
 
 @dataclass

@@ -285,7 +285,7 @@ class AutonomousSolverTests(unittest.TestCase):
             with open(os.path.join(self.repo, "seed.py"), "w", encoding="utf-8") as f:
                 f.write("x = 2\n")
 
-        with patch("saleha.core.agentic_loop.AgentLoop.run", side_effect=fake_agent_run):
+        with patch("saleha.core.loop.agentic_loop.AgentLoop.run", side_effect=fake_agent_run):
             res = self.resolver.resolve_issue("202", autonomous=True)
 
         self.assertIsNotNone(res.diff_result)
@@ -308,7 +308,7 @@ class AutonomousSolverTests(unittest.TestCase):
             with open(os.path.join(self.repo, "seed.py"), "w", encoding="utf-8") as f:
                 f.write("x = 42\n")
 
-        with patch("saleha.core.agentic_loop.AgentLoop.run", side_effect=fake_agent_run):
+        with patch("saleha.core.loop.agentic_loop.AgentLoop.run", side_effect=fake_agent_run):
             res = self.resolver.resolve_issue(
                 "303",
                 autonomous=True,
@@ -331,7 +331,7 @@ class AutonomousSolverTests(unittest.TestCase):
         def no_op_run(goal: str, on_event: Any = None) -> None:
             pass
 
-        with patch("saleha.core.agentic_loop.AgentLoop.run", side_effect=no_op_run):
+        with patch("saleha.core.loop.agentic_loop.AgentLoop.run", side_effect=no_op_run):
             res = self.resolver.resolve_issue("404", autonomous=True)
 
         self.assertIsNone(res.diff_result)

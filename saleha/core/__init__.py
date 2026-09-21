@@ -131,15 +131,48 @@ _SUBPACKAGES = {
     "verification", "telemetry", "swarm", "platform"
 }
 
+# Every flat module name that moved into one of the category subpackages
+# above (see saleha/STRUCTURE.md); their dotted path now needs the category
+# prefix. Covers both "from saleha.core import <module_name>" (the module
+# itself) and _MOD_MAP entries whose target moved. Modules not listed here
+# are still flat directly under saleha/core/.
+_MOD_TO_SUBPACKAGE = {
+    "causal_world_model": "cognitive", "neuro_symbolic_engine": "cognitive",
+    "padic_ultrametric": "cognitive", "persona_debate": "cognitive", "soul_engine": "cognitive",
+    "codebase_indexer": "graph", "dependency_graph": "graph", "graph_memory": "graph",
+    "hypergraph_indexer": "graph", "multi_repo_graph": "graph",
+    "approval_gate": "harness", "benchmark_harness": "harness", "code_executor": "harness",
+    "sandbox_runner": "harness", "swebench_runner": "harness", "test_runner": "harness",
+    "agentic_loop": "loop", "deliberation_engine": "loop", "recursive_solver": "loop",
+    "tot_orchestrator": "loop",
+    "git_native": "platform", "lsp_engine": "platform", "mcp_hub": "platform",
+    "model_provider": "platform", "self_healer": "platform", "smart_router": "platform",
+    "repo_context_packer": "rag", "semantic_search": "rag", "tree_context_ranker": "rag",
+    "vector_store": "rag",
+    "agent_message_bus": "swarm", "agent_worker_pool": "swarm", "swarm_checkpoint_store": "swarm",
+    "swarm_consensus": "swarm", "swarm_pipeline_engine": "swarm", "team_orchestrator": "swarm",
+    "audit_log": "telemetry", "metrics": "telemetry", "session_tracer": "telemetry",
+    "token_analytics": "telemetry",
+    "apex_97_validator": "verification", "formal_smt_verifier": "verification",
+    "quality_guard": "verification", "safety_guard": "verification",
+    "security_scanner": "verification", "ttc_solver": "verification",
+}
+
 
 def __getattr__(name: str) -> Any:
     if name in _SUBPACKAGES:
         return importlib.import_module(f"saleha.core.{name}")
     if name == "MCPHub":
-        mod = importlib.import_module("saleha.core.mcp_hub")
+        mod = importlib.import_module("saleha.core.platform.mcp_hub")
         return mod.UniversalMCPHub
+    if name in _MOD_TO_SUBPACKAGE:
+        # "from saleha.core import <module_name>" -- the module itself moved.
+        return importlib.import_module(f"saleha.core.{_MOD_TO_SUBPACKAGE[name]}.{name}")
     if name in _MOD_MAP:
-        mod = importlib.import_module(f"saleha.core.{_MOD_MAP[name]}")
+        target = _MOD_MAP[name]
+        subpackage = _MOD_TO_SUBPACKAGE.get(target)
+        dotted = f"saleha.core.{subpackage}.{target}" if subpackage else f"saleha.core.{target}"
+        mod = importlib.import_module(dotted)
         return getattr(mod, name)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 

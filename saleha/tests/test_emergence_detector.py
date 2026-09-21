@@ -31,19 +31,19 @@ def temp_history() -> str:
 class EmptyStateTests(unittest.TestCase):
     """The regression that made this command useless."""
 
-    def test_empty_history_does_not_claim_health(self):
+    def test_empty_history_does_not_claim_health(self) -> None:
         rep = EmergenceDetector(history_path=temp_history()).evaluate_swarm_health()
         self.assertFalse(rep.has_data)
         self.assertFalse(rep.is_healthy)
         self.assertEqual(rep.total_messages, 0)
 
-    def test_empty_history_says_there_is_nothing_to_judge(self):
+    def test_empty_history_says_there_is_nothing_to_judge(self) -> None:
         rep = EmergenceDetector(history_path=temp_history()).evaluate_swarm_health()
         self.assertIn("nothing to judge", rep.summary)
         # The old wording asserted a verdict about an empty list.
         self.assertNotIn("idle and healthy", rep.summary)
 
-    def test_recorded_activity_sets_has_data(self):
+    def test_recorded_activity_sets_has_data(self) -> None:
         d = EmergenceDetector(history_path=temp_history())
         d.record_message("A", "B", "x", 1)
         rep = d.evaluate_swarm_health()
@@ -52,11 +52,11 @@ class EmptyStateTests(unittest.TestCase):
 
 class DetectionTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.detector = EmergenceDetector(gini_threshold=0.70,
                                           history_path=temp_history())
 
-    def test_healthy_balanced_swarm(self):
+    def test_healthy_balanced_swarm(self) -> None:
         for i in range(10):
             self.detector.record_message(f"Agent{i % 4}", f"Agent{(i+1) % 4}",
                                          "Task update", i)
@@ -66,7 +66,7 @@ class DetectionTests(unittest.TestCase):
         self.assertEqual(len(rep.circular_deadlocks_detected), 0)
         self.assertEqual(rep.agent_count, 4)
 
-    def test_detects_ping_pong_deadlock(self):
+    def test_detects_ping_pong_deadlock(self) -> None:
         self.detector.record_message("AgentA", "AgentB", "Fix this", 1)
         self.detector.record_message("AgentB", "AgentA", "Cannot fix", 2)
         self.detector.record_message("AgentA", "AgentB", "Fix this now", 3)
@@ -75,7 +75,7 @@ class DetectionTests(unittest.TestCase):
         self.assertGreaterEqual(len(rep.circular_deadlocks_detected), 1)
         self.assertNotEqual(rep.remediation_action, "none")
 
-    def test_detects_stuck_healing_loop(self):
+    def test_detects_stuck_healing_loop(self) -> None:
         """
         The real shape this fires on: Verifier -> Debugger -> Verifier
         repeating because a fix never lands.
@@ -87,7 +87,7 @@ class DetectionTests(unittest.TestCase):
         self.assertFalse(rep.is_healthy)
         self.assertTrue(any("Verifier" in d for d in rep.circular_deadlocks_detected))
 
-    def test_gini_flags_a_monopolising_agent(self):
+    def test_gini_flags_a_monopolising_agent(self) -> None:
         """
         Needs enough agents for the coefficient to reach the threshold: Gini
         is bounded by (n-1)/n, so a two-agent swarm caps at 0.5 no matter how
@@ -102,11 +102,11 @@ class DetectionTests(unittest.TestCase):
         self.assertFalse(rep.is_healthy)
         self.assertTrue(any("inequality" in a for a in rep.anomalies))
 
-    def test_gini_cannot_reach_the_threshold_with_only_two_agents(self):
+    def test_gini_cannot_reach_the_threshold_with_only_two_agents(self) -> None:
         """Documents the bound above, so the limit is not mistaken for a bug."""
         self.assertLessEqual(self.detector.calculate_gini([1, 1000]), 0.5)
 
-    def test_gini_is_zero_for_perfectly_equal_activity(self):
+    def test_gini_is_zero_for_perfectly_equal_activity(self) -> None:
         for i in range(3):
             self.detector.record_message(f"Agent{i}", "Hub", "x", i)
         self.assertEqual(self.detector.evaluate_swarm_health().gini_coefficient, 0.0)
@@ -118,7 +118,7 @@ class PersistenceTests(unittest.TestCase):
     in-memory-only detector is always empty at the moment of the question.
     """
 
-    def test_history_survives_a_new_instance(self):
+    def test_history_survives_a_new_instance(self) -> None:
         path = temp_history()
         writer = EmergenceDetector(history_path=path, persist=True)
         for sender, recipient in [("PM", "Designer"), ("Designer", "Coder"),
@@ -132,18 +132,18 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(rep.total_messages, 3)
         self.assertEqual(rep.run_count, 1)
 
-    def test_nothing_is_written_when_persist_is_off(self):
+    def test_nothing_is_written_when_persist_is_off(self) -> None:
         path = temp_history()
         d = EmergenceDetector(history_path=path, persist=False)
         d.record_message("A", "B", "x", 1)
         self.assertFalse(os.path.exists(path))
 
-    def test_missing_file_loads_nothing_rather_than_failing(self):
+    def test_missing_file_loads_nothing_rather_than_failing(self) -> None:
         d = EmergenceDetector(history_path=temp_history())
         self.assertEqual(d.load_history(), 0)
         self.assertFalse(d.evaluate_swarm_health().has_data)
 
-    def test_truncated_final_line_does_not_sink_the_history(self):
+    def test_truncated_final_line_does_not_sink_the_history(self) -> None:
         """A process killed mid-write leaves a partial JSON line."""
         path = temp_history()
         writer = EmergenceDetector(history_path=path, persist=True)
@@ -155,7 +155,7 @@ class PersistenceTests(unittest.TestCase):
         reader = EmergenceDetector(history_path=path)
         self.assertEqual(reader.load_history(), 2)
 
-    def test_load_history_respects_its_limit(self):
+    def test_load_history_respects_its_limit(self) -> None:
         path = temp_history()
         writer = EmergenceDetector(history_path=path, persist=True)
         for i in range(20):
@@ -163,7 +163,7 @@ class PersistenceTests(unittest.TestCase):
         reader = EmergenceDetector(history_path=path)
         self.assertEqual(reader.load_history(limit=5), 5)
 
-    def test_persisted_content_is_truncated(self):
+    def test_persisted_content_is_truncated(self) -> None:
         """Full agent output would put generated code on disk for no gain."""
         path = temp_history()
         d = EmergenceDetector(history_path=path, persist=True)
@@ -172,7 +172,7 @@ class PersistenceTests(unittest.TestCase):
         reader.load_history()
         self.assertLessEqual(len(reader.message_history[0].message_content), 200)
 
-    def test_clear_keeps_the_file_unless_asked(self):
+    def test_clear_keeps_the_file_unless_asked(self) -> None:
         path = temp_history()
         d = EmergenceDetector(history_path=path, persist=True)
         d.record_message("A", "B", "x", 1)
@@ -181,7 +181,7 @@ class PersistenceTests(unittest.TestCase):
         d.clear(wipe_persisted=True)
         self.assertFalse(os.path.exists(path))
 
-    def test_write_failure_does_not_break_recording(self):
+    def test_write_failure_does_not_break_recording(self) -> None:
         """Observability must never break the pipeline it observes."""
         # A directory path is not writable as a file.
         bad = tempfile.mkdtemp()
@@ -190,7 +190,7 @@ class PersistenceTests(unittest.TestCase):
         d.record_message("A", "B", "x", 1)  # must not raise
         self.assertEqual(len(d.message_history), 1)
 
-    def test_event_round_trips_through_json(self):
+    def test_event_round_trips_through_json(self) -> None:
         ev = SwarmMessageEvent("A", "B", "content", 3, "run9")
         import json
         back = SwarmMessageEvent.from_dict(json.loads(ev.to_json()))
@@ -208,10 +208,10 @@ class OrchestratorWiringTests(unittest.TestCase):
     """
 
     def _workflow_source(self) -> str:
-        from saleha.core.team_orchestrator import TeamOrchestrator
+        from saleha.core.swarm.team_orchestrator import TeamOrchestrator
         return inspect.getsource(TeamOrchestrator.run_team_workflow)
 
-    def test_orchestrator_records_pipeline_handoffs(self):
+    def test_orchestrator_records_pipeline_handoffs(self) -> None:
         src = self._workflow_source()
         for sender in ("Product Manager", "Software Designer",
                        "Senior Software Engineer", "Security Engineer",
@@ -219,16 +219,16 @@ class OrchestratorWiringTests(unittest.TestCase):
             self.assertIn(f'handoff("{sender}"', src,
                           f"{sender} handoff is not recorded")
 
-    def test_orchestrator_records_both_directions_of_the_healing_loop(self):
+    def test_orchestrator_records_both_directions_of_the_healing_loop(self) -> None:
         src = self._workflow_source()
         self.assertIn('handoff("Verifier", "Debugger"', src)
         self.assertIn('handoff("Debugger", "Verifier"', src)
 
-    def test_orchestrator_imports_the_shared_detector(self):
+    def test_orchestrator_imports_the_shared_detector(self) -> None:
         from saleha.core import team_orchestrator
         self.assertTrue(hasattr(team_orchestrator, "emergence_detector"))
 
-    def test_shared_singleton_persists(self):
+    def test_shared_singleton_persists(self) -> None:
         """Without this the CLI reads an empty in-memory history."""
         from saleha.core.emergence_detector import emergence_detector
         self.assertTrue(emergence_detector.persist)

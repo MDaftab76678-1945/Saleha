@@ -11,7 +11,7 @@ import json
 import os
 from typing import Any, Dict, List
 
-from saleha.core.dependency_graph import dependency_graph
+from saleha.core.graph.dependency_graph import dependency_graph
 
 
 class ArchitectureGraphVisualizer:

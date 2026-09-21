@@ -395,7 +395,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         self.tool_signatures: Dict[str, str] = dict(self.TOOL_SIGNATURES)
         # Sizing the prompt to the model, not to a fixed constant. See the
         # _REASONING_* constants for the measurement that motivated this.
-        from saleha.core.model_provider import is_reasoning_model
+        from saleha.core.platform.model_provider import is_reasoning_model
         model_name = str(getattr(agent, "model_preference", "") or "")
         self.is_reasoning = is_reasoning_model(model_name)
         if self.is_reasoning:
@@ -658,7 +658,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         return "\n".join(hits) or "no matches"
 
     def _tool_run_code(self, code: str) -> str:
-        from saleha.core.code_executor import CodeExecutor
+        from saleha.core.harness.code_executor import CodeExecutor
         if self._executor is None:
             self._executor = CodeExecutor(timeout=15)
         res = self._executor.execute(code, timeout=15)
@@ -1030,7 +1030,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
     def _tool_write_file(self, path: str, content: str) -> str:
         if not self.allow_write:
             return "BLOCKED: write tool disabled (enable allow_write=True)"
-        from saleha.core.approval_gate import approve
+        from saleha.core.harness.approval_gate import approve
         abs_p = self._safe_path(path)
         if not abs_p:
             return f"path traversal blocked: {path}"
@@ -1047,7 +1047,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
     def _tool_patch_file(self, path: str, search: str, replace: str) -> str:
         if not self.allow_write:
             return "BLOCKED: write/patch tool disabled (enable allow_write=True)"
-        from saleha.core.approval_gate import approve
+        from saleha.core.harness.approval_gate import approve
         abs_p = self._safe_path(path)
         if not abs_p:
             return f"path traversal blocked: {path}"
@@ -1058,7 +1058,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         try:
             with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
                 old_content = f.read()
-            from saleha.core.codebase_indexer import SmartPatcher
+            from saleha.core.graph.codebase_indexer import SmartPatcher
             ok, patched, err = SmartPatcher.apply_search_replace(old_content, search, replace)
             if not ok:
                 return f"patch failed: {err}"
@@ -1091,7 +1091,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         attempting a fix. Naming the line turns "which file" into a
         directly actionable range read.
         """
-        from saleha.core.codebase_indexer import CodebaseIndexer
+        from saleha.core.graph.codebase_indexer import CodebaseIndexer
         name = symbol_name.strip()
         indexer = CodebaseIndexer(root_dir=self.root_dir)
         indexer.scan()
@@ -1219,7 +1219,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         """
         if not self.allow_write:
             return "BLOCKED: forge_tool disabled (enable allow_write=True)"
-        from saleha.core.approval_gate import approve
+        from saleha.core.harness.approval_gate import approve
         if not approve("forge_tool", f"{name}: {description}"):
             return "BLOCKED: human approval denied/required."
 

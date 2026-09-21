@@ -215,8 +215,8 @@ def _generate_test_source(module_filename: str, public_symbols: Optional[list[st
     """Asks the live model provider to write a real pytest file against the
     module's actual source and extracted public API contract.
     Returns (code, model_name) or (None, None)."""
-    from saleha.core.model_provider import default_provider
-    from saleha.core.smart_router import get_installed_ollama_models
+    from saleha.core.platform.model_provider import default_provider
+    from saleha.core.platform.smart_router import get_installed_ollama_models
 
     installed = {m for m in get_installed_ollama_models() if ":" in m}
     preference = ["qwen2.5-coder:3b", "deepseek-coder:6.7b", "qwen3:8b"]
@@ -269,7 +269,7 @@ def _repair_test_source(
     error_detail: str,
 ) -> Optional[str]:
     """Asks the model provider to repair a failing pytest test with targeted error feedback."""
-    from saleha.core.model_provider import default_provider
+    from saleha.core.platform.model_provider import default_provider
 
     module_name = module_filename[:-3]
     module_path = os.path.join(CORE_DIR, module_filename)

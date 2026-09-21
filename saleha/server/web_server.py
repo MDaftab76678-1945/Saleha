@@ -39,8 +39,8 @@ from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.tool_calling import global_tool_registry
 from saleha.core.memory_store import memory_store
-from saleha.core.codebase_indexer import CodebaseIndexer, SmartPatcher
-from saleha.core.team_orchestrator import TeamOrchestrator
+from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
+from saleha.core.swarm.team_orchestrator import TeamOrchestrator
 from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.polyglot_executor import polyglot_executor
 from saleha.core.vault import vault
@@ -1916,7 +1916,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             # divergent hardcoded pipeline description. No run has actually
             # happened yet at this point, so every stage is honestly reported
             # "not_started" rather than a fabricated "completed"/"active".
-            from saleha.core.swarm_pipeline_engine import swarm_engine
+            from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
 
             query = urllib.parse.parse_qs(parsed.query)
             goal = (query.get("goal") or ["Build a Python microservice"])[0]
@@ -2065,7 +2065,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/souls":
-            from saleha.core.soul_engine import soul_engine
+            from saleha.core.cognitive.soul_engine import soul_engine
             souls = soul_engine.list_souls()
             active_name = soul_engine.get_active_soul_name()
             self._send_json(200, {
@@ -2534,7 +2534,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             # unchecked box with the real reason when a check does not pass,
             # instead of a pre-ticked checkbox.
             import ast as _ast
-            from saleha.core.security_scanner import ASTSecurityScanner
+            from saleha.core.verification.security_scanner import ASTSecurityScanner
 
             files = payload.get("files", {})
             scanner = ASTSecurityScanner()
@@ -2695,7 +2695,7 @@ still required before merging -- neither ran here."""
             func_name = payload.get("function_name", "compute_balance")
             code = payload.get("code", "def compute_balance(x, y): return x / y")
             from saleha.core.formal_verifier import formal_verifier, lean_toolchain_available
-            from saleha.core.formal_smt_verifier import formal_smt_verifier
+            from saleha.core.verification.formal_smt_verifier import formal_smt_verifier
 
             lean_scaffold = formal_verifier.synthesize_proof_for_function(func_name=func_name, code=code)
             smt_result = formal_smt_verifier.verify_function_contract(code, func_name)
@@ -2931,7 +2931,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/v2/swarm/execute":
-            from saleha.core.swarm_pipeline_engine import swarm_engine
+            from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
             from saleha.core.task_history import TaskHistory
             goal = payload.get("goal", "Build a high-performance Python microservice")
             res = swarm_engine.execute_swarm(goal)
@@ -2976,7 +2976,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/v2/swarm/events":
-            from saleha.core.agent_message_bus import message_bus
+            from saleha.core.swarm.agent_message_bus import message_bus
             hist = message_bus.get_history(limit=50)
             self._send_json(200, {
                 "events": [
@@ -3016,7 +3016,7 @@ still required before merging -- neither ran here."""
             if not target:
                 self._send_json(400, {"error": "Soul name is required"})
                 return
-            from saleha.core.soul_engine import soul_engine
+            from saleha.core.cognitive.soul_engine import soul_engine
             try:
                 activated = soul_engine.set_active_soul(target)
                 self._send_json(200, {

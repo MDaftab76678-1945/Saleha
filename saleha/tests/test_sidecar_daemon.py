@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from saleha.agents.coder import CoderAgent
-from saleha.core.model_provider import MockProvider
+from saleha.core.platform.model_provider import MockProvider
 from saleha.core.sidecar_daemon import SIDECAR_HTML, SidecarHandler
 
 

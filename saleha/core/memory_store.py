@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from saleha.core.vector_store import VectorStore
+from saleha.core.rag.vector_store import VectorStore
 
 
 @dataclass

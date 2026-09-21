@@ -149,7 +149,7 @@ def run_benchmark(instances_path: str, output_path: str,
     fabricated success) instead of a fake new-file diff.
     """
     from saleha.agents.base_agent import BaseAgent
-    from saleha.core.agentic_loop import AgentLoop
+    from saleha.core.loop.agentic_loop import AgentLoop
 
     predictions: List[SWEBenchPrediction] = []
     skipped = 0

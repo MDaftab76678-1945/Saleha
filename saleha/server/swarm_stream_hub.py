@@ -22,7 +22,7 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 from typing import AsyncGenerator, Optional, Set
 
-from saleha.core.agent_message_bus import AgentEvent, message_bus
+from saleha.core.swarm.agent_message_bus import AgentEvent, message_bus
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect

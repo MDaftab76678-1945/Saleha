@@ -27,8 +27,8 @@ from saleha.core.skill_registry import registry as skill_registry, load_builtin_
 from saleha.core.memory_store import memory_store
 from saleha.core.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
-from saleha.core.audit_log import AuditLog
-from saleha.core.smart_router import SmartRouter
+from saleha.core.telemetry.audit_log import AuditLog
+from saleha.core.platform.smart_router import SmartRouter
 
 if sys.platform == "win32":
     try:

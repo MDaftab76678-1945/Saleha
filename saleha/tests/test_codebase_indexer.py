@@ -4,7 +4,7 @@ import tempfile
 import json
 from click.testing import CliRunner
 
-from saleha.core.codebase_indexer import CodebaseIndexer, SmartPatcher
+from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
 from saleha.cli.commands import cli
 
 

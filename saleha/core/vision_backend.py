@@ -34,7 +34,7 @@ def find_vision_model() -> Optional[str]:
     Uses SmartRouter runtime probe (~/.saleha consistency). Returns None if
     no vision model is found (signaling the caller to use fallback).
     """
-    from saleha.core.smart_router import get_installed_ollama_models
+    from saleha.core.platform.smart_router import get_installed_ollama_models
     installed = get_installed_ollama_models()
     for model in sorted(installed):
         lowered = model.lower()

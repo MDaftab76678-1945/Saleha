@@ -11,21 +11,21 @@ append-only security audit logs, and performance metrics histograms:
 
 from __future__ import annotations
 
-from saleha.core.audit_log import (
+from saleha.core.telemetry.audit_log import (
     AuditLog,
     audit_log,
 )
-from saleha.core.metrics import (
+from saleha.core.telemetry.metrics import (
     MetricsTracker,
     metrics_tracker,
 )
-from saleha.core.session_tracer import (
+from saleha.core.telemetry.session_tracer import (
     SessionTracer,
     TraceEvent,
     TraceSpan,
     session_tracer,
 )
-from saleha.core.token_analytics import (
+from saleha.core.telemetry.token_analytics import (
     InvocationRecord,
     TokenAnalyticsEngine,
     token_analytics,

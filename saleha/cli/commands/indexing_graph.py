@@ -34,7 +34,7 @@ from saleha import __version__
 @click.option('--workers', '-w', default=4, type=int, help='Maximum parallel worker threads')
 @click.option('--model', '-m', default='auto', help='Model to use')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def dag(goal, parallel, workers, model, as_json):
+def dag(goal: Any, parallel: Any, workers: Any, model: Any, as_json: Any) -> None:
     """Execute a complex engineering goal using a parallel Directed Acyclic Graph (DAG) of agents."""
     task_dag = _cmds.TaskDAG.build_default_dag_for_goal(goal=goal, model=model)
     if as_json:
@@ -64,7 +64,7 @@ def dag(goal, parallel, workers, model, as_json):
 @cli.command(name='graph')
 @click.option('--output', default='docs/architecture_graph.html', help='Path to output HTML file')
 @click.option('--dir', 'target_dir', default='.', help='Workspace root directory to map')
-def graph_cmd(output, target_dir):
+def graph_cmd(output: Any, target_dir: Any) -> None:
     """
     Generate live interactive 2D/3D force-directed architecture visualizer HTML.
     
@@ -80,9 +80,9 @@ def graph_cmd(output, target_dir):
 @cli.command(name='callers')
 @click.argument('symbol')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def callers_cmd(symbol, as_json):
+def callers_cmd(symbol: Any, as_json: Any) -> None:
     """Find all code callers referencing a specific function, class, or method."""
-    from saleha.core.dependency_graph import dependency_graph
+    from saleha.core.graph.dependency_graph import dependency_graph
     if not dependency_graph.files_indexed:
         dependency_graph.build_graph()
     callers = dependency_graph.find_callers(symbol)
@@ -106,7 +106,7 @@ def callers_cmd(symbol, as_json):
 @click.argument('question')
 @click.option('--path', '-p', default='.', help='Codebase path to index')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
-def rag_cmd(question, path, as_json):
+def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
     """Natural language architectural Q&A fused with AST Dependency Graph."""
     from saleha.core.graph_rag import graph_rag
     ans = graph_rag.query(question=question, root_dir=path)
@@ -120,13 +120,13 @@ def rag_cmd(question, path, as_json):
 @click.argument('command_or_file', default='pytest')
 @click.option('--retries', default=3, help='Max healing attempts')
 @click.option('--no-commit', is_flag=True, help='Do not auto-commit verified fix')
-def fix_cmd(command_or_file, retries, no_commit):
+def fix_cmd(command_or_file: Any, retries: Any, no_commit: Any) -> None:
     """
     Autonomous Self-Healing Loop: Runs a failing command/test, localizes fault, patches and verifies.
     
     Example: saleha fix "pytest saleha/tests/test_foo.py"
     """
-    from saleha.core.self_healer import self_healer
+    from saleha.core.platform.self_healer import self_healer
     console.print(f'[bold cyan]🩹 Running Autonomous Self-Healer on:[/] [yellow]{command_or_file}[/]')
     result = self_healer.auto_heal(command_or_file, max_retries=retries, auto_commit=not no_commit)
     if result.success:
@@ -146,13 +146,13 @@ def fix_cmd(command_or_file, retries, no_commit):
 @click.option('--limit', default=10, help='Max results to display')
 @click.option('--semantic/--lexical', default=True, help='Enable hybrid BM25 + Vector cosine similarity')
 @click.option('--json', 'as_json', is_flag=True, help='Output JSON format')
-def search_cmd(query, limit, semantic, as_json):
+def search_cmd(query: Any, limit: Any, semantic: Any, as_json: Any) -> None:
     """
     Hybrid BM25 + Vector Semantic Code Search across codebase symbols and syntax trees.
     
     Example: saleha search "memory compact history" --semantic
     """
-    from saleha.core.semantic_search import semantic_search
+    from saleha.core.rag.semantic_search import semantic_search
     results = semantic_search.search(query, top_k=limit, semantic=semantic)
     if as_json:
         click.echo(json.dumps([r.__dict__ for r in results], ensure_ascii=False, indent=2))
@@ -171,7 +171,7 @@ def search_cmd(query, limit, semantic, as_json):
 @cli.command(name='learn')
 @click.argument('skill_goal')
 @click.option('--name', default=None, help='Custom skill identifier name')
-def learn_cmd(skill_goal, name):
+def learn_cmd(skill_goal: Any, name: Any) -> None:
     """
     Synthesize and distill an engineering task pattern into a permanent reusable skill.
     
@@ -186,13 +186,13 @@ def learn_cmd(skill_goal, name):
 
 @cli.command(name='budget')
 @click.option('--history', is_flag=True, help='Show recent invocation history')
-def budget_cmd(history):
+def budget_cmd(history: Any) -> None:
     """
     Token Economics & Cumulative Cloud API Cost Savings Analytics.
     
     Example: saleha budget
     """
-    from saleha.core.token_analytics import token_analytics
+    from saleha.core.telemetry.token_analytics import token_analytics
     summary = token_analytics.get_summary()
     table = Table(title='💰 Token Economics & Cloud Cost Savings', show_header=True, header_style='bold green', expand=True)
     table.add_column('Metric', style='bold white')
@@ -210,7 +210,7 @@ def budget_cmd(history):
 @cli.command(name='diff-preview')
 @click.argument('file_path')
 @click.argument('new_file_path')
-def diff_preview_cmd(file_path, new_file_path):
+def diff_preview_cmd(file_path: Any, new_file_path: Any) -> None:
     """
     Preview Surgical Unified Diff with AST Blast Radius & Risk Score.
     
@@ -234,7 +234,7 @@ def diff_preview_cmd(file_path, new_file_path):
 @click.argument('target')
 @click.option('--dir', 'target_dir', default='.', help='Repository root to scan')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def impact_cmd(target, target_dir, as_json):
+def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
     """
     Show which files actually depend on a module, via a real cross-file graph.
 

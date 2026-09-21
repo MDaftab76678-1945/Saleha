@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.model_provider import ProviderResponse
+from saleha.core.platform.model_provider import ProviderResponse
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.coder import CoderAgent
 from saleha.core.swe_bench_runner import (
@@ -17,23 +17,24 @@ from saleha.core.swe_bench_runner import (
     synth_newfile_patch,
     write_predictions,
 )
+from typing import Any, Optional
 
 
 class TokenAccountingTests(unittest.TestCase):
-    def test_provider_captures_eval_count(self):
-        from saleha.core.model_provider import OllamaProvider
+    def test_provider_captures_eval_count(self) -> Any:
+        from saleha.core.platform.model_provider import OllamaProvider
         prov = OllamaProvider()
 
         class R:
             status = 200
-            def raise_for_status(self): pass
-            def json(self): return {"response": "ok", "eval_count": 123}
+            def raise_for_status(self) -> None: pass
+            def json(self) -> Any: return {"response": "ok", "eval_count": 123}
 
         with patch("requests.post", return_value=R()):
             res = prov.generate("m", "p")
         self.assertEqual(res.tokens_used, 123)
 
-    def test_agent_accumulates_session_tokens(self):
+    def test_agent_accumulates_session_tokens(self) -> None:
         prov = MagicMock()
         prov.generate.return_value = ProviderResponse(success=True, content="x",
                                                       tokens_used=40)
@@ -43,9 +44,9 @@ class TokenAccountingTests(unittest.TestCase):
         self.assertEqual((r1.tokens_used, r2.tokens_used), (40, 40))
         self.assertEqual(agent.total_tokens_used, 80)
 
-    def test_stream_path_counts_tokens(self):
+    def test_stream_path_counts_tokens(self) -> Any:
         prov = MagicMock()
-        def fake_stream(model, prompt, callback=None, options=None):
+        def fake_stream(model: Any, prompt: Any, callback: Optional[Any]=None, options: Optional[Any]=None) -> Any:
             if callback:
                 callback("a"); callback("b")
             return ProviderResponse(success=True, content="ab", tokens_used=7)
@@ -57,11 +58,11 @@ class TokenAccountingTests(unittest.TestCase):
 
 
 class StreamForwardingTests(unittest.TestCase):
-    def test_generate_code_forwards_on_token(self):
+    def test_generate_code_forwards_on_token(self) -> Any:
         coder = CoderAgent(model="fixed-model")
         seen = {}
 
-        def fake_think_stream(prompt, on_token=None, complexity_score=0.0):
+        def fake_think_stream(prompt: Any, on_token: Optional[Any]=None, complexity_score: float=0.0) -> Any:
             seen["called"] = True
             if on_token:
                 on_token("tok")
@@ -73,7 +74,7 @@ class StreamForwardingTests(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertTrue(seen.get("called"))
 
-    def test_no_callback_uses_plain_think(self):
+    def test_no_callback_uses_plain_think(self) -> None:
         coder = CoderAgent(model="fixed-model")
         coder.think = MagicMock(return_value=MagicMock(
             success=True, content="```python\nx=1\n```", error_message="", model_used="m"))
@@ -83,17 +84,17 @@ class StreamForwardingTests(unittest.TestCase):
 
 
 class SWEBenchRunnerTests(unittest.TestCase):
-    def test_build_prompt_includes_problem_and_hints(self):
+    def test_build_prompt_includes_problem_and_hints(self) -> None:
         p = build_prompt("Fix the off-by-one in parser", hints_text="look at line 42")
         self.assertIn("off-by-one", p)
         self.assertIn("line 42", p)
 
-    def test_synth_newfile_patch_is_valid_unified_diff(self):
+    def test_synth_newfile_patch_is_valid_unified_diff(self) -> None:
         patch = synth_newfile_patch("def a():\n    return 1\n")
         self.assertIn("--- /dev/null", patch)
         self.assertIn("+def a():", patch)
 
-    def test_real_diff_from_repo_uses_original(self):
+    def test_real_diff_from_repo_uses_original(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, "mod.py"), "w") as f:
                 f.write("value = 1\n")
@@ -101,7 +102,7 @@ class SWEBenchRunnerTests(unittest.TestCase):
         self.assertIn("-value = 1", patch)
         self.assertIn("+value = 2", patch)
 
-    def test_iter_instances_skips_bad_lines(self):
+    def test_iter_instances_skips_bad_lines(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "inst.jsonl")
             with open(path, "w", encoding="utf-8") as f:
@@ -111,7 +112,7 @@ class SWEBenchRunnerTests(unittest.TestCase):
             ids = [i["instance_id"] for i in iter_instances(path)]
         self.assertEqual(ids, ["a__1"])
 
-    def test_run_benchmark_no_local_repo_is_honest_empty_patch(self):
+    def test_run_benchmark_no_local_repo_is_honest_empty_patch(self) -> None:
         """No real repo checkout -> no real fix is possible; must record an
         honest empty patch, not a fabricated new-file diff."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,7 +128,7 @@ class SWEBenchRunnerTests(unittest.TestCase):
             preds = [json.loads(l) for l in open(out_path, encoding="utf-8")]
             self.assertEqual(preds[0]["model_patch"], "")
 
-    def test_run_benchmark_real_repo_produces_real_git_diff(self):
+    def test_run_benchmark_real_repo_produces_real_git_diff(self) -> None:
         """Real bug fixed here: run_benchmark() used to hardcode the changed
         filename as 'saleha_solution.py' even with a real repo, so a good
         model response could never produce a patch that actually fixes the
@@ -177,7 +178,7 @@ class SWEBenchRunnerTests(unittest.TestCase):
             self.assertIn("+    return a + b", patch_text)
             self.assertIn("-    return a - b", patch_text)
 
-    def test_write_predictions_official_format(self):
+    def test_write_predictions_official_format(self) -> None:
         from saleha.core.swe_bench_runner import SWEBenchPrediction
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "preds.jsonl")

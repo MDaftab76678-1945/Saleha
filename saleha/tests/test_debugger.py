@@ -1,7 +1,7 @@
 import unittest
 
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.model_provider import ProviderResponse
+from saleha.core.platform.model_provider import ProviderResponse
 
 
 class FakeProvider:

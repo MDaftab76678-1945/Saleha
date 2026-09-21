@@ -20,7 +20,7 @@ from rich.markdown import Markdown
 from rich.syntax import Syntax
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.swarm_pipeline_engine import swarm_engine
+from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
 from saleha.agents.issue_resolver import issue_resolver
 from saleha.agents.vision_designer import vision_designer
 from saleha.agents.doc_generator import doc_generator
@@ -33,7 +33,7 @@ from saleha.agents.voice_architect import voice_architect
 from saleha.agents.screen_copilot import screen_copilot
 from saleha.agents.chaos_resilience import chaos_resilience
 from saleha.core.task_scheduler import task_scheduler
-from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
+from saleha.core.cognitive.neuro_symbolic_engine import neuro_symbolic_engine
 from saleha.core.dataset_synthesizer import dataset_synthesizer
 from saleha.core.model_distillation_pipeline import model_distillation_pipeline
 from saleha.core.local_inference_engine import local_inference_engine

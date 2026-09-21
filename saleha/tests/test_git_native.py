@@ -11,7 +11,7 @@ import os
 import subprocess
 import tempfile
 import unittest
-from saleha.core.git_native import GitAutomationEngine, GitCommitResult
+from saleha.core.platform.git_native import GitAutomationEngine, GitCommitResult
 
 
 class GitNativeTests(unittest.TestCase):

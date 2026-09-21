@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from saleha.core.code_executor import CodeExecutor, ExecutionResult
+from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult
 from saleha.core.fast_inference import FastInference, InferenceRequest, InferenceResult
 from saleha.core.parallel_solver import extract_code
 from saleha.core.self_healing import HealingResult, SelfHealingEngine

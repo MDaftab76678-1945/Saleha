@@ -3,7 +3,7 @@ Unit tests for Saleha Test-Time Compute (TTC) Multi-Trajectory Solver
 (saleha/core/ttc_solver.py).
 """
 
-from saleha.core.ttc_solver import (
+from saleha.core.verification.ttc_solver import (
     TTCTrajectorySolver,
     CandidateTrajectory,
     TTCSolveResult,
@@ -11,7 +11,7 @@ from saleha.core.ttc_solver import (
 )
 
 
-def test_ttc_reranks_and_picks_cleanest():
+def test_ttc_reranks_and_picks_cleanest() -> None:
     solver = TTCTrajectorySolver()
 
     # Candidate 1: Syntax error
@@ -63,7 +63,7 @@ def compute(x: int) -> int:
     assert result.passed is False
 
 
-def test_ttc_with_test_code_verification():
+def test_ttc_with_test_code_verification() -> None:
     solver = TTCTrajectorySolver()
 
     # Candidate A: Wrong answer
@@ -109,10 +109,10 @@ class TestAdd(unittest.TestCase):
     assert c_wrong.test_score == 0.0
 
 
-def test_ttc_dynamic_generator_fn():
+def test_ttc_dynamic_generator_fn() -> Any:
     solver = TTCTrajectorySolver()
 
-    def mock_generator(problem: str, strategy: str):
+    def mock_generator(problem: str, strategy: str) -> Any:
         if "defensive" in strategy:
             return (
                 f"def solve(val: int) -> int:\n    if val < 0:\n        raise ValueError()\n    return val\n",
@@ -134,7 +134,7 @@ def test_ttc_dynamic_generator_fn():
     assert "TTC Solver explored 3 trajectories" in result.summary
 
 
-def test_ttc_does_not_rank_candidates_on_product_names():
+def test_ttc_does_not_rank_candidates_on_product_names() -> None:
     """
     This test used to assert the opposite: a candidate whose comment said
     "hermes" had to score *lower* than one whose docstring said "Saleha", and
@@ -191,12 +191,13 @@ def generate_code() -> str:
 from unittest.mock import MagicMock
 
 from saleha.core.fast_inference import InferenceResult
+from typing import Any
 
 GOOD_REPLY = "```python\ndef merge(a, b):\n    return sorted(a + b)\n```"
 REAL_CODE = "def compute(x: int) -> int:\n    return x * 2\n"
 
 
-def _fake_engine(contents):
+def _fake_engine(contents: Any) -> Any:
     fi = MagicMock()
     fi.run_batch.side_effect = lambda reqs, **kw: [
         InferenceResult(success=bool(c), content=c or "",
@@ -205,7 +206,7 @@ def _fake_engine(contents):
     return fi
 
 
-def test_empty_code_scores_zero_not_one_hundred():
+def test_empty_code_scores_zero_not_one_hundred() -> None:
     solver = TTCTrajectorySolver()
     empty = CandidateTrajectory(trajectory_id="E", strategy_name="none",
                                 code="", explanation="failed")
@@ -219,7 +220,7 @@ def test_empty_code_scores_zero_not_one_hundred():
     assert r.overall_score > e.overall_score
 
 
-def test_whitespace_only_code_is_also_rejected():
+def test_whitespace_only_code_is_also_rejected() -> None:
     solver = TTCTrajectorySolver()
     c = solver.evaluate_candidate(
         CandidateTrajectory(trajectory_id="W", strategy_name="ws",
@@ -227,7 +228,7 @@ def test_whitespace_only_code_is_also_rejected():
     assert c.overall_score == 0.0
 
 
-def test_no_generator_calls_a_real_model_not_a_stub():
+def test_no_generator_calls_a_real_model_not_a_stub() -> None:
     fi = _fake_engine([GOOD_REPLY] * 3)
     res = TTCTrajectorySolver(inference=fi).solve(
         problem="merge two sorted lists", num_candidates=3)
@@ -237,7 +238,7 @@ def test_no_generator_calls_a_real_model_not_a_stub():
     assert "def merge" in res.best_trajectory.code
 
 
-def test_default_candidates_use_distinct_strategies():
+def test_default_candidates_use_distinct_strategies() -> None:
     """Three samples of one prompt is best-of-N, not multi-trajectory."""
     fi = _fake_engine([GOOD_REPLY] * 3)
     TTCTrajectorySolver(inference=fi).solve(problem="p", num_candidates=3)
@@ -245,20 +246,20 @@ def test_default_candidates_use_distinct_strategies():
     assert len(set(prompts)) == 3
 
 
-def test_default_candidates_are_generated_uncached():
+def test_default_candidates_are_generated_uncached() -> None:
     fi = _fake_engine([GOOD_REPLY] * 3)
     TTCTrajectorySolver(inference=fi).solve(problem="p", num_candidates=3)
     assert fi.run_batch.call_args.kwargs["use_cache"] is False
 
 
-def test_unreachable_model_does_not_report_success():
+def test_unreachable_model_does_not_report_success() -> None:
     fi = _fake_engine([None, None, None])
     res = TTCTrajectorySolver(inference=fi).solve(problem="p", num_candidates=3)
     assert res.passed is False
     assert res.best_trajectory.overall_score == 0.0
 
 
-def test_passed_requires_executed_tests_not_a_score():
+def test_passed_requires_executed_tests_not_a_score() -> None:
     """`passed` used to be `overall_score >= 70`, true without running anything."""
     res = TTCTrajectorySolver().solve(
         problem="p",

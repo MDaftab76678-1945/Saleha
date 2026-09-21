@@ -59,7 +59,7 @@ class TesterAgent:
             )
 
         if language != "python":
-            from saleha.core.security_scanner import ASTSecurityScanner
+            from saleha.core.verification.security_scanner import ASTSecurityScanner
             scanner = ASTSecurityScanner()
             ext_map = {"javascript": ".js", "typescript": ".ts", "go": ".go", "rust": ".rs", "java": ".java"}
             vulns = scanner.scan_code(code, filename=f"code{ext_map.get(language, '.txt')}")
@@ -93,7 +93,7 @@ class TesterAgent:
         Returns core.test_runner.TestSuiteResult -- .passed / .failures /
         .failure_report() for healer prompts.
         """
-        from saleha.core.test_runner import TestRunner, TestSuiteResult, SuiteFailure
+        from saleha.core.harness.test_runner import TestRunner, TestSuiteResult, SuiteFailure
 
         static = self.test_code(code, expected_keywords, language=language)
         if not static.passed:

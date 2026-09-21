@@ -12,7 +12,7 @@ from rich.table import Table
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.tool_calling import global_tool_registry
-from saleha.core.model_provider import default_provider
+from saleha.core.platform.model_provider import default_provider
 
 console = Console()
 

@@ -10379,3 +10379,204 @@ alone.
 Measured: full suite re-run after all of Stage 1/2 above: **2344 passed,
 13 skipped, 0 failures** -- unchanged from before this pass, confirming
 none of the deletions/moves touched anything load-bearing.
+
+## Pass 139 (continued): the saleha/core/ 46-file flat-to-category migration completed, three real defects found and fixed (2026-09-21)
+
+Explicitly requested by the user (full move, not shims): complete the
+migration saleha/STRUCTURE.md had recorded as deliberately deferred ("a
+large, separate, high-risk task -- not done here because it would touch
+every test currently passing"). This did touch every test -- the point was
+to do it safely, verifying after every step, rather than not doing it.
+
+**Method.** 46 modules already had a designated category (9 folders'
+`__init__.py` files already curated which flat module belonged where,
+established by an earlier pass); the other ~197 flat modules have no
+category assignment and were left alone -- inventing new categories for
+them is a separate design decision, not a mechanical move. Wrote a script
+(`migrate_category.py`) that, per category: moves each flat file's content
+into `saleha/core/<category>/<name>.py`, deletes the old flat file, and
+rewrites every `from saleha.core.<name> import`/`import saleha.core.<name>`
+site across the whole repo (~450 real references found by direct grep, not
+estimated) to the new dotted path. Ran it once per category, verifying
+`import saleha.<affected modules>` and a full `saleha/tests/` collection
+after each of the 9 runs before moving to the next -- so a break was always
+isolated to the category that caused it.
+
+**Three defect classes surfaced, none hypothetical -- each reproduced,
+then fixed:**
+
+1. **Two latent circular imports, always present at the file level, never
+   triggered by the flat layout.** `saleha/core/platform/self_healer.py`
+   imported `BaseAgent` from `saleha.agents.base_agent` at module level;
+   `saleha/core/harness/benchmark_harness.py` and `swebench_runner.py`
+   each imported `SalehaOrchestrator` from `saleha.orchestrator` at module
+   level. Both are genuine layering violations (`saleha/core/` importing
+   from `saleha/agents/`/`saleha/orchestrator.py`, which import back into
+   `saleha/core/`) that the flat structure was accidentally protecting
+   against -- a flat module has no eagerly-importing parent package, so
+   the cycle never closed. The moment these files landed inside a category
+   `__init__.py` that eagerly imports every sibling, importing
+   `saleha.agents.base_agent` (which needs `saleha.core.platform.
+   model_provider`) forced Python to first fully execute `platform/
+   __init__.py`, which imports `self_healer.py`, which imports
+   `BaseAgent` -- `ImportError: cannot import name 'BaseAgent' from
+   partially initialized module`. Fixed by making all three imports lazy
+   (function-local), matching how their own real call sites already used
+   them (`self.agent = BaseAgent(...)` inside `__init__`, `SalehaOrchestrator(...)`
+   inside a method body) -- no behavior change, since the class was never
+   needed at import time anyway. `self_healer.py`'s module-level singleton
+   (`self_healer = SelfHealingEngine()`) needed the same treatment one
+   level further: even with the import inside `__init__`, the eager
+   singleton construction at module load time still ran `__init__`
+   immediately. Converted to a PEP-562 lazy singleton
+   (`saleha/core/platform/self_healer.py`'s `__getattr__`), and the
+   package `__init__.py` that re-exports it got its own `__getattr__` for
+   the same reason (its top-level `from ... import self_healer` would
+   otherwise still trigger construction at the wrong time). A fourth,
+   same-shape cycle appeared later via a different chain:
+   `saleha/core/swarm/team_orchestrator.py` importing `ProfileAgent`/
+   `profile_registry` from `saleha.core.agent_profile_loader` at module
+   level, reached through `agents/__init__.py` -> `issue_resolver.py` ->
+   `swarm/__init__.py` -> `team_orchestrator.py` -> back to
+   `agent_profile_loader`. Same fix: lazy import inside the one method
+   that uses it (`_get_agent`).
+
+2. **A systemic name-collision trap affecting all 46 migrated modules,
+   not just the ones that happened to be probed.** Every migrated
+   category `__init__.py` re-exports a singleton under the *same name*
+   as its own submodule (`from saleha.core.harness.approval_gate import
+   ApprovalGate, approval_gate` -- the module is `approval_gate`, and so
+   is the singleton). That rebinds `saleha.core.harness.approval_gate`
+   from the module object to the `ApprovalGate` instance the moment the
+   package's `__init__.py` finishes running. Production code was never
+   at risk -- `from saleha.core.harness.approval_gate import X` resolves
+   the submodule during that specific statement before the later
+   rebinding takes effect, confirmed by the fact the whole suite would
+   already have been broken otherwise. Only `import pkg.sub as alias` /
+   bare `pkg.sub` attribute access hits it, which surfaced in exactly two
+   test helpers (`test_agentic_loop.py`'s `patch_gate` context manager,
+   `test_reasoning_model_budget.py`'s `_options_sent`) that did
+   `import saleha.core.harness.approval_gate as gate` specifically to
+   `patch.object(gate, "approve", ...)` -- and got the `ApprovalGate`
+   instance instead, raising `AttributeError: <ApprovalGate object> does
+   not have the attribute 'approve'`. Fixed both by reading from
+   `sys.modules["saleha.core.<category>.<module>"]` instead, which always
+   reaches the real module regardless of what the package's `__init__.py`
+   rebound its own attribute to. Documented as a standing gotcha in
+   `saleha/STRUCTURE.md` for whoever writes the next test needing the
+   module object itself.
+3. **The PEP-562 compatibility layers in `saleha/core/__init__.py` and
+   `saleha/cli/commands/__init__.py` had their own stale flat paths**,
+   found only by running the real suite, not by inspection -- both
+   pre-date this migration and exist specifically so
+   `from saleha.core import <ClassName>`/`mock.patch("saleha.cli.
+   commands.X")`-style callers keep working without every caller knowing
+   the real file layout. `saleha/core/__init__.py`'s `_MOD_MAP` mapped
+   symbol names to flat module names (`"TeamOrchestrator": "team_orchestrator"`)
+   and then did `importlib.import_module(f"saleha.core.{target}")` --
+   correct before the migration, `ModuleNotFoundError` after, for every
+   symbol whose target module moved. Fixed by adding
+   `_MOD_TO_SUBPACKAGE` (all 46 names, not just the handful that
+   happened to be `_MOD_MAP` values) and checking it before falling back
+   to the flat path -- covers both `from saleha.core import <ClassName>`
+   and the bare `from saleha.core import <module_name>` form (a handful
+   of test files did this directly: `test_emergence_detector.py`,
+   `test_git_native.py`). `saleha/cli/commands/__init__.py`'s
+   `_LAZY_IMPORT_MAP` had the identical shape of staleness in 8 entries
+   (`SmartRouter`, `TeamOrchestrator`, `CodebaseIndexer`, `SmartPatcher`,
+   `DeliberationEngine`, `SandboxRunner`, `ASTSecurityScanner`,
+   `AgentLoop`, `lsp_engine`) -- its `TYPE_CHECKING` block above had
+   already been correctly rewritten by the migration script (those are
+   real `from X import Y` statements), but the dict's tuple-string values
+   were not, since they are not import statements the regex-based
+   rewrite could see.
+
+**A fourth, smaller class: 28 stale `mock.patch("saleha.core.<flat>...")`
+string-literal targets** across 10 test files (`test_model_provider.py`
+alone had 11), invisible to the migration script for the same reason --
+string literals inside `@patch(...)` decorators are not import statements.
+Found by grepping for the literal pattern across the whole test tree, not
+guessed at file-by-file, then fixed with a second automated pass. One
+additional hardcoded flat path was a real file read, not a patch target:
+`test_untrusted_content.py::test_the_known_false_positives_are_still_only_warnings`
+opened `"saleha/core/agentic_loop.py"` directly with `io.open` to feed its
+own bytes into the injection scanner -- `FileNotFoundError` after the
+move, fixed to the new path. `test_import_side_effects.py`'s
+`CWD_SENSITIVE_MODULES` list (two hardcoded flat dotted paths) and
+`test_self_improve.py`/`AGENTSKILLS.md` each had one similarly stale
+reference, all fixed the same way: found by running the real suite, not
+inferred from the shape of the change.
+
+**Documentation kept honest, historical ledger left alone.** Seven
+prospective/reference docs describing *current* state (`README.md`,
+`SECURITY.md`, `SOUL.md`, `ORCHESTRATOR.md`, `PRODUCT_BRIEF.md`,
+`CONTRIBUTING.md`, `docs/architecture-code-review-2026-09-03.md`) had
+their `saleha/core/<name>.py` path references updated to the new
+category-qualified paths. `NOTEBOOK_IMPORT.md` itself, `CHANGELOG.md`'s
+dated release entries, and `COORDINATION.md` were deliberately left
+untouched -- they document what was true at the time each entry was
+written, and rewriting past passes to match today's layout would erase
+the very history this file exists to preserve. `saleha/STRUCTURE.md`
+rewritten in full to describe the completed migration, including the
+name-collision gotcha as a standing warning for future code.
+
+**Verified, not assumed.** After all 9 category migrations plus every fix
+above: `saleha/tests/ --collect-only` (2357 tests, zero import errors) and
+a full run, twice -- once mid-fix and once after every doc/test-path
+correction and a full `__pycache__` wipe (forcing fresh bytecode
+compilation as an extra sanity check) -- both **2344 passed, 13 skipped, 0
+failures**, byte-for-byte the same count as before the migration started.
+`npx turbo run typecheck` 8/8, confirming the unrelated TypeScript
+workspace was untouched. 197 flat modules remain in `saleha/core/`
+(243 - 46); none renamed, none deleted beyond the 46 that moved.
+
+**A fifth stale reference, found by the commit itself failing:**
+`.agents/scripts/preflight_lint.py` -- the pre-commit quality gate this
+very commit had to pass -- hardcoded `from saleha.core.quality_guard
+import QualityGuard`, which moved to `saleha.core.verification.
+quality_guard` in this same pass. The gate blocked its own commit with
+`ModuleNotFoundError`, which is exactly the intended failure mode for a
+stale import: it stopped the commit rather than silently passing.
+Fixed the one line; verified `python .agents/scripts/preflight_lint.py
+--help` runs, then the commit proceeded and passed the gate for real.
+
+**A sixth blocker, and a decision to widen scope rather than bypass the
+gate.** After the fifth fix, the gate still failed -- this time on 24
+pre-existing quality-score failures (missing type annotations, one real
+`COMPLEX-001` nesting-depth violation) across files this pass had only
+ever touched for a one-line import-path rewrite. Verified before deciding
+anything: ran the same `QualityGuard(strict_mode=True)` check against
+`HEAD` (pre-migration) for every flagged file and got byte-for-byte
+identical scores, confirming none of these were introduced by this pass
+-- they were pre-existing gaps the gate (added later, in `strict_mode`)
+had apparently never been run against this many files at once before.
+Asked the user how to proceed rather than deciding unilaterally to
+bypass with `--no-verify`; told to fix all of them rather than skip the
+gate.
+
+Wrote a small AST-based auto-annotator (adds `-> None` to functions with
+no real return value, infers a real type from literal parameter defaults
+where safe, and falls back to `Any` only for genuinely dynamic values --
+mocks, `**kwargs` passthrough, Click-parsed CLI arguments) rather than
+hand-editing dozens of functions. Verified it on one file first (syntax
+check + real test run + score check) before running it across the rest.
+Also fixed the one non-type issue for real, not by annotation:
+`saleha/cli/commands/quality_security.py`'s `review_ai_cmd` had genuine
+6-deep control-flow nesting (file-vs-directory branch containing a
+double-nested walk/filter/try); extracted the directory-walk into
+`_review_ai_walk_directory()`, dropping it to depth-compliant and cutting
+real duplicate logic, not just satisfying the linter -- verified against
+both a single-file and a directory invocation through the real CLI
+afterward, since the extraction moved a `try/except` block's placement.
+One implementation mistake caught and fixed in the same step: the
+extraction initially left the `@cli.command` decorators attached to the
+new helper function instead of the original command, which `Click`
+correctly rejected with `TypeError: _review_ai_walk_directory() got an
+unexpected keyword argument 'html'` -- caught by actually invoking the
+CLI command via `CliRunner`, not by reading the diff.
+
+24 files fixed across two rounds (the gate's file list changed between
+runs as more `git diff --name-only` targets from the same migration
+surfaced), all reaching 100/100 or already-passing scores; the real test
+suite re-run clean after both rounds; the gate finally reported
+`[SUCCESS] All files passed pre-flight AST verification.`

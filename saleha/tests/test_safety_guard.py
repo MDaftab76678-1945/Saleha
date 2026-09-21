@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Any, Dict
 
-from saleha.core.safety_guard import SafetyGuard, SafetyResult
+from saleha.core.verification.safety_guard import SafetyGuard, SafetyResult
 
 
 class SafetyGuardTests(unittest.TestCase):

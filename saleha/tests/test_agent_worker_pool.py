@@ -2,13 +2,14 @@
 
 import time
 
-from saleha.core.agent_worker_pool import AgentWorkerPool, WorkerTaskResult
+from saleha.core.swarm.agent_worker_pool import AgentWorkerPool, WorkerTaskResult
+from typing import Any
 
 
 class TestAgentWorkerPool:
     """Thread-pool based task executor with timeout enforcement."""
 
-    def test_execute_task_success(self):
+    def test_execute_task_success(self) -> None:
         pool = AgentWorkerPool(max_workers=2)
         result = pool.execute_task("t1", lambda x: x + 1, 41, timeout_sec=2.0)
 
@@ -18,10 +19,10 @@ class TestAgentWorkerPool:
         assert result.error_message is None
         pool.shutdown()
 
-    def test_execute_task_with_kwargs(self):
+    def test_execute_task_with_kwargs(self) -> Any:
         pool = AgentWorkerPool(max_workers=2)
 
-        def add(a, b=0):
+        def add(a: Any, b: int=0) -> Any:
             return a + b
 
         result = pool.execute_task("t2", add, 10, b=5, timeout_sec=2.0)
@@ -30,7 +31,7 @@ class TestAgentWorkerPool:
         assert result.result == 15
         pool.shutdown()
 
-    def test_execute_task_timeout(self):
+    def test_execute_task_timeout(self) -> None:
         pool = AgentWorkerPool(max_workers=2)
         result = pool.execute_task("t3", time.sleep, 2, timeout_sec=0.1)
 
@@ -38,10 +39,10 @@ class TestAgentWorkerPool:
         assert result.error_message is not None
         pool.shutdown()
 
-    def test_execute_task_exception(self):
+    def test_execute_task_exception(self) -> None:
         pool = AgentWorkerPool(max_workers=2)
 
-        def raises():
+        def raises() -> None:
             raise ValueError("boom")
 
         result = pool.execute_task("t4", raises, timeout_sec=2.0)
@@ -50,7 +51,7 @@ class TestAgentWorkerPool:
         assert "boom" in result.error_message
         pool.shutdown()
 
-    def test_multiple_concurrent_tasks(self):
+    def test_multiple_concurrent_tasks(self) -> None:
         pool = AgentWorkerPool(max_workers=4)
 
         results = [
@@ -62,7 +63,7 @@ class TestAgentWorkerPool:
         assert [r.result for r in results] == [0, 2, 4, 6, 8]
         pool.shutdown()
 
-    def test_execution_time_recorded(self):
+    def test_execution_time_recorded(self) -> None:
         pool = AgentWorkerPool(max_workers=1)
         result = pool.execute_task("t5", lambda: "done", timeout_sec=2.0)
 
@@ -70,7 +71,7 @@ class TestAgentWorkerPool:
         assert result.execution_time_ms >= 0
         pool.shutdown()
 
-    def test_shutdown(self):
+    def test_shutdown(self) -> None:
         pool = AgentWorkerPool(max_workers=1)
         pool.execute_task("t6", lambda: 1, timeout_sec=2.0)
         pool.shutdown(wait=True)

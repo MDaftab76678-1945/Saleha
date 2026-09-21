@@ -3,7 +3,7 @@ Unit & Integration Tests for Swarm Pipeline Engine, Event Bus, and Semantic Memo
 """
 
 import unittest
-from saleha.core.agent_message_bus import (
+from saleha.core.swarm.agent_message_bus import (
     AgentMessageBus,
     AgentEvent,
     TaskAssignedEvent,
@@ -12,7 +12,7 @@ from saleha.core.agent_message_bus import (
     TestExecutionEvent,
 )
 from saleha.core.semantic_memory_cache import SemanticMemoryCache
-from saleha.core.swarm_pipeline_engine import (
+from saleha.core.swarm.swarm_pipeline_engine import (
     AutonomousSwarmRouter,
     SwarmPipelineEngine,
     SwarmPipelineStage,
@@ -21,13 +21,13 @@ from saleha.cli.swarm_visualizer import SwarmAsciiVisualizer
 
 
 class AgentMessageBusTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.bus = AgentMessageBus()
 
-    def test_publish_and_subscribe(self):
+    def test_publish_and_subscribe(self) -> None:
         received_events = []
 
-        def handler(event: AgentEvent):
+        def handler(event: AgentEvent) -> None:
             received_events.append(event)
 
         self.bus.subscribe("code_synthesized", handler)
@@ -39,7 +39,7 @@ class AgentMessageBusTests(unittest.TestCase):
         self.assertEqual(received_events[0].sender_agent, "CoderAgent")
         self.assertEqual(received_events[0].source_code, "def run(): pass")
 
-    def test_wildcard_subscription(self):
+    def test_wildcard_subscription(self) -> None:
         received_all = []
         self.bus.subscribe("*", lambda e: received_all.append(e))
 
@@ -50,7 +50,7 @@ class AgentMessageBusTests(unittest.TestCase):
         history = self.bus.get_history()
         self.assertEqual(len(history), 2)
 
-    def test_unsubscribe(self):
+    def test_unsubscribe(self) -> None:
         called = []
         handler = lambda e: called.append(1)
         self.bus.subscribe("task_assigned", handler)
@@ -63,14 +63,14 @@ class AgentMessageBusTests(unittest.TestCase):
 
 
 class SemanticMemoryCacheTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = SemanticMemoryCache(storage_path=".saleha/test_mem_tmp.json")
         self.cache.clear()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.cache.clear()
 
-    def test_store_and_search_memory(self):
+    def test_store_and_search_memory(self) -> None:
         entry = self.cache.store_memory(
             category="adr",
             title="Hexagonal Architecture Pattern",
@@ -87,10 +87,10 @@ class SemanticMemoryCacheTests(unittest.TestCase):
 
 
 class SwarmPipelineRouterTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.router = AutonomousSwarmRouter()
 
-    def test_default_route(self):
+    def test_default_route(self) -> None:
         stages = self.router.route_goal_to_dag("Build simple caching service")
         self.assertIn("Architect", stages)
         self.assertIn("Coder", stages)
@@ -99,23 +99,23 @@ class SwarmPipelineRouterTests(unittest.TestCase):
         self.assertIn("Reviewer", stages)
         self.assertIn("FinOpsOptimizer", stages)
 
-    def test_frontend_ui_route(self):
+    def test_frontend_ui_route(self) -> None:
         stages = self.router.route_goal_to_dag("Design modern landing page with CSS glassmorphism")
         self.assertIn("Designer", stages)
         self.assertIn("WebDev", stages)
 
-    def test_database_and_devops_route(self):
+    def test_database_and_devops_route(self) -> None:
         stages = self.router.route_goal_to_dag("PostgreSQL schema migration with Docker container deployment")
         self.assertIn("DataEngineer", stages)
         self.assertIn("DevOps", stages)
 
-    def test_incident_route(self):
+    def test_incident_route(self) -> None:
         stages = self.router.route_goal_to_dag("Production outage crash traceback incident diagnosis")
         self.assertEqual(stages[0], "SREIncident")
 
 
 class SwarmPipelineEngineTests(unittest.TestCase):
-    def test_end_to_end_swarm_execution(self):
+    def test_end_to_end_swarm_execution(self) -> None:
         # tests_passed and success are no longer hardcoded True by the
         # engine -- this now asserts a QALead stage that actually executed
         # the generated test code in a subprocess (CodeExecutor) against the
@@ -136,7 +136,7 @@ class SwarmPipelineEngineTests(unittest.TestCase):
 
 
 class SwarmVisualizerTests(unittest.TestCase):
-    def test_visualizer_renders_without_error(self):
+    def test_visualizer_renders_without_error(self) -> None:
         vis = SwarmAsciiVisualizer()
         stage = SwarmPipelineStage(stage_id="s1", agent_role="Architect", status="success", duration_ms=12.4, output_summary="ADR generated")
         vis.render_header("Test Goal")

@@ -8,7 +8,7 @@ from typing import Any, Optional
 from unittest.mock import MagicMock
 
 from saleha.agents.base_agent import AgentResponse
-from saleha.core.agentic_loop import (
+from saleha.core.loop.agentic_loop import (
     MAX_FILE_READ_CHARS,
     MAX_OBSERVATION_CHARS,
     AgentLoop,
@@ -367,7 +367,7 @@ class AgentLoopTests(unittest.TestCase):
         """
         import inspect
 
-        from saleha.core import agentic_loop as mod
+        from saleha.core.loop import agentic_loop as mod
 
         src = inspect.getsource(mod)
         # Strip the system prompt, which legitimately shows the format.
@@ -1670,14 +1670,14 @@ class RunTestsToolTests(unittest.TestCase):
 
     # ---- coverage helpers: units -----------------------------------
     def test_changed_code_lines_ignores_blanks_and_comments(self) -> None:
-        from saleha.core.agentic_loop import _changed_code_lines
+        from saleha.core.loop.agentic_loop import _changed_code_lines
         old = "def f():\n    return 1\n"
         new = "def f():\n    # tuned\n    return 2\n"
         self.assertEqual(_changed_code_lines(old, new), {3})
         self.assertEqual(_changed_code_lines(old, old), set())
 
     def test_parse_failed_node_ids(self) -> None:
-        from saleha.core.agentic_loop import _parse_failed_node_ids
+        from saleha.core.loop.agentic_loop import _parse_failed_node_ids
         out = ("FAILED (exit 1) -- ran `python -m pytest -q` in /tmp/x [why]\n"
                "pytest: 0 passed, 1 failed\n"
                "FAILED test_a.py::test_x - assert 1 == 2\n"
@@ -1749,12 +1749,19 @@ class patch_gate:
 
     def __enter__(self) -> "patch_gate":
         from unittest.mock import patch
-        import saleha.core.approval_gate as gate
+        import sys
+
+        # saleha.core.harness's own __init__.py re-exports the ApprovalGate
+        # singleton under the name `approval_gate`, shadowing the submodule
+        # attribute on the harness package -- so `import saleha.core.harness.
+        # approval_gate as gate` resolves to the instance, not the module.
+        # Going through sys.modules sidesteps that and reaches the real module.
+        gate = sys.modules["saleha.core.harness.approval_gate"]
         self._cm = patch.object(gate, "approve",
                                 lambda *a, **k: self.result)
         self._cm.__enter__()
         # agentic_loop performs function-local import -- module attribute is patched
-        import saleha.core.approval_gate as gate2
+        gate2 = sys.modules["saleha.core.harness.approval_gate"]
         assert callable(gate2.approve)
         return self
 

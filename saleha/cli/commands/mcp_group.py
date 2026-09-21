@@ -37,7 +37,7 @@ def mcp_group():
 @click.option('--category', '-c', help='Filter MCP servers by category')
 def mcp_list_cmd(category: Optional[str]):
     """List all 30+ pre-configured MCP servers."""
-    from saleha.core.mcp_hub import mcp_hub
+    from saleha.core.platform.mcp_hub import mcp_hub
     servers = mcp_hub.list_servers(category=category)
     table = Table(title='🔌 Universal Model Context Protocol (MCP) Server Hub', border_style='cyan')
     table.add_column('Server Name', style='bold cyan')
@@ -54,7 +54,7 @@ def mcp_list_cmd(category: Optional[str]):
 @click.option('--output', '-o', help='Optional custom output file path')
 def mcp_export_cmd(platform: str, output: Optional[str]):
     """Export tailored MCP configuration for Cursor, Claude, VS Code, Windsurf, Zed, or JetBrains."""
-    from saleha.core.mcp_hub import mcp_hub
+    from saleha.core.platform.mcp_hub import mcp_hub
     target_file, config_data = mcp_hub.export_config(platform, output_path=output)
     console.print(f'[bold green]✅ Exported {platform.upper()} MCP configuration to: [underline]{target_file}[/underline][/bold green]')
     console.print(Panel(json.dumps(config_data, indent=2)[:400] + '\n  ...', title=f'{platform.upper()} Configuration Snippet', border_style='cyan'))
@@ -63,7 +63,7 @@ def mcp_export_cmd(platform: str, output: Optional[str]):
 @click.argument('server_name')
 def mcp_connect_cmd(server_name: str):
     """Test connection to an MCP server."""
-    from saleha.core.mcp_hub import mcp_hub
+    from saleha.core.platform.mcp_hub import mcp_hub
     res = mcp_hub.connect_server(server_name)
     if res.get('success'):
         console.print(f"[bold green]✅ {res['message']}[/bold green]")

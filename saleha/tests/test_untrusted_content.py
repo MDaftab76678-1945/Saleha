@@ -142,7 +142,7 @@ class NoFalseAlarmTests(unittest.TestCase):
     def test_the_known_false_positives_are_still_only_warnings(self) -> None:
         """A flagged file must stay fully readable -- scanning never blocks."""
         import io
-        body = io.open("saleha/core/agentic_loop.py", encoding="utf-8").read()
+        body = io.open("saleha/core/loop/agentic_loop.py", encoding="utf-8").read()
         self.assertTrue(scan(body).suspicious)
         self.assertIn("def _tool_read_file", wrap(body, source="x"))
 
@@ -232,7 +232,7 @@ class ToolIntegrationTests(unittest.TestCase):
         import os
         import tempfile
         from unittest.mock import MagicMock
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
 
         with tempfile.TemporaryDirectory() as tmp:
             self._write(tmp, "def add(a, b):\n    return a + b\n\n"
@@ -254,7 +254,7 @@ class ToolIntegrationTests(unittest.TestCase):
         import os
         import tempfile
         from unittest.mock import MagicMock
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
 
         with tempfile.TemporaryDirectory() as tmp:
             self._write(tmp, "def add(a, b):\n    return a + b\n")
@@ -270,7 +270,7 @@ class ToolIntegrationTests(unittest.TestCase):
 
     def test_missing_file_still_reports_plainly(self) -> None:
         from unittest.mock import MagicMock
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
         out = AgentLoop(agent=MagicMock())._tool_read_file("does_not_exist.py")
         self.assertIn("no such file", out)
 
@@ -296,7 +296,7 @@ class RepeatDetectionTests(unittest.TestCase):
         return agent
 
     def test_identical_call_is_marked_as_a_repeat(self) -> None:
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
         agent = self._looping_agent('{"tool": "list_dir", "args": {"path": "."}}')
         result = AgentLoop(agent=agent, max_steps=3).run("goal")
         self.assertFalse(result.steps[0].observation.startswith("[repeat]"))
@@ -304,14 +304,14 @@ class RepeatDetectionTests(unittest.TestCase):
         self.assertTrue(result.steps[2].observation.startswith("[repeat]"))
 
     def test_the_repeat_notice_names_the_earlier_step(self) -> None:
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
         agent = self._looping_agent('{"tool": "list_dir", "args": {"path": "."}}')
         result = AgentLoop(agent=agent, max_steps=2).run("goal")
         self.assertIn("at step 1", result.steps[1].observation)
 
     def test_the_original_result_is_still_included(self) -> None:
         """Marking a repeat must not hide what the tool actually returned."""
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
         agent = self._looping_agent('{"tool": "list_dir", "args": {"path": "."}}')
         result = AgentLoop(agent=agent, max_steps=2).run("goal")
         self.assertIn("Previous result:", result.steps[1].observation)
@@ -319,7 +319,7 @@ class RepeatDetectionTests(unittest.TestCase):
     def test_different_arguments_are_not_a_repeat(self) -> None:
         from unittest.mock import MagicMock
         from saleha.agents.base_agent import AgentResponse
-        from saleha.core.agentic_loop import AgentLoop
+        from saleha.core.loop.agentic_loop import AgentLoop
 
         calls = [
             '```tool_call\n{"tool": "list_dir", "args": {"path": "."}}\n```',
@@ -359,14 +359,14 @@ class ApprovalGateCoverageTests(unittest.TestCase):
     """
 
     def test_write_actions_are_gated_in_dangerous_mode(self) -> None:
-        from saleha.core.approval_gate import DANGEROUS_ACTIONS
+        from saleha.core.harness.approval_gate import DANGEROUS_ACTIONS
         for action in ("file_write", "file_patch", "file_delete",
                        "shell_exec", "git_commit"):
             self.assertIn(action, DANGEROUS_ACTIONS)
 
     def test_read_only_actions_are_not_gated(self) -> None:
         """Gating reads would make `dangerous` mode unusable."""
-        from saleha.core.approval_gate import DANGEROUS_ACTIONS
+        from saleha.core.harness.approval_gate import DANGEROUS_ACTIONS
         for action in ("read_file", "list_dir", "search_repo", "web_fetch"):
             self.assertNotIn(action, DANGEROUS_ACTIONS)
 
@@ -375,7 +375,7 @@ class ApprovalGateCoverageTests(unittest.TestCase):
         import io
         import os
         import re
-        from saleha.core.approval_gate import DANGEROUS_ACTIONS
+        from saleha.core.harness.approval_gate import DANGEROUS_ACTIONS
 
         used = set()
         for root, _, files in os.walk("saleha"):

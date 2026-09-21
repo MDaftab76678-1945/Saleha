@@ -21,7 +21,7 @@ in the provider, once.
 
 import unittest
 
-from saleha.core.model_provider import (
+from saleha.core.platform.model_provider import (
     OllamaProvider,
     budget_for_model,
     is_reasoning_model,
@@ -87,7 +87,14 @@ class ProviderAppliesTheBudgetTests(unittest.TestCase):
             sent.update((kwargs.get("json") or {}).get("options", {}))
             raise RuntimeError("stop before network")
 
-        import saleha.core.model_provider as mp
+        import sys
+
+        # saleha.core.platform's __init__.py re-exports the model_provider
+        # singleton under the name `model_provider`, shadowing the submodule
+        # attribute -- so `import saleha.core.platform.model_provider as mp`
+        # can resolve to the instance, not the module. sys.modules always
+        # reaches the real module regardless.
+        mp = sys.modules["saleha.core.platform.model_provider"]
         provider = OllamaProvider()
         original = mp.requests.post
         mp.requests.post = _capture

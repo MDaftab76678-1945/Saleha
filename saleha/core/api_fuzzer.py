@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List
 
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 
 
 @dataclass

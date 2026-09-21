@@ -33,7 +33,7 @@ parses from each profile's frontmatter.
 | sandbox jail | `saleha/sandbox/sandbox_jail.py` | Subprocess execution with Windows timeout | Isolated Subprocess |
 | AST verifier | `saleha/sandbox/ast_security_verifier.py` | Static AST audit of imports & syscalls | Deterministic Python AST |
 | math engine | `saleha/core/math_logic.py` | Complexity estimation (0.0 to 10.0) | Regex & Weighted Scoring |
-| SMT verifier | `saleha/core/formal_smt_verifier.py` | Mathematical & logical constraint proofs | Z3 Theorem Solver |
+| SMT verifier | `saleha/core/verification/formal_smt_verifier.py` | Mathematical & logical constraint proofs | Z3 Theorem Solver |
 | BM25 search | `saleha/core/bm25.py` | Lexical indexing and relevant code retrieval | Lexical Inverted Index |
 | AST cache | `saleha/core/incremental_ast_cache.py` | Cache AST parses to detect change impact | AST Dependency Graph |
 

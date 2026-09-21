@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import tempfile
 
-from saleha.core.sandbox_runner import SandboxResult, SandboxRunner
+from saleha.core.harness.sandbox_runner import SandboxResult, SandboxRunner
 
 
 def is_docker_available() -> bool:

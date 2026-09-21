@@ -7,7 +7,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from saleha.core.tot_orchestrator import TreeOfThoughtsOrchestrator, ThoughtNode, ToTResult
+from saleha.core.loop.tot_orchestrator import TreeOfThoughtsOrchestrator, ThoughtNode, ToTResult
 
 
 class TreeOfThoughtsOrchestratorTests(unittest.TestCase):

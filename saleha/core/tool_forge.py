@@ -29,7 +29,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from saleha.core.quality_guard import QualityGuard
+from saleha.core.verification.quality_guard import QualityGuard
 from saleha.tools.ast_inspector import ASTInspectorTool
 from saleha.tools.base import tool_registry
 
@@ -262,7 +262,7 @@ class ToolForge:
 
     def _select_model(self) -> Optional[str]:
         """Selects the best available local coding model from Ollama."""
-        from saleha.core.smart_router import get_installed_ollama_models
+        from saleha.core.platform.smart_router import get_installed_ollama_models
         installed = {m for m in get_installed_ollama_models() if ":" in m}
         preference = ["qwen2.5-coder:3b", "deepseek-coder:6.7b", "qwen3:8b", "qwen3.5:9b"]
         return next((m for m in preference if m in installed), None) or next(
@@ -310,7 +310,7 @@ class ToolForge:
 
     def generate_tool_code(self, spec: ToolSpecification) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """Generates tool source and companion test source using local model provider."""
-        from saleha.core.model_provider import default_provider
+        from saleha.core.platform.model_provider import default_provider
 
         model_name = self._select_model()
         if not model_name:
@@ -507,7 +507,7 @@ class ToolForge:
 
     def _attempt_repair(self, code: str, error_msg: str, model_name: str) -> Optional[str]:
         """Attempts an automated surgical repair of broken tool code using the local model."""
-        from saleha.core.model_provider import default_provider
+        from saleha.core.platform.model_provider import default_provider
         repair_prompt = (
             f"The following Python tool code failed validation with this error:\n"
             f"ERROR: {error_msg}\n\n"

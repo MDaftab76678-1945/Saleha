@@ -11,7 +11,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.repo_context_packer import (
+from saleha.core.rag.repo_context_packer import (
     RepoContextPacker,
     _python_symbols,
     _tokenize,

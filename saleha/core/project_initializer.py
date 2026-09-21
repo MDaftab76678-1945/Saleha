@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from typing import List
 
-from saleha.core.dependency_graph import dependency_graph
+from saleha.core.graph.dependency_graph import dependency_graph
 
 
 @dataclass

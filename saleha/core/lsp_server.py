@@ -12,7 +12,7 @@ import ast
 import os
 from typing import Any, Dict, Optional
 
-from saleha.core.dependency_graph import dependency_graph
+from saleha.core.graph.dependency_graph import dependency_graph
 
 
 class SalehaLSPServer:

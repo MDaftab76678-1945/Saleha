@@ -42,16 +42,16 @@ them.
 
 | Capability | What it does | Where |
 | :--- | :--- | :--- |
-| **Agentic coding loop** | Plans a task, edits files, runs the test command, iterates on failures — a real ReAct-style loop, not one prompt. | `saleha/core/agentic_loop.py` · `saleha run` |
+| **Agentic coding loop** | Plans a task, edits files, runs the test command, iterates on failures — a real ReAct-style loop, not one prompt. | `saleha/core/loop/agentic_loop.py` · `saleha run` |
 | **Multi-agent roles** | `PlannerAgent`, `CoderAgent`, `TesterAgent`, `DebuggerAgent`, orchestrated for multi-step / multi-role tasks. | `saleha/agents/` · `saleha team` |
-| **AST indexing & patching** | Symbol scanning and unified-diff patch generation; edits are parse-checked, not string-spliced. | `saleha/core/codebase_indexer.py` · `saleha scan` |
-| **Sandboxed execution** | Generated / untrusted code runs in a subprocess or Docker container with resource limits and an audit log. | `saleha/core/code_executor.py` · `saleha exec` |
-| **Static security scanning** | AST-based SAST: `shell=True`, bare `except`, hardcoded secrets, SQL string formatting, and more. Some Verilog/SystemVerilog support. | `saleha/core/security_scanner.py` · `saleha sast` |
+| **AST indexing & patching** | Symbol scanning and unified-diff patch generation; edits are parse-checked, not string-spliced. | `saleha/core/graph/codebase_indexer.py` · `saleha scan` |
+| **Sandboxed execution** | Generated / untrusted code runs in a subprocess or Docker container with resource limits and an audit log. | `saleha/core/harness/code_executor.py` · `saleha exec` |
+| **Static security scanning** | AST-based SAST: `shell=True`, bare `except`, hardcoded secrets, SQL string formatting, and more. Some Verilog/SystemVerilog support. | `saleha/core/verification/security_scanner.py` · `saleha sast` |
 | **Retrieval & memory** | A persistent solution-memory store, a lightweight RAG / graph-memory layer, and fast local code search. | `saleha/core/memory_store.py` · `graph_rag.py` |
-| **Model routing** | Routes requests across configured local (Ollama) and remote backends, with a runtime-probing smart router. | `saleha/core/model_provider.py` · `smart_router.py` |
+| **Model routing** | Routes requests across configured local (Ollama) and remote backends, with a runtime-probing smart router. | `saleha/core/platform/model_provider.py` · `smart_router.py` |
 | **Project scaffolder** | `saleha new fastapi\|express\|go <name>` copies a starter service from a template and verifies it builds — deterministic, no model call. | `saleha/core/project_scaffolder.py` · `saleha new` |
 | **Headless browser checks** | DOM / console inspection of a page via a headless browser driver, when one is installed. | `saleha/core/browser_agent.py` · `saleha browser` |
-| **Souls persona system** | Ten JSON-configured personas (temperature, allowed tools) plus a prompt bundle rendered into the agent's system prompt. A real prompt layer — not a claim about model cognition. | `souls/` · `saleha/core/soul_engine.py` |
+| **Souls persona system** | Ten JSON-configured personas (temperature, allowed tools) plus a prompt bundle rendered into the agent's system prompt. A real prompt layer — not a claim about model cognition. | `souls/` · `saleha/core/cognitive/soul_engine.py` |
 | **Web server** | A dependency-light HTTP/SSE server exposing much of the above over a REST API, with a browser UI. | `saleha/server/web_server.py` · `saleha serve` |
 
 The ten personas: `architect`, `artisan`, `auditor`, `sage`, `sentinel`,

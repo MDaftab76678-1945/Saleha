@@ -18,13 +18,13 @@ from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
 from saleha.core.memory_store import memory_store
-from saleha.core.codebase_indexer import CodebaseIndexer
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.graph.codebase_indexer import CodebaseIndexer
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 from saleha.core.tool_calling import global_tool_registry
-from saleha.core.sandbox_runner import SandboxRunner
-from saleha.core.quality_guard import quality_guard
-from saleha.core.ttc_solver import ttc_solver
-from saleha.core.session_tracer import session_tracer
+from saleha.core.harness.sandbox_runner import SandboxRunner
+from saleha.core.verification.quality_guard import quality_guard
+from saleha.core.verification.ttc_solver import ttc_solver
+from saleha.core.telemetry.session_tracer import session_tracer
 
 console = Console(safe_box=True)
 
@@ -176,7 +176,7 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /fix <failing_command_or_test>[/]")
                 return True
-            from saleha.core.self_healer import self_healer
+            from saleha.core.platform.self_healer import self_healer
             console.print(f"[cyan]🩹 Running Autonomous Self-Healer on:[/] [yellow]{arg}[/]")
             res = self_healer.auto_heal(arg)
             if res.success:
@@ -189,7 +189,7 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /repair <failing_command_or_test>[/]")
                 return True
-            from saleha.core.self_healer import SelfHealingEngine
+            from saleha.core.platform.self_healer import SelfHealingEngine
             console.print(f"[bold cyan]🔧 Autonomous Self-Healing Diagnostic Engine running on:[/] [bold yellow]{arg}[/]")
             healer = SelfHealingEngine()
             diag = healer.parse_error_output(arg)
@@ -207,7 +207,7 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /debate <technical topic or architecture proposal>[/]")
                 return True
-            from saleha.core.persona_debate import PersonaDebateEngine
+            from saleha.core.cognitive.persona_debate import PersonaDebateEngine
             engine = PersonaDebateEngine(model=self.model)
             console.print(f"[bold cyan]⚖️ Initiating Multi-Persona Adversarial Debate on:[/] [bold yellow]{arg}[/]")
             contract = engine.run_debate(arg)
@@ -226,7 +226,7 @@ class SalehaREPL:
             console.print(f"[bold cyan]🚀 Synthesizing Autonomous Pull Request for:[/] [bold yellow]{goal}[/]")
             from saleha.core.pr_generator import PRGenerator
             generator = PRGenerator(model=self.model)
-            from saleha.core.git_native import git_engine
+            from saleha.core.platform.git_native import git_engine
             stat = git_engine.get_status_summary()
             files_changed = stat.get("files", [])
             branch_name = generator._sanitize_branch_name(goal)
@@ -261,7 +261,7 @@ class SalehaREPL:
             return True
 
         if cmd == "/diff":
-            from saleha.core.git_native import git_engine
+            from saleha.core.platform.git_native import git_engine
             diff = git_engine.get_diff()
             if diff:
                 console.print(Syntax(diff[:3000], "diff", theme="monokai", line_numbers=True))
@@ -273,7 +273,7 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /search <natural_language_query>[/]")
                 return True
-            from saleha.core.semantic_search import semantic_search
+            from saleha.core.rag.semantic_search import semantic_search
             results = semantic_search.search(arg, top_k=3)
             for r in results:
                 console.print(f"  • [cyan]{r.file_path}:{r.line_number}[/] [{r.symbol_type}] (Score: {r.score}) - {r.snippet}")
@@ -295,7 +295,7 @@ class SalehaREPL:
             return True
 
         if cmd == "/budget":
-            from saleha.core.token_analytics import token_analytics
+            from saleha.core.telemetry.token_analytics import token_analytics
             s = token_analytics.get_summary()
             console.print(f"[green]💰 Token Economics:[/] Invocations: {s['total_invocations']} | Saved vs Commercial Cloud: {s.get('claude_equivalent_saved', '$0.00')}")
             return True
@@ -304,7 +304,7 @@ class SalehaREPL:
             if not arg or not os.path.isfile(arg):
                 console.print("[red]Usage: /review <file_path>[/]")
                 return True
-            from saleha.core.git_native import git_engine
+            from saleha.core.platform.git_native import git_engine
             diff = git_engine.get_diff(path=arg)
             if not diff:
                 console.print(f"[yellow]No uncommitted diffs found for {arg}.[/]")
@@ -358,7 +358,7 @@ class SalehaREPL:
             return True
 
         if cmd == "/status":
-            from saleha.core.git_native import git_engine
+            from saleha.core.platform.git_native import git_engine
             stat = git_engine.get_status_summary()
             if stat.get("is_repo"):
                 dirty_tag = "[red]Dirty[/]" if stat.get("dirty") else "[green]Clean[/]"
@@ -370,7 +370,7 @@ class SalehaREPL:
             return True
 
         if cmd == "/undo":
-            from saleha.core.git_native import git_engine
+            from saleha.core.platform.git_native import git_engine
             res = git_engine.rollback_last_commit(soft=True)
             if res.get("success"):
                 console.print(f"[green]✅ {res.get('message')}[/]")
@@ -379,7 +379,7 @@ class SalehaREPL:
             return True
 
         if cmd == "/souls":
-            from saleha.core.soul_engine import soul_engine
+            from saleha.core.cognitive.soul_engine import soul_engine
             souls = soul_engine.list_souls()
             active = soul_engine.get_active_soul_name()
             t = Table(title="🌌 SoulSpec v1.0 Cognitive Personas", show_header=True)
@@ -397,7 +397,7 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /soul <soul_name> (e.g., /soul artisan, /soul architect)[/]")
                 return True
-            from saleha.core.soul_engine import soul_engine
+            from saleha.core.cognitive.soul_engine import soul_engine
             try:
                 activated = soul_engine.set_active_soul(arg)
                 console.print(f"[bold green]✓ Activated SoulSpec Persona:[/] [bold yellow]{activated.display_name}[/] ({activated.archetype})")
@@ -408,7 +408,7 @@ class SalehaREPL:
             return True
 
         if cmd == "/cost":
-            from saleha.core.token_analytics import token_analytics
+            from saleha.core.telemetry.token_analytics import token_analytics
             s = token_analytics.get_summary()
             console.print(Panel(
                 f"[bold green]💰 Saleha Local-First Economic ROI[/]\n"

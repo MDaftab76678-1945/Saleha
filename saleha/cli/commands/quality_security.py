@@ -31,7 +31,7 @@ from saleha import __version__
 @cli.command()
 @click.argument('directory', default='.', type=click.Path(exists=True, file_okay=False))
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def scan(directory, as_json):
+def scan(directory: Any, as_json: Any) -> None:
     """Scan and index codebase AST symbols (classes, methods, functions, imports)."""
     indexer = _cmds.CodebaseIndexer(root_dir=directory)
     indexed = indexer.scan()
@@ -58,9 +58,9 @@ def scan(directory, as_json):
 @click.option('--limit', '-n', default=20, help='Number of recent records to show')
 @click.option('--blocked-only', is_flag=True, help='Show only blocked attempts')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def audit(limit, blocked_only, as_json):
+def audit(limit: Any, blocked_only: Any, as_json: Any) -> None:
     """Show recent code-execution audit records."""
-    from saleha.core.audit_log import AuditLog
+    from saleha.core.telemetry.audit_log import AuditLog
     audit_log = AuditLog()
     records = audit_log.blocked_entries() if blocked_only else audit_log.recent(limit)
     if not records:
@@ -88,7 +88,7 @@ def audit(limit, blocked_only, as_json):
 @click.argument('path', default='.', required=False)
 @click.option('--severity', '-s', type=click.Choice(['high', 'medium', 'low', 'all'], case_sensitive=False), default='all', help='Filter by minimum severity')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def sast(path, severity, as_json):
+def sast(path: Any, severity: Any, as_json: Any) -> None:
     """Deep AST Security SAST scanner for detecting SQL injection, hardcoded secrets, and unsafe execution."""
     scanner = _cmds.ASTSecurityScanner()
     if os.path.isfile(path):
@@ -128,7 +128,7 @@ def sast(path, severity, as_json):
 @click.argument('target_file_or_dir', default='.')
 @click.option('--ensemble', is_flag=True, help='Use 3-Agent Multi-Model Consensus (Security + Performance + QA)')
 @click.option('--min-confidence', default=0.8, help='Minimum confidence threshold for approval')
-def review_cmd(target_file_or_dir, ensemble, min_confidence):
+def review_cmd(target_file_or_dir: Any, ensemble: Any, min_confidence: Any) -> None:
     """
     Run automated code review with optional Multi-Model Ensemble Consensus.
     
@@ -141,7 +141,7 @@ def review_cmd(target_file_or_dir, ensemble, min_confidence):
             with open(target_file_or_dir, 'r', encoding='utf-8', errors='replace') as f:
                 content = f.read()
         else:
-            from saleha.core.git_native import git_engine
+            from saleha.core.platform.git_native import git_engine
             content = git_engine.get_status_summary().get('diff', 'Codebase audit')
         consensus = ensemble_reviewer.review_code(content, file_path=target_file_or_dir, min_confidence=min_confidence)
         console.print(Markdown(consensus.summary))
@@ -155,7 +155,7 @@ def review_cmd(target_file_or_dir, ensemble, min_confidence):
 @cli.command(name='threat')
 @click.option('--output', default='docs/threat_model.md', help='Output path for the STRIDE checklist')
 @click.option('--dir', 'target_dir', default='.', help='Directory to check')
-def threat_cmd(output, target_dir):
+def threat_cmd(output: Any, target_dir: Any) -> None:
     """
     Check the codebase for the mitigation each STRIDE category needs.
 
@@ -179,7 +179,7 @@ def threat_cmd(output, target_dir):
 @cli.command(name='debt')
 @click.option('--threshold', default=10, help='Cyclomatic complexity hotspot threshold')
 @click.option('--dir', 'target_dir', default='.', help='Directory to analyze')
-def debt_cmd(threshold, target_dir):
+def debt_cmd(threshold: Any, target_dir: Any) -> None:
     """
     Analyze Cognitive & Cyclomatic Complexity and flag Technical Debt hotspots.
     
@@ -203,35 +203,41 @@ def debt_cmd(threshold, target_dir):
     else:
         console.print('[bold green]✨ Clean Codebase! Zero functions exceed the complexity threshold.[/]\n')
 
+def _review_ai_walk_directory(path: str, ai_reviewer: Any) -> list:
+    """Reviews every .py file under path, skipping unreadable ones."""
+    reports = []
+    for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if d not in ('__pycache__', '.git', '.venv', 'node_modules')]
+        py_files = [f for f in files if f.endswith('.py')]
+        for f in py_files:
+            fpath = os.path.join(root, f)
+            try:
+                with open(fpath, 'r', encoding='utf-8', errors='replace') as fp:
+                    c = fp.read()
+            except OSError:
+                continue
+            reports.append(ai_reviewer.review_file(fpath, c))
+    return reports
+
+
 @cli.command(name='review-ai')
 @click.argument('path', default='.')
 @click.option('--html', is_flag=True, help='Generate HTML review dashboard')
 @click.option('--out', default='review_report.html', help='Output HTML report path')
-def review_ai_cmd(path, html, out):
+def review_ai_cmd(path: Any, html: Any, out: Any) -> None:
     """
     Run AI-Powered Deep Code Review (OWASP Top-10, Code Smells, Security).
-    
+
     Example: saleha review-ai . --html
     """
     from saleha.core.ai_reviewer import ai_reviewer
     from saleha.core.review_reporter import review_reporter
-    reports = []
     if os.path.isfile(path):
         with open(path, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
-        reports.append(ai_reviewer.review_file(path, content))
+        reports = [ai_reviewer.review_file(path, content)]
     else:
-        for root, dirs, files in os.walk(path):
-            dirs[:] = [d for d in dirs if d not in ('__pycache__', '.git', '.venv', 'node_modules')]
-            for f in files:
-                if f.endswith('.py'):
-                    fpath = os.path.join(root, f)
-                    try:
-                        with open(fpath, 'r', encoding='utf-8', errors='replace') as fp:
-                            c = fp.read()
-                        reports.append(ai_reviewer.review_file(fpath, c))
-                    except OSError:
-                        pass
+        reports = _review_ai_walk_directory(path, ai_reviewer)
     if not reports:
         console.print('[yellow]No Python files found to review.[/]')
         return
@@ -253,7 +259,7 @@ def review_ai_cmd(path, html, out):
 @cli.command(name='redteam')
 @click.argument('path', required=True)
 @click.option('--model', default='auto', help='Model to use for red-team fuzzing')
-def redteam_cmd(path: str, model: str):
+def redteam_cmd(path: str, model: str) -> None:
     """
     Autonomous Adversarial Red-Team Fuzzer & Exploit Simulation (AgentShield).
     
@@ -283,7 +289,7 @@ def redteam_cmd(path: str, model: str):
 
 @cli.command(name='constitutional-check')
 @click.argument('path', required=True)
-def constitutional_check_cmd(path: str):
+def constitutional_check_cmd(path: str) -> None:
     """
     Audit code against Constitutional AI Alignment Rules.
     
@@ -300,7 +306,7 @@ def constitutional_check_cmd(path: str):
     console.print(Panel(f'[bold {status_col}]Pattern screen: {path}[/bold {status_col}]\n{rep.summary}', border_style=status_col))
 
 @cli.command(name='godel-utility')
-def godel_utility_cmd():
+def godel_utility_cmd() -> None:
     """
     Evaluate system-level Gödel Machine formal utility proof.
     
@@ -335,7 +341,7 @@ def godel_utility_cmd():
 
 @cli.command(name='emergence-check')
 @click.option('--clear', is_flag=True, help='Delete the recorded swarm message history.')
-def emergence_check_cmd(clear):
+def emergence_check_cmd(clear: Any) -> None:
     """
     Audit multi-agent swarm dynamics for circular deadlocks and Gini inequality.
 
@@ -373,7 +379,7 @@ def emergence_check_cmd(clear):
         console.print(f'  [dim]Suggested remediation: {rep.remediation_action}[/]')
 
 @cli.command(name='merkle-audit')
-def merkle_audit_cmd():
+def merkle_audit_cmd() -> None:
     """
     Verify tamper-proof cryptographic Merkle tree audit provenance.
 
@@ -387,7 +393,7 @@ def merkle_audit_cmd():
 @cli.command(name='merkle-leaves')
 @click.option('--limit', default=20, type=int, help='Max leaves to show, most recent first (default: 20, 0 = all)')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON instead of a table')
-def merkle_leaves_cmd(limit: int, as_json: bool):
+def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
     """
     List the individual audit leaves recorded in the Merkle provenance ledger.
 
@@ -469,7 +475,7 @@ def merkle_leaves_cmd(limit: int, as_json: bool):
 @click.option('--vote', 'votes', multiple=True, required=True,
               help='One voter and their vote count as agent:count, e.g. --vote CoderAgent:3. '
                    'Repeat --vote for each voter. Negative counts (e.g. SecurityAgent:-2) oppose.')
-def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple):
+def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) -> None:
     """
     Quadratic Voting & VCG consensus on a real proposal you supply.
 
@@ -524,7 +530,7 @@ def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple):
 @click.option('--expect', type=int, default=-1,
               help='Entry count from outside the file; catches silent deletion')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable output')
-def verify_work_cmd(ledger, root_dir, chain_only, expect, as_json):
+def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as_json: Any) -> None:
     """
     Independently re-verify what an agent claimed it did.
 

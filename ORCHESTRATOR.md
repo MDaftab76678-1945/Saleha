@@ -113,7 +113,7 @@ The orchestrator operates inside physical consumer-grade hardware limits (1 loca
 | **Complexity Gate** | `saleha/core/math_logic.py` | Estimates complexity (0.0 to 10.0) from file types and keywords. |
 | **Task Planner** | `saleha/agents/planner.py` | Generates 3-5 step plan for complex tasks. |
 | **Sandbox Jail** | `saleha/sandbox/sandbox_jail.py` | Executes subprocesses with timeout and Windows path normalization. |
-| **SMT Verifier** | `saleha/core/formal_smt_verifier.py` | Proves logical assertions using Z3 solver. |
+| **SMT Verifier** | `saleha/core/verification/formal_smt_verifier.py` | Proves logical assertions using Z3 solver. |
 | **AST Cache** | `saleha/core/incremental_ast_cache.py` | Re-indexes AST only for files modified in the active turn. |
 
 ---
@@ -131,8 +131,8 @@ same rule as everything else.
 
 | File | Apparent purpose |
 | --- | --- |
-| `AGENTS.md` | Agent roster / contract, root level (relationship to `docs/AGENT_PROFILES.md` and `saleha/skills/agent_*.md` below not yet reconciled). |
-| `AGENTSKILLS.md` | Skill-system description (relationship to `saleha/skills/` and `.agents/skills/` not yet reconciled). |
+| `AGENTS.md` | Agent roster / contract, root level (relationship to `docs/AGENT_PROFILES.md` and `saleha/skills/agent_*.md` **resolved, see 8.4a below**). |
+| `AGENTSKILLS.md` | Capability Module Index, reframed pass 137 (relationship to `saleha/skills/` and `.agents/skills/` **resolved, see 8.4a below**). |
 | `CHANGELOG.md` | Release/change history. |
 | `CODE_OF_CONDUCT.md` | Standard community doc. |
 | `CONTRIBUTING.md` | Contributor guide. |
@@ -313,7 +313,7 @@ Traced both to their loaders — **neither is dead, and they do not compete**:
 - **`souls/`** (9 personas × `{IDENTITY,SOUL,STYLE}.md` plus a flat
   `<name>.soul.md`, 52 files total: alchemist, architect, artisan, auditor,
   minimalist, sage, sentinel, sovereign, speedrunner, sre) is loaded by
-  `saleha/core/soul_engine.py` (scans `souls/<name>/`, loads and validates
+  `saleha/core/cognitive/soul_engine.py` (scans `souls/<name>/`, loads and validates
   `SOUL.md`/`IDENTITY.md`/`soul.json`), exposed via `saleha/cli/soul_cli.py`
   (`saleha soul use`) and `POST /api/souls/use`, and covered by
   `test_soul_engine.py`/`test_web_server.py`. This governs system-prompt
@@ -330,6 +330,25 @@ Root `SOUL.md` documents only the souls/ system and never mentions
 souls/ is the only such system). No fix needed; document the distinction in
 `ARCHITECTURE.md` next time that file is touched, so a future reader doesn't
 re-open this question from scratch.
+
+### 8.4a Five agent/tool/skill directories, traced and reconciled (pass 139)
+
+A name collision across five directories reads as scatter, but tracing each
+one to its actual loader/caller shows five distinct, non-competing jobs:
+
+| Directory | What it is | Loaded by |
+| --- | --- | --- |
+| `saleha/agents/` | 30 executable `BaseAgent` Python subclasses (`architect.py`, `coder.py`, ...) | Direct import, instantiated by the orchestrator/loop |
+| `saleha/skills/agent_*.md` | 30 markdown persona specs (YAML frontmatter + prompt body) | `agent_profile_loader.py`, parsed into `AgentProfile` at runtime for role/task selection (see 8.4) |
+| `souls/` | 9 personas' identity/style/sampling-parameter files | `soul_engine.py`, governs prompt *flavor*, not role (see 8.4) |
+| `saleha/tools/` | The real ToolForge tool registry (`ast_inspector.py`, `release_manager.py`, `base.py`'s `tool_registry`) | `tool_forge.py`, `agentic_loop.py`, `octopus_coordinator.py` -- genuinely live production code |
+| Root `tools/` | One standalone repo-maintenance script (`code_quality_auditor.py`), unrelated to the LLM tool registry above -- name collision only | Invoked directly as `python -m tools.code_quality_auditor` (documented in `CLAUDE.md`, pass 44) |
+| `.agents/skills/self-improve-engine/` | External automation tooling (a CLI wrapper around `saleha/core/self_improve.py`), plus `.agents/scripts/preflight_lint.py` (the pre-commit quality gate) | Not an LLM persona system at all -- coincidental "skills" name overlap with `saleha/skills/` |
+| `AGENTS.md` (root) | Human-readable roster describing the personas that `saleha/skills/agent_*.md` define programmatically | Documentation only, not a code path |
+| `AGENTSKILLS.md` | Capability Module Index (reframed pass 137) describing the six real implementation modules behind Saleha's tool-calling system | Documentation only, not a code path |
+| `docs/AGENT_PROFILES.md` | Static markdown mirror of the same personas `saleha/skills/agent_*.md` define | Documentation only, not a code path |
+
+None of these is dead, and none should be moved or merged: `agent_profile_loader.py` and `soul_engine.py` both hardcode their directory paths, so relocating `saleha/skills/` or `souls/` would break real runtime lookups for no functional gain. The actual problem was purely that this relationship had never been written down in one place -- fixed here, not by moving files.
 
 ### 8.5 Non-Saleha trees under the same repo — `deploy/` confirmed foreign
 
@@ -429,7 +448,7 @@ re-open this question from scratch.
   now runs a real `pytest saleha/tests/` subprocess with an honest
   `ran: False` path when pytest is unavailable; the fabricated key is gone.
   Verified end-to-end: real result `1859 passed, 8 skipped, 60 subtests` in
-  102.73s. Distinct from `saleha/core/quality_guard.py` (the real,
+  102.73s. Distinct from `saleha/core/verification/quality_guard.py` (the real,
   actively-used AST checker fixed in passes 32/38) — no overlap. Detail:
   `NOTEBOOK_IMPORT.md`, "Forty-fourth pass."
 - `scripts/` (44 files) — read in full this pass, not enumerated in

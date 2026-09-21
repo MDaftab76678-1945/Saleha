@@ -118,7 +118,7 @@ class RepoContextPacker:
     @staticmethod
     def _default_ranker() -> Optional[Any]:
         try:
-            from saleha.core.tree_context_ranker import TreeContextRanker
+            from saleha.core.rag.tree_context_ranker import TreeContextRanker
             ranker = TreeContextRanker()
             return ranker if getattr(ranker, "available", False) else None
         except Exception:

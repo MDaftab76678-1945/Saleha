@@ -2201,11 +2201,94 @@ the kept install scripts (Rule 3); `saleha/server/dashboard_reference.jsx`
 moved to `docs/reference/`.
 
 Full suite re-verified after all moves: **2344 passed, 13 skipped, 0
-failures**, unchanged. **Not yet done** (larger, real refactors queued
-for a following pass, each touching hundreds of import sites): the
-`saleha/core/` 243-file flat-to-category-folder reorganization, the
-`saleha/tests/` 282-file flat-to-subpackage split, and the tools/skills/
-personas 5-way consolidation. Detail: `NOTEBOOK_IMPORT.md`, "Pass 139."
+failures**, unchanged.
+
+**Pass 139 (continued) — the `saleha/core/` 46-file flat-to-category
+migration completed, on explicit request (full move, not shims).**
+`saleha/STRUCTURE.md` had recorded this as deliberately deferred; done
+now, one category at a time (9 categories), verifying imports + a full
+test run after each before proceeding to the next. Automated with a
+script that moves each file, deletes the flat original, and rewrites
+every real `from`/`import` site across the repo (~450 references).
+
+Three real defect classes surfaced, all fixed:
+
+- **Two latent circular imports**, always present at the file level
+  (`saleha/core/platform/self_healer.py` importing `BaseAgent` at module
+  level; `saleha/core/harness/benchmark_harness.py` and
+  `swebench_runner.py` importing `SalehaOrchestrator` at module level;
+  later `saleha/core/swarm/team_orchestrator.py` importing
+  `agent_profile_loader` at module level) — genuine layering violations
+  the flat structure was accidentally hiding, since a bare flat module
+  has no eagerly-importing parent package to close the cycle through.
+  Fixed by making all four imports lazy (function-local), matching how
+  their own call sites already used them; `self_healer.py`'s eager
+  module-level singleton needed a PEP-562 lazy-singleton fix one level
+  further, in both the module and its package `__init__.py`.
+- **A systemic name-collision trap in all 46 migrated modules**: every
+  category `__init__.py` re-exports a singleton under the same name as
+  its own submodule (`approval_gate` the module vs. `approval_gate` the
+  singleton), which rebinds the package's attribute for that name to the
+  instance. Harmless for the standard `from saleha.core.harness.
+  approval_gate import X` pattern every production caller uses (resolved
+  before the rebinding takes effect), but broke two test helpers doing
+  `import ... as gate` specifically to `patch.object(gate, ...)` — fixed
+  via `sys.modules[...]` lookups, which always reach the real module.
+  Documented as a standing gotcha in `saleha/STRUCTURE.md`.
+- **Two pre-existing PEP-562 compatibility layers had stale flat paths**:
+  `saleha/core/__init__.py`'s `_MOD_MAP` and `saleha/cli/commands/
+  __init__.py`'s `_LAZY_IMPORT_MAP` both mapped symbol names to now-moved
+  flat module paths. Fixed with an explicit `_MOD_TO_SUBPACKAGE` table
+  covering all 46 names.
+
+Plus 28 stale `mock.patch("saleha.core.<flat-path>...")` string-literal
+targets across 10 test files (invisible to the automated rewrite, since
+string literals aren't import statements) and a handful of other
+hardcoded flat paths (`test_untrusted_content.py`'s direct file read,
+`test_import_side_effects.py`'s hardcoded module list,
+`AGENTSKILLS.md`'s file-path table) — all found by running the real
+suite, not inferred. Seven prospective docs (README, SECURITY, SOUL,
+ORCHESTRATOR, PRODUCT_BRIEF, CONTRIBUTING, the architecture review) had
+their path references updated; `NOTEBOOK_IMPORT.md`/`CHANGELOG.md`/
+`COORDINATION.md` deliberately left untouched — they document history,
+not current state.
+
+Measured, twice: `saleha/tests/` full run, and again after a full
+`__pycache__` wipe forcing fresh bytecode compilation — both **2344
+passed, 13 skipped, 0 failures**, byte-for-byte the same count as before
+the migration. `npx turbo run typecheck` 8/8. 197 flat modules remain in
+`saleha/core/` (no category assigned; not attempted this pass — inventing
+new categories for them is a separate design decision).
+
+`saleha/tests/`'s 282-file flat-to-subpackage split and the tools/skills/
+personas scatter were also part of the original audit: the personas/tools
+scatter turned out to be five genuinely distinct, non-competing systems
+once traced to their real loaders (documented in `ORCHESTRATOR.md`
+section 8.4a, not moved — moving would break `agent_profile_loader.py`'s
+and `soul_engine.py`'s hardcoded directory paths for no functional gain).
+The `saleha/tests/` reorganization was not attempted this pass — same
+scale of risk as the core split, and lower payoff since tests have no
+downstream importers to break, only collection/discovery to preserve.
+
+**The commit itself surfaced a sixth stale reference and a real
+pre-existing gap the pre-commit gate had never caught before.** The
+gate's own script (`.agents/scripts/preflight_lint.py`) hardcoded the
+pre-migration `quality_guard` import path and blocked its own commit —
+exactly the intended failure mode, fixed in one line. After that, the
+gate still failed on 24 files this pass had only touched for a one-line
+import rewrite, all with pre-existing low type-annotation coverage
+scores — confirmed byte-for-byte identical against `HEAD` before
+deciding anything, so none of it was introduced by this pass. Rather
+than bypass with `--no-verify`, fixed all 24: wrote a small AST-based
+auto-annotator (real inferred types from literal defaults, `Any` only
+for genuinely dynamic values, `-> None` where no real return value
+exists) and one genuine `COMPLEX-001` fix (`review_ai_cmd`'s 6-deep
+nesting, extracted into a real helper function, verified through the
+actual CLI both as a single-file and directory invocation — an
+extraction mistake in the process, decorators left on the wrong
+function, was itself caught by that same CLI invocation, not by reading
+the diff). Gate now reports 100% clean; full suite re-verified after
+both annotation rounds. Detail: `NOTEBOOK_IMPORT.md`, "Pass 139."
 
 ---
 

@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass
 
 from saleha.core.execution_policy import docker_available
-from saleha.core.sandbox_runner import SandboxResult, SandboxRunner
+from saleha.core.harness.sandbox_runner import SandboxResult, SandboxRunner
 
 
 @dataclass

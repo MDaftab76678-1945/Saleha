@@ -75,7 +75,7 @@ class MultiFileEditor:
 
         context_block = ""
         try:
-            from saleha.core.repo_context_packer import RepoContextPacker
+            from saleha.core.rag.repo_context_packer import RepoContextPacker
             packed = RepoContextPacker(root_dir=self.root_dir).pack(
                 goal, budget_chars=self.max_context_chars
             )
@@ -181,7 +181,7 @@ Format:
                 try:
                     with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
                         old_content = f.read()
-                    from saleha.core.codebase_indexer import SmartPatcher
+                    from saleha.core.graph.codebase_indexer import SmartPatcher
                     if search_b and replace_b:
                         ok, patched, err = SmartPatcher.apply_search_replace(old_content, search_b, replace_b)
                     else:
@@ -204,7 +204,7 @@ Format:
                 try:
                     with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
                         old = f.read()
-                    from saleha.core.codebase_indexer import SmartPatcher
+                    from saleha.core.graph.codebase_indexer import SmartPatcher
                     edit_obj.diff = SmartPatcher.create_unified_diff(old, content, path)[:4000]
                 except OSError:
                     pass

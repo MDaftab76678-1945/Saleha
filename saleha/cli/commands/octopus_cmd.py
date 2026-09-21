@@ -29,7 +29,7 @@ from saleha.cli.commands import cli, console
 def octopus_cmd(goal: str, model: str, workers: int, timeout: float, supremacy: bool, as_json: bool) -> None:
     """Execute goal using the 9-Brain Octopus Multi-Agent Coordination Engine."""
     from saleha.core.octopus_coordinator import OctopusCoordinator, ArmBrainOutput
-    from saleha.core.agent_worker_pool import AgentWorkerPool
+    from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 
     coordinator = OctopusCoordinator(
         model=model,

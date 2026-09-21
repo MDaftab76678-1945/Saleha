@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.token_analytics import TokenAnalyticsEngine, InvocationRecord
+from saleha.core.telemetry.token_analytics import TokenAnalyticsEngine, InvocationRecord
 
 
 class TokenAnalyticsTests(unittest.TestCase):

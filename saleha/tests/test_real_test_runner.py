@@ -6,7 +6,7 @@ __main__ guard stripping, aur static-gate short-circuit.
 import unittest
 
 from saleha.agents.tester import TesterAgent
-from saleha.core.test_runner import (
+from saleha.core.harness.test_runner import (
     TestRunner,
     build_runner_script,
     sanitize_test_code,

@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from saleha.core.model_provider import default_provider, MockProvider, ModelProvider
+from saleha.core.platform.model_provider import default_provider, MockProvider, ModelProvider
 
 
 @dataclass
@@ -71,7 +71,7 @@ class BaseAgent:
         # "auto" mode me runtime Ollama probing enable -- router sirf installed
         # models choose karta hai (2026 catalog + adaptive candidate filtering).
         if model == "auto":
-            from saleha.core.smart_router import SmartRouter
+            from saleha.core.platform.smart_router import SmartRouter
             self.router = SmartRouter(probe_runtime=True)
         else:
             self.router = None

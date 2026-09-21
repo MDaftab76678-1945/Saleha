@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.multi_repo_graph import MultiRepoDependencyGraph
+from saleha.core.graph.multi_repo_graph import MultiRepoDependencyGraph
 
 
 class MultiRepoGraphTests(unittest.TestCase):

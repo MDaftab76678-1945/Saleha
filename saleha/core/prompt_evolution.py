@@ -194,7 +194,7 @@ class PromptEvolver:
 
     # -- fitness -------------------------------------------------------
     def _default_verifier(self, code: str, task: EvolutionTask) -> bool:
-        from saleha.core.code_executor import CodeExecutor
+        from saleha.core.harness.code_executor import CodeExecutor
 
         if not code.strip():
             return False

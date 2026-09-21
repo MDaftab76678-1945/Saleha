@@ -9,7 +9,7 @@ import json
 import tempfile
 import unittest
 from unittest.mock import patch
-from saleha.core.mcp_hub import UniversalMCPHub, MCPServerConfig, mcp_hub
+from saleha.core.platform.mcp_hub import UniversalMCPHub, MCPServerConfig, mcp_hub
 
 
 class MCPHubTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class MCPHubTests(unittest.TestCase):
             self.assertIn("command", config_data["context_servers"]["filesystem"])
 
     def test_connect_server_with_resolvable_command_reports_command_resolved(self) -> None:
-        with patch("saleha.core.mcp_hub.shutil.which", return_value="/usr/bin/npx"):
+        with patch("saleha.core.platform.mcp_hub.shutil.which", return_value="/usr/bin/npx"):
             res = self.hub.connect_server("filesystem")
         self.assertTrue(res["success"])
         self.assertEqual(res["status"], "command_resolved")
@@ -63,7 +63,7 @@ class MCPHubTests(unittest.TestCase):
         (`saleha mcp connect`) surfaces that straight to the user. Must now
         genuinely check whether the launch command resolves, and report
         failure honestly when it doesn't."""
-        with patch("saleha.core.mcp_hub.shutil.which", return_value=None):
+        with patch("saleha.core.platform.mcp_hub.shutil.which", return_value=None):
             res = self.hub.connect_server("postgres")
         self.assertFalse(res["success"])
         self.assertEqual(res["status"], "command_not_found")

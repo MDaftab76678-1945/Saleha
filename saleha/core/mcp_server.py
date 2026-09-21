@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List
 
 from saleha.core.ephemeral_container_runner import container_runner
-from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine
+from saleha.core.cognitive.neuro_symbolic_engine import neuro_symbolic_engine
 from saleha.core.notebook_engine import notebook_engine
 
 

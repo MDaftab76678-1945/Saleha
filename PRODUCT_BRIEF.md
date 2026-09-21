@@ -51,7 +51,7 @@ No monetization is implemented in the codebase today (no billing, licensing, or 
 Rather than an unverifiable checklist, here's what the codebase actually enforces or measures:
 
 1. **Tests:** `python -m pytest saleha/tests/` — 955 collected tests across ~200 files; run locally for current pass/fail status.
-2. **Static security scanning:** `saleha sast` runs AST-based checks (unsafe `shell=True`, bare `except`, hardcoded secrets, string-built SQL) via `saleha/core/security_scanner.py`.
+2. **Static security scanning:** `saleha sast` runs AST-based checks (unsafe `shell=True`, bare `except`, hardcoded secrets, string-built SQL) via `saleha/core/verification/security_scanner.py`.
 3. **Sandboxed execution:** generated/untrusted code runs through `sandbox_runner.py` (subprocess, resource-limited) or `docker_sandbox.py` (containerized), not directly on the host.
 4. **Human approval gate:** `approval_gate.py`/`execution_policy.py` can require confirmation before risky operations.
 5. **Audit trail:** `audit_log.py` + `merkle_provenance.py` keep a hash-chained log of actions, verifiable with `saleha merkle-audit`.

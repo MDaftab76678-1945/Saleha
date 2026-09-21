@@ -184,7 +184,7 @@ def sandbox_run_cmd(code: str):
     
     Example: saleha sandbox-run "print(2+2)"
     """
-    from saleha.core.sandbox_runner import sandbox_runner
+    from saleha.core.harness.sandbox_runner import sandbox_runner
     res = sandbox_runner.run_python_code(code)
     col = 'green' if res.success else 'red'
     console.print(Panel(f'[bold {col}]📦 Sandbox Execution Result[/bold {col}]\n{res.summary}\n[bold white]Output:[/bold white]\n{res.stdout or res.stderr}', border_style=col))

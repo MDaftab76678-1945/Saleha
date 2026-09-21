@@ -27,7 +27,7 @@ ollama pull qwen2.5-coder:7b            # fast local model for manual testing
    ```
 
 3. **No new mandatory dependencies.** Heavy capabilities go into extras with graceful fallback.
-4. **Security posture:** code execution must respect sandbox policies (`saleha/core/sandbox_runner.py`) and constitutional AI rails (`saleha/core/constitutional_guard.py`).
+4. **Security posture:** code execution must respect sandbox policies (`saleha/core/harness/sandbox_runner.py`) and constitutional AI rails (`saleha/core/constitutional_guard.py`).
 5. **CHANGELOG.md** — add a line under `Unreleased`.
 
 ## 🧪 Testing Notes

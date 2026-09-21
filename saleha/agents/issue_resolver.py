@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 
-from saleha.core.swarm_pipeline_engine import swarm_engine, SwarmExecutionResult
+from saleha.core.swarm.swarm_pipeline_engine import swarm_engine, SwarmExecutionResult
 
 
 @dataclass

@@ -56,7 +56,7 @@ def test_clean_code_fence() -> None:
 def test_heal_test_source_injects_missing_module_import() -> None:
     # Test code calls `approve` and `get_mode` from target module, but only imported `ApprovalGate`
     raw_code = """
-from saleha.core.approval_gate import ApprovalGate
+from saleha.core.harness.approval_gate import ApprovalGate
 
 def test_approve_function():
     res = approve("shell_exec", "rm -rf")

@@ -117,7 +117,7 @@ def undo(hard, as_json):
     Example: saleha undo
     Example hard reset: saleha undo --hard
     """
-    from saleha.core.git_native import git_engine
+    from saleha.core.platform.git_native import git_engine
     if hard:
         # --hard destroys uncommitted work, not just the last commit. Say what
         # is at stake before the approval gate asks.

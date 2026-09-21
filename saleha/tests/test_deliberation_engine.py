@@ -3,8 +3,8 @@ import json
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 
-from saleha.core.deliberation_engine import DeliberationEngine, DeliberationResult
-from saleha.core.team_orchestrator import TeamResult
+from saleha.core.loop.deliberation_engine import DeliberationEngine, DeliberationResult
+from saleha.core.swarm.team_orchestrator import TeamResult
 from saleha.cli.commands import cli
 
 

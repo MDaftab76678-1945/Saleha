@@ -26,11 +26,11 @@ from saleha.agents.reviewer import ReviewerAgent, ReviewResult
 from saleha.core.self_healing import SelfHealingEngine, HealingResult
 from saleha.core.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory_store import memory_store
-from saleha.core.git_native import git_engine
+from saleha.core.platform.git_native import git_engine
 
 load_builtin_skills()
 
@@ -318,7 +318,7 @@ class SalehaOrchestrator:
         coding. Used by `saleha run --resume`.
         """
         from saleha.core.session_store import session_store, SessionState
-        from saleha.core.metrics import metrics_tracker
+        from saleha.core.telemetry.metrics import metrics_tracker
         _run_start = time.time()
 
         # ------------------------------------------------------------------
@@ -468,7 +468,7 @@ class SalehaOrchestrator:
             repo_note = ""
             if context_dir:
                 try:
-                    from saleha.core.repo_context_packer import RepoContextPacker
+                    from saleha.core.rag.repo_context_packer import RepoContextPacker
                     packed = RepoContextPacker(root_dir=context_dir).pack(user_goal)
                     if packed:
                         repo_note = f"\n\n[Repository Context]\n{packed}\n"
@@ -856,7 +856,7 @@ class SalehaOrchestrator:
 
     def execute_with_tot_exploration(self, goal: str, initial_code: str, test_suite: str, max_depth: int = 3, branching_factor: int = 3):
         """Executes advanced Tree-of-Thoughts (ToT) search with backtracking and learned heuristics."""
-        from saleha.core.tot_orchestrator import tot_orchestrator
+        from saleha.core.loop.tot_orchestrator import tot_orchestrator
         return tot_orchestrator.solve_task_with_tot(
             goal=goal,
             initial_code=initial_code,

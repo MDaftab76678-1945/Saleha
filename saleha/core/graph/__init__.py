@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, List, Set, Tuple
 
-from saleha.core.codebase_indexer import (
+from saleha.core.graph.codebase_indexer import (
     ClassSymbol,
     CodebaseIndexer,
     FunctionSymbol,
@@ -24,25 +24,25 @@ from saleha.core.codebase_indexer import (
     codebase_indexer,
     smart_patcher,
 )
-from saleha.core.dependency_graph import (
+from saleha.core.graph.dependency_graph import (
     CodebaseDependencyGraph,
     SymbolLocation,
     SymbolReference,
     dependency_graph,
 )
-from saleha.core.graph_memory import (
+from saleha.core.graph.graph_memory import (
     GraphEdge,
     GraphNode,
     HierarchicalGraphMemory,
     graph_memory,
 )
-from saleha.core.hypergraph_indexer import (
+from saleha.core.graph.hypergraph_indexer import (
     HypergraphIndexer,
     HypergraphIndexStats,
     SymbolNode,
     hypergraph_indexer,
 )
-from saleha.core.multi_repo_graph import (
+from saleha.core.graph.multi_repo_graph import (
     CrossRepoImpact,
     MultiRepoDependencyGraph,
     RepoMetadata,

@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.benchmark_harness import BenchmarkHarness, BenchmarkSummary
+from saleha.core.harness.benchmark_harness import BenchmarkHarness, BenchmarkSummary
 
 
 class TestBenchmarkHarness(unittest.TestCase):

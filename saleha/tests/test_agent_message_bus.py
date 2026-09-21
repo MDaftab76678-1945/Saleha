@@ -1,28 +1,29 @@
 """Test suite for saleha.core.agent_message_bus."""
 
 import pytest
-from saleha.core.agent_message_bus import (
+from saleha.core.swarm.agent_message_bus import (
     AgentMessageBus,
     AgentEvent,
     TaskAssignedEvent,
     CodeSynthesizedEvent,
     SecurityVulnerabilityEvent,
 )
+from typing import Any
 
 
 class TestAgentMessageBus:
     """Pub/Sub event bus for inter-agent communication."""
 
     @pytest.fixture
-    def bus(self):
+    def bus(self) -> Any:
         """Fresh message bus for each test."""
         return AgentMessageBus()
 
-    def test_subscribe_and_publish(self, bus):
+    def test_subscribe_and_publish(self, bus: Any) -> None:
         """Test basic subscribe and publish flow."""
         received = []
 
-        def handler(event: AgentEvent):
+        def handler(event: AgentEvent) -> None:
             received.append(event)
 
         bus.subscribe("task_assigned", handler)
@@ -33,11 +34,11 @@ class TestAgentMessageBus:
         assert received[0].event_type == "task_assigned"
         assert received[0].task_goal == "test goal"
 
-    def test_unsubscribe(self, bus):
+    def test_unsubscribe(self, bus: Any) -> None:
         """Test unsubscribe removes handler."""
         received = []
 
-        def handler(event: AgentEvent):
+        def handler(event: AgentEvent) -> None:
             received.append(event)
 
         bus.subscribe("task_assigned", handler)
@@ -47,11 +48,11 @@ class TestAgentMessageBus:
 
         assert len(received) == 0
 
-    def test_wildcard_subscription(self, bus):
+    def test_wildcard_subscription(self, bus: Any) -> None:
         """Test '*' wildcard receives all events."""
         received = []
 
-        def wildcard_handler(event: AgentEvent):
+        def wildcard_handler(event: AgentEvent) -> None:
             received.append(event)
 
         bus.subscribe("*", wildcard_handler)
@@ -66,7 +67,7 @@ class TestAgentMessageBus:
 
         assert len(received) == 3
 
-    def test_get_history(self, bus):
+    def test_get_history(self, bus: Any) -> None:
         """Test event history retrieval."""
         bus.publish(TaskAssignedEvent(sender_agent="a", task_goal="t1"))
         bus.publish(TaskAssignedEvent(sender_agent="b", task_goal="t2"))
@@ -78,7 +79,7 @@ class TestAgentMessageBus:
         task_history = bus.get_history(event_type="task_assigned")
         assert len(task_history) == 2
 
-    def test_history_limit(self, bus):
+    def test_history_limit(self, bus: Any) -> None:
         """Test history respects max_history limit."""
         # Publish more than max_history (500)
         for i in range(510):
@@ -89,7 +90,7 @@ class TestAgentMessageBus:
         # Should have the latest 100
         assert "509" in history[-1].task_goal
 
-    def test_clear(self, bus):
+    def test_clear(self, bus: Any) -> None:
         """Test clearing subscribers and history."""
         bus.subscribe("task_assigned", lambda e: None)
         bus.publish(TaskAssignedEvent(sender_agent="test", task_goal="t"))
@@ -98,14 +99,14 @@ class TestAgentMessageBus:
         assert len(bus.get_history()) == 0
         assert len(bus._subscribers) == 0
 
-    def test_multiple_handlers_same_event(self, bus):
+    def test_multiple_handlers_same_event(self, bus: Any) -> None:
         """Test multiple handlers for same event type."""
         results = [[], []]
 
-        def handler1(e):
+        def handler1(e: Any) -> None:
             results[0].append(e)
 
-        def handler2(e):
+        def handler2(e: Any) -> None:
             results[1].append(e)
 
         bus.subscribe("task_assigned", handler1)
@@ -116,14 +117,14 @@ class TestAgentMessageBus:
         assert len(results[0]) == 1
         assert len(results[1]) == 1
 
-    def test_handler_exception_doesnt_break_bus(self, bus):
+    def test_handler_exception_doesnt_break_bus(self, bus: Any) -> None:
         """Test that one handler's exception doesn't halt other handlers."""
         results = []
 
-        def bad_handler(e):
+        def bad_handler(e: Any) -> None:
             raise RuntimeError("intentional error")
 
-        def good_handler(e):
+        def good_handler(e: Any) -> None:
             results.append(e)
 
         bus.subscribe("task_assigned", bad_handler)

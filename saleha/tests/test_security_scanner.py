@@ -4,7 +4,7 @@ import tempfile
 import json
 from click.testing import CliRunner
 
-from saleha.core.security_scanner import ASTSecurityScanner, SecurityVulnerability
+from saleha.core.verification.security_scanner import ASTSecurityScanner, SecurityVulnerability
 from saleha.cli.commands import cli
 
 

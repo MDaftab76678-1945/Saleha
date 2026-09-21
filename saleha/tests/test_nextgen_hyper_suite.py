@@ -7,7 +7,7 @@
 import os
 import unittest
 
-from saleha.core.hypergraph_indexer import HypergraphIndexer, hypergraph_indexer, SymbolNode, HypergraphIndexStats
+from saleha.core.graph.hypergraph_indexer import HypergraphIndexer, hypergraph_indexer, SymbolNode, HypergraphIndexStats
 from saleha.core.dynamic_lora_router import DynamicLoRARouter, dynamic_lora_router, LoRARoutingDecision
 from saleha.core.spics_fuzz_engine import SPICSFuzzEngine, spics_fuzz_engine, FuzzPropertyResult
 

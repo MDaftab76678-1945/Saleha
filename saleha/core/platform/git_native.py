@@ -178,7 +178,7 @@ class GitAutomationEngine:
         Under SALEHA_APPROVAL=dangerous/always, this requires human-in-the-loop
         approval (denied -> commit is skipped, error returned).
         """
-        from saleha.core.approval_gate import approve
+        from saleha.core.harness.approval_gate import approve
         if not approve("git_commit", f"Auto-commit for goal: {goal[:100]}"):
             return GitCommitResult(success=False, error="Commit denied by human-approval gate.")
 
@@ -281,7 +281,7 @@ class GitAutomationEngine:
                     f" AND permanently destroy {dirty_count} uncommitted "
                     f"change(s) in the working tree"
                 )
-            from saleha.core.approval_gate import approve
+            from saleha.core.harness.approval_gate import approve
             if not approve("git_reset_hard", detail):
                 return {
                     "success": False,

@@ -22,7 +22,7 @@ from rich.text import Text
 
 from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.token_ledger import token_ledger
-from saleha.core.swarm_consensus import swarm_consensus
+from saleha.core.swarm.swarm_consensus import swarm_consensus
 
 
 class SalehaTUI:

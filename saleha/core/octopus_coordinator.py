@@ -30,24 +30,24 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from saleha.core.agent_message_bus import (
+from saleha.core.swarm.agent_message_bus import (
     AgentMessageBus,
     OctopusBrainCompletedEvent,
     OctopusBrainDispatchedEvent,
     OctopusConflictResolvedEvent,
     OctopusSynthesisCompletedEvent,
 )
-from saleha.core.agent_message_bus import (
+from saleha.core.swarm.agent_message_bus import (
     message_bus as global_message_bus,
 )
-from saleha.core.agent_worker_pool import (
+from saleha.core.swarm.agent_worker_pool import (
     AgentWorkerPool,
     WorkerTaskResult,
 )
-from saleha.core.agent_worker_pool import (
+from saleha.core.swarm.agent_worker_pool import (
     worker_pool as global_worker_pool,
 )
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 
 
 class ArmBrainRole(str, enum.Enum):
@@ -144,7 +144,7 @@ class OctopusCoordinator:
         if self.model and self.model != "auto":
             return self.model
         try:
-            from saleha.core.smart_router import smart_router
+            from saleha.core.platform.smart_router import smart_router
             return smart_router.select_model_for_task(task_role)
         except Exception:
             return "auto"

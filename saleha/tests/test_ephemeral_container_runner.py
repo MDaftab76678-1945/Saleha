@@ -13,7 +13,7 @@ from saleha.core.ephemeral_container_runner import (
     EphemeralContainerRunner,
     ContainerExecutionResult,
 )
-from saleha.core.sandbox_runner import SandboxResult
+from saleha.core.harness.sandbox_runner import SandboxResult
 
 
 class TestEphemeralContainerRunner(unittest.TestCase):

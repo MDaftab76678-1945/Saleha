@@ -2,7 +2,7 @@ import unittest
 import tempfile
 from pathlib import Path
 
-from saleha.core.code_executor import (
+from saleha.core.harness.code_executor import (
     CodeExecutor,
     ExecutionResult,
     _check_blocked_imports,

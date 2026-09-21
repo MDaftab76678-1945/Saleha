@@ -24,7 +24,7 @@ import importlib
 
 import pytest
 
-from saleha.core.apex_97_validator import (
+from saleha.core.verification.apex_97_validator import (
     ApexDomainTarget,
     Apex97CertificationReport,
     Apex97Validator,

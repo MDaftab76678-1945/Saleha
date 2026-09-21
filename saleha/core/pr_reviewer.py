@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 @dataclass

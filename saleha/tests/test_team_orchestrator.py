@@ -5,7 +5,7 @@ import json
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 
-from saleha.core.team_orchestrator import TeamOrchestrator, TeamResult
+from saleha.core.swarm.team_orchestrator import TeamOrchestrator, TeamResult
 from saleha.cli.commands import cli
 
 

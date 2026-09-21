@@ -229,7 +229,7 @@ class ParallelSolver:
         Convenience wrapper: verify each candidate by really running it
         against a real test suite in the sandboxed executor.
         """
-        from saleha.core.code_executor import CodeExecutor
+        from saleha.core.harness.code_executor import CodeExecutor
 
         executor = CodeExecutor(timeout=15)
 

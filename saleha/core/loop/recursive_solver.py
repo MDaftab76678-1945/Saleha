@@ -19,7 +19,7 @@ from typing import Any, List, Optional, Tuple
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.coder import CoderAgent
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.memory_store import memory_store
 
 

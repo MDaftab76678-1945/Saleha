@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from saleha.core.smart_router import SmartRouter
+from saleha.core.platform.smart_router import SmartRouter
 
 
 class SmartRouterTests(unittest.TestCase):

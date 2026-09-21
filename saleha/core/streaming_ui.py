@@ -14,7 +14,7 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from saleha.core.model_provider import default_provider
+from saleha.core.platform.model_provider import default_provider
 
 console = Console()
 

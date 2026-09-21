@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
-from saleha.core.model_provider import (
+from saleha.core.platform.model_provider import (
     OllamaProvider,
     OpenAICompatibleProvider,
     FallbackChainProvider,
@@ -15,7 +15,7 @@ class ModelProviderTests(unittest.TestCase):
     def setUp(self) -> None:
         self.provider = OllamaProvider(base_url="http://ollama.test")
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_caller_options_merge_over_defaults(self, post: Mock) -> None:
         # `options or {...}` let a caller passing only a temperature drop every
         # default, including num_predict -- and BaseAgent.think() passes exactly
@@ -34,7 +34,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertEqual(sent["num_predict"], 2048, "default must survive")
         self.assertIn("top_p", sent)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_http_200_with_empty_response_is_not_success(self, post: Mock) -> None:
         # An empty generation used to be reported as success=True with no
         # content, so every caller treated "the model said nothing" as a
@@ -54,7 +54,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertIn("empty response", result.error_message)
         self.assertIn("generated", result.error_message)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_disable_reasoning_sends_think_false(self, post: Mock) -> None:
         # Measured (pass 87): qwen3:8b on the pass-85/86 planted `requests`
         # bug took 140.4s for the correct patch with reasoning left on, and
@@ -71,7 +71,7 @@ class ModelProviderTests(unittest.TestCase):
         sent = post.call_args.kwargs["json"]
         self.assertEqual(sent["think"], False)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_disable_reasoning_does_not_grow_num_predict(self, post: Mock) -> None:
         # budget_for_model()'s headroom exists to survive a <think> block
         # that disable_reasoning already removes -- it must not stack.
@@ -86,7 +86,7 @@ class ModelProviderTests(unittest.TestCase):
         sent = post.call_args.kwargs["json"]["options"]
         self.assertEqual(sent["num_predict"], 64)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_reasoning_left_on_by_default_still_grows_budget(self, post: Mock) -> None:
         """disable_reasoning defaults False -- no existing caller's behavior
         changes unless it opts in."""
@@ -101,7 +101,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertNotIn("think", sent)
         self.assertGreater(sent["options"]["num_predict"], 64)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_generate_returns_provider_response(self, post: Mock) -> None:
         response = Mock()
         response.json.return_value = {"response": "hello"}
@@ -114,7 +114,7 @@ class ModelProviderTests(unittest.TestCase):
         post.assert_called_once()
         self.assertEqual(post.call_args.args[0], "http://ollama.test/api/generate")
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_generate_handles_connection_failure(self, post: Mock) -> None:
         post.side_effect = requests.exceptions.ConnectionError("Connection refused")
 
@@ -123,7 +123,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("not reachable", result.error_message)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_generate_handles_timeout(self, post: Mock) -> None:
         post.side_effect = requests.exceptions.Timeout("timed out")
 
@@ -132,7 +132,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("did not respond within", result.error_message)
 
-    @patch("saleha.core.model_provider.requests.get")
+    @patch("saleha.core.platform.model_provider.requests.get")
     def test_is_available_reports_server_status(self, get: Mock) -> None:
         get.return_value.status_code = 200
         self.assertTrue(self.provider.is_available())
@@ -147,7 +147,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertEqual(res.content, "def test(): pass")
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_openai_compatible_provider(self, post: Mock) -> None:
         openai_p = OpenAICompatibleProvider(api_key="test-key")
         resp = Mock()
@@ -186,7 +186,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertEqual(chunks, ["line one\nline two"])
         self.assertEqual(res.content, "line one\nline two")
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_ollama_stream_generate_yields_multiple_chunks(self, post: Mock) -> None:
         # Ollama's stream:true response is newline-delimited JSON, one object
         # per chunk, with a final done:true object carrying eval_count.
@@ -210,7 +210,7 @@ class ModelProviderTests(unittest.TestCase):
         self.assertEqual(res.tokens_used, 7)
         self.assertEqual(post.call_args.kwargs["json"]["stream"], True)
 
-    @patch("saleha.core.model_provider.requests.post")
+    @patch("saleha.core.platform.model_provider.requests.post")
     def test_ollama_stream_generate_handles_connection_failure(self, post: Mock) -> None:
         post.side_effect = requests.exceptions.ConnectionError("refused")
 

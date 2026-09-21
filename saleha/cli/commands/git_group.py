@@ -85,7 +85,7 @@ def git_hook_cmd(action, as_json):
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def git_status_cmd(as_json):
     """View current Git repository status and branch."""
-    from saleha.core.git_native import git_engine
+    from saleha.core.platform.git_native import git_engine
     status = git_engine.get_status_summary()
     if as_json:
         click.echo(json.dumps(status, ensure_ascii=True))

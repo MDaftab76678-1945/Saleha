@@ -126,7 +126,7 @@ class TestRunner:
 
     def __init__(self, executor: Optional[Any] = None) -> None:
         # Lazy import: avoid circular dependencies with code_executor
-        from saleha.core.code_executor import CodeExecutor
+        from saleha.core.harness.code_executor import CodeExecutor
         self.executor = executor or CodeExecutor(timeout=15)
 
     def _validate_segment(self, label: str, segment: str) -> Optional[str]:

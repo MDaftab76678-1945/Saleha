@@ -89,7 +89,7 @@ class TestTaskSchedulerEngine:
         engine = TaskSchedulerEngine()
         task = engine.register_task("*/10 * * * *", "Health Check", "TesterAgent")
         with patch(
-            "saleha.core.team_orchestrator.TeamOrchestrator.run_team_workflow",
+            "saleha.core.swarm.team_orchestrator.TeamOrchestrator.run_team_workflow",
             return_value=MagicMock(success=True, code=""),
         ):
             result = engine.trigger_task_now(task.task_id)

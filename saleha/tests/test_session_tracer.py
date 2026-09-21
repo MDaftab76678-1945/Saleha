@@ -6,8 +6,8 @@ import json
 import os
 import tempfile
 import pytest
-from saleha.core.session_tracer import SessionTracer, TraceSpan, session_tracer
-from saleha.core.agent_message_bus import AgentMessageBus, TaskAssignedEvent
+from saleha.core.telemetry.session_tracer import SessionTracer, TraceSpan, session_tracer
+from saleha.core.swarm.agent_message_bus import AgentMessageBus, TaskAssignedEvent
 
 
 def test_tracer_span_lifecycle():

@@ -5,9 +5,9 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.agent_message_bus import AgentMessageBus
-from saleha.core.agent_worker_pool import AgentWorkerPool
-from saleha.core.code_executor import ExecutionResult
+from saleha.core.swarm.agent_message_bus import AgentMessageBus
+from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
+from saleha.core.harness.code_executor import ExecutionResult
 from saleha.core.octopus_coordinator import (
     ArmBrainOutput,
     ArmBrainRole,
@@ -109,7 +109,7 @@ class OctopusCoordinatorTests(unittest.TestCase):
             exit_code=1,
         )
 
-        with patch("saleha.core.code_executor.CodeExecutor.execute", return_value=fake_failing_exec):
+        with patch("saleha.core.harness.code_executor.CodeExecutor.execute", return_value=fake_failing_exec):
             result = self.coordinator.coordinate(
                 goal="Implement failing rate limiter",
             )

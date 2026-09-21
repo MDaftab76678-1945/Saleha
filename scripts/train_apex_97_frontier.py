@@ -48,8 +48,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from saleha.core.formal_smt_verifier import formal_smt_verifier
-from saleha.core.apex_97_validator import apex_97_validator
+from saleha.core.verification.formal_smt_verifier import formal_smt_verifier
+from saleha.core.verification.apex_97_validator import apex_97_validator
 
 
 def main() -> int:

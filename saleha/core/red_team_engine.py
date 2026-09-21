@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.code_executor import CodeExecutor
+from saleha.core.harness.code_executor import CodeExecutor
 
 
 @dataclass

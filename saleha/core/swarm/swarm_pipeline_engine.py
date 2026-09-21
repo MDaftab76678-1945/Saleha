@@ -22,7 +22,7 @@ from saleha.core.agent_contracts import (
     ReviewerOutputContract,
     SecurityOutputContract,
 )
-from saleha.core.agent_message_bus import (
+from saleha.core.swarm.agent_message_bus import (
     ADRGeneratedEvent,
     CodeSynthesizedEvent,
     ReviewFeedbackEvent,
@@ -34,7 +34,7 @@ from saleha.core.agent_message_bus import (
 )
 from saleha.core.merkle_provenance import merkle_provenance_ledger
 from saleha.core.semantic_memory_cache import semantic_memory
-from saleha.core.swarm_checkpoint_store import SwarmCheckpoint, checkpoint_store
+from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpoint, checkpoint_store
 
 
 @dataclass
@@ -107,7 +107,7 @@ class SwarmPipelineEngine:
         if self.model and self.model != "auto":
             return self.model
         try:
-            from saleha.core.smart_router import smart_router
+            from saleha.core.platform.smart_router import smart_router
             return smart_router.select_model_for_task(task_role)
         except Exception:
             return "auto"
@@ -218,7 +218,7 @@ class SwarmPipelineEngine:
 
             elif role == "QALead":
                 from saleha.agents.qa_lead import QALeadAgent
-                from saleha.core.code_executor import CodeExecutor
+                from saleha.core.harness.code_executor import CodeExecutor
                 agent = QALeadAgent(model=self._resolve_model("qa"))
                 suite = agent.generate_test_suite(goal, source_code or "def f(): pass", framework="pytest")
                 # Actually run the generated tests against the generated code --

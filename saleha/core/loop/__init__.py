@@ -15,18 +15,18 @@ import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from saleha.core.agentic_loop import AgentLoop, LoopResult, LoopStep
-from saleha.core.deliberation_engine import (
+from saleha.core.loop.agentic_loop import AgentLoop, LoopResult, LoopStep
+from saleha.core.loop.deliberation_engine import (
     DeliberationEngine,
     deliberation_engine,
 )
-from saleha.core.recursive_solver import (
+from saleha.core.loop.recursive_solver import (
     ReasoningPath,
     RecursiveSolver,
     RecursiveSolveResult,
     recursive_solver,
 )
-from saleha.core.tot_orchestrator import (
+from saleha.core.loop.tot_orchestrator import (
     ThoughtNode,
     ToTResult,
     TreeOfThoughtsOrchestrator,

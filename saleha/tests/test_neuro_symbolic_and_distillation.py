@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock
 
-from saleha.core.neuro_symbolic_engine import (
+from saleha.core.cognitive.neuro_symbolic_engine import (
     NeuroSymbolicEngine,
     InvariantFitnessScore,
     neuro_symbolic_engine,

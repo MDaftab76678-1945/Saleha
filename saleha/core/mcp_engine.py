@@ -15,9 +15,9 @@ from typing import Any, Callable, Dict, List, Optional
 from saleha import __version__
 from saleha.core.dag_engine import TaskDAG
 from saleha.core.memory_store import memory_store
-from saleha.core.sandbox_runner import SandboxRunner
-from saleha.core.security_scanner import ASTSecurityScanner
-from saleha.core.team_orchestrator import TeamOrchestrator
+from saleha.core.harness.sandbox_runner import SandboxRunner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
+from saleha.core.swarm.team_orchestrator import TeamOrchestrator
 
 
 @dataclass

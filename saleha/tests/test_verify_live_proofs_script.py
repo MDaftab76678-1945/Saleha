@@ -20,6 +20,7 @@ import os
 import sys
 import unittest
 from unittest.mock import patch
+from typing import Any
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -27,7 +28,7 @@ SCRIPT = os.path.join(
 )
 
 
-def load_script():
+def load_script() -> Any:
     spec = importlib.util.spec_from_file_location("verify_all_live_proofs", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -38,15 +39,15 @@ class ScriptContractTests(unittest.TestCase):
     """The script must stay in step with the modules it calls."""
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         cls.mod = load_script()
 
-    def test_script_imports_without_error(self):
+    def test_script_imports_without_error(self) -> None:
         """It previously crashed on fields that no longer existed."""
         self.assertTrue(hasattr(self.mod, "main"))
 
-    def test_smt_check_uses_fields_the_verifier_actually_has(self):
-        from saleha.core.formal_smt_verifier import FormalProofContract
+    def test_smt_check_uses_fields_the_verifier_actually_has(self) -> None:
+        from saleha.core.verification.formal_smt_verifier import FormalProofContract
         fields = set(FormalProofContract.__dataclass_fields__)
         # The fields the script reads must all exist on the real result.
         for name in ("z3_available", "divisions_found", "divisions_proven_safe",
@@ -58,7 +59,7 @@ class ScriptContractTests(unittest.TestCase):
         self.assertNotIn("preconditions", fields)
         self.assertNotIn("is_satisfiable", fields)
 
-    def test_no_hardcoded_success_banner(self):
+    def test_no_hardcoded_success_banner(self) -> None:
         """
         Check the executable strings only. The docstrings deliberately quote
         the old fabricated banners to explain what was removed, so a plain
@@ -86,28 +87,28 @@ class ScriptContractTests(unittest.TestCase):
         self.assertNotIn("100% Synced", joined)
         self.assertNotIn("PROOFS VERIFIED", joined)
 
-    def test_checks_return_booleans(self):
+    def test_checks_return_booleans(self) -> None:
         from rich.console import Console
         console = Console(file=io.StringIO())
         for name in ("check_datasets", "check_fuzz", "check_indexer", "check_git"):
             result = getattr(self.mod, name)(console)
             self.assertIsInstance(result, bool, name)
 
-    def test_missing_dataset_makes_the_dataset_check_fail(self):
+    def test_missing_dataset_makes_the_dataset_check_fail(self) -> None:
         """The old banner printed 100% success over rows reading MISSING."""
         from rich.console import Console
         console = Console(file=io.StringIO())
         with patch.object(self.mod, "DATASET_FILES", ["datasets/does_not_exist.jsonl"]):
             self.assertFalse(self.mod.check_datasets(console))
 
-    def test_main_returns_nonzero_when_a_check_fails(self):
+    def test_main_returns_nonzero_when_a_check_fails(self) -> None:
         from rich.console import Console
         with patch.object(self.mod, "DATASET_FILES", ["datasets/does_not_exist.jsonl"]), \
              patch.object(self.mod, "Console",
                           lambda *a, **k: Console(file=io.StringIO())):
             self.assertEqual(self.mod.main(), 1)
 
-    def test_a_raising_check_counts_as_failed_not_passed(self):
+    def test_a_raising_check_counts_as_failed_not_passed(self) -> None:
         from rich.console import Console
         with patch.object(self.mod, "check_indexer",
                           side_effect=RuntimeError("boom")), \
@@ -115,7 +116,7 @@ class ScriptContractTests(unittest.TestCase):
                           lambda *a, **k: Console(file=io.StringIO())):
             self.assertEqual(self.mod.main(), 1)
 
-    def test_git_check_reads_real_state_not_a_literal(self):
+    def test_git_check_reads_real_state_not_a_literal(self) -> None:
         from rich.console import Console
         buf = io.StringIO()
         self.mod.check_git(Console(file=buf, width=200))

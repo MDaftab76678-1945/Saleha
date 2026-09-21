@@ -35,7 +35,7 @@ from saleha import __version__
 @click.option('--debate', is_flag=True, help='Enable multi-agent debate and consensus refinement')
 @click.option('--max-attempts', default=3, type=click.IntRange(1, 10), help='Maximum self-healing attempts')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def team(goal, model, output_dir, debate, max_attempts, as_json):
+def team(goal: Any, model: Any, output_dir: Any, debate: Any, max_attempts: Any, as_json: Any) -> None:
     """
     Run multi-agent collaborative swarm pipeline:
     PM (PRD) -> Architect (LLD) -> SDE (Code) -> Security (Audit) -> QA (Tests) -> Verifier (Execution)
@@ -83,7 +83,7 @@ def team(goal, model, output_dir, debate, max_attempts, as_json):
 @cli.command(name='debate')
 @click.argument('topic')
 @click.option('--rounds', '-r', default=2, help='Number of dialectic debate rounds')
-def debate_cmd(topic: str, rounds: int):
+def debate_cmd(topic: str, rounds: int) -> None:
     """Execute game-theoretic multi-agent council debate (Advocate, Devil's Advocate, Security, FinOps, Arbiter)."""
     from saleha.core.debate_consensus_orchestrator import debate_orchestrator
     console.print(f'[bold purple]⚖️ Conducting Multi-Agent Architectural Debate on:[/] [white]{topic}[/]')
@@ -99,7 +99,7 @@ def debate_cmd(topic: str, rounds: int):
 
 @cli.command(name='council')
 @click.argument('problem')
-def council_cmd(problem):
+def council_cmd(problem: Any) -> None:
     """
     Assemble a three-persona architectural council: each proposes a solution,
     scores it, and critiques the others. The highest self-scored proposal wins.
@@ -140,7 +140,7 @@ def council_cmd(problem):
 @cli.command(name='resolve-conflicts')
 @click.argument('path', default='.')
 @click.option('--auto-stage', is_flag=True, help='Automatically git add resolved files')
-def resolve_conflicts_cmd(path, auto_stage):
+def resolve_conflicts_cmd(path: Any, auto_stage: Any) -> None:
     """
     Autonomously detect and resolve Git merge conflicts with AST semantic analysis.
     
@@ -182,13 +182,13 @@ def resolve_conflicts_cmd(path, auto_stage):
 @cli.command(name='recursive')
 @click.argument('goal', required=True)
 @click.option('--model', default='auto', help='Model to use for multi-path reasoning')
-def recursive_cmd(goal: str, model: str):
+def recursive_cmd(goal: str, model: str) -> None:
     """
     7-Node Recursive Intelligence Network & Multi-Path Problem Solver.
     
     Example: saleha recursive "Find longest palindromic substring in O(n)"
     """
-    from saleha.core.recursive_solver import RecursiveSolver
+    from saleha.core.loop.recursive_solver import RecursiveSolver
     console.print(Panel(f'[bold cyan]🧠 Saleha Recursive Intelligence Network[/bold cyan]\n[italic]{goal}[/italic]', border_style='cyan'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), transient=True) as progress:
         progress.add_task(description='Exploring multi-path reasoning trajectories...', total=None)
@@ -210,13 +210,13 @@ def recursive_cmd(goal: str, model: str):
         console.print(f'\n[bold red]⚠️ Solution Completed with Warnings:[/bold red]\n{result.log}')
 
 @cli.command(name='consensus')
-def consensus_cmd():
+def consensus_cmd() -> None:
     """
     Inspect the Swarm PBFT Byzantine Fault Tolerance Consensus status.
     
     Example: saleha consensus
     """
-    from saleha.core.swarm_consensus import swarm_consensus
+    from saleha.core.swarm.swarm_consensus import swarm_consensus
     console.print(Panel('[bold cyan]🛡️ Saleha Swarm PBFT Consensus Engine[/bold cyan]', border_style='cyan'))
     table = Table(border_style='cyan')
     table.add_column('Property', style='bold white')
@@ -229,7 +229,7 @@ def consensus_cmd():
 @cli.command(name='multirepo')
 @click.argument('goal')
 @click.option('--repos', '-r', required=True, help="Comma-separated repository names (e.g. 'api-gateway,web-client,auth-service')")
-def multirepo_cmd(goal: str, repos: str):
+def multirepo_cmd(goal: str, repos: str) -> None:
     """
     Generate a migration checklist across several repositories: a suggested
     branch, PR title and ordering per repo.
@@ -257,9 +257,9 @@ def multirepo_cmd(goal: str, repos: str):
 @click.argument('goal')
 @click.option('--code', '-c', required=True, help='Initial code string or file path')
 @click.option('--tests', '-t', required=True, help='Verification test assertions code string or file path')
-def tot_solve_cmd(goal: str, code: str, tests: str):
+def tot_solve_cmd(goal: str, code: str, tests: str) -> None:
     """Solve tricky coding bugs with Tree-of-Thoughts (ToT) state-space search and backtracking."""
-    from saleha.core.tot_orchestrator import tot_orchestrator
+    from saleha.core.loop.tot_orchestrator import tot_orchestrator
     code_content = Path(code).read_text(encoding='utf-8') if os.path.exists(code) else code.replace('\\n', '\n')
     tests_content = Path(tests).read_text(encoding='utf-8') if os.path.exists(tests) else tests.replace('\\n', '\n')
     console.print(f'[bold cyan]🌲 Starting Tree-of-Thoughts (ToT) Search for:[/] [white]{goal}[/]')
@@ -274,15 +274,15 @@ def tot_solve_cmd(goal: str, code: str, tests: str):
 
 @cli.command('swarm')
 @click.argument('goal', default='Build a robust distributed worker pool')
-def swarm_cli_cmd(goal: str):
+def swarm_cli_cmd(goal: str) -> None:
     """Execute dynamic multi-agent DAG swarm pipeline with real-time ASCII visualization."""
-    from saleha.core.swarm_pipeline_engine import swarm_engine
+    from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
     from saleha.cli.swarm_visualizer import visualizer
     visualizer.render_header(goal)
     stage_counter = [0]
     total_stages = 6
 
-    def on_stage(stage):
+    def on_stage(stage: Any) -> None:
         if stage.status == 'success':
             stage_counter[0] += 1
             visualizer.render_stage_update(stage, stage_counter[0], total_stages)

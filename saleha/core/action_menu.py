@@ -356,7 +356,7 @@ Reply with ONLY the number of the single best next action."""
         """Ask the model, using constrained decoding when available."""
         if self.use_constrained_decoding:
             try:
-                from saleha.core.model_provider import model_provider
+                from saleha.core.platform.model_provider import model_provider
                 resp = model_provider.generate(
                     model=getattr(self.agent, "model", "auto"),
                     prompt=prompt,
@@ -566,7 +566,7 @@ Reply with ONLY the number of the single best next action."""
             raw = ""
             if self.use_constrained_decoding:
                 try:
-                    from saleha.core.model_provider import model_provider
+                    from saleha.core.platform.model_provider import model_provider
                     resp = model_provider.generate(
                         model=getattr(self.agent, "model", "auto"),
                         prompt=prompt,

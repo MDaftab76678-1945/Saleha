@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.lsp_engine import DiagnosticReport, LSPEngine
+from saleha.core.platform.lsp_engine import DiagnosticReport, LSPEngine
 
 
 class LSPEngineTests(unittest.TestCase):

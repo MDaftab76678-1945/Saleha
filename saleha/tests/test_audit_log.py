@@ -1,12 +1,12 @@
-"""Unit tests for saleha.core.audit_log.AuditLog. Had no test coverage
-before this file (found during a test-coverage sweep of saleha/core/)."""
+"""Unit tests for saleha.core.telemetry.audit_log.AuditLog. Had no test
+coverage before this file (found during a test-coverage sweep of saleha/core/)."""
 
 import json
 import os
 import tempfile
 import unittest
 
-from saleha.core.audit_log import AuditLog
+from saleha.core.telemetry.audit_log import AuditLog
 
 
 class AuditLogTests(unittest.TestCase):

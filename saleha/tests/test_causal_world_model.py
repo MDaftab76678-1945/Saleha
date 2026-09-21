@@ -1,7 +1,7 @@
 """Unit tests for Pearl's Structural Causal World Model."""
 
 import unittest
-from saleha.core.causal_world_model import CausalWorldModel, CausalEvaluationReport
+from saleha.core.cognitive.causal_world_model import CausalWorldModel, CausalEvaluationReport
 
 
 class TestCausalWorldModel(unittest.TestCase):

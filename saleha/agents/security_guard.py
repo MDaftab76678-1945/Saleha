@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 @dataclass

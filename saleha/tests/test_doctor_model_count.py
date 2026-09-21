@@ -33,7 +33,7 @@ class DoctorModelCountTests(unittest.TestCase):
 
     def _run_doctor(self) -> str:
         with mock.patch(
-            "saleha.core.smart_router.get_installed_ollama_models",
+            "saleha.core.platform.smart_router.get_installed_ollama_models",
             return_value=set(_WITH_ALIASES),
         ):
             result = CliRunner().invoke(cli, ["doctor"])

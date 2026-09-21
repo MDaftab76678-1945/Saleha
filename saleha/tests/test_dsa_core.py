@@ -7,7 +7,7 @@ Unit & Benchmark tests for Track 5 (DSA & Core Algorithms) and Track 9 (Performa
 
 import unittest
 from saleha.core.saleha_swarm_topology import LockFreeMailbox, SwarmMessage, SalehaSwarmTopology
-from saleha.core.padic_ultrametric import PadicValuationNode, PadicIsolationValidator, p_adic_valuation
+from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator, p_adic_valuation
 from saleha.core.latency_histogram import NanosecondLatencyHistogram
 
 

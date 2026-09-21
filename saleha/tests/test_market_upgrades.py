@@ -15,14 +15,14 @@ import unittest
 from typing import Any, Dict, List, Tuple
 from unittest.mock import patch, MagicMock
 
-from saleha.core.smart_router import (
+from saleha.core.platform.smart_router import (
     SmartRouter,
     get_default_history_path,
     get_installed_ollama_models,
 )
 from saleha.core.hybrid_gateway import HybridModelGateway
 from saleha.core.safety_patterns import _check_blocked_imports as sp_check_imports
-from saleha.core.code_executor import CodeExecutor, ExecutionResult, _check_blocked_imports
+from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult, _check_blocked_imports
 from saleha.core.execution_policy import (
     build_docker_command,
     get_sandbox_mode,
@@ -46,7 +46,7 @@ class SmartRouter2026Tests(unittest.TestCase):
 
     def test_probe_filters_candidates_to_installed_models(self) -> None:
         router = SmartRouter(history_file=os.devnull, probe_runtime=True)
-        with patch("saleha.core.smart_router.get_installed_ollama_models",
+        with patch("saleha.core.platform.smart_router.get_installed_ollama_models",
                    return_value={"qwen2.5-coder:7b"}):
             candidates = router._filter_installed(
                 ["devstral:24b", "deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"]
@@ -56,12 +56,12 @@ class SmartRouter2026Tests(unittest.TestCase):
     def test_probe_failure_falls_back_to_static_candidates(self) -> None:
         router = SmartRouter(history_file=os.devnull, probe_runtime=True)
         original = ["devstral:24b", "deepseek-coder:6.7b"]
-        with patch("saleha.core.smart_router.get_installed_ollama_models", return_value=set()):
+        with patch("saleha.core.platform.smart_router.get_installed_ollama_models", return_value=set()):
             self.assertEqual(router._filter_installed(original), original)
 
     def test_select_model_with_probe_picks_installed_flagship(self) -> None:
         router = SmartRouter(history_file=os.devnull, probe_runtime=True)
-        with patch("saleha.core.smart_router.get_installed_ollama_models",
+        with patch("saleha.core.platform.smart_router.get_installed_ollama_models",
                    return_value={"qwen3-coder:30b", "deepseek-r1:8b"}):
             selected = router.select_model(
                 "design a distributed system architecture", complexity_score=9.5

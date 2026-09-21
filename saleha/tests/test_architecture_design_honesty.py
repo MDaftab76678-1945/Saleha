@@ -20,7 +20,7 @@ reported -24,381,440 parameters.
 import unittest
 
 from saleha.core.architecture_debater import ArchitectureDebater
-from saleha.core.model_provider import OllamaProvider
+from saleha.core.platform.model_provider import OllamaProvider
 from saleha.core.neural_designer import (
     InvalidArchitectureError,
     NeuralArchitectureSpec,

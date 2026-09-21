@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from saleha.core.sandbox_runner import SandboxRunner
-from saleha.core.security_scanner import ASTSecurityScanner
+from saleha.core.harness.sandbox_runner import SandboxRunner
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 @dataclass

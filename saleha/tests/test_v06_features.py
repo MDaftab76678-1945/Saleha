@@ -12,8 +12,8 @@ import unittest
 from typing import Any
 from unittest.mock import patch, MagicMock
 
-from saleha.core.repo_context_packer import RepoContextPacker
-from saleha.core.vector_store import VectorStore
+from saleha.core.rag.repo_context_packer import RepoContextPacker
+from saleha.core.rag.vector_store import VectorStore
 from saleha.core.memory_store import MemoryStore
 
 
@@ -81,7 +81,7 @@ class _FakeStageAgent:
 
 class EventStreamingTests(unittest.TestCase):
     def test_on_event_fires_per_stage_immediately(self) -> None:
-        from saleha.core.team_orchestrator import TeamOrchestrator
+        from saleha.core.swarm.team_orchestrator import TeamOrchestrator
 
         orch = TeamOrchestrator(model="test-model")
         events = []
@@ -128,7 +128,7 @@ class EventStreamingTests(unittest.TestCase):
         self.assertEqual(indexes, sorted(indexes))
 
     def test_no_callback_still_works(self) -> None:
-        from saleha.core.team_orchestrator import TeamOrchestrator
+        from saleha.core.swarm.team_orchestrator import TeamOrchestrator
 
         orch = TeamOrchestrator(model="test-model")
         with patch.object(orch, "_get_agent", return_value=_FakeStageAgent("X")), \

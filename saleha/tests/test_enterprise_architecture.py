@@ -8,8 +8,8 @@ Unit & Integration Tests for Enterprise Architecture Upgrades:
 
 import time
 import unittest
-from saleha.core.swarm_checkpoint_store import SwarmCheckpointStore, SwarmCheckpoint
-from saleha.core.swarm_pipeline_engine import SwarmPipelineEngine
+from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpointStore, SwarmCheckpoint
+from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 from saleha.core.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
@@ -21,19 +21,20 @@ from saleha.core.agent_contracts import (
     DataEngineerOutputContract,
     DevOpsOutputContract,
 )
-from saleha.core.agent_worker_pool import AgentWorkerPool
+from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.core.plugin_manifest import PluginManifestEngine, SalehaPluginManifest, PluginAgentSpec
+from typing import Any
 
 
 class SwarmCheckpointStoreTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.store = SwarmCheckpointStore(storage_dir=".saleha/test_cp_tmp")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         for cp in self.store.list_checkpoints():
             self.store.delete_checkpoint(cp.execution_id)
 
-    def test_save_and_retrieve_checkpoint(self):
+    def test_save_and_retrieve_checkpoint(self) -> None:
         cp = SwarmCheckpoint(
             execution_id="test_exec_01",
             goal="Synthesize caching service",
@@ -50,7 +51,7 @@ class SwarmCheckpointStoreTests(unittest.TestCase):
         self.assertEqual(len(retrieved.completed_stages), 1)
         self.assertEqual(retrieved.state_payload.get("adr_title"), "ADR: Cache")
 
-    def test_list_and_delete_checkpoints(self):
+    def test_list_and_delete_checkpoints(self) -> None:
         cp1 = SwarmCheckpoint(execution_id="cp1", goal="Goal 1", role_sequence=["Coder"])
         cp2 = SwarmCheckpoint(execution_id="cp2", goal="Goal 2", role_sequence=["QA"])
         self.store.save_checkpoint(cp1)
@@ -64,7 +65,7 @@ class SwarmCheckpointStoreTests(unittest.TestCase):
 
 
 class SessionResumeIntegrationTests(unittest.TestCase):
-    def test_execute_and_resume_swarm(self):
+    def test_execute_and_resume_swarm(self) -> None:
         engine = SwarmPipelineEngine()
         res = engine.execute_swarm("Synthesize resilient task runner in Python")
         self.assertTrue(res.success)
@@ -79,14 +80,14 @@ class SessionResumeIntegrationTests(unittest.TestCase):
 
 
 class AgentContractsTests(unittest.TestCase):
-    def test_architect_contract_validation(self):
+    def test_architect_contract_validation(self) -> None:
         c = ArchitectOutputContract(adr_title="ADR: Microservices", pattern="Hexagonal", components=["Auth", "Billing"])
         self.assertTrue(c.validate())
 
         bad_c = ArchitectOutputContract(adr_title="", pattern="", components=[])
         self.assertFalse(bad_c.validate())
 
-    def test_coder_contract_ast_validation(self):
+    def test_coder_contract_ast_validation(self) -> None:
         valid_code = "class Cache:\n    def get(self, key):\n        return None\n"
         c = CoderOutputContract(source_code=valid_code)
         self.assertTrue(c.validate())
@@ -97,7 +98,7 @@ class AgentContractsTests(unittest.TestCase):
         bad_c = CoderOutputContract(source_code=invalid_syntax)
         self.assertFalse(bad_c.validate())
 
-    def test_security_and_qa_contracts(self):
+    def test_security_and_qa_contracts(self) -> None:
         sec = SecurityOutputContract(is_secure=True, vulnerabilities_found=[])
         self.assertTrue(sec.validate())
 
@@ -112,13 +113,13 @@ class AgentContractsTests(unittest.TestCase):
 
 
 class AgentWorkerPoolTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.pool = AgentWorkerPool(max_workers=2)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.pool.shutdown(wait=False)
 
-    def test_worker_pool_executes_task_successfully(self):
+    def test_worker_pool_executes_task_successfully(self) -> Any:
         def add(a: int, b: int) -> int:
             return a + b
 
@@ -127,8 +128,8 @@ class AgentWorkerPoolTests(unittest.TestCase):
         self.assertEqual(res.result, 30)
         self.assertGreaterEqual(res.execution_time_ms, 0.0)
 
-    def test_worker_pool_handles_timeout(self):
-        def slow_fn():
+    def test_worker_pool_handles_timeout(self) -> Any:
+        def slow_fn() -> Any:
             time.sleep(0.5)
             return "done"
 
@@ -138,7 +139,7 @@ class AgentWorkerPoolTests(unittest.TestCase):
 
 
 class PluginManifestEngineTests(unittest.TestCase):
-    def test_register_and_query_plugin_manifest(self):
+    def test_register_and_query_plugin_manifest(self) -> None:
         engine = PluginManifestEngine(plugins_dir=".saleha/test_plugins_tmp")
         manifest = SalehaPluginManifest(
             plugin_id="plugin-ml-optimizer",
