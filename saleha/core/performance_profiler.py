@@ -7,11 +7,11 @@ for functions, scripts, and agent pipelines.
 
 from __future__ import annotations
 
+import gc
 import time
 import tracemalloc
-import gc
 from dataclasses import dataclass
-from typing import Callable, Any, Dict, Optional, Tuple
+from typing import Any, Callable, Tuple
 
 
 @dataclass
@@ -27,7 +27,7 @@ class ProfileMetrics:
 class PerformanceProfiler:
     """Profiles memory footprint and execution latency of arbitrary code."""
 
-    def profile_callable(self, func: Callable, *args, **kwargs) -> Tuple[Any, ProfileMetrics]:
+    def profile_callable(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Tuple[Any, ProfileMetrics]:
         """Profiles a Python callable for latency and memory allocations."""
         gc.collect()
         gc_before = gc.get_count()
@@ -49,7 +49,7 @@ class PerformanceProfiler:
         tracemalloc.stop()
 
         gc_after = gc.get_count()
-        gc_diff = sum(abs(a - b) for a, b in zip(gc_after, gc_before))
+        gc_diff = sum(abs(a - b) for a, b in zip(gc_after, gc_before, strict=True))
 
         metrics = ProfileMetrics(
             duration_ms=round(elapsed_ms, 2),

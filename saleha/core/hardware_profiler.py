@@ -16,11 +16,13 @@ probe adds it; otherwise gpu=None. It is never guessed at.
 CLI: `saleha profile [--watch N] [--json]`
 """
 
+from __future__ import annotations
+
 import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import psutil
@@ -44,12 +46,12 @@ class HardwareSnapshot:
     disk_write_mb_s: float = 0.0
     net_sent_kb_s: float = 0.0
     net_recv_kb_s: float = 0.0
-    top_processes: List[Dict] = field(default_factory=list)
+    top_processes: List[Dict[str, Any]] = field(default_factory=list)
     self_pid: int = 0
-    gpu: Optional[Dict] = None
+    gpu: Optional[Dict[str, Any]] = None
 
 
-def _maybe_gpu() -> Optional[Dict]:
+def _maybe_gpu() -> Optional[Dict[str, Any]]:
     """Optional nvidia-smi probe. Returns None if absent -- no hard dependency."""
     import shutil
     import subprocess
@@ -73,7 +75,7 @@ class HardwareProfiler:
     def __init__(self, history_size: int = 600):
         if not PSUTIL_OK:
             raise RuntimeError("psutil required for HardwareProfiler")
-        self.history = deque(maxlen=history_size)
+        self.history: deque[HardwareSnapshot] = deque(maxlen=history_size)
         self._last_disk = psutil.disk_io_counters()
         self._last_net = psutil.net_io_counters()
         self._last_ts = time.time()
@@ -88,13 +90,13 @@ class HardwareProfiler:
             freq_fn = getattr(psutil, "cpu_freq", None)
             freq = freq_fn() if freq_fn else None
             snap.cpu_freq_mhz = round(freq.current, 0) if (freq and getattr(freq, "current", None) is not None) else None
-        except (AttributeError, OSError, Exception):
+        except Exception:
             snap.cpu_freq_mhz = None
 
         try:
             la = psutil.getloadavg()
             snap.load_avg = [round(x, 2) for x in la]
-        except (AttributeError, OSError, Exception):
+        except Exception:
             snap.load_avg = None
 
         vm = psutil.virtual_memory()
@@ -105,7 +107,7 @@ class HardwareProfiler:
         try:
             sm = psutil.swap_memory()
             snap.swap_percent = sm.percent
-        except (AttributeError, OSError, Exception):
+        except Exception:
             snap.swap_percent = 0.0
 
         now = time.time()
@@ -152,7 +154,7 @@ class HardwareProfiler:
 
     # ------------------------------------------------------------------
     def record_window(self, seconds: float = 3.0, interval: float = 0.75) -> HardwareSnapshot:
-        """`seconds` tak sample karke averaged final snapshot (live watch)."""
+        """Samples hardware metrics over `seconds` duration and returns the latest snapshot."""
         end = time.time() + seconds
         snap = self.snapshot()
         while time.time() < end:
@@ -160,21 +162,24 @@ class HardwareProfiler:
             snap = self.snapshot()
         return snap
 
-    def report(self, snaps: Optional[List[HardwareSnapshot]] = None) -> Dict:
+    def report(self, snaps: Optional[List[HardwareSnapshot]] = None) -> Dict[str, Any]:
         snaps = list(snaps if snaps is not None else self.history)[-120:]
         if not snaps:
             return {"samples": 0}
-        avg = lambda xs: round(sum(xs) / len(xs), 2) if xs else 0.0  # noqa: E731
+
+        def _avg(xs: List[float]) -> float:
+            return round(sum(xs) / len(xs), 2) if xs else 0.0
+
         peak_cpu = max(s.cpu_percent for s in snaps)
         peak_mem = max(s.mem_percent for s in snaps)
         return {
             "samples": len(snaps),
-            "avg_cpu": avg([s.cpu_percent for s in snaps]),
+            "avg_cpu": _avg([s.cpu_percent for s in snaps]),
             "peak_cpu": peak_cpu,
-            "avg_mem_percent": avg([s.mem_percent for s in snaps]),
+            "avg_mem_percent": _avg([s.mem_percent for s in snaps]),
             "peak_mem_percent": peak_mem,
-            "avg_disk_write_mb_s": avg([s.disk_write_mb_s for s in snaps]),
-            "avg_net_recv_kb_s": avg([s.net_recv_kb_s for s in snaps]),
+            "avg_disk_write_mb_s": _avg([s.disk_write_mb_s for s in snaps]),
+            "avg_net_recv_kb_s": _avg([s.net_recv_kb_s for s in snaps]),
             "window_sec": round(snaps[-1].ts - snaps[0].ts, 1),
         }
 

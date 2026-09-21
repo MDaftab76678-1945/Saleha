@@ -5,19 +5,19 @@ Provides a lightweight local companion server (localhost:7890) with an interacti
 desktop widget for instant code explanations, SAST audits, and one-click bug fixes.
 """
 
+from __future__ import annotations
+
 import json
 import webbrowser
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Dict, Any
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.security_scanner import ASTSecurityScanner
 
 SIDECAR_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🧠 Saleha AI — Floating Desktop Sidecar</title>
+  <title>Saleha AI - Floating Desktop Sidecar</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 16px; }
     .card { background: #1e293b; border-radius: 12px; padding: 16px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
@@ -33,13 +33,13 @@ SIDECAR_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <div class="card">
-    <h1>🧠 Saleha Desktop Sidecar</h1>
+    <h1>Saleha Desktop Sidecar</h1>
     <textarea id="codeInput" placeholder="Paste snippet or error traceback here..."></textarea>
     <div class="buttons">
-      <button onclick="runAction('explain')">🔍 Explain</button>
-      <button onclick="runAction('fix')">🩹 Auto-Fix</button>
-      <button onclick="runAction('test')">🧪 Gen Tests</button>
-      <button class="sec" onclick="runAction('sast')">🛡️ SAST Audit</button>
+      <button onclick="runAction('explain')">Explain</button>
+      <button onclick="runAction('fix')">Auto-Fix</button>
+      <button onclick="runAction('test')">Gen Tests</button>
+      <button class="sec" onclick="runAction('sast')">SAST Audit</button>
     </div>
     <div id="output">Ready. Select an action above.</div>
   </div>
@@ -98,11 +98,11 @@ class SidecarHandler(BaseHTTPRequestHandler):
 
             if action == "sast":
                 findings = self.scanner.scan_code(code)
-                res_text = f"🛡️ SAST Audit: Found {len(findings)} issue(s).\n" + "\n".join([f"• [{f.severity.upper()}] {f.description} (Line {f.line_number})" for f in findings]) if findings else "✅ No security vulnerabilities detected!"
+                res_text = f"SAST Audit: Found {len(findings)} issue(s).\n" + "\n".join([f"- [{f.severity.upper()}] {f.description} (Line {f.line_number})" for f in findings]) if findings else "No security vulnerabilities detected!"
             elif action == "fix":
                 res_text = f"# Auto-fixed by Saleha\n{code.strip()}\n# Handled edge cases safely."
             elif action == "test":
-                res_text = f"# Generated Unit Tests\nimport unittest\n\nclass TestGenerated(unittest.TestCase):\n    def test_example(self):\n        self.assertTrue(True)\n"
+                res_text = "# Generated Unit Tests\nimport unittest\n\nclass TestGenerated(unittest.TestCase):\n    def test_example(self):\n        self.assertTrue(True)\n"
             else:
                 res_text = f"Saleha Analysis for Snippet ({len(code)} bytes):\nCode defines standard execution logic with clean structure."
 
@@ -114,7 +114,7 @@ class SidecarHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: object) -> None:
         pass  # Quiet logger
 
 
