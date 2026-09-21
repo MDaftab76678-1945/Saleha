@@ -37,12 +37,13 @@ judge, which is a different statement -- see `EmergenceHealthReport.has_data`.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Optional
 
 DEFAULT_HISTORY_PATH = os.path.join(
     os.path.expanduser("~"), ".saleha", "swarm_messages.jsonl"
@@ -77,7 +78,7 @@ class SwarmMessageEvent:
         })
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SwarmMessageEvent":
+    def from_dict(cls, d: dict[str, Any]) -> SwarmMessageEvent:
         return cls(
             sender_id=str(d.get("sender", "")),
             recipient_id=str(d.get("recipient", "")),
@@ -93,8 +94,8 @@ class EmergenceHealthReport:
     is_healthy: bool
     total_messages: int
     gini_coefficient: float
-    circular_deadlocks_detected: List[str] = field(default_factory=list)
-    anomalies: List[str] = field(default_factory=list)
+    circular_deadlocks_detected: list[str] = field(default_factory=list)
+    anomalies: list[str] = field(default_factory=list)
     remediation_action: str = "none"
     summary: str = ""
     # False when there were no recorded messages at all. `is_healthy` is then
@@ -119,13 +120,13 @@ class EmergenceDetector:
         """
         self.gini_threshold = gini_threshold
         self.max_cycle_len = max_cycle_len
-        self.message_history: List[SwarmMessageEvent] = []
+        self.message_history: list[SwarmMessageEvent] = []
         self.history_path = history_path or DEFAULT_HISTORY_PATH
         self.persist = persist
         self._lock = threading.Lock()
 
     def record_message(self, sender: str, recipient: str, content: str,
-                       step: int, run_id: str = ""):
+                       step: int, run_id: str = "") -> None:
         """Records an agent-to-agent interaction."""
         event = SwarmMessageEvent(sender, recipient, content, step, run_id)
         with self._lock:
@@ -141,12 +142,10 @@ class EmergenceDetector:
         break the workflow being observed, so this swallows I/O errors rather
         than propagating them into an agent pipeline.
         """
-        try:
+        with contextlib.suppress(OSError):
             os.makedirs(os.path.dirname(self.history_path), exist_ok=True)
             with open(self.history_path, "a", encoding="utf-8") as fh:
                 fh.write(event.to_json() + "\n")
-        except OSError:
-            pass
 
     def load_history(self, limit: int = MAX_REPLAY_EVENTS) -> int:
         """
@@ -162,7 +161,7 @@ class EmergenceDetector:
         except (OSError, ValueError):
             return 0
 
-        events: List[SwarmMessageEvent] = []
+        events: list[SwarmMessageEvent] = []
         for line in lines[-limit:]:
             line = line.strip()
             if not line:
@@ -177,7 +176,7 @@ class EmergenceDetector:
             self.message_history = events
         return len(events)
 
-    def calculate_gini(self, counts: List[int]) -> float:
+    def calculate_gini(self, counts: list[int]) -> float:
         """Calculates Gini coefficient across agent activity counts (0.0=equal, 1.0=monopoly)."""
         if not counts or sum(counts) == 0:
             return 0.0
@@ -207,14 +206,14 @@ class EmergenceDetector:
                 ),
             )
 
-        agent_activity: Dict[str, int] = defaultdict(int)
+        agent_activity: dict[str, int] = defaultdict(int)
         for msg in self.message_history:
             agent_activity[msg.sender_id] += 1
 
         gini = self.calculate_gini(list(agent_activity.values()))
 
         # Check for circular ping-pong loops in recent history
-        deadlocks: List[str] = []
+        deadlocks: list[str] = []
         recent = self.message_history[-10:]
         for i in range(len(recent) - 2):
             m1 = recent[i]
@@ -223,7 +222,7 @@ class EmergenceDetector:
             if (m1.sender_id == m2.recipient_id == m3.sender_id) and (m1.recipient_id == m2.sender_id == m3.recipient_id):
                 deadlocks.append(f"Ping-Pong Deadlock between '{m1.sender_id}' and '{m1.recipient_id}'")
 
-        anomalies: List[str] = []
+        anomalies: list[str] = []
         if gini > self.gini_threshold:
             anomalies.append(f"High communication inequality (Gini: {gini} > {self.gini_threshold})")
         if deadlocks:
@@ -254,7 +253,7 @@ class EmergenceDetector:
             run_count=len(runs),
         )
 
-    def clear(self, wipe_persisted: bool = False):
+    def clear(self, wipe_persisted: bool = False) -> None:
         """
         Clear in-memory history. With `wipe_persisted`, also truncate the
         JSONL file -- kept opt-in so an ordinary reset cannot silently destroy
@@ -263,10 +262,8 @@ class EmergenceDetector:
         with self._lock:
             self.message_history.clear()
         if wipe_persisted:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(self.history_path)
-            except OSError:
-                pass
 
 
 # The shared recorder used by orchestrators. Persistence is on: the process

@@ -7,10 +7,13 @@ Provides a centralized, thread-safe asynchronous blackboard for multi-agent swar
 3. Telemetry and exportable Markdown/JSON boards for live terminal dashboards.
 """
 
-import time
+from __future__ import annotations
+
+import contextlib
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Callable
+from typing import Any, Callable, Optional
 
 
 @dataclass
@@ -20,7 +23,7 @@ class BoardEntry:
     entry_type: str  # "hypothesis", "fact", "threat", "artifact", "metric"
     agent_id: str
     content: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
     verified: bool = False
 
@@ -31,8 +34,8 @@ class ContextBoard:
     def __init__(self, board_name: str = "default_swarm_board"):
         """Initializes the Swarm Context Blackboard."""
         self.board_name = board_name
-        self._entries: List[BoardEntry] = []
-        self._subscribers: Dict[str, List[Callable[[BoardEntry], None]]] = {}
+        self._entries: list[BoardEntry] = []
+        self._subscribers: dict[str, list[Callable[[BoardEntry], None]]] = {}
         self._lock = threading.Lock()
 
     def post(
@@ -40,7 +43,7 @@ class ContextBoard:
         entry_type: str,
         agent_id: str,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         verified: bool = False,
     ) -> BoardEntry:
         """Posts a new entry onto the blackboard and notifies relevant subscribers."""
@@ -60,11 +63,11 @@ class ContextBoard:
         self._notify_subscribers(entry)
         return entry
 
-    def post_hypothesis(self, agent_id: str, hypothesis: str, metadata: Optional[Dict[str, Any]] = None) -> BoardEntry:
+    def post_hypothesis(self, agent_id: str, hypothesis: str, metadata: Optional[dict[str, Any]] = None) -> BoardEntry:
         """Helper to post a working hypothesis."""
         return self.post("hypothesis", agent_id, hypothesis, metadata)
 
-    def post_fact(self, agent_id: str, fact: str, metadata: Optional[Dict[str, Any]] = None) -> BoardEntry:
+    def post_fact(self, agent_id: str, fact: str, metadata: Optional[dict[str, Any]] = None) -> BoardEntry:
         """Helper to post a verified ground truth."""
         return self.post("fact", agent_id, fact, metadata, verified=True)
 
@@ -76,7 +79,7 @@ class ContextBoard:
         """Helper to post a shared code or design artifact."""
         return self.post("artifact", agent_id, artifact_name, metadata={"code": code}, verified=True)
 
-    def get_entries(self, entry_type: Optional[str] = None, agent_id: Optional[str] = None) -> List[BoardEntry]:
+    def get_entries(self, entry_type: Optional[str] = None, agent_id: Optional[str] = None) -> list[BoardEntry]:
         """Retrieves entries matching optional filters."""
         with self._lock:
             results = self._entries
@@ -86,14 +89,14 @@ class ContextBoard:
                 results = [e for e in results if e.agent_id == agent_id]
             return list(results)
 
-    def subscribe(self, entry_type: str, callback: Callable[[BoardEntry], None]):
+    def subscribe(self, entry_type: str, callback: Callable[[BoardEntry], None]) -> None:
         """Subscribes a callback to receive events for a specific entry type or '*' for all."""
         with self._lock:
             if entry_type not in self._subscribers:
                 self._subscribers[entry_type] = []
             self._subscribers[entry_type].append(callback)
 
-    def _notify_subscribers(self, entry: BoardEntry):
+    def _notify_subscribers(self, entry: BoardEntry) -> None:
         """Notifies registered listeners of a new blackboard post."""
         listeners = []
         with self._lock:
@@ -101,12 +104,10 @@ class ContextBoard:
             listeners.extend(self._subscribers.get("*", []))
 
         for cb in listeners:
-            try:
+            with contextlib.suppress(Exception):
                 cb(entry)
-            except Exception:
-                pass  # noqa
 
-    def clear(self):
+    def clear(self) -> None:
         """Clears all entries from the blackboard."""
         with self._lock:
             self._entries.clear()
@@ -121,7 +122,7 @@ class ContextBoard:
                 "| :--- | :---: | :--- | :--- | :---: |",
             ]
             for e in self._entries:
-                v_icon = "✅" if e.verified else "⏳"
+                v_icon = "YES" if e.verified else "PENDING"
                 lines.append(f"| `{e.entry_id}` | `{e.entry_type}` | `{e.agent_id}` | {e.content[:60]} | {v_icon} |")
             return "\n".join(lines)
 

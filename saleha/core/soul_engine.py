@@ -8,10 +8,11 @@ agent souls defined in the souls/ directory.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 
 @dataclass
@@ -22,15 +23,15 @@ class SoulPackage:
     version: str
     archetype: str
     description: str
-    tags: List[str] = field(default_factory=list)
-    cognitive_params: Dict[str, Any] = field(default_factory=dict)
-    allowed_tools: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    cognitive_params: dict[str, Any] = field(default_factory=dict)
+    allowed_tools: list[str] = field(default_factory=list)
     soul_md: str = ""
     identity_md: str = ""
     style_md: str = ""
     path: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "display_name": self.display_name,
@@ -90,8 +91,8 @@ class SoulEngine:
             self.config_dir = Path.home() / ".saleha"
         
         self._active_file = self.config_dir / "active_soul.json"
-        self._cache: Dict[str, SoulPackage] = {}
-        self.load_errors: Dict[str, str] = {}
+        self._cache: dict[str, SoulPackage] = {}
+        self.load_errors: dict[str, str] = {}
         self.reload()
 
     def reload(self) -> None:
@@ -145,7 +146,7 @@ class SoulEngine:
                         # neither take down the engine nor vanish silently.
                         self.load_errors[item.name] = str(ex) or type(ex).__name__
 
-    def list_souls(self) -> List[SoulPackage]:
+    def list_souls(self) -> list[SoulPackage]:
         """Return all registered souls sorted by name."""
         return sorted(self._cache.values(), key=lambda s: s.name)
 
@@ -163,14 +164,11 @@ class SoulEngine:
     def get_active_soul_name(self) -> str:
         """Get the identifier of the currently active soul."""
         if self._active_file.exists():
-            try:
-                with open(self._active_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    name = data.get("active_soul")
-                    if name and name in self._cache:
-                        return name
-            except Exception:
-                pass
+            with contextlib.suppress(Exception), open(self._active_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                name = data.get("active_soul")
+                if name and name in self._cache:
+                    return name
         
         # Fallback to default
         if self.DEFAULT_SOUL in self._cache:
@@ -209,7 +207,7 @@ class SoulEngine:
 
         return target
 
-    def validate_all(self) -> Dict[str, Any]:
+    def validate_all(self) -> dict[str, Any]:
         """Validate all souls against SoulSpec v1.0 integrity rules."""
         results = {
             "total_souls": len(self._cache),

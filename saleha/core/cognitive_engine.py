@@ -8,10 +8,10 @@ Evaluates source code across 4 cognitive dimensions:
 4. Reasoning Vector: Type invariants, assertion coverage, and logical soundness.
 """
 
-import ast
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
 
 
 @dataclass
@@ -20,8 +20,8 @@ class CognitiveDimensionScore:
     dimension: str
     score: int  # 0 to 100
     rating: str  # "EXCELLENT", "GOOD", "WARNING", "CRITICAL"
-    observations: List[str] = field(default_factory=list)
-    recommendations: List[str] = field(default_factory=list)
+    observations: list[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -80,21 +80,21 @@ class CognitiveEngine:
             summary=summary,
         )
 
-    def _eval_temporal(self, code: str) -> tuple[int, List[str], List[str]]:
+    def _eval_temporal(self, code: str) -> tuple[int, list[str], list[str]]:
         score = 100
         obs, recs = [], []
         # Check deep loop nesting (for in for in for)
         nested_loops = len(re.findall(r"\bfor\s+.*\n\s+for\s+.*\n\s+for\s+", code))
         if nested_loops > 0:
             score -= 20
-            obs.append(f"Detected {nested_loops} cubic O(n³) nested loop construct(s).")
+            obs.append(f"Detected {nested_loops} cubic O(n^3) nested loop construct(s).")
             recs.append("Refactor deeply nested loops into hash maps or lookup sets.")
         else:
             obs.append("No triple-nested `for` pattern matched. This is a text "
                        "search, not a complexity analysis.")
         return max(0, score), obs, recs
 
-    def _eval_spatial(self, code: str) -> tuple[int, List[str], List[str]]:
+    def _eval_spatial(self, code: str) -> tuple[int, list[str], list[str]]:
         score = 100
         obs, recs = [], []
         if ".append(" in code and "while True:" in code:
@@ -106,7 +106,7 @@ class CognitiveEngine:
                        "else about memory was examined.")
         return max(0, score), obs, recs
 
-    def _eval_ethical(self, code: str) -> tuple[int, List[str], List[str]]:
+    def _eval_ethical(self, code: str) -> tuple[int, list[str], list[str]]:
         score = 100
         obs, recs = [], []
         if re.search(r"\b(?:telemetry|track_user|analytics_send)\b", code):
@@ -120,7 +120,7 @@ class CognitiveEngine:
                        "assurance.")
         return max(0, score), obs, recs
 
-    def _eval_reasoning(self, code: str) -> tuple[int, List[str], List[str]]:
+    def _eval_reasoning(self, code: str) -> tuple[int, list[str], list[str]]:
         score = 100
         obs, recs = [], []
         has_type_hints = bool(re.search(r"def \w+\(.*?:\s*\w+.*?\)\s*->", code))

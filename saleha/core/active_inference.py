@@ -54,7 +54,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 # A bare referent with nothing to refer to: "fix it", "make this better".
 _BARE_REFERENT = re.compile(
@@ -98,9 +98,9 @@ class Uncertainty:
     goal: str
     score: float                       # 0.0 = actionable, 1.0 = unactionable
     actionable: bool
-    reasons: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
     question: str = ""                 # the one question worth asking
-    signals: Dict[str, Any] = field(default_factory=dict)
+    signals: dict[str, Any] = field(default_factory=dict)
 
     @property
     def should_ask(self) -> bool:
@@ -143,7 +143,7 @@ class ActiveInferenceGate:
         has_outcome = any(h in lowered for h in _OUTCOME_HINTS)
         bare_referent = bool(_BARE_REFERENT.search(text)) and not context_has_target
 
-        reasons: List[str] = []
+        reasons: list[str] = []
         score = 0.0
 
         if not text:
