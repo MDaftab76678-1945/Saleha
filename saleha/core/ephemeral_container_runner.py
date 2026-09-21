@@ -10,14 +10,12 @@ Executes untrusted or generated code within ephemeral Docker containers:
 from __future__ import annotations
 
 import os
-import sys
-import time
 import subprocess
+import time
 from dataclasses import dataclass
-from typing import Optional
 
-from saleha.core.sandbox_runner import SandboxRunner, SandboxResult
 from saleha.core.execution_policy import docker_available
+from saleha.core.sandbox_runner import SandboxResult, SandboxRunner
 
 
 @dataclass

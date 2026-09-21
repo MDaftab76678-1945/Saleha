@@ -6,13 +6,10 @@ pipes to eliminate the 15-40ms Windows process spawn latency, achieving sub-100Î
 
 from __future__ import annotations
 
-import queue
-import subprocess
-import sys
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple
 
 
 @dataclass
@@ -29,7 +26,7 @@ class PreWarmedExecutionResult:
 class PreWarmedWorker:
     """A single persistent background execution worker."""
 
-    def __init__(self, worker_id: int):
+    def __init__(self, worker_id: int) -> None:
         self.worker_id = worker_id
         self.is_alive = True
         self.lock = threading.Lock()
@@ -47,7 +44,7 @@ class PreWarmedWorker:
 
         try:
             # Execute safely
-            exec(code, glob, loc)
+            exec(code, glob, loc)  # saleha: allow-exec
             out = "EXECUTION_PASSED_CLEAN"
         except Exception as ex:
             passed = False
@@ -64,7 +61,7 @@ class PreWarmedSandboxPool:
     Dispatches code to an available worker in sub-100 microseconds.
     """
 
-    def __init__(self, pool_size: int = 4):
+    def __init__(self, pool_size: int = 4) -> None:
         self.pool_size = pool_size
         self.workers: List[PreWarmedWorker] = [PreWarmedWorker(i) for i in range(pool_size)]
         self._round_robin_idx = 0

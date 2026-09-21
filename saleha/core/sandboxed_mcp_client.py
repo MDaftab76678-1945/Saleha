@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -47,13 +46,13 @@ class SandboxedMCPClient:
         (r"curl\s+.*\|\s*sh|wget\s+.*\|\s*sh", "Piped untrusted remote script execution"),
     ]
 
-    def __init__(self, server_command: Optional[List[str]] = None, server_name: str = "default_mcp"):
+    def __init__(self, server_command: Optional[List[str]] = None, server_name: str = "default_mcp") -> None:
         self.server_name = server_name
         self.server_command = server_command
         self.registered_tools: Dict[str, DiscoveredMCPTool] = {}
         self._register_default_tools()
 
-    def _register_default_tools(self):
+    def _register_default_tools(self) -> None:
         """Default standard MCP tools available across the ecosystem."""
         self.registered_tools["mcp__fs_read_file"] = DiscoveredMCPTool(
             name="mcp__fs_read_file",
@@ -127,10 +126,10 @@ class SandboxedMCPClient:
         if tool_name == "mcp__fs_read_file":
             path = arguments.get("path", "")
             return {"status": "success", "path": path, "content": f"// Simulated content of {path}"}
-        elif tool_name == "mcp__git_create_commit":
+        if tool_name == "mcp__git_create_commit":
             msg = arguments.get("message", "Auto-commit")
             return {"status": "success", "commit_hash": "a1b2c3d", "message": msg}
-        elif tool_name == "mcp__sql_execute_query":
+        if tool_name == "mcp__sql_execute_query":
             query = arguments.get("query", "")
             return {"status": "success", "query": query, "rows_returned": 5}
         return {"status": "success", "result": "Action executed via MCP stdio bridge"}

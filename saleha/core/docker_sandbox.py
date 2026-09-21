@@ -6,14 +6,14 @@ with strict CPU/Memory cgroups, read-only root filesystems, and network isolatio
 Gracefully falls back to VirtualEnv SandboxRunner when Docker is unavailable.
 """
 
+from __future__ import annotations
+
 import os
 import shutil
-import tempfile
 import subprocess
-from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+import tempfile
 
-from saleha.core.sandbox_runner import SandboxRunner, SandboxResult
+from saleha.core.sandbox_runner import SandboxResult, SandboxRunner
 
 
 def is_docker_available() -> bool:
@@ -45,7 +45,7 @@ class DockerSandboxRunner:
         "go": "golang:1.22-alpine",
     }
 
-    def __init__(self, fallback_to_venv: bool = True):
+    def __init__(self, fallback_to_venv: bool = True) -> None:
         self.fallback_runner = SandboxRunner() if fallback_to_venv else None
 
     def run_code(self, code: str,
@@ -60,7 +60,7 @@ class DockerSandboxRunner:
                 res = self.fallback_runner.run_in_sandbox(code, timeout=timeout)
                 res.output = f"[Docker unavailable: VirtualEnv Sandbox Fallback]\n{res.output}" if res.output else res.output
                 return res
-            elif self.fallback_runner:
+            if self.fallback_runner:
                 try:
                     from saleha.core.polyglot_executor import polyglot_executor
                     poly_res = polyglot_executor.execute(code, language=language)
@@ -117,9 +117,8 @@ class DockerSandboxRunner:
                     text=True,
                     timeout=timeout
                 )
-                if proc.returncode != 0:
-                    if self.fallback_runner and language == "python":
-                        return self.fallback_runner.run_in_sandbox(code, timeout=timeout)
+                if proc.returncode != 0 and self.fallback_runner and language == "python":
+                    return self.fallback_runner.run_in_sandbox(code, timeout=timeout)
                 return SandboxResult(
                     success=(proc.returncode == 0),
                     exit_code=proc.returncode,

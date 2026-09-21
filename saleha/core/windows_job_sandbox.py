@@ -6,13 +6,13 @@ using Windows Win32 Job Objects via ctypes to match Linux Seccomp security guara
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
-import os
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -151,11 +151,9 @@ class WindowsJobSandbox:
 
             # Assign process handle to Job Object
             if IS_WINDOWS and job_handle and hasattr(proc, "_handle"):
-                try:
+                with contextlib.suppress(Exception):
                     kernel32 = ctypes.windll.kernel32
                     kernel32.AssignProcessToJobObject(job_handle, proc._handle)
-                except Exception:
-                    pass
 
             try:
                 stdout, stderr = proc.communicate(timeout=timeout_sec)
@@ -165,13 +163,12 @@ class WindowsJobSandbox:
                 # Check memory exhaustion status
                 # 0xC0000017 = STATUS_NO_MEMORY (-1073741801 signed, 3221225495 unsigned)
                 # 0xC0000044 = STATUS_QUOTA_EXCEEDED (-1073741756 signed, 3221225540 unsigned)
-                memory_limit_hit = False
-                if proc.returncode in (-1073741801, 3221225495, -1073741756, 3221225540):
-                    memory_limit_hit = True
-                elif "MemoryError" in stderr or "out of memory" in stderr.lower():
-                    memory_limit_hit = True
-                elif peak_bytes > 0 and peak_bytes >= self.memory_limit_bytes:
-                    memory_limit_hit = True
+                memory_limit_hit = (
+                    proc.returncode in (-1073741801, 3221225495, -1073741756, 3221225540)
+                    or "MemoryError" in stderr
+                    or "out of memory" in stderr.lower()
+                    or (peak_bytes > 0 and peak_bytes >= self.memory_limit_bytes)
+                )
 
                 passed = (proc.returncode == 0) and not memory_limit_hit
 
@@ -211,8 +208,6 @@ class WindowsJobSandbox:
             )
         finally:
             if IS_WINDOWS and job_handle:
-                try:
+                with contextlib.suppress(Exception):
                     kernel32 = ctypes.windll.kernel32
                     kernel32.CloseHandle(job_handle)
-                except Exception:
-                    pass
