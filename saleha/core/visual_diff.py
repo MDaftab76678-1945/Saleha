@@ -8,9 +8,8 @@ Compares responsive previews between iterations to ensure 0 unintended visual re
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List
 
 
 @dataclass

@@ -1,23 +1,21 @@
 """
-Saleha Core: Vision Backend (Real Multimodal -- stub se upgrade)
+Saleha Core: Vision Backend (Multimodal UI Generation)
 
-Pehle `vision_coder` sirf text-spec se template/LLM generate karta tha --
-IMAGE kabhi dekhi hi nahi jaati thi (web endpoint me hardcoded dry_run).
-Ab local Ollama ke vision models (llava, qwen2-vl, llama3.2-vision,
-minicpm-v, moondream...) se SCREENSHOT -> working UI code hota hai:
+Provides local Ollama vision model integration (llava, qwen2-vl, llama3.2-vision,
+minicpm-v, moondream...) to transform screenshots and wireframes into working UI code:
 
     POST /api/generate {"model": "llava:13b", "images": ["<base64>"], ...}
 
-Graceful degradation built-in: vision model installed na ho ya call fail ho
-to text-only pipeline / template pe fall back (used_vision=False flag se
-caller ko pata rehta hai kya hua).
+Graceful degradation built-in: if no vision model is installed or the call fails,
+the pipeline falls back to text-only template generation with `used_vision=False`.
 """
+
+from __future__ import annotations
 
 import base64
 import os
 import re
-import time
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import requests
 
@@ -31,10 +29,10 @@ _CODE_FENCE_RE = re.compile(r"```(?:[a-zA-Z]+)?\s*(.*?)```", re.DOTALL)
 
 
 def find_vision_model() -> Optional[str]:
-    """Installed Ollama models me pehla vision-capable model return karta hai.
+    """Returns the first vision-capable model found among installed Ollama models.
 
-    Reuses SmartRouter ka runtime probe (~/.saleha consistency). None =
-    koi vision model nahi mila (caller ko fallback chalana chahiye).
+    Uses SmartRouter runtime probe (~/.saleha consistency). Returns None if
+    no vision model is found (signaling the caller to use fallback).
     """
     from saleha.core.smart_router import get_installed_ollama_models
     installed = get_installed_ollama_models()
@@ -46,9 +44,9 @@ def find_vision_model() -> Optional[str]:
 
 
 def load_image_b64(source: str) -> Tuple[str, str]:
-    """Image source (file path YA base64/data-URL) -> (raw_b64, media_note).
+    """Converts image source (file path or base64/data-URL) to (raw_b64, media_note).
 
-    Raises ValueError invalid input par.
+    Raises ValueError on invalid input.
     """
     if not source or not source.strip():
         raise ValueError("empty image source")
@@ -65,18 +63,18 @@ def load_image_b64(source: str) -> Tuple[str, str]:
             with open(source, "rb") as f:
                 raw = f.read()
         except OSError as err:
-            raise ValueError(f"cannot read image file: {err}")
+            raise ValueError(f"cannot read image file: {err}") from err
         if len(raw) > 8 * 1024 * 1024:
             raise ValueError("image too large (>8MB)")
-        if not raw[:8] in (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1") and not raw[:3] == b"GIF":
-            # Unknown magic -- phir bhi allow (Ollama khud validate karega)
+        if raw[:8] not in (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1") and raw[:3] != b"GIF":
+            # Unknown magic -- still allow through for Ollama's own validation
             pass
         return base64.b64encode(raw).decode("ascii"), f"file:{os.path.basename(source)} ({len(raw)} bytes)"
-    # Raw base64 string maan lo
+    # Fallback to raw base64 string
     try:
         base64.b64decode(source[:64], validate=True)
     except Exception:
-        raise ValueError("image source is neither a valid file path nor base64")
+        raise ValueError("image source is neither a valid file path nor base64") from None
     return source, "raw-base64"
 
 
@@ -84,10 +82,10 @@ def generate_code_from_image(image_b64: str, layout_spec: str,
                              system_prompt: str,
                              model: Optional[str] = None,
                              timeout: int = 180) -> Tuple[Optional[str], str]:
-    """Vision model se UI code generate karta hai.
+    """Generates UI component code from an image input using an Ollama vision model.
 
     Returns:
-        (code_or_None, model_used) -- code None => failure (caller fallback).
+        (code_or_None, model_used) -- code is None on failure (triggering fallback).
     """
     chosen = model or find_vision_model()
     if not chosen:

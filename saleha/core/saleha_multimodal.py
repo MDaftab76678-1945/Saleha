@@ -8,10 +8,9 @@ Enables zero-cloud multimodal pair programming:
 
 from __future__ import annotations
 
-import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -35,20 +34,20 @@ class FusedMultimodalPayload:
 class SalehaVoiceIngress:
     """Simulated/Native Local Voice Transcriber (Whisper.cpp compatible)."""
 
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = 16000) -> None:
         self.sample_rate = sample_rate
 
     def transcribe_audio_pcm(self, pcm_data: Optional[bytes] = None, simulated_speech: Optional[str] = None) -> str:
         """Transcribes incoming PCM stream or simulated voice buffer in sub-40ms."""
         if simulated_speech:
             return simulated_speech.strip()
-        return "Saleha, screen par jo segmentation fault aaya hai use fix karo"
+        return "Saleha, fix the segmentation fault shown on the screen."
 
 
 class SalehaVisionIngress:
     """Screen OCR & Active Window Grabber."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def capture_screen_context(
@@ -69,7 +68,7 @@ class SalehaVisionIngress:
 class SalehaMultimodalHub:
     """Unified Multimodal Fusion Engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.voice_engine = SalehaVoiceIngress()
         self.vision_engine = SalehaVisionIngress()
 

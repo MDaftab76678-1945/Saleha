@@ -5,6 +5,8 @@ Synthesizes production-ready, accessible, and responsive UI components (React + 
 HTML5/CSS, Flutter) from wireframe descriptions, UI design specifications, and visual layout metadata.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -42,7 +44,7 @@ class VisionCoder:
         )
     }
 
-    def __init__(self, model: str = "auto"):
+    def __init__(self, model: str = "auto") -> None:
         self.model = model
         self.orchestrator = SalehaOrchestrator(model=model)
 

@@ -10,8 +10,8 @@ Provides:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import List, Tuple, Dict, Any, Optional
+from dataclasses import dataclass
+from typing import List, Tuple
 
 
 @dataclass
@@ -40,7 +40,7 @@ class VisionLivenessSentinel:
     Biometric verification and eye-blink tracking to prevent 2D photo replay attacks.
     """
 
-    def __init__(self, ear_threshold: float = 0.25, consec_frames_threshold: int = 3):
+    def __init__(self, ear_threshold: float = 0.25, consec_frames_threshold: int = 3) -> None:
         self.ear_threshold = ear_threshold
         self.consec_frames_threshold = consec_frames_threshold
         self.blink_counter = 0
@@ -78,7 +78,7 @@ class VisionLivenessSentinel:
 
         msg = "Human Operator Verified (Liveness Active)" if is_live else "Anti-Spoofing: Awaiting Blink"
         if intruder:
-            msg = "⚠️ INTRUDER DETECTED: Unauthorized Face at Workstation"
+            msg = "[SECURITY WARNING] INTRUDER DETECTED: Unauthorized Face at Workstation"
 
         return LivenessResult(
             is_live_human=is_live and not intruder,
