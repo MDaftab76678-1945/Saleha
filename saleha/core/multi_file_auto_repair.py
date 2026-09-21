@@ -114,7 +114,7 @@ class BiDirectionalDependencyGraph:
     SKIP_PARTS = {"build", "dist", "venv", "node_modules", "__pycache__",
                   "site-packages", "target"}
 
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path) -> None:
         self.root_dir = Path(root_dir)
         self.forward_deps: Dict[str, Set[str]] = {}
         self.reverse_deps: Dict[str, Set[str]] = {}
@@ -239,7 +239,7 @@ class MultiFileAutoRepairEngine:
     -- the previous version claimed atomicity and implemented a bare loop.
     """
 
-    def __init__(self, workspace_root: str | Path = "."):
+    def __init__(self, workspace_root: str | Path = ".") -> None:
         self.workspace_root = Path(workspace_root)
         self.gamma = GammaSandboxEngine()
         self.dep_graph = BiDirectionalDependencyGraph(self.workspace_root)
@@ -440,15 +440,14 @@ class MultiFileAutoRepairEngine:
             return self._patch_python(code, rule_ids, notes)
 
         patched = code
-        if any("MEMORY_LEAK" in r for r in rule_ids):
-            if "malloc(" in patched and "free(" not in patched:
-                if "\n}" in patched:
-                    patched = patched.replace(
-                        "\n}",
-                        "\n    if (ptr) free(ptr);  // [added by saleha]\n}", 1)
-                else:
-                    notes.append(
-                        "malloc with no closing brace to insert free() before")
+        if any("MEMORY_LEAK" in r for r in rule_ids) and "malloc(" in patched and "free(" not in patched:
+            if "\n}" in patched:
+                patched = patched.replace(
+                    "\n}",
+                    "\n    if (ptr) free(ptr);  // [added by saleha]\n}", 1)
+            else:
+                notes.append(
+                    "malloc with no closing brace to insert free() before")
         if any("DIV_BY_ZERO" in r for r in rule_ids):
             notes.append(
                 "division-by-zero in a non-Python file: not patched, because "

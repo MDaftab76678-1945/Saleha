@@ -15,14 +15,15 @@ Supported Languages:
 
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
-import subprocess
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import List, Optional
 
-from saleha.core.security_scanner import ASTSecurityScanner
 from saleha.core.audit_log import AuditLog
+from saleha.core.security_scanner import ASTSecurityScanner
 
 MAX_POLYGLOT_OUTPUT_CHARS = 50_000
 
@@ -61,7 +62,7 @@ class PolyglotExecutor:
         ".rs": "rust",
     }
 
-    def __init__(self, timeout: int = 15):
+    def __init__(self, timeout: int = 15) -> None:
         self.timeout = timeout
         self.scanner = ASTSecurityScanner()
         self.audit = AuditLog()
@@ -126,7 +127,7 @@ class PolyglotExecutor:
     def _dispatch_execution(self, temp_dir: str, temp_file: str, lang: str) -> PolyglotExecutionResult:
         # Python
         if lang == "python":
-            python_bin = shutil.which("python3") or shutil.which("python") or "python"
+            python_bin = sys.executable or shutil.which("python3") or shutil.which("python") or "python"
             return self._run_proc([python_bin, temp_file], temp_dir, lang)
 
         # JavaScript (Node.js)
@@ -182,7 +183,7 @@ class PolyglotExecutor:
 
         return PolyglotExecutionResult(success=False, language=lang, error=f"Unsupported execution runtime: {lang}")
 
-    def _run_proc(self, cmd: list, cwd: str, lang: str) -> PolyglotExecutionResult:
+    def _run_proc(self, cmd: List[str], cwd: str, lang: str) -> PolyglotExecutionResult:
         try:
             proc = subprocess.run(
                 cmd,

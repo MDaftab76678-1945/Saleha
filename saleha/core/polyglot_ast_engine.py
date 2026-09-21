@@ -7,11 +7,11 @@ and import call-graph analysis across Python, JavaScript, TypeScript, Go, Rust, 
 
 from __future__ import annotations
 
+import ast
 import os
 import re
-import ast
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Set, Any
+from dataclasses import dataclass
+from typing import List, Optional
 
 
 @dataclass
@@ -85,7 +85,6 @@ class PolyglotASTEngine:
     def parse_javascript_typescript(self, file_path: str, content: str) -> List[PolyglotSymbol]:
         """Extracts JS/TS functions, classes, interfaces, and arrow functions."""
         symbols = []
-        lines = content.splitlines()
         lang = "typescript" if file_path.endswith((".ts", ".tsx")) else "javascript"
 
         # 1. Functions & Async Functions: (export)? (async)? function name(...)

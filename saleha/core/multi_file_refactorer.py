@@ -8,14 +8,15 @@ the entire transaction is rolled back with zero project corruption.
 
 from __future__ import annotations
 
-import os
 import ast
+import contextlib
+import os
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Set, Any
+from typing import List, Optional, Set, Tuple
 
+from saleha.core.codebase_indexer import SmartPatcher
 from saleha.core.dependency_graph import dependency_graph
-from saleha.core.codebase_indexer import codebase_indexer, SmartPatcher
 from saleha.core.git_native import git_engine
 from saleha.core.path_utils import safe_relpath
 
@@ -45,7 +46,7 @@ class RefactorTransactionResult:
 class MultiFileRefactorer:
     """Performs transactional, AST-validated multi-file symbol refactoring and migrations."""
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
 
     def plan_rename(self, old_name: str, new_name: str, root_dir: Optional[str] = None) -> Tuple[bool, List[FilePatchPlan], str]:
@@ -77,13 +78,10 @@ class MultiFileRefactorer:
                     if f.endswith((".py", ".js", ".ts", ".go", ".rs", ".java")):
                         full_p = os.path.join(root, f)
                         rel_p = safe_relpath(full_p, self.root_dir).replace("\\", "/")
-                        try:
-                            with open(full_p, "r", encoding="utf-8", errors="replace") as fp:
-                                txt = fp.read()
+                        with contextlib.suppress(OSError), open(full_p, "r", encoding="utf-8", errors="replace") as fp:
+                            txt = fp.read()
                             if word_boundary.search(txt):
                                 target_files.add(rel_p)
-                        except OSError:
-                            pass
 
         if not target_files:
             return False, [], f"Symbol '{old_name}' not found anywhere in workspace."
@@ -115,7 +113,7 @@ class MultiFileRefactorer:
                     return False, [], f"Refactoring would cause syntax error in {rel_p}:{e.lineno}: {e.msg}"
 
             diff = SmartPatcher.create_unified_diff(orig, modified, os.path.basename(rel_p))
-            lines_c = len([l for l in diff.splitlines() if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))])
+            lines_c = len([line for line in diff.splitlines() if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))])
 
             patch_plans.append(FilePatchPlan(
                 file_path=rel_p,
@@ -156,11 +154,8 @@ class MultiFileRefactorer:
         except Exception as e:
             # Transaction failed! Execute automatic rollback!
             for abs_p, orig in written_files:
-                try:
-                    with open(abs_p, "w", encoding="utf-8") as fp:
-                        fp.write(orig)
-                except OSError:
-                    pass
+                with contextlib.suppress(OSError), open(abs_p, "w", encoding="utf-8") as fp:
+                    fp.write(orig)
             return RefactorTransactionResult(
                 success=False,
                 symbol_renamed=old_name,

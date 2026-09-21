@@ -37,13 +37,13 @@ class PlannedEdit:
     content: str
     original_content: Optional[str] = None   # None => file did not exist before
     lines_changed: int = 0
-    diff: str = ""         # unified diff (edit actions ke liye, C-polish)
+    diff: str = ""         # unified diff for edit actions
 
 
 @dataclass
 class MultiEditResult:
     success: bool = False
-    applied: bool = False                       # disk par likha gaya?
+    applied: bool = False                       # whether changes were written to disk
     edits: List[PlannedEdit] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     rolled_back: bool = False
@@ -59,7 +59,7 @@ class MultiEditResult:
 
 class MultiFileEditor:
     def __init__(self, coder_agent, root_dir: str = ".", tester=None,
-                 max_context_chars: int = 8000):
+                 max_context_chars: int = 8000) -> None:
         self.coder = coder_agent
         self.root_dir = os.path.abspath(root_dir)
         from saleha.agents.tester import TesterAgent
@@ -199,7 +199,7 @@ Format:
                 path=path, action=action, content=content,
                 lines_changed=len(content.splitlines()),
             )
-            # Unified diff preview (existing files ke liye)
+            # Unified diff preview for existing files
             if action == "edit" and abs_p and os.path.isfile(abs_p):
                 try:
                     with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
@@ -268,15 +268,17 @@ Format:
                     errs.append(f"read failed {e.path}: {err}")
                     return False, errs, False
 
-        # Phase 2: write everything; pehli failure par poori rollback
+        # Phase 2: write everything; rollback on first failure
         try:
             for e in edits:
                 abs_p = self._safe_abs_path(e.path)
-                os.makedirs(os.path.dirname(abs_p), exist_ok=True)
-                mode = "r+" if os.path.isfile(abs_p) else "w"
-                with open(abs_p, "w", encoding="utf-8") as f:
-                    f.write(e.content if e.content.endswith("\n") else e.content + "\n")
-                written.append(abs_p)
+                if abs_p:
+                    dirname = os.path.dirname(abs_p)
+                    if dirname:
+                        os.makedirs(dirname, exist_ok=True)
+                    with open(abs_p, "w", encoding="utf-8") as f:
+                        f.write(e.content if e.content.endswith("\n") else e.content + "\n")
+                    written.append(abs_p)
         except OSError as err:
             errs.append(f"write failed: {err}")
             # Rollback
