@@ -9730,3 +9730,67 @@ environment section separately records the suite at "2303 passed, 13
 skipped" as of pass 109 and "as of pass 109, measured this session" for
 the ~227s runtime figure; no later full-suite re-measurement was logged
 in any of these 21 commit messages.
+
+## Pass 133: sidecar_daemon.py's Auto-Fix and Gen Tests were fabricating results, unnoticed by pass 130 (2026-09-21)
+
+Found immediately after writing up passes 118-132 above: this pass's own
+"pre-existing (not touched)" note on `sandboxed_mcp_client.py` prompted a
+closer look at the rest of the range, and `sidecar_daemon.py` (pass 130,
+`b495d22`) turned out to be worse than a stub left alone -- it was
+actively shipping fabricated output, and pass 130's diff for this exact
+file only changed emoji/whitespace, so the "hardening" label on that
+commit did not cover the thing that actually needed fixing.
+
+Confirmed live-wired before treating it as urgent: `saleha sidecar`
+(`sandbox_exec.py:111-112`) starts `SidecarDaemon`, whose floating
+widget POSTs to `/api/action` for Auto-Fix and Gen Tests. Full file
+read (138 lines, per this project's own audit rule) found three of
+four action branches fabricated, none touched by any prior pass:
+
+- `"fix"` returned the caller's own unmodified input code with a
+  hardcoded `"# Handled edge cases safely"` comment appended -- no
+  repair logic anywhere in the branch.
+- `"test"` returned a fixed `assertTrue(True)` stub regardless of input
+  -- the same shape as `pr_generator.py`'s and `solve-issue`'s
+  fabricated tests (passes 23, 30), found a third time.
+- the default/`"explain"` branch returned a fixed `"Code defines
+  standard execution logic with clean structure"` string regardless of
+  input, never inspecting the code beyond its byte length.
+- `"sast"` was already genuine (calls the real `ASTSecurityScanner`).
+
+Rewired to existing, already-audited real machinery rather than
+building anything new: `"explain"` now calls
+`mech_interp.code_structure_engine.explain_code` -- the same real
+AST-based analyzer behind the already-verified `saleha explain-code`
+command. `"fix"`/`"test"` now call `CoderAgent.generate_code` /
+`generate_tests` -- the same real model-backed path `saleha build`
+uses -- and report the model's actual failure message on a bad or
+empty generation instead of ever returning a canned success.
+
+**The existing test file was the same trap this project keeps
+naming**: `test_sidecar_daemon.py` had exactly one test, asserting only
+that the HTML page contains certain button labels -- zero coverage of
+the `/api/action` dispatch logic that was actually fabricated, so
+nothing could have caught this. Added 7 new tests: three assert the
+"no code provided" guard short-circuits before any model call, two are
+direct regression guards asserting the old hardcoded strings
+(`"Handled edge cases safely"`, `assertTrue(True)`,
+`"Code defines standard execution logic..."`) are gone, one confirms
+`_run_test` reports an honest failure (not a fabricated stub) when the
+model's output has no test function in it, and one confirms `_run_explain`
+produces genuinely different output for genuinely different input.
+Teeth-checked: `git stash` on the fix, re-ran the new tests --
+**7 of 8 failed** against the unfixed file (the 8th, the pre-existing
+HTML-content test, still passed since it doesn't touch the dispatch
+logic); 8/8 pass with the fix restored.
+
+Verified live, not just via mocks: started the real daemon in-process,
+sent a real HTTP POST to `/api/action` with `action: "explain"` against
+a real snippet, got back real per-input AST structure output (function
+count, cyclomatic complexity, branching) -- confirmed varying with
+input, unlike the old fixed string.
+
+Quality gate: `sidecar_daemon.py` 52.0 -> 88.0/100 (no CRITICAL/MAJOR
+remaining -- one pre-existing MINOR TYPE-001 unrelated to this fix, not
+addressed here); `test_sidecar_daemon.py` 100.0/100. Full suite: 2314
+-> **2321 passed, 13 skipped, 0 failures**.

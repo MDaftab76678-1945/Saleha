@@ -2000,6 +2000,29 @@ messages for this specific range (most report only a ruff-clean claim or a
 file-scoped test count) — none is invented here to fill the gap. Detail for
 all fifteen: `NOTEBOOK_IMPORT.md`, "Passes 118-132."
 
+**Pass 133 — `sidecar_daemon.py`'s Auto-Fix and Gen Tests were fabricating
+results; pass 130 had labelled this file "hardening" but only touched
+emoji/whitespace in it.** Found immediately after writing up the summary
+above. Confirmed live-wired (`saleha sidecar`, via `sandbox_exec.py`)
+before treating it as urgent. Three of four action branches were
+fabricated: `"fix"` returned the caller's own unmodified input with a
+hardcoded `"Handled edge cases safely"` comment appended (no repair
+attempted); `"test"` returned a fixed `assertTrue(True)` stub regardless
+of input (the same shape as passes 23 and 30's fabricated tests, found a
+third time); the default `"explain"` branch returned a fixed "Code
+defines standard execution logic with clean structure" string regardless
+of input. `"sast"` was already genuine. Rewired to existing, already-
+audited machinery: `"explain"` now calls the real AST analyzer behind
+`saleha explain-code`; `"fix"`/`"test"` now call the same real
+`CoderAgent.generate_code`/`generate_tests` path `saleha build` uses,
+reporting the model's actual failure instead of a fabricated success.
+The existing test file had exactly one test (asserting HTML button
+labels only) — zero coverage of the actually-fabricated dispatch logic,
+the same trap this file names repeatedly. Added 7 tests; teeth-checked
+at 7/8 failing against the unfixed file. Full suite: 2314 → **2321
+passed, 13 skipped, 0 failures**. Detail: `NOTEBOOK_IMPORT.md`,
+"Pass 133."
+
 ---
 
 ## Environment facts worth knowing
