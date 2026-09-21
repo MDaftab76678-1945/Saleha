@@ -129,7 +129,8 @@ class EncryptedVault:
             return {}
 
     def _save_vault(self, data: Dict[str, Any]) -> bool:
-        os.makedirs(os.path.dirname(self.vault_path), exist_ok=True)
+        vault_dir = os.path.dirname(os.path.abspath(self.vault_path))
+        os.makedirs(vault_dir, exist_ok=True)
         encrypted = self._encrypt(json.dumps(data))
         tmp_path = f"{self.vault_path}.tmp.{os.getpid()}"
         try:
@@ -204,8 +205,23 @@ class EncryptedVault:
 
             vault_dir = os.path.dirname(os.path.abspath(self.vault_path))
             salt_file = os.path.join(vault_dir, ".vault_salt") if vault_dir else DEFAULT_SALT_PATH
-            with open(salt_file, "wb") as f:
-                f.write(new_salt)
+            # Atomic salt write: a crash mid-write must not leave an
+            # unreadable partial salt (which would permanently lock the vault).
+            tmp_salt = f"{salt_file}.tmp.{os.getpid()}"
+            try:
+                with open(tmp_salt, "wb") as f:
+                    f.write(new_salt)
+                os.replace(tmp_salt, salt_file)
+            except OSError:
+                if os.path.exists(tmp_salt):
+                    try:
+                        os.remove(tmp_salt)
+                    except OSError:
+                        pass
+                self.passphrase = old_passphrase
+                self._salt = old_salt
+                self._derived_key = old_derived_key
+                return False
 
             return True
         except Exception:

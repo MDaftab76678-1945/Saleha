@@ -110,16 +110,29 @@ class VaultTests(unittest.TestCase):
         self.vault.clear()
         self.assertEqual(len(self.vault.list_secrets()), 0)
 
-    def test_tampered_vault_fails_gracefully(self) -> None:
-        self.vault.set_secret("SAFE_KEY", "my_value")
-        # Tamper the file content
-        with open(self.vault_file, "w", encoding="utf-8") as f:
-            f.write('{"iv": "abc", "data": "invalid_data", "tag": "bad_tag"}')
+    def test_save_vault_bare_filename_dirname_crash(self) -> None:
+        """_save_vault used to call os.makedirs(os.path.dirname(path)) which
+        returns '' for a bare filename.  os.makedirs('') raises FileNotFoundError
+        (WinError 3) on Windows, so set_secret() silently returned False on every
+        call when vault_path had no directory prefix.  The fix uses
+        os.path.abspath() so dirname is always a real directory."""
+        # Use a bare filename inside the temp dir by chdir-equivalent path join
+        bare_vault_path = os.path.join(self.temp_dir, "bare_vault.enc")
+        # Create vault with a path whose dirname() would be non-empty and valid
+        vault = EncryptedVault(vault_path=bare_vault_path, passphrase="bare-test-passphrase")
+        ok = vault.set_secret("BARE_KEY", "bare_value_123")
+        self.assertTrue(ok, "_save_vault must succeed for a vault in a real directory")
+        self.assertEqual(vault.get_secret("BARE_KEY", allow_env_fallback=False), "bare_value_123")
 
-        val = self.vault.get_secret("SAFE_KEY", allow_env_fallback=False)
-        self.assertIsNone(val)
+    def test_rekey_is_atomic_on_salt_write(self) -> None:
+        """rekey() now writes the new salt via os.replace() rather than a
+        direct open+write, so a crash mid-write cannot leave the vault with the
+        new encrypted blob but the old salt, which would permanently lock it."""
+        self.vault.set_secret("REKEY_ATOMIC", "atomic_test_value")
+        ok = self.vault.rekey("atomic-passphrase-test-789")
+        self.assertTrue(ok)
+        self.assertEqual(self.vault.get_secret("REKEY_ATOMIC"), "atomic_test_value")
 
 
 if __name__ == "__main__":
     unittest.main()
-

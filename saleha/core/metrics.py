@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 
 class MetricsTracker:
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: Optional[str] = None) -> None:
         if storage_path is None:
             saleha_dir = os.path.join(os.path.expanduser("~"), ".saleha")
             os.makedirs(saleha_dir, exist_ok=True)
