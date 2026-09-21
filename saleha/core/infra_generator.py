@@ -8,9 +8,10 @@ Synthesizes production-ready cloud deployment and container infrastructure:
 4. Terraform Infrastructure-as-Code (IaC) configuration.
 """
 
-import os
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict
 
 
 @dataclass

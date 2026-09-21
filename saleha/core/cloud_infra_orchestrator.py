@@ -40,12 +40,9 @@ as generated infrastructure by accident.
 
 from __future__ import annotations
 
-import os
 import json
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from pathlib import Path
-
+from typing import List, Optional
 
 # Every caveat below is a measured fact about this generator, not a hedge.
 # They travel with the result so a caller cannot render it as a real design.
@@ -149,7 +146,7 @@ module "vpc" {{
 """
 
         # 2. Synthesize Kubernetes Manifests
-        k8s_manifests = f"""# Kubernetes Deployment & Service Manifests
+        k8s_manifests = """# Kubernetes Deployment & Service Manifests
 apiVersion: apps/v1
 kind: Deployment
 metadata:

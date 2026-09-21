@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional
 
-from saleha.core.vault import EncryptedVault, DEFAULT_VAULT_PATH
+from saleha.core.vault import EncryptedVault
 
 
 class EnvSyncBridge:
@@ -33,7 +33,7 @@ class EnvSyncBridge:
             pass
         return secrets_dict
 
-    def run_with_vault_env(self, cmd_args: List[str]) -> subprocess.CompletedProcess:
+    def run_with_vault_env(self, cmd_args: List[str]) -> subprocess.CompletedProcess[str]:
         """Executes a command with decrypted vault secrets securely injected into the environment."""
         merged_env = os.environ.copy()
         merged_env.update(self.get_vault_env())

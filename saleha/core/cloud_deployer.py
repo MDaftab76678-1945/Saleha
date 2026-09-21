@@ -5,9 +5,11 @@ Detects project stack and automatically synthesizes production-ready multi-stage
 Dockerfiles, docker-compose manifests, and GitHub Actions CI/CD workflows.
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 
 
 @dataclass
@@ -174,8 +176,10 @@ class CloudDeployer:
         for asset in plan.assets:
             full_p = os.path.join(base, asset.relative_path)
             os.makedirs(os.path.dirname(full_p), exist_ok=True)
-            with open(full_p, "w", encoding="utf-8") as f:
+            tmp_p = f"{full_p}.tmp.{os.getpid()}"
+            with open(tmp_p, "w", encoding="utf-8") as f:
                 f.write(asset.content)
+            os.replace(tmp_p, full_p)
             written.append(asset.relative_path)
         return written
 

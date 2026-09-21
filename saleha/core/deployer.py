@@ -5,9 +5,11 @@ Synthesizes production-hardened multi-stage Dockerfiles, docker-compose manifest
 Kubernetes Deployment/Service/Ingress configurations tailored to detected project runtimes.
 """
 
+from __future__ import annotations
+
 import os
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import List
 
 
 @dataclass
@@ -169,8 +171,10 @@ class CloudDeployer:
 
         for filename, content in mapping.items():
             p = os.path.join(output_dir, filename)
-            with open(p, "w", encoding="utf-8") as f:
+            tmp_p = f"{p}.tmp.{os.getpid()}"
+            with open(tmp_p, "w", encoding="utf-8") as f:
                 f.write(content)
+            os.replace(tmp_p, p)
             files_written.append(p)
 
         return files_written
