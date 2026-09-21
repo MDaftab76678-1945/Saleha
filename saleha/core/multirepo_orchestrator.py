@@ -39,10 +39,8 @@ changes across independent repositories atomic. It reports the ordering only.
 
 from __future__ import annotations
 
-import os
-import json
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

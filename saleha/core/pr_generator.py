@@ -10,11 +10,11 @@ Automates full Pull Request lifecycle:
 
 import os
 import re
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from dataclasses import dataclass
+from typing import Optional
 
+from saleha.core.github_integrator import GitHubIntegrator
 from saleha.core.team_orchestrator import TeamOrchestrator, TeamResult
-from saleha.core.github_integrator import GitHubIntegrator, GitHubPRResult
 
 
 @dataclass

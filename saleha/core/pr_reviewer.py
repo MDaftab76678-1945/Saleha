@@ -5,11 +5,10 @@ Analyzes Git PR diffs, executes automated SAST security scans, evaluates archite
 impact, and generates structured line-by-line GitHub PR review comments and merge recommendations.
 """
 
-import os
 import re
 import subprocess
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 from saleha.core.security_scanner import ASTSecurityScanner
 
@@ -99,21 +98,21 @@ class PRReviewer:
 
         # Generate markdown report
         md_lines = [
-            f"## 🧠 Saleha AI — Automated Pull Request Review",
-            f"",
+            "## 🧠 Saleha AI — Automated Pull Request Review",
+            "",
             f"**PR Title:** {pr_title}",
             f"**Files Changed:** {len(files_list)}",
             f"**Risk Assessment:** **{risk_level}**",
             f"**Merge Recommendation:** `{decision}`",
-            f"",
-            f"### 📋 Files Analyzed",
+            "",
+            "### 📋 Files Analyzed",
         ]
         for f in files_list[:10]:
             md_lines.append(f"- `{f}`")
         if len(files_list) > 10:
             md_lines.append(f"- *...and {len(files_list) - 10} more files*")
 
-        md_lines.append(f"\n### 🛡️ Security & SAST Findings")
+        md_lines.append("\n### 🛡️ Security & SAST Findings")
         if not findings:
             md_lines.append("✅ **Zero security vulnerabilities detected in new code.**")
         else:
@@ -121,7 +120,7 @@ class PRReviewer:
                 sev_icon = "🔴" if f["severity"] == "high" else "🟡"
                 md_lines.append(f"- {sev_icon} **[{f['rule_id']}]** `{f['message']}` (Line ~{f['line']})")
 
-        md_lines.append(f"\n### 💡 Recommendations")
+        md_lines.append("\n### 💡 Recommendations")
         if decision == "APPROVE":
             md_lines.append("1. All static checks and security gates passed.")
             md_lines.append("2. Ready for peer developer review and merge.")

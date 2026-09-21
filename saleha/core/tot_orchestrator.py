@@ -7,13 +7,12 @@ pruning, backtracking, and lifelong learned heuristic distillation.
 
 from __future__ import annotations
 
-import os
 import ast
 import json
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.core.sandbox_runner import SandboxRunner
 from saleha.core.security_scanner import ASTSecurityScanner
@@ -287,7 +286,8 @@ class TreeOfThoughtsOrchestrator:
         outcome, rather than a cosmetic edit masquerading as a repair.
         """
         from saleha.core.fast_inference import (
-            FastInference, InferenceRequest,
+            FastInference,
+            InferenceRequest,
         )
         from saleha.core.parallel_solver import extract_code
 

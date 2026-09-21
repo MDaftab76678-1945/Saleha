@@ -63,7 +63,7 @@ import os
 import shlex
 import subprocess
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Tuple
 
@@ -413,7 +413,7 @@ class WorkLedger:
         # Each anchor must be the same as, or a descendant of, the one
         # before it. `git merge-base --is-ancestor A B` exits 0 when A is an
         # ancestor of B.
-        for a, b in zip(commits, commits[1:]):
+        for a, b in zip(commits, commits[1:], strict=False):
             if a == b:
                 continue
             try:

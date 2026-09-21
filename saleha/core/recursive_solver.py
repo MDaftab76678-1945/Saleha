@@ -11,11 +11,10 @@ Implements a 7-Node Recursive Problem Solving architecture:
 7. Node 7 - Optimization Layer: Hardens code and verifies with isolated test execution.
 """
 
-import os
-import sys
+import contextlib
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Tuple
+from typing import Any, List, Optional, Tuple
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.coder import CoderAgent
@@ -91,7 +90,7 @@ class RecursiveSolver:
         )
         resp = self.agent.think(prompt)
         if resp.success and resp.content:
-            lines = [line.strip("- *# ") for line in resp.content.splitlines() if line.strip()]
+            lines = [line.lstrip("- ").lstrip("*# ").strip() for line in resp.content.splitlines() if line.strip()]
             return lines[:5] or ["Data Structure Optimization", "Algorithmic Invariants"]
         return ["Dynamic Programming", "Iterative Streaming", "Boundary Value Invariants"]
 
@@ -135,10 +134,12 @@ class RecursiveSolver:
         problem with no overlapping subproblems, which is exactly the judgement
         the old hardcoded scores could not make.
         """
-        from saleha.core.fast_inference import (
-            FastInference, InferenceRequest,
-        )
         import json
+
+        from saleha.core.fast_inference import (
+            FastInference,
+            InferenceRequest,
+        )
 
         engine = getattr(self, "inference", None) or FastInference()
         model = self.model if self.model and self.model != "auto" \
@@ -164,7 +165,7 @@ class RecursiveSolver:
         results = engine.run_batch(reqs, use_cache=False)
 
         paths: List[ReasoningPath] = []
-        for (pid, name, hint), res in zip(self.PATH_FRAMINGS, results):
+        for (pid, name, hint), res in zip(self.PATH_FRAMINGS, results, strict=False):
             data = {}
             if res.success and res.content:
                 try:
@@ -230,7 +231,6 @@ class RecursiveSolver:
                 f"    return True\n"
             )
 
-        test_prompt = f"Write a comprehensive Python unittest test suite for this code:\n{code[:800]}"
         test_resp = self.coder.generate_tests(code, goal=goal)
         test_code = self._extract_code(test_resp.code if test_resp.success else "")
         if not test_code:
@@ -290,10 +290,8 @@ class RecursiveSolver:
         final_success = exec_result.success and not exec_result.blocked
         if final_success:
             logs.append(f"Recursive solution verified! All unit tests passed in {attempts} attempt(s).")
-            try:
+            with contextlib.suppress(IOError, OSError, TypeError):
                 memory_store.remember(goal=goal, code=final_code, model=self.model, tags=["recursive", "multi-path"])
-            except (IOError, OSError, TypeError):
-                pass  # noqa
         else:
             logs.append("Completed with sandbox verification warnings.")
 

@@ -47,7 +47,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 DEFAULT_OLLAMA = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434")
 DEFAULT_CONCURRENCY = 4          # measured; see module docstring

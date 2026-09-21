@@ -13,7 +13,7 @@ hardware descriptions targeting critical Common Weakness Enumerations (CWE):
 import os
 import re
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Any
+from typing import List
 
 
 @dataclass

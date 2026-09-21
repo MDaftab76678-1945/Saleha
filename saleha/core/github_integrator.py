@@ -5,15 +5,15 @@ Automates pushing git branches to remote origins and opening Pull Requests
 via GitHub CLI (`gh`) or direct GitHub REST API using GITHUB_TOKEN.
 """
 
+import json
 import os
 import re
-import json
 import shutil
 import subprocess
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict, Any
+from typing import Dict, Optional, Tuple
 
 
 @dataclass

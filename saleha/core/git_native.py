@@ -7,13 +7,14 @@ automatic branch isolation, and safe atomic undo/rollback capabilities (Aider-st
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
-import tempfile
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Tuple, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 @dataclass
@@ -39,10 +40,8 @@ class GitAutomationEngine:
     def _cleanup_all_worktrees(self):
         """Cleanup handler registered with atexit to remove ephemeral worktrees on process termination."""
         for wt in list(self._active_worktrees):
-            try:
+            with contextlib.suppress(Exception):
                 self.remove_worktree(wt, force=True)
-            except Exception:
-                pass
 
     def _run_git(self, args: List[str]) -> subprocess.CompletedProcess:
         try:

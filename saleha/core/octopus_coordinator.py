@@ -36,11 +36,15 @@ from saleha.core.agent_message_bus import (
     OctopusBrainDispatchedEvent,
     OctopusConflictResolvedEvent,
     OctopusSynthesisCompletedEvent,
+)
+from saleha.core.agent_message_bus import (
     message_bus as global_message_bus,
 )
 from saleha.core.agent_worker_pool import (
     AgentWorkerPool,
     WorkerTaskResult,
+)
+from saleha.core.agent_worker_pool import (
     worker_pool as global_worker_pool,
 )
 from saleha.core.code_executor import CodeExecutor
@@ -157,13 +161,13 @@ class OctopusCoordinator:
         blackboard = SynapticBlackboard(goal=goal)
 
         # Pre-warm agent imports in main thread to prevent Python 3.14 import lock deadlock
-        from saleha.agents.planner import PlannerAgent
         from saleha.agents.architect import ArchitectAgent
-        from saleha.agents.coder import CoderAgent
-        from saleha.agents.security_guard import SecurityGuardAgent
-        from saleha.agents.qa_lead import QALeadAgent
         from saleha.agents.chaos_resilience import ChaosResilienceAgent
+        from saleha.agents.coder import CoderAgent
+        from saleha.agents.planner import PlannerAgent
+        from saleha.agents.qa_lead import QALeadAgent
         from saleha.agents.reviewer import ReviewerAgent
+        from saleha.agents.security_guard import SecurityGuardAgent
 
         # Notify dispatch of Brain 0 (Central Mind)
         self.bus.publish(
@@ -228,7 +232,6 @@ class OctopusCoordinator:
         # PHASE 1: STRATEGY & INVARIANTS (Arms 1 & 2 run concurrently)
         # =====================================================================
         def _run_planner() -> Tuple[str, Dict[str, Any]]:
-            from saleha.agents.planner import PlannerAgent
             planner = PlannerAgent(model=self._resolve_model("planner"))
             plan_res = planner.create_plan(goal)
             steps = plan_res.steps if plan_res.success else [f"Execute: {goal}"]
@@ -237,7 +240,6 @@ class OctopusCoordinator:
             return f"Structured {len(steps)} plan step(s)", {"steps": steps}
 
         def _run_architect() -> Tuple[str, Dict[str, Any]]:
-            from saleha.agents.architect import ArchitectAgent
             architect = ArchitectAgent(model=self._resolve_model("architect"))
             design = architect.design_system(goal)
             with blackboard.lock:
@@ -328,7 +330,6 @@ class OctopusCoordinator:
                     },
                 )
 
-            from saleha.agents.coder import CoderAgent
             coder = CoderAgent(model=self._resolve_model("coder"))
             context_hint = f"Plan: {blackboard.plan_steps}\nComponents: {blackboard.architecture_components}"
             res = coder.generate_code(f"{goal}\nContext: {context_hint}")
@@ -361,7 +362,6 @@ class OctopusCoordinator:
         current_code = blackboard.source_code or "def f():\n    return True\n"
 
         def _run_security() -> Tuple[str, Dict[str, Any]]:
-            from saleha.agents.security_guard import SecurityGuardAgent
             sec_agent = SecurityGuardAgent(model=self._resolve_model("security"))
             audit = sec_agent.audit_and_harden(goal, current_code)
             with blackboard.lock:
@@ -377,7 +377,6 @@ class OctopusCoordinator:
             }
 
         def _run_qa() -> Tuple[str, Dict[str, Any]]:
-            from saleha.agents.qa_lead import QALeadAgent
             qa_agent = QALeadAgent(model=self._resolve_model("qa"))
             suite = qa_agent.generate_test_suite(goal, current_code, framework="pytest")
             combined_run = f"{current_code}\n\n{suite.test_code}"
@@ -399,7 +398,6 @@ class OctopusCoordinator:
             }
 
         def _run_sre() -> Tuple[str, Dict[str, Any]]:
-            from saleha.agents.chaos_resilience import ChaosResilienceAgent
             sre_agent = ChaosResilienceAgent(model=self._resolve_model("sre"))
             chaos_res = sre_agent.run_chaos_test(goal)
             with blackboard.lock:
@@ -461,7 +459,6 @@ class OctopusCoordinator:
         # PHASE 4: CRITIQUE & CONSTITUTIONAL REVIEW (Arm 7)
         # =====================================================================
         def _run_critic() -> Tuple[str, Dict[str, Any]]:
-            from saleha.agents.reviewer import ReviewerAgent
             rev_agent = ReviewerAgent(model=self._resolve_model("reviewer"))
             review = rev_agent.review_code(goal, blackboard.source_code)
             with blackboard.lock:

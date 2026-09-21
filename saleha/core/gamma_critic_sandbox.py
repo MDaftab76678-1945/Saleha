@@ -10,7 +10,7 @@ import ast
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -37,11 +37,9 @@ def _has_loop_exit(statements: List[ast.stmt]) -> bool:
     for stmt in statements:
         if isinstance(stmt, (ast.Break, ast.Return, ast.Raise)):
             return True
-        if isinstance(stmt, ast.If):
-            if _has_loop_exit(stmt.body) or _has_loop_exit(stmt.orelse):
+        if isinstance(stmt, ast.If) and (_has_loop_exit(stmt.body) or _has_loop_exit(stmt.orelse)):
                 return True
-        if isinstance(stmt, ast.Try):
-            if _has_loop_exit(stmt.body) or any(_has_loop_exit(h.body) for h in stmt.handlers) or _has_loop_exit(stmt.finalbody):
+        if isinstance(stmt, ast.Try) and (_has_loop_exit(stmt.body) or any(_has_loop_exit(h.body) for h in stmt.handlers) or _has_loop_exit(stmt.finalbody)):
                 return True
         if hasattr(ast, "TryStar") and isinstance(stmt, getattr(ast, "TryStar", ast.Try)):
             try_body = getattr(stmt, "body", [])
@@ -49,8 +47,7 @@ def _has_loop_exit(statements: List[ast.stmt]) -> bool:
             try_final = getattr(stmt, "finalbody", [])
             if _has_loop_exit(try_body) or any(_has_loop_exit(getattr(h, "body", [])) for h in try_handlers) or _has_loop_exit(try_final):
                 return True
-        if isinstance(stmt, (ast.With, ast.AsyncWith)):
-            if _has_loop_exit(stmt.body):
+        if isinstance(stmt, (ast.With, ast.AsyncWith)) and _has_loop_exit(stmt.body):
                 return True
     return False
 
@@ -131,8 +128,7 @@ class GammaASTInspector(ast.NodeVisitor):
                 func_name = node.value.func.id
             if func_name in {"open", "socket", "connect"}:
                 for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        if target.id not in self.context_managed_resources:
+                    if isinstance(target, ast.Name) and target.id not in self.context_managed_resources:
                             self.allocated_resources[target.id] = node.lineno
 
         self.generic_visit(node)
@@ -208,9 +204,7 @@ class GammaASTInspector(ast.NodeVisitor):
 
     def visit_While(self, node: ast.While) -> None:
         is_unconditional = False
-        if isinstance(node.test, ast.Constant) and bool(node.test.value) is True:
-            is_unconditional = True
-        elif isinstance(node.test, ast.Name) and node.test.id in {"True"}:
+        if isinstance(node.test, ast.Constant) and bool(node.test.value) is True or isinstance(node.test, ast.Name) and node.test.id in {"True"}:
             is_unconditional = True
 
         if is_unconditional and not _has_loop_exit(node.body):
@@ -238,9 +232,7 @@ class GammaASTInspector(ast.NodeVisitor):
     def _check_try_handlers(self, handlers: List[ast.ExceptHandler]) -> None:
         for handler in handlers:
             is_broad = False
-            if handler.type is None:
-                is_broad = True
-            elif isinstance(handler.type, ast.Name) and handler.type.id in {"Exception", "BaseException"}:
+            if handler.type is None or isinstance(handler.type, ast.Name) and handler.type.id in {"Exception", "BaseException"}:
                 is_broad = True
 
             if is_broad:
@@ -249,9 +241,7 @@ class GammaASTInspector(ast.NodeVisitor):
                     is_swallowed = True
                 elif len(handler.body) == 1:
                     first = handler.body[0]
-                    if isinstance(first, ast.Pass):
-                        is_swallowed = True
-                    elif isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and first.value.value is ...:
+                    if isinstance(first, ast.Pass) or isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and first.value.value is ...:
                         is_swallowed = True
 
                 if is_swallowed:

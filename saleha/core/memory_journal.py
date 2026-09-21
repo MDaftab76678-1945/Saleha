@@ -12,8 +12,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
-
+from typing import Any, Dict, List, Optional
 
 DEFAULT_JOURNAL_DIR = os.path.join(os.path.expanduser("~"), ".saleha", "journals")
 

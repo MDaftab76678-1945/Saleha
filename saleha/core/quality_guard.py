@@ -47,7 +47,7 @@ import ast
 import builtins
 import os
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Set, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 _BUILTIN_NAMES: Set[str] = set(dir(builtins)) | {
     "__file__", "__name__", "__doc__", "__package__", "__annotations__",
@@ -93,9 +93,7 @@ def _collect_module_level_bindings(stmts: Sequence[ast.stmt], names_set: Set[str
         elif isinstance(node, ast.Assign):
             for t in node.targets:
                 _collect_target_names(t, names_set)
-        elif isinstance(node, ast.AnnAssign):
-            _collect_target_names(node.target, names_set)
-        elif isinstance(node, ast.AugAssign):
+        elif isinstance(node, ast.AnnAssign) or isinstance(node, ast.AugAssign):
             _collect_target_names(node.target, names_set)
         elif isinstance(node, ast.ExceptHandler) and node.name:
             names_set.add(node.name)

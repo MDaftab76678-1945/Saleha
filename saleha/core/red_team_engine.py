@@ -9,11 +9,9 @@ Simulates sophisticated adversarial attacks against generated code:
 5. Emits hardened remediation patches.
 """
 
-import os
-import sys
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.core.code_executor import CodeExecutor

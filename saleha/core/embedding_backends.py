@@ -96,4 +96,4 @@ def dense_dot(v1: List[float], v2: List[float]) -> float:
     """Cosine similarity for pre-normalized dense vectors."""
     if not v1 or not v2 or len(v1) != len(v2):
         return 0.0
-    return sum(a * b for a, b in zip(v1, v2))
+    return sum(a * b for a, b in zip(v1, v2, strict=False))

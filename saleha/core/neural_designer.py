@@ -7,9 +7,8 @@ Synthesizes custom PyTorch and ONNX deep learning neural architectures:
 3. VRAM Memory Footprint calculations for Training and Inference.
 """
 
-import math
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from dataclasses import dataclass
+from typing import Optional
 
 
 class InvalidArchitectureError(ValueError):

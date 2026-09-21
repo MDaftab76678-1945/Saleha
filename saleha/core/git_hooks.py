@@ -7,16 +7,12 @@ prevent secret/credential leakage, and enforce zero-broken-state commits.
 
 from __future__ import annotations
 
-import os
 import ast
+import os
 import re
 import stat
 import subprocess
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Any
-
-from saleha.core.vault import EncryptedVault
-
+from typing import List, Tuple
 
 PRE_COMMIT_SCRIPT_CONTENT = """#!/bin/sh
 # Saleha AI Automated Pre-Commit Hook

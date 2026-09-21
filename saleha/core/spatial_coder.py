@@ -8,8 +8,8 @@ Generates React Three Fiber, Three.js, and WebXR components for Apple Vision Pro
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import List
 
 
 @dataclass

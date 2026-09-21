@@ -22,7 +22,7 @@ Two genuinely different things live here and must not be confused:
 import ast
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List
 
 
 @dataclass

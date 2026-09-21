@@ -10,9 +10,9 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass

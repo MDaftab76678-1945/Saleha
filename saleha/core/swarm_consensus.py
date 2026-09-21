@@ -18,10 +18,12 @@ against. The class and its docstrings below still say "PBFT" for backward
 compatibility with existing callers -- this note is the accurate scope.
 """
 
+from __future__ import annotations
+
 import hashlib
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Set, Any
+from typing import Optional
 
 
 @dataclass
@@ -63,18 +65,18 @@ class ConsensusDecision:
 class SwarmPBFTConsensus:
     """PBFT-based multi-agent consensus engine with Confidence-Weighted BFT (CP-WBFT)."""
 
-    def __init__(self, validator_agent_ids: Optional[List[str]] = None, weights: Optional[Dict[str, float]] = None):
+    def __init__(self, validator_agent_ids: Optional[list[str]] = None, weights: Optional[dict[str, float]] = None):
         """Initializes the PBFT consensus engine with a set of registered validator agents and optional weights."""
-        self.validators: Set[str] = set(
+        self.validators: set[str] = set(
             validator_agent_ids or ["ArchitectAgent", "CoderAgent", "SecurityAgent", "TesterAgent"]
         )
-        self.weights: Dict[str, float] = weights or {v: 1.0 for v in self.validators}
+        self.weights: dict[str, float] = weights or {v: 1.0 for v in self.validators}
         for v in self.validators:
             if v not in self.weights:
                 self.weights[v] = 1.0
-        self.proposals: Dict[str, SwarmProposal] = {}
-        self.prepare_votes: Dict[str, List[ConsensusVote]] = {}
-        self.commit_votes: Dict[str, List[ConsensusVote]] = {}
+        self.proposals: dict[str, SwarmProposal] = {}
+        self.prepare_votes: dict[str, list[ConsensusVote]] = {}
+        self.commit_votes: dict[str, list[ConsensusVote]] = {}
 
     def set_validator_weight(self, voter_id: str, weight: float) -> None:
         """Sets the reputation or domain weight for an authorized validator."""

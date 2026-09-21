@@ -7,9 +7,9 @@ interactive, self-contained HTML5/SVG/D3 force-directed visual network diagrams.
 
 from __future__ import annotations
 
-import os
 import json
-from typing import Dict, List, Optional, Any
+import os
+from typing import Any, Dict, List
 
 from saleha.core.dependency_graph import dependency_graph
 

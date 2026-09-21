@@ -10,10 +10,8 @@ from __future__ import annotations
 import ast
 import json
 import os
-import sys
-import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -522,9 +520,9 @@ impl {topic.replace(" ", "").replace("-", "")}Engine {{
     }}
 }}
 '''
-                    rejected_code = f'''pub fn process_unsafe(input: &str) -> &str {{
-    unsafe {{ input.get_unchecked(..5) }} // Unsafe out-of-bounds slice
-}}
+                    rejected_code = '''pub fn process_unsafe(input: &str) -> &str {
+    unsafe { input.get_unchecked(..5) } // Unsafe out-of-bounds slice
+}
 '''
                 else:  # SQL
                     chosen_code = f'''-- Optimized Schema for {topic}

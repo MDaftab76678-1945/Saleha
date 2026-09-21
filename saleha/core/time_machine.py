@@ -8,11 +8,12 @@ Provides atomic workspace snapshots and 1-click rollback:
 3. Rollback if automated tests fail or the workspace is corrupted.
 """
 
-import os
+import contextlib
 import json
+import os
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -87,10 +88,8 @@ class TimeMachine:
         existing = self._load_all()
         excess = len(existing) - self.max_snapshots
         for snap in existing[:max(0, excess)]:
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(self._snapshot_path(snap.snapshot_id))
-            except OSError:
-                pass
 
     def create_snapshot(self, target_paths: List[str], label: str = "auto_snapshot") -> CodebaseSnapshot:
         """Captures the current state of the given files and writes it to disk."""

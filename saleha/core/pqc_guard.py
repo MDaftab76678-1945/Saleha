@@ -70,7 +70,7 @@ class Sha3VaultGuard:
         nonce = secrets.token_bytes(16)
 
         keystream = hashlib.shake_256(key_bytes + nonce).digest(len(raw_data))
-        ciphertext = bytes(a ^ b for a, b in zip(raw_data, keystream))
+        ciphertext = bytes(a ^ b for a, b in zip(raw_data, keystream, strict=False))
 
         return SymmetricEncryptedPayload(
             algorithm="SHA3/SHAKE-256 XOR stream cipher (NOT AES-GCM, NOT post-quantum)",
@@ -84,7 +84,7 @@ class Sha3VaultGuard:
         nonce = base64.b64decode(payload.nonce_b64)
         key_bytes = base64.b64decode(key_b64)
         keystream = hashlib.shake_256(key_bytes + nonce).digest(len(ciphertext))
-        decrypted = bytes(a ^ b for a, b in zip(ciphertext, keystream))
+        decrypted = bytes(a ^ b for a, b in zip(ciphertext, keystream, strict=False))
         return decrypted.decode("utf-8")
 
 

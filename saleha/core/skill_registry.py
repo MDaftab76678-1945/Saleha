@@ -58,9 +58,9 @@ def load_builtin_skills():
     """Saleha ke saath aane wale built-in skills load karta hai. Naye
     built-in skill add karne ke liye bas import + register yahan jodo."""
     from saleha.skills.calculator_skill import CalculatorSkill
-    from saleha.skills.unit_converter_skill import UnitConverterSkill
     from saleha.skills.datetime_skill import DateTimeSkill
     from saleha.skills.git_skill import GitSkill
+    from saleha.skills.unit_converter_skill import UnitConverterSkill
     registry.register(CalculatorSkill())
     registry.register(UnitConverterSkill())
     registry.register(DateTimeSkill())

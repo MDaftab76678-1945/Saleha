@@ -22,7 +22,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from saleha.core.training_collector import TrainingCollector
 
@@ -229,10 +229,10 @@ class LoRATuner:
     def _detect_backend(self) -> str:
         """Detect whether the real local fine-tuning stack is importable."""
         try:
-            import torch  # noqa: F401
             import peft  # noqa: F401
-            import trl  # noqa: F401
+            import torch  # noqa: F401
             import transformers  # noqa: F401
+            import trl  # noqa: F401
         except ImportError:
             return "unavailable"
         return "transformers_peft"
@@ -321,11 +321,12 @@ class LoRATuner:
     def _train_dpo(self, config: TuningConfig, dataset_path: str, adapter_path: str) -> Dict[str, Any]:
         """Real DPO training via trl.DPOTrainer, fresh LoRA on the base model."""
         import torch
-        from datasets import load_dataset
-        from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import LoraConfig
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        from datasets import load_dataset
         ensure_trl_dpo_importable()
-        from trl import DPOTrainer, DPOConfig
+        from trl import DPOConfig, DPOTrainer
 
         hf_base = self._resolve_hf_base(config.base_model)
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -436,10 +437,11 @@ class LoRATuner:
         models so they fit in 6GB VRAM -- auto-detected from the model name
         unless config.load_in_4bit forces it explicitly."""
         import torch
-        from datasets import load_dataset
-        from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import LoraConfig, prepare_model_for_kbit_training
-        from trl import SFTTrainer, SFTConfig
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from trl import SFTConfig, SFTTrainer
+
+        from datasets import load_dataset
 
         hf_base = self._resolve_hf_base(config.base_model)
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -603,10 +605,11 @@ class LoRATuner:
         wiped.
         """
         import tempfile
+
         import saleha.core.memory_store as memory_store_mod
-        from saleha.core.memory_store import MemoryStore
         import saleha.orchestrator as orch_mod
         from saleha.core.evaluator import ModelBenchmarkEvaluator
+        from saleha.core.memory_store import MemoryStore
 
         real_store = memory_store_mod.memory_store
         throwaway = MemoryStore(storage_path=os.path.join(tempfile.mkdtemp(), "throwaway_memory.json"))
@@ -659,8 +662,8 @@ class LoRATuner:
         """
         try:
             import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
             from peft import PeftModel
+            from transformers import AutoModelForCausalLM, AutoTokenizer
 
             base_id = hf_base_model or self._resolve_hf_base(TuningConfig().base_model)
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -719,8 +722,8 @@ class LoRATuner:
         callers can see actual output, not just a success flag.
         """
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         if len(adapter_paths) < 2:
             return SoupMergeResult(success=False, output_name=output_name,
@@ -735,7 +738,7 @@ class LoRATuner:
 
         averaged_state: Dict[str, "torch.Tensor"] = {}
         try:
-            for i, (path, wt) in enumerate(zip(adapter_paths, w)):
+            for _, (path, wt) in enumerate(zip(adapter_paths, w, strict=False)):
                 base = AutoModelForCausalLM.from_pretrained(hf_base_model, dtype=dtype, device_map=device)
                 merged = PeftModel.from_pretrained(base, path).merge_and_unload()
                 sd = merged.state_dict()

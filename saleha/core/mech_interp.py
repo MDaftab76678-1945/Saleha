@@ -57,7 +57,6 @@ import ast
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-
 # Circuit-type labels kept as-is: they are accurate descriptions of code
 # structure, and the CLI and any caller already speak them.
 ERROR_GUARD = "error_guard"

@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Pattern
+from typing import TYPE_CHECKING, Dict, List, Optional, Pattern
 
 if TYPE_CHECKING:
-    from saleha.core.dag_engine import TaskDAG, TaskNode
+    from saleha.core.dag_engine import TaskDAG
 
 # ==============================================================================
 # 1. Bilingual mathematical configuration

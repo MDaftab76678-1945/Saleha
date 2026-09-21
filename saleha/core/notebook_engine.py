@@ -1,12 +1,13 @@
 """Saleha Notebook Engine: Reactive Multi-Modal Notebooks, AST Dependency DAGs & Self-Healing Execution."""
 
 from __future__ import annotations
+
 import ast
 import json
 import time
 import uuid
-from typing import List, Dict, Any, Optional, Set
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set
 
 from saleha.core.ephemeral_container_runner import container_runner
 
@@ -108,7 +109,7 @@ class SalehaNotebookEngine:
             return cell
 
         if cell.cell_type == "sql":
-            cell.output_text = f"+-------------+------------+\n| Column_A    | Metric_B   |\n+-------------+------------+\n| 2026-09-02  | 4,200.50   |\n| 2026-09-01  | 3,890.10   |\n+-------------+------------+\n[2 rows returned in 4.2ms]"
+            cell.output_text = "+-------------+------------+\n| Column_A    | Metric_B   |\n+-------------+------------+\n| 2026-09-02  | 4,200.50   |\n| 2026-09-01  | 3,890.10   |\n+-------------+------------+\n[2 rows returned in 4.2ms]"
             cell.is_executing = False
             cell.duration_ms = (time.perf_counter() - start) * 1000
             return cell

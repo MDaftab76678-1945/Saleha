@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import List, Tuple
 
 
 @dataclass
@@ -241,8 +241,8 @@ class AICodeReviewer:
                         suggestion="Extract sub-functions using the Single Responsibility Principle."
                     ))
                 # Missing docstring
-                if not (node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant)):
-                    if func_len > 10:
+                if (not (node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant))
+                        and func_len > 10):
                         issues.append(ReviewIssue(
                             severity="info", category="style",
                             line=node.lineno, title=f"Function '{node.name}' missing docstring",

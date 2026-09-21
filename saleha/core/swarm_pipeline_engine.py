@@ -7,34 +7,34 @@ persists checkpoints to disk for zero-waste session resumption, and broadcasts e
 
 from __future__ import annotations
 
+import contextlib
 import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any, Callable, Dict, List, Optional
 
-from saleha.core.agent_message_bus import (
-    message_bus,
-    AgentEvent,
-    TaskAssignedEvent,
-    ADRGeneratedEvent,
-    CodeSynthesizedEvent,
-    SecurityVulnerabilityEvent,
-    TestExecutionEvent,
-    ReviewFeedbackEvent,
-    TokenCompressedEvent,
-)
-from saleha.core.semantic_memory_cache import semantic_memory
-from saleha.core.swarm_checkpoint_store import checkpoint_store, SwarmCheckpoint
 from saleha.core.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
-    SecurityOutputContract,
+    FinOpsOutputContract,
     QAOutputContract,
     ReviewerOutputContract,
-    FinOpsOutputContract,
+    SecurityOutputContract,
+)
+from saleha.core.agent_message_bus import (
+    ADRGeneratedEvent,
+    CodeSynthesizedEvent,
+    ReviewFeedbackEvent,
+    SecurityVulnerabilityEvent,
+    TaskAssignedEvent,
+    TestExecutionEvent,
+    TokenCompressedEvent,
+    message_bus,
 )
 from saleha.core.merkle_provenance import merkle_provenance_ledger
+from saleha.core.semantic_memory_cache import semantic_memory
+from saleha.core.swarm_checkpoint_store import SwarmCheckpoint, checkpoint_store
 
 
 @dataclass
@@ -321,14 +321,12 @@ class SwarmPipelineEngine:
             # "Ledger is empty and untampered.", which is honest but useless
             # as an audit trail. Recording is best-effort: a hashing failure
             # here must not break the pipeline it is meant to be observing.
-            try:
+            with contextlib.suppress(Exception):
                 merkle_provenance_ledger.record_event(
                     action_type=stage.agent_role.lower(),
                     agent_id=f"{stage.agent_role}Agent",
                     data=stage.output_summary,
                 )
-            except Exception:
-                pass
 
             # Persist intermediate checkpoint
             cp.completed_stages.append({

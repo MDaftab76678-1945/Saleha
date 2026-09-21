@@ -7,10 +7,8 @@ Implements mechanism design for democratic multi-agent swarms:
 3. Prevents vote-flooding and guarantees mathematically fair consensus.
 """
 
-import math
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+from typing import Dict, List
 
 
 @dataclass

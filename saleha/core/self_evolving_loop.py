@@ -11,9 +11,9 @@ from __future__ import annotations
 import ast
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine, CodeInvariantScore
+from saleha.core.neuro_symbolic_engine import CodeInvariantScore, neuro_symbolic_engine
 from saleha.core.training_collector import training_collector
 
 

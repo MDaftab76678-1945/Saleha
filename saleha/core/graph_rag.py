@@ -15,10 +15,10 @@ saleha.core.semantic_search / vector_store.py.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List
 
-from saleha.core.dependency_graph import dependency_graph
 from saleha.agents.base_agent import BaseAgent
+from saleha.core.dependency_graph import dependency_graph
 
 
 @dataclass
@@ -53,8 +53,8 @@ class GraphRAGEngine:
             sym_lower = sym.lower()
             if any(w in sym_lower for w in words):
                 matched_symbols.append(sym)
-                for l in locs:
-                    relevant_files.add(l.file_path.replace("\\", "/"))
+                for loc in locs:
+                    relevant_files.add(loc.file_path.replace("\\", "/"))
 
                 # Get callers
                 callers = dependency_graph.find_callers(sym)

@@ -8,11 +8,12 @@ Kills Cursor's real-time inline suggestions — runs entirely locally.
 
 from __future__ import annotations
 
+import contextlib
 import os
-import time
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional
 
 from saleha.core.inline_suggester import InlineSuggester, InlineSuggestion
 
@@ -60,10 +61,8 @@ class RealtimeWatcher:
             for fname in files:
                 if any(fname.endswith(ext) for ext in self.extensions):
                     fpath = os.path.join(dirpath, fname)
-                    try:
+                    with contextlib.suppress(OSError):
                         result[fpath] = os.path.getmtime(fpath)
-                    except OSError:
-                        pass
         return result
 
     def _analyze_file(self, path: str) -> List[InlineSuggestion]:
@@ -100,10 +99,8 @@ class RealtimeWatcher:
                         if len(self._event_history) > 100:
                             self._event_history = self._event_history[-100:]
                     for cb in self._callbacks:
-                        try:
+                        with contextlib.suppress(Exception):
                             cb(event)
-                        except Exception:
-                            pass
             for path in list(self._mtimes):
                 if path not in current:
                     event = FileChangeEvent(
@@ -113,10 +110,8 @@ class RealtimeWatcher:
                     with self._lock:
                         self._event_history.append(event)
                     for cb in self._callbacks:
-                        try:
+                        with contextlib.suppress(Exception):
                             cb(event)
-                        except Exception:
-                            pass
             self._mtimes = current
 
     def start(self) -> None:

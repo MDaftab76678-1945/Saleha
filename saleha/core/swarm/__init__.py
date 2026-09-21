@@ -13,43 +13,42 @@ typed event bus pub/sub brokers, and checkpointed session resumption:
 
 from __future__ import annotations
 
-from saleha.core.swarm_pipeline_engine import (
-    SwarmPipelineEngine,
-    swarm_engine,
-    AutonomousSwarmRouter,
-    SwarmExecutionResult,
-    SwarmPipelineStage,
-)
 from saleha.core.agent_message_bus import (
-    AgentMessageBus,
-    message_bus,
-    AgentEvent,
-    TaskAssignedEvent,
     ADRGeneratedEvent,
-)
-from saleha.core.swarm_consensus import (
-    SwarmPBFTConsensus,
-    swarm_consensus,
-    SwarmProposal,
-    ConsensusVote,
-    ConsensusDecision,
-)
-from saleha.core.team_orchestrator import (
-    TeamOrchestrator,
-    team_orchestrator,
-    TeamResult,
+    AgentEvent,
+    AgentMessageBus,
+    TaskAssignedEvent,
+    message_bus,
 )
 from saleha.core.agent_worker_pool import (
     AgentWorkerPool,
-    worker_pool,
     WorkerTaskResult,
+    worker_pool,
 )
 from saleha.core.swarm_checkpoint_store import (
+    SwarmCheckpoint,
     SwarmCheckpointStore,
     checkpoint_store,
-    SwarmCheckpoint,
 )
-
+from saleha.core.swarm_consensus import (
+    ConsensusDecision,
+    ConsensusVote,
+    SwarmPBFTConsensus,
+    SwarmProposal,
+    swarm_consensus,
+)
+from saleha.core.swarm_pipeline_engine import (
+    AutonomousSwarmRouter,
+    SwarmExecutionResult,
+    SwarmPipelineEngine,
+    SwarmPipelineStage,
+    swarm_engine,
+)
+from saleha.core.team_orchestrator import (
+    TeamOrchestrator,
+    TeamResult,
+    team_orchestrator,
+)
 
 __all__ = [
     "SwarmPipelineEngine",

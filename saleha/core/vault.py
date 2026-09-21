@@ -7,16 +7,16 @@ database passwords, tokens, and private environment variables (PBKDF2-HMAC + AES
 Storage: ~/.saleha/vault.enc (Encrypted JSON payload)
 """
 
-import os
-import json
-import time
 import base64
+import contextlib
 import hashlib
 import hmac
+import json
+import os
 import secrets
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 DEFAULT_VAULT_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "vault.enc")
 DEFAULT_SALT_PATH = os.path.join(os.path.expanduser("~"), ".saleha", ".vault_salt")
@@ -79,7 +79,7 @@ class EncryptedVault:
             keystream.extend(block)
             counter += 1
 
-        ciphertext = bytes(a ^ b for a, b in zip(data_bytes, keystream[:len(data_bytes)]))
+        ciphertext = bytes(a ^ b for a, b in zip(data_bytes, keystream[:len(data_bytes)], strict=False))
         tag = hmac.new(self._derived_key, iv + ciphertext, hashlib.sha256).digest()
 
         payload = {
@@ -108,7 +108,7 @@ class EncryptedVault:
                 keystream.extend(block)
                 counter += 1
 
-            plaintext_bytes = bytes(a ^ b for a, b in zip(ciphertext, keystream[:len(ciphertext)]))
+            plaintext_bytes = bytes(a ^ b for a, b in zip(ciphertext, keystream[:len(ciphertext)], strict=False))
             return plaintext_bytes.decode("utf-8")
         except Exception:
             return None
@@ -139,11 +139,8 @@ class EncryptedVault:
             os.replace(tmp_path, self.vault_path)
             return True
         except Exception:
-            if os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except OSError:
-                    pass
+            with contextlib.suppress(OSError):
+                os.remove(tmp_path)
             return False
 
     def set_secret(self, key: str, value: str, description: str = "") -> bool:
@@ -161,13 +158,8 @@ class EncryptedVault:
         return self._save_vault(vault)
 
     def has_secret(self, key: str, check_env: bool = False) -> bool:
-        """Returns True if the given key is present in the vault (or optionally in os.environ)."""
         vault = self._load_vault()
-        if key in vault:
-            return True
-        if check_env and key in os.environ:
-            return True
-        return False
+        return bool(key in vault or (check_env and key in os.environ))
 
     def get_secret(self, key: str, allow_env_fallback: bool = True) -> Optional[str]:
         """Retrieves and decrypts a secret value."""
@@ -213,11 +205,8 @@ class EncryptedVault:
                     f.write(new_salt)
                 os.replace(tmp_salt, salt_file)
             except OSError:
-                if os.path.exists(tmp_salt):
-                    try:
-                        os.remove(tmp_salt)
-                    except OSError:
-                        pass
+                with contextlib.suppress(OSError):
+                    os.remove(tmp_salt)
                 self.passphrase = old_passphrase
                 self._salt = old_salt
                 self._derived_key = old_derived_key

@@ -5,11 +5,10 @@ Discovers, loads, and executes custom user plugins, event hooks, and dynamic age
 from ~/.saleha/plugins/ and .saleha/plugins/ without modifying core source code.
 """
 
-import os
-import sys
 import importlib.util
+import os
 from dataclasses import dataclass
-from typing import Dict, List, Callable, Optional, Any
+from typing import Any, Callable, Dict, List, Optional
 
 
 @dataclass
@@ -69,7 +68,7 @@ class PluginLoader:
             spec.loader.exec_module(mod)
 
             registered = []
-            for event_name in self.hooks.keys():
+            for event_name in self.hooks:
                 hook_fn = getattr(mod, event_name, None)
                 if callable(hook_fn):
                     self.hooks[event_name].append(hook_fn)

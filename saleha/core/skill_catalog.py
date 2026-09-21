@@ -9,10 +9,10 @@ and dynamic invocation across local and multi-platform agents.
 
 from __future__ import annotations
 
-import re
 import json
+import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Tuple, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
 @dataclass
@@ -55,18 +55,18 @@ class AgentSkillMetadata:
             f"# {self.name}",
             f"**Domain:** `{self.domain}`",
             "",
-            f"## Description",
+            "## Description",
             self.description,
             "",
-            f"## Trigger Keywords",
+            "## Trigger Keywords",
             ", ".join(f"`{k}`" for k in self.trigger_keywords),
             "",
-            f"## Input Schema",
+            "## Input Schema",
             "```json",
             json.dumps(self.input_schema, indent=2),
             "```",
             "",
-            f"## Output Schema",
+            "## Output Schema",
             "```json",
             json.dumps(self.output_schema, indent=2),
             "```"
@@ -776,7 +776,7 @@ class SkillCatalog:
             ])
         ]
 
-        for domain, domain_desc, skill_names in remaining_domains:
+        for domain, _, skill_names in remaining_domains:
             specs = []
             for skill_name in skill_names:
                 words = skill_name.replace("-", " ").split()

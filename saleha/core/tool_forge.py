@@ -17,21 +17,21 @@ Follows strict safety and engineering rails:
 from __future__ import annotations
 
 import ast
-from dataclasses import asdict, dataclass, field
+import contextlib
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from saleha.core.quality_guard import QualityGuard
 from saleha.tools.ast_inspector import ASTInspectorTool
-from saleha.tools.base import BaseTool, ToolResult, tool_registry
+from saleha.tools.base import tool_registry
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TOOLS_DIR = os.path.join(REPO_ROOT, "saleha", "tools")
@@ -497,15 +497,11 @@ class ToolForge:
                 # forge_tool() writes the verified copy itself, so leaving the
                 # staged one behind would mean a failed validation still left
                 # an unverified file in saleha/tools/.
-                try:
+                with contextlib.suppress(Exception):
                     shutil.rmtree(tmp_dir, ignore_errors=True)
-                except Exception:
-                    pass
                 if not tool_pre_existed:
-                    try:
+                    with contextlib.suppress(OSError):
                         os.remove(staged_tool_path)
-                    except OSError:
-                        pass
 
         return False, current_tool_code, current_test_code, "Validation failed after maximum repair attempts"
 
@@ -679,7 +675,7 @@ class ToolForge:
             return []
         try:
             with open(LOG_PATH, "r", encoding="utf-8") as f:
-                lines = [json.loads(l) for l in f if l.strip()]
+                lines = [json.loads(line) for line in f if line.strip()]
             return lines[-limit:]
         except Exception:
             return []

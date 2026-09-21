@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Callable, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from saleha.core.quality_guard import QualityGuard, QualityReport, quality_guard
 from saleha.core.test_runner import TestRunner, TestSuiteResult
@@ -88,7 +88,7 @@ class TTCTrajectorySolver:
 
     def _evaluate_simplicity(self, code: str) -> float:
         """Scores code simplicity and conciseness (avoids bloated boilerplate)."""
-        lines = [l.strip() for l in code.splitlines() if l.strip() and not l.strip().startswith("#")]
+        lines = [ln.strip() for ln in code.splitlines() if ln.strip() and not ln.strip().startswith("#")]
         num_lines = len(lines)
         if num_lines == 0:
             return 0.0
@@ -279,7 +279,7 @@ class TTCTrajectorySolver:
         results = engine.run_batch(reqs, use_cache=False)
 
         out: List[CandidateTrajectory] = []
-        for idx, (strat, r) in enumerate(zip(strategies, results), start=1):
+        for idx, (strat, r) in enumerate(zip(strategies, results, strict=False), start=1):
             code = extract_code(r.content) if r.success else ""
             if code.strip():
                 out.append(CandidateTrajectory(

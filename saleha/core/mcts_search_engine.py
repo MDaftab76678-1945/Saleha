@@ -15,7 +15,7 @@ import ast
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from saleha.core.ephemeral_container_runner import ContainerExecutionResult, container_runner
 from saleha.core.neuro_symbolic_engine import neuro_symbolic_engine

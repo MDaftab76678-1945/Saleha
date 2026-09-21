@@ -8,15 +8,11 @@ to VS Code, Cursor, Neovim, Emacs, and JetBrains IDEs.
 
 from __future__ import annotations
 
-import os
-import sys
-import json
 import ast
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+import os
+from typing import Any, Dict, Optional
 
 from saleha.core.dependency_graph import dependency_graph
-from saleha.core.polyglot_ast_engine import polyglot_ast_engine
 
 
 class SalehaLSPServer:

@@ -53,7 +53,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Directories that are not this project's source. `.claude/worktrees` holds
 # checkouts of the repo itself, so leaving it in reported evidence paths like

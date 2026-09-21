@@ -22,13 +22,14 @@ inspectable audit trail of what it decided to do and what happened.
 from __future__ import annotations
 
 import ast
+import contextlib
 import json
 import os
 import re
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Dict, List, Optional, Set
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -102,10 +103,7 @@ def _extract_public_api(source: str) -> list[str]:
 
     symbols: list[str] = []
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if not node.name.startswith("_"):
-                symbols.append(node.name)
-        elif isinstance(node, ast.ClassDef):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if not node.name.startswith("_"):
                 symbols.append(node.name)
         elif isinstance(node, ast.Assign):
@@ -406,10 +404,8 @@ def run_self_improvement_cycle(skip: Optional[set] = None, max_repairs: int = 2)
         Leaving the file behind is what previously stranded a generated test
         staged on the branch the cycle started from -- the exact branch the
         module's safety rails promise never to touch."""
-        try:
+        with contextlib.suppress(OSError):
             os.remove(test_path)
-        except OSError:
-            pass
         _run(["git", "reset", "HEAD", "--", os.path.relpath(test_path, REPO_ROOT)])
         current = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
         if original_branch and current != original_branch:
@@ -477,7 +473,7 @@ def read_log(limit: int = 20) -> list:
     if not os.path.exists(LOG_PATH):
         return []
     with open(LOG_PATH, "r", encoding="utf-8") as f:
-        lines = [json.loads(l) for l in f if l.strip()]
+        lines = [json.loads(line) for line in f if line.strip()]
     return lines[-limit:]
 
 
@@ -503,10 +499,8 @@ def run_self_improvement_batch(
         res = run_self_improvement_cycle(skip=skip_set, max_repairs=max_repairs)
         results.append(res)
         if callback:
-            try:
+            with contextlib.suppress(Exception):
                 callback(cycle_idx, total_cycles, res)
-            except Exception:
-                pass
 
         if res.status == "no_candidate":
             break

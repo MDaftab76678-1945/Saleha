@@ -8,9 +8,9 @@ and resolves conflicts cleanly without breaking syntax or tests.
 
 from __future__ import annotations
 
+import ast
 import os
 import re
-import ast
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -89,22 +89,22 @@ class ConflictResolver:
             theirs_body = theirs_str.splitlines()[1:]
 
             merged_lines = [sig_line]
-            ours_statements = [l for l in ours_body if not l.strip().startswith("return ")]
-            theirs_statements = [l for l in theirs_body if not l.strip().startswith("return ")]
+            ours_statements = [stmt for stmt in ours_body if not stmt.strip().startswith("return ")]
+            theirs_statements = [stmt for stmt in theirs_body if not stmt.strip().startswith("return ")]
 
-            for l in ours_statements:
-                merged_lines.append(l)
-            for l in theirs_statements:
-                if l not in ours_statements:
-                    merged_lines.append(l)
+            for stmt in ours_statements:
+                merged_lines.append(stmt)
+            for stmt in theirs_statements:
+                if stmt not in ours_statements:
+                    merged_lines.append(stmt)
 
             # Pick a return statement only if either side actually returns.
             # Inventing one (e.g. a hardcoded "return True") would put code
             # into the merge that neither side wrote.
             ret_line = None
-            for l in theirs_body + ours_body:
-                if l.strip().startswith("return "):
-                    ret_line = l
+            for ln in theirs_body + ours_body:
+                if ln.strip().startswith("return "):
+                    ret_line = ln
                     break
             if ret_line is not None:
                 merged_lines.append(ret_line)
@@ -143,7 +143,7 @@ class ConflictResolver:
         theirs_str = self._strip_blank_lines(hunk.theirs_lines)
 
         # Strategy 1: If both sides are pure imports, merge them
-        if all(l.startswith(("import ", "from ")) or not l.strip() for l in hunk.ours_lines + hunk.theirs_lines):
+        if all(ln.startswith(("import ", "from ")) or not ln.strip() for ln in hunk.ours_lines + hunk.theirs_lines):
             merged_imports = self._resolve_import_block(hunk.ours_lines, hunk.theirs_lines)
             return "\n".join(merged_imports)
 

@@ -7,12 +7,11 @@ allowing engineering teams to share local LLM compute, monitor task states, and 
 
 from __future__ import annotations
 
-import os
+import threading
 import time
 import uuid
-import threading
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

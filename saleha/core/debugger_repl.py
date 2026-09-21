@@ -5,13 +5,13 @@ Provides a stateful Python execution environment with runtime variable inspectio
 memory state tracking, and live line-by-line debugging session.
 """
 
-import sys
-import io
 import ast
-import traceback
 import contextlib
+import io
+import traceback
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -65,12 +65,12 @@ class StatefulREPL:
                 if is_single_expr:
                     # Evaluate expression and store/print result
                     expr_code = compile(ast.Expression(parsed.body[0].value), "<saleha-repl>", "eval")
-                    result_val = eval(expr_code, self.globals_dict)  # noqa: SEC002 -- interactive REPL ka core feature hai
+                    result_val = eval(expr_code, self.globals_dict)  # saleha: allow-exec -- this IS the interactive REPL's core feature
                     if result_val is not None:
                         stdout_buf.write(repr(result_val) + "\n")
                 else:
                     exec_code = compile(parsed, "<saleha-repl>", "exec")
-                    exec(exec_code, self.globals_dict)  # noqa: SEC002 -- interactive REPL ka core feature hai
+                    exec(exec_code, self.globals_dict)  # saleha: allow-exec -- this IS the interactive REPL's core feature
 
             out = stdout_buf.getvalue()
             err = stderr_buf.getvalue()
@@ -79,7 +79,7 @@ class StatefulREPL:
                 output=(out + err).strip(),
                 result_val=result_val
             )
-        except Exception as e:
+        except Exception:
             err_msg = traceback.format_exc()
             return REPLExecutionResult(
                 success=False,
@@ -101,7 +101,7 @@ class StatefulREPL:
     def interactive_loop(self):
         """Starts interactive terminal REPL loop."""
         console.print(Panel(
-            "[bold green]🧠 Saleha Interactive AI REPL & Debugger[/]\n"
+            "[bold green]Saleha Interactive AI REPL & Debugger[/]\n"
             "Commands: [cyan]:vars[/] (inspect memory), [cyan]:clear[/] (reset), [cyan]:exit[/] (quit)",
             border_style="green"
         ))
@@ -127,7 +127,7 @@ class StatefulREPL:
                 if not v_map:
                     console.print("[dim]No user variables currently in memory.[/]")
                 else:
-                    t = Table(title="🔍 Active Variables in Memory", border_style="cyan")
+                    t = Table(title="Active Variables in Memory", border_style="cyan")
                     t.add_column("Variable", style="bold cyan")
                     t.add_column("Type", style="yellow")
                     t.add_column("Value", style="green")

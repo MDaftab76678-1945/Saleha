@@ -11,11 +11,11 @@ Supports:
 
 import os
 import time
-import urllib.request
 import urllib.error
-from html.parser import HTMLParser
+import urllib.request
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from html.parser import HTMLParser
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -124,7 +124,7 @@ class BrowserRunner:
                         load_time=load_time,
                         backend="playwright"
                     )
-            except Exception as e:
+            except Exception:
                 # Fallback to HTTP parser if playwright encounters an execution issue
                 pass
 

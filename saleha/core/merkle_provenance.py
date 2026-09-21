@@ -8,10 +8,9 @@ Maintains a tamper-proof cryptographic audit trail for all agent interactions:
 """
 
 import hashlib
-import json
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import List, Tuple
 
 
 @dataclass

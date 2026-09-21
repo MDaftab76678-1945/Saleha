@@ -9,9 +9,8 @@ Simulates headless browser interaction and DOM inspection:
 """
 
 import re
-import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import List, Optional
 
 
 @dataclass
@@ -83,9 +82,7 @@ class BrowserAgent:
                 continue
 
             is_action = False
-            if tag in ["button", "a", "input", "select", "textarea"]:
-                is_action = True
-            elif ("onclick" in attrs.lower()) or ("hx-" in attrs.lower()) or ("@click" in attrs.lower()):
+            if tag in ["button", "a", "input", "select", "textarea"] or ("onclick" in attrs.lower()) or ("hx-" in attrs.lower()) or ("@click" in attrs.lower()):
                 is_action = True
 
             id_match = re.search(r'id=["\']([^"\']+)["\']', attrs)

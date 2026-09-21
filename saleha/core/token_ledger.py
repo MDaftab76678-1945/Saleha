@@ -8,12 +8,13 @@ Maintains double-entry accounting for agent token usage and compute economics:
 4. Persistent storage in ~/.saleha/token_ledger.json.
 """
 
-import os
+import contextlib
 import json
+import os
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -153,11 +154,9 @@ class TokenLedger:
             os.replace(tmp_path, self.store_path)
             return True
         except (OSError, IOError):
-            if tmp_path and os.path.exists(tmp_path):
-                try:
+            with contextlib.suppress(OSError):
+                if tmp_path:
                     os.remove(tmp_path)
-                except OSError:
-                    pass
             return False
 
     def _load(self) -> None:

@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 from saleha.agents.base_agent import AgentResponse, BaseAgent
 from saleha.core.agent_profile_loader import ProfileAgent, profile_registry

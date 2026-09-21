@@ -11,18 +11,18 @@ Built-in Dynamic Tools:
 4. `shell_exec`: Controlled command execution with AST/SafetyGuard protection.
 """
 
-import os
-import re
 import ipaddress
 import json
+import os
+import re
 import socket
 import sqlite3
 import subprocess
-import urllib.request
 import urllib.error
 import urllib.parse
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Callable, Any
+import urllib.request
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
 
 from saleha.core.safety_guard import SafetyGuard
 
@@ -147,8 +147,8 @@ class ToolRegistry:
                 raise ValueError(f"Blocked internal host '{host}'.")
             try:
                 addr_infos = socket.getaddrinfo(host, None)
-            except OSError:
-                raise ValueError(f"Cannot resolve host '{host}'.")
+            except OSError as err:
+                raise ValueError(f"Cannot resolve host '{host}'.") from err
             for info in addr_infos:
                 ip = ipaddress.ip_address(info[4][0])
                 if (ip.is_private or ip.is_loopback or ip.is_link_local

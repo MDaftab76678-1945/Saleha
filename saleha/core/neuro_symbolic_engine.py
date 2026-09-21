@@ -24,11 +24,12 @@ __init__.py) that only imports/re-exports the name without touching fields.
 """
 
 from __future__ import annotations
+
 import ast
 import re
 import time
-from typing import List
 from dataclasses import dataclass, field
+from typing import List
 
 
 @dataclass

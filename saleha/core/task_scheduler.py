@@ -14,13 +14,15 @@ scheduler run-due`) rather than expecting tasks to fire themselves.
 """
 
 from __future__ import annotations
+
+import contextlib
 import json
 import os
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 DEFAULT_SCHEDULE_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "scheduled_tasks.json")
 
@@ -210,8 +212,8 @@ class TaskSchedulerEngine:
         if not task:
             return None
 
-        from saleha.core.team_orchestrator import TeamOrchestrator
         from saleha.core.task_history import TaskHistory
+        from saleha.core.team_orchestrator import TeamOrchestrator
 
         start = time.perf_counter()
         try:
@@ -229,10 +231,8 @@ class TaskSchedulerEngine:
         task.next_run_timestamp = _next_run_after(task.cron_expression, task.last_run_timestamp)
         self._save()
 
-        try:
+        with contextlib.suppress(Exception):
             TaskHistory().log(goal=task.goal, model="scheduler", success=success, code=code, task_id=task.task_id)
-        except Exception:
-            pass
 
         return {
             "task_id": task.task_id,

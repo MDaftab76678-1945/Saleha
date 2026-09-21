@@ -8,12 +8,12 @@ and measures local inference latency (tokens/sec, p50, p95).
 
 from __future__ import annotations
 
-import os
+import contextlib
 import json
+import os
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any
-
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
 
 DEFAULT_ANALYTICS_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "token_analytics.json")
 
@@ -87,11 +87,8 @@ class TokenAnalyticsEngine:
                 json.dump(data, f, indent=2)
             os.replace(tmp_p, self.storage_path)
         except Exception:
-            if os.path.exists(tmp_p):
-                try:
-                    os.remove(tmp_p)
-                except OSError:
-                    pass
+            with contextlib.suppress(OSError):
+                os.remove(tmp_p)
 
     def record_invocation(
         self,

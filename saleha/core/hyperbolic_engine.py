@@ -10,9 +10,8 @@ Implements:
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 HYPERBOLIC_DIM = 16
 CURVATURE_C = 1.0
@@ -58,7 +57,7 @@ class HyperbolicVector:
         return cls(coords)
 
     def inner_product(self, other: HyperbolicVector) -> float:
-        return sum(a * b for a, b in zip(self.coords, other.coords))
+        return sum(a * b for a, b in zip(self.coords, other.coords, strict=False))
 
     def norm_squared(self) -> float:
         return self.inner_product(self)
@@ -91,7 +90,7 @@ class HyperbolicVector:
 
         new_coords = [
             ((coeff_u * u_i) + (coeff_v * v_i)) * inv_denom
-            for u_i, v_i in zip(self.coords, v.coords)
+            for u_i, v_i in zip(self.coords, v.coords, strict=False)
         ]
         return HyperbolicVector(new_coords)
 
@@ -100,7 +99,7 @@ class HyperbolicVector:
         Geodesic Distance on the Poincaré Ball:
         d_H(u, v) = arcosh(1 + 2*||u - v||^2 / ((1 - ||u||^2)(1 - ||v||^2)))
         """
-        diff_sq = sum((a - b) ** 2 for a, b in zip(self.coords, other.coords))
+        diff_sq = sum((a - b) ** 2 for a, b in zip(self.coords, other.coords, strict=False))
         u_sq = self.norm_squared()
         v_sq = other.norm_squared()
 
@@ -167,7 +166,7 @@ class MultiAttractorLandscape:
         # Calculate steering vector towards chosen attractor basin
         delta = [
             (attr_i - cur_i) * 0.75
-            for attr_i, cur_i in zip(attr.coords, current_state.coords)
+            for attr_i, cur_i in zip(attr.coords, current_state.coords, strict=False)
         ]
         steering_vec = HyperbolicVector(delta)
         healed_state = current_state.mobius_addition(steering_vec)

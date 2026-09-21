@@ -10,8 +10,8 @@ Features:
 from __future__ import annotations
 
 import ast
-import re
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -75,8 +75,8 @@ def _load_parsers() -> Dict[str, tuple]:
     import importlib
     try:
         ts = importlib.import_module("tree_sitter")
-        Language = getattr(ts, "Language")
-        Parser = getattr(ts, "Parser")
+        Language = ts.Language
+        Parser = ts.Parser
     except (ImportError, AttributeError):
         return parsers
     for lang_key, module_name in LANG_MODULES.items():

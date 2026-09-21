@@ -9,11 +9,10 @@ global multi-repo blast-radius for breaking API changes.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional, Tuple, Any
+from dataclasses import dataclass
+from typing import Dict, List
 
 from saleha.core.dependency_graph import CodebaseDependencyGraph
-from saleha.core.path_utils import safe_relpath
 
 
 @dataclass

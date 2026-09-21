@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 
 
 @dataclass

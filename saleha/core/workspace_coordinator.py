@@ -7,8 +7,8 @@ checks across multiple repositories in a multi-repo engineering workspace.
 
 import os
 import subprocess
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from dataclasses import dataclass
+from typing import Dict, List
 
 
 @dataclass
@@ -64,7 +64,7 @@ class WorkspaceCoordinator:
                 # Get status
                 s_proc = subprocess.run(["git", "status", "--porcelain"], cwd=p, capture_output=True, text=True)
                 if s_proc.returncode == 0:
-                    lines = [l for l in s_proc.stdout.splitlines() if l.strip()]
+                    lines = [ln for ln in s_proc.stdout.splitlines() if ln.strip()]
                     uncommitted = len(lines)
                     is_clean = (uncommitted == 0)
             except Exception:

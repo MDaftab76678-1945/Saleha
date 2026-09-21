@@ -14,7 +14,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -53,7 +53,7 @@ class SemanticMemoryCache:
     def _cosine_similarity(self, v1: List[float], v2: List[float]) -> float:
         if not v1 or not v2 or len(v1) != len(v2):
             return 0.0
-        return sum(a * b for a, b in zip(v1, v2))
+        return sum(a * b for a, b in zip(v1, v2, strict=False))
 
     def store_memory(
         self,

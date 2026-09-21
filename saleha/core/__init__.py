@@ -137,7 +137,7 @@ def __getattr__(name: str) -> Any:
         return importlib.import_module(f"saleha.core.{name}")
     if name == "MCPHub":
         mod = importlib.import_module("saleha.core.mcp_hub")
-        return getattr(mod, "UniversalMCPHub")
+        return mod.UniversalMCPHub
     if name in _MOD_MAP:
         mod = importlib.import_module(f"saleha.core.{_MOD_MAP[name]}")
         return getattr(mod, name)

@@ -14,41 +14,39 @@ and cross-file impact analysis:
 from __future__ import annotations
 
 import os
-from typing import List, Dict, Set, Optional, Any, Tuple
-from dataclasses import dataclass, field
-
+from typing import Any, Dict, List, Set, Tuple
 
 from saleha.core.codebase_indexer import (
-    CodebaseIndexer,
-    codebase_indexer,
-    SmartPatcher,
-    smart_patcher,
-    FunctionSymbol,
     ClassSymbol,
+    CodebaseIndexer,
+    FunctionSymbol,
+    SmartPatcher,
+    codebase_indexer,
+    smart_patcher,
 )
 from saleha.core.dependency_graph import (
     CodebaseDependencyGraph,
-    dependency_graph,
     SymbolLocation,
     SymbolReference,
-)
-from saleha.core.multi_repo_graph import (
-    MultiRepoDependencyGraph,
-    multi_repo_graph,
-    RepoMetadata,
-    CrossRepoImpact,
+    dependency_graph,
 )
 from saleha.core.graph_memory import (
+    GraphEdge,
+    GraphNode,
     HierarchicalGraphMemory,
     graph_memory,
-    GraphNode,
-    GraphEdge,
 )
 from saleha.core.hypergraph_indexer import (
     HypergraphIndexer,
-    hypergraph_indexer,
-    SymbolNode,
     HypergraphIndexStats,
+    SymbolNode,
+    hypergraph_indexer,
+)
+from saleha.core.multi_repo_graph import (
+    CrossRepoImpact,
+    MultiRepoDependencyGraph,
+    RepoMetadata,
+    multi_repo_graph,
 )
 
 

@@ -17,8 +17,8 @@ generates a fix by running and inspecting the specific failing code.
 """
 
 import re
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass

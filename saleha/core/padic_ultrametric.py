@@ -10,7 +10,7 @@ Implements:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 PADIC_PRIME = 5
 PADIC_DIM = 8
@@ -51,7 +51,7 @@ class PadicValuationNode:
         Higher valuation exponent = exponentially closer in Q_p.
         """
         min_v = 32
-        for a, b in zip(self.coordinate_vector, other.coordinate_vector):
+        for a, b in zip(self.coordinate_vector, other.coordinate_vector, strict=False):
             diff = abs(a - b)
             v = p_adic_valuation(diff, prime=prime)
             if v < min_v:

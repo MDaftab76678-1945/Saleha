@@ -25,10 +25,11 @@ Security:
 
 from __future__ import annotations
 
-import os
-import re
+import contextlib
 import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
 import time
@@ -1240,10 +1241,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
         def emit(ev: Dict):
             if on_event:
-                try:
+                with contextlib.suppress(Exception):
                     on_event(ev)
-                except Exception:
-                    pass
 
         tools: Dict[str, Callable] = {
             "list_dir": self._tool_list_dir,
@@ -1292,7 +1291,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # Evidence ledger + budget for this run (Level-6 completion gate).
         if self.require_evidence:
             from saleha.core.task_evidence import (
-                EvidenceLedger, EvidenceKind, ResourceBudget, TaskState,
+                EvidenceKind,
+                EvidenceLedger,
+                ResourceBudget,
+                TaskState,
             )
             self.ledger = EvidenceLedger(
                 goal=goal,

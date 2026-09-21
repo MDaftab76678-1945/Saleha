@@ -32,11 +32,9 @@ that actually runs the tasks; these targets belong in ROADMAP.md.
 
 from __future__ import annotations
 
-import json
-import os
 import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
+from typing import Dict
 
 
 @dataclass
@@ -92,7 +90,6 @@ class VoiceArenaModule:
     """Sub-100ms conversational voice engine matching TTS Arena top models."""
 
     def synthesize_voice_stream(self, text: str, voice_persona: str = "saleha_sonic_v3") -> VoiceArenaResult:
-        start_t = time.perf_counter()
         # Simulated high-fidelity neural streaming synthesis
         latency_ms = round(max(45.0, min(95.0, len(text) * 0.8)), 2)
         audio_bytes = len(text.encode("utf-8")) * 320
@@ -112,7 +109,6 @@ class VideoArenaModule:
     """Generative UI & architecture video engine matching Image-to-Video leaderboards."""
 
     def render_ui_walkthrough(self, ui_prompt: str, duration_sec: float = 4.0) -> VideoArenaResult:
-        start_t = time.perf_counter()
         render_time = round(max(0.12, duration_sec * 0.05), 2)
 
         return VideoArenaResult(

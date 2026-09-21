@@ -28,16 +28,19 @@ drops them when probing), but their sizes are now marked as unverified.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.request
-import psutil
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Any, Tuple, Callable
 from collections import defaultdict
-import hashlib
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+import psutil
+
 INSTALL_PROBE_TTL_SEC = 60.0
 _OLLAMA_TAGS_URL = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434") + "/api/tags"
 _probe_cache_at: float = 0.0
@@ -83,10 +86,8 @@ def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
 
 def get_default_history_path() -> str:
     saleha_dir = os.path.join(os.path.expanduser("~"), ".saleha")
-    try:
+    with contextlib.suppress(OSError):
         os.makedirs(saleha_dir, exist_ok=True)
-    except OSError:
-        pass
     return os.path.join(saleha_dir, "router_history.json")
 
 

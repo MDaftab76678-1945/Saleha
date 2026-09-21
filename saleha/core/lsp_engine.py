@@ -5,12 +5,10 @@ Provides deep static analysis, type-checking diagnostics, and compiler-level
 error localization across Python, TypeScript/JavaScript, Go, and Rust.
 """
 
-import os
 import ast
-import shutil
-import subprocess
+import os
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List, Optional
 
 
 @dataclass

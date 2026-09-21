@@ -38,7 +38,7 @@ import cmath
 import math
 import random
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Dict, List, Optional
 
 # Gates that act on one qubit. Anything outside this set either needs more
 # qubits or is not a gate at all.

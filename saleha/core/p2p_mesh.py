@@ -8,12 +8,10 @@ Enables multi-device local clustering over LAN/Wi-Fi with zero central server:
 
 from __future__ import annotations
 
-import json
-import socket
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 @dataclass

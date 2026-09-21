@@ -7,8 +7,8 @@ identifies God Objects and deep nesting anti-patterns, and proposes modular refa
 
 from __future__ import annotations
 
-import os
 import ast
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 

@@ -6,13 +6,13 @@ Provides a unified interface across local Ollama and optional cloud providers
 automatic graceful fallback and token efficiency tracking.
 """
 
+import json
 import os
 import time
-import json
-import urllib.request
 import urllib.error
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+import urllib.request
+from dataclasses import dataclass
+from typing import Dict, Optional
 
 
 @dataclass

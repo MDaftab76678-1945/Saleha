@@ -31,6 +31,7 @@ codebase. Files are created 0600 where the platform honours it.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -38,9 +39,9 @@ import os
 import secrets
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 SALEHA_HOME = os.path.join(os.path.expanduser("~"), ".saleha")
 DEFAULT_USERS_PATH = os.path.join(SALEHA_HOME, "users.json")
@@ -118,11 +119,9 @@ def _write_json_private(path: str, payload: Any) -> None:
     tmp_path = f"{path}.tmp"
     with open(tmp_path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
-    try:
+    with contextlib.suppress(OSError):
         # Best effort: Windows ignores the mode bits, POSIX honours them.
         os.chmod(tmp_path, 0o600)
-    except OSError:
-        pass
     os.replace(tmp_path, path)
 
 

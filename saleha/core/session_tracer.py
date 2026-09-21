@@ -16,8 +16,8 @@ import json
 import os
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any, Generator, Iterator
+from dataclasses import dataclass, field
+from typing import Any, Dict, Generator, List, Optional
 
 
 @dataclass

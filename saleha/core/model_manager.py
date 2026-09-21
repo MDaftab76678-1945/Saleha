@@ -7,13 +7,12 @@ for fast speculative routing and deep reasoning swarms.
 
 from __future__ import annotations
 
-import time
 import subprocess
+import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Tuple
 
 from saleha.agents.base_agent import BaseAgent
-
 
 RECOMMENDED_MODELS = {
     "fast": "qwen2.5-coder:3b",

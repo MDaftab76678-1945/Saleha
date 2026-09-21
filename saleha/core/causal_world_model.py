@@ -42,7 +42,7 @@ not the same as never having looked.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

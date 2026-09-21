@@ -7,11 +7,10 @@ Enables modular community plugin and custom agent ecosystem:
 3. Built-in Hub Registry: Discover, install, enable, and disable third-party skills seamlessly.
 """
 
-import os
 import json
-import importlib.util
+import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional
 
 
 @dataclass

@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import os
 import time
-from typing import List, Optional
-from saleha.core.ai_reviewer import CodeReviewReport, ReviewIssue
-from saleha import __version__
+from typing import List
 
+from saleha import __version__
+from saleha.core.ai_reviewer import CodeReviewReport
 
 SEVERITY_COLORS = {
     "critical": "#ef4444",

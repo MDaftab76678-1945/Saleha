@@ -10,10 +10,8 @@ from __future__ import annotations
 
 import ast
 import os
-import shutil
-import tempfile
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Set
 
 from saleha.core.path_utils import safe_relpath
 
@@ -327,7 +325,7 @@ class CodebaseDependencyGraph:
         rel_path = safe_relpath(file_path, self.root_dir).replace("\\", "/")
         defined_symbols = set()
         for sym, locs in self.definitions.items():
-            if any(l.file_path == rel_path for l in locs):
+            if any(loc.file_path == rel_path for loc in locs):
                 defined_symbols.add(sym)
 
         impacted = set()

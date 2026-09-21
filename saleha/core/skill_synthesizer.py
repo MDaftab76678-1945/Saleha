@@ -10,10 +10,8 @@ from __future__ import annotations
 
 import os
 import re
-import json
-import yaml
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Dict, List, Optional
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.core.skill_base import Skill, SkillResult

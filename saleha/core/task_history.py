@@ -21,9 +21,8 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass, asdict
-from typing import List, Optional, Any, Dict
-
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
 
 DEFAULT_HISTORY_PATH = os.path.join(os.path.expanduser("~"), ".saleha", "history.jsonl")
 

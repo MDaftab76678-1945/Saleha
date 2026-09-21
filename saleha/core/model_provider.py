@@ -8,14 +8,14 @@ Provides pluggable model provider backends:
 4. MockProvider: Deterministic zero-latency provider for unit and integration testing.
 """
 
+import json
+import os
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any, Callable
+from typing import Callable, List, Optional
+
 import requests
-import json
-import time
-import os
-import urllib.error
 
 
 @dataclass

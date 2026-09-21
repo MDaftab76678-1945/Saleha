@@ -8,11 +8,11 @@ Implements continuous self-refinement for multi-agent system prompts (DSPy/OPRO 
 4. Persistent Prompt Profiles in ~/.saleha/optimized_prompts.json.
 """
 
-import os
 import json
+import os
 import time
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from dataclasses import asdict, dataclass, field
+from typing import List, Optional
 
 
 @dataclass

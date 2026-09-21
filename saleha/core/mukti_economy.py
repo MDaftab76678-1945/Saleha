@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import time
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Dict
 
 
 @dataclass

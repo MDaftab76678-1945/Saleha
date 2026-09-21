@@ -12,12 +12,11 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.codebase_indexer import codebase_indexer, SmartPatcher
+from saleha.core.codebase_indexer import SmartPatcher
 from saleha.core.git_native import git_engine
-from saleha.core.path_utils import safe_relpath
 
 
 @dataclass
@@ -105,7 +104,7 @@ class SelfHealingEngine:
         # Pick the most relevant frame (last frame within project directory if possible)
         if frames:
             # Filter to project files
-            project_frames = [f for f in frames if not f.file_path.startswith("<") and not "site-packages" in f.file_path]
+            project_frames = [f for f in frames if not f.file_path.startswith("<") and "site-packages" not in f.file_path]
             target_frame = project_frames[-1] if project_frames else frames[-1]
             faulting_file = target_frame.file_path
             faulting_line = target_frame.line_number

@@ -11,20 +11,20 @@ sequentially with feedback loops to produce end-to-end software deliverables:
 6. Verifier & Healer (Execution & Iterative Self-Healing)
 """
 
+import contextlib
 import os
-import sys
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List, Optional
 
-from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.code_executor import CodeExecutor, ExecutionResult
-from saleha.core.task_history import TaskHistory
-from saleha.core.stats_tracker import StatsTracker
+from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
+from saleha.core.code_executor import CodeExecutor
 from saleha.core.emergence_detector import emergence_detector
+from saleha.core.stats_tracker import StatsTracker
+from saleha.core.task_history import TaskHistory
 
 
 @dataclass
@@ -73,7 +73,8 @@ class TeamOrchestrator:
         review must not read as a clean one.
         """
         from saleha.core.fast_inference import (
-            FastInference, InferenceRequest,
+            FastInference,
+            InferenceRequest,
         )
 
         engine = getattr(self, "inference", None) or FastInference()
@@ -137,12 +138,10 @@ class TeamOrchestrator:
             failure here is swallowed.
             """
             _handoff_step["n"] += 1
-            try:
+            with contextlib.suppress(Exception):
                 emergence_detector.record_message(
                     sender, recipient, content or "", _handoff_step["n"], run_id
                 )
-            except Exception:
-                pass
 
         def emit(stage: str, content: str):
             nonlocal log

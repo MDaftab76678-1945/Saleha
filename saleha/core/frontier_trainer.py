@@ -140,12 +140,13 @@ class FrontierTrainer:
     def _run_dpo(self, adapter_path: str, base_model: str) -> float:
         """Real DPO fine-tuning via trl.DPOTrainer, continuing from the SFT adapter."""
         import torch
-        from datasets import load_dataset
-        from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        from datasets import load_dataset
         from saleha.core.lora_tuner import ensure_trl_dpo_importable
         ensure_trl_dpo_importable()
-        from trl import DPOTrainer, DPOConfig
+        from trl import DPOConfig, DPOTrainer
 
         hf_base = self.tuner._resolve_hf_base(base_model)
         tokenizer = AutoTokenizer.from_pretrained(hf_base)
