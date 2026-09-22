@@ -214,6 +214,25 @@ class SalehaOrchestrator:
         )
         return fallback_result, log
 
+    def _arbitrate_assertion(self, user_goal: str, code: str, error: str, language: str) -> str:
+        """When the code fails one of its own asserts, says whether an
+        independent model answer blames the test or the implementation.
+        Empty when it cannot tell. See `saleha/core/test_arbiter.py`."""
+        if language != "python":
+            return ""
+        from saleha.core.test_arbiter import arbitrate_failure
+
+        def run(snippet: str) -> Tuple[bool, str]:
+            res = self.verifier.execute(snippet, language="python")
+            return res.success and not res.blocked, res.output or ""
+
+        def ask(prompt: str) -> str:
+            resp = self.debugger.think(prompt)
+            return resp.content if resp.success else ""
+
+        verdict = arbitrate_failure(user_goal, code, error, run, ask)
+        return verdict.note if verdict else ""
+
     def _handle_verified_success(
         self,
         user_goal: str,
@@ -723,6 +742,13 @@ class SalehaOrchestrator:
                     # Execution failed: syntax and review were fine, but it
                     # crashed at runtime.
                     log += f"Verifier: execution failed: {exec_result.error}\n"
+                    exec_error = exec_result.error
+                    arbitration_note = self._arbitrate_assertion(
+                        user_goal, current_code, exec_error, target_language
+                    )
+                    if arbitration_note:
+                        log += f"   Arbiter: {arbitration_note}\n"
+                        exec_error = f"{exec_error}\n\n{arbitration_note}"
 
                     if attempts >= self.max_healing_attempts:
                         log += "Max attempts reached -- accepting with the execution error (best-effort).\n"
@@ -737,7 +763,7 @@ class SalehaOrchestrator:
                     current_code_result, fix_log = self._fix_runtime_failure(
                         user_goal=user_goal,
                         current_code=current_code,
-                        exec_error=exec_result.error,
+                        exec_error=exec_error,
                         next_attempt=next_attempt,
                         task_complexity=task_complexity,
                         target_language=target_language,
@@ -822,7 +848,7 @@ class SalehaOrchestrator:
             log += f"   Reason: {test_result.error_message}\n"
 
             if attempts < self.max_healing_attempts:
-                log += f"\n[4/4] Healer: analysing the error and instructing the Coder...\n"
+                log += "\n[4/4] Healer: analysing the error and instructing the Coder...\n"
                 healing_result: HealingResult = self.healer.analyze_and_heal(test_result.error_message, user_goal)
 
                 log += f"   Identified error: {healing_result.error_type}\n"

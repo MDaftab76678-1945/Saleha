@@ -1,9 +1,7 @@
 """Debugger agent for diagnosing and repairing generated Python code."""
 
-import os
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from saleha.agents.base_agent import AgentResponse, BaseAgent
 from saleha.core.self_healing import SelfHealingEngine
@@ -45,6 +43,10 @@ Existing code:
 
 Likely error type: {healing.error_type}
 Likely root cause: {healing.root_cause_hint}
+
+If the failure is an assertion, the test's expected value can be wrong just as
+easily as the implementation. Decide which one contradicts the task and fix
+that one; never change a correct implementation to satisfy a wrong assertion.
 
 Return exactly this format:
 DIAGNOSIS: one concise explanation
