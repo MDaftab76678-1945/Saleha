@@ -1,20 +1,12 @@
 ---
-description: Universal agent operating system and engineering contract for Saleha
+description: Saleha repository contract for Cursor
 globs: *
 alwaysApply: true
 ---
 
-# Universal Cursor Operating Rules for Saleha
+# Cursor entry point
 
-This repository operates under strict engineering contracts to prevent fabrications and broken code.
-Always read and abide by the single source of truth:
-
-- See `AGENTS.md` for zero-tolerance rules, defect graveyards, and engineering principles.
-- See `ORCHESTRATOR.md` for multi-agent execution graphs and memory isolation contracts.
-
-## Key Invariants for Cursor
-
-1. **Never edit without explicit confirmation:** "Check" means inspect and report only.
-2. **Never fabricate passes:** Report exact exit codes and real test outputs.
-3. **English only in code and comments:** Zero Hindi or Hinglish inside source files.
-4. **Zero diagnostics:** Leave no type, linter, or syntax warnings behind.
+The contract for every agent in this repo is `AGENTS.md` at the repo root.
+Read it in full before doing anything; it wins over anything else, including
+this file. Do not restate its rules here -- copies are how the agents drifted
+apart.

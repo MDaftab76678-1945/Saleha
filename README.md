@@ -3,16 +3,15 @@
 ![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)
 ![Runtime](https://img.shields.io/badge/runtime-Ollama%20local--first-orange.svg)
-![Tests](https://img.shields.io/badge/tests-1939%20passing-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-purple.svg)
 
 **Saleha** is a local-first, multi-agent AI coding assistant written in Python. It
 runs against local models through **Ollama** (or a cloud provider, if you
 configure one) and ships a CLI, an interactive TUI, and a REST/SSE web server.
 
-It is a large, actively evolving codebase — **several hundred modules under `saleha/core/`**,
-a Click-based CLI with **159 registered subcommands**, and **1,939 passing tests**
-(7 opt-in skips). Not every module is equally mature. **This README describes what
+It is a large, actively evolving codebase — many modules under `saleha/core/`,
+a large Click-based CLI (`saleha --help` lists it), and a big test suite (run it
+for the current count). Not every module is equally mature. **This README describes what
 is real and working today**; speculative and future work lives in
 [ROADMAP.md](ROADMAP.md), and how the pieces fit is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -64,7 +63,7 @@ The ten personas: `architect`, `artisan`, `auditor`, `sage`, `sentinel`,
 ```mermaid
 flowchart TB
     subgraph entry["Entry points"]
-        CLI["CLI — 160+ commands"]
+        CLI["CLI"]
         TUI["Interactive TUI"]
         WEB["REST / SSE server"]
     end
@@ -169,9 +168,9 @@ hyperbolic swarm topology." To be precise about what exists in code today:
   machines, does not tolerate crashes or partitions, and has not been verified
   against Byzantine fault-tolerance guarantees. Read it as *structured agent
   voting*, not a distributed consensus protocol.
-- **`formal_verifier.py` / `formal_smt_verifier.py`** generate Lean4- and
-  SMT-shaped text as templates. They do not invoke the Lean toolchain or shell
-  out to Z3 — scaffolding for a feature that is not implemented.
+- **`verification/formal_smt_verifier.py`** calls Z3 for real (division and
+  index-bounds obligations) when `z3-solver` is installed. **`formal_verifier.py`**
+  only emits Lean 4-shaped template text and never invokes Lean.
 - **`hyperbolic_engine.py`** implements real 16-dimensional Poincaré-ball vector
   math (distance, attractor basins) used as a deterministic task-routing
   heuristic — not emergent swarm cognition.
@@ -187,10 +186,10 @@ on. It just is not what the previous marketing copy claimed.
 # 1. Install
 git clone https://github.com/MDaftab76678-1945/Saleha.git
 cd Saleha
-pip install -e .            # add ".[dev]" for the test extras
+pip install -e ".[dev,formal]"   # [formal] brings Z3
 
 # 2. Connect a local model
-ollama run qwen2.5-coder:7b
+ollama run qwen2.5-coder:3b
 
 # 3. Use it
 saleha tui                                   # interactive TUI
@@ -205,8 +204,7 @@ the agentic loop needs a reachable model.
 
 ## CLI command reference (selected)
 
-The CLI exposes 159 registered subcommands; run `saleha --help` for the full,
-current list. Core workflow commands:
+Run `saleha --help` for the full, current list. Core workflow commands:
 
 | Command | Description |
 | :--- | :--- |
@@ -250,7 +248,7 @@ current list. Core workflow commands:
 ## Tests
 
 ```bash
-python -m pytest saleha/tests/ -q       # set PYTHONIOENCODING=utf-8 on cp1252 consoles
+PYTHONIOENCODING=utf-8 python -m pytest saleha/tests/ -q
 ```
 
 The suite covers the CLI, core modules, the web-server API, and integration
@@ -277,9 +275,8 @@ A large part of this project's recent history is an audit: finding places where 
 component claimed work it had not done — a hardcoded "tests passed", a benchmark
 scoreboard with invented numbers, an orchestrator that reported success without
 calling a model — and replacing the fabricated half with something measured.
-**Thirty-five passes of that are recorded in
-[NOTEBOOK_IMPORT.md](NOTEBOOK_IMPORT.md)**, each finding paired with the probe
-that proved it.
+Every pass is recorded in [NOTEBOOK_IMPORT.md](NOTEBOOK_IMPORT.md), each
+finding paired with the probe that proved it.
 
 The one measured performance number for the agent itself, on twelve real
 programming tasks (each with a test suite verified to fail on wrong code first):

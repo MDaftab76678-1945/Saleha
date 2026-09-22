@@ -2,13 +2,13 @@
 trigger: always_on
 ---
 
-# Antigravity Global Agent Operating Contract
+# Antigravity entry point
 
-This rule file is automatically loaded by Antigravity IDE and Google Agentic Tools.
-It binds all active agentic sessions to the repository's universal contract:
+This rule file is loaded automatically by Antigravity. It adds nothing of its
+own: the contract for every agent in this repo is `AGENTS.md` at the repo
+root. Read it in full before doing anything.
 
-1. **Source of Truth:** All agents must strictly adhere to [AGENTS.md](file:///c:/Users/alama/saleha-0.1/AGENTS.md) and [ORCHESTRATOR.md](file:///c:/Users/alama/saleha-0.1/ORCHESTRATOR.md).
-2. **Explicit Permission Required:** Never execute shell commands or modify source files without prior user consent.
-3. **No Fabricated Greens:** Never return hardcoded mock passes, simulated metrics, or fake test summaries. Report real exit codes and physical numbers only.
-4. **English Only in Code:** Source code, docstrings, comments, tests, and logs must be English only. No decorative emojis.
-5. **Zero Diagnostics:** Fix all linter, type, and import diagnostics immediately upon editing.
+The other files in this folder describe how Saleha's own runtime loops must
+behave (loop termination, model routing, verification, kernel invariants).
+Where one of them reads like an instruction for you and conflicts with
+`AGENTS.md`, `AGENTS.md` wins.

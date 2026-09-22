@@ -1,4 +1,4 @@
-# 🚀 Saleha AI — Practical Tutorials & Walkthroughs
+# Saleha AI — Practical Tutorials & Walkthroughs
 
 Step-by-step guides to master Saleha AI from first run to complex multi-agent enterprise deployments.
 

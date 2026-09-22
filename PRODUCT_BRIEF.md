@@ -29,7 +29,7 @@ We do not currently have a distributed/Byzantine-fault-tolerant swarm, formally 
 
 | Component | Path | Stack | Status |
 | :--- | :--- | :--- | :--- |
-| **Python core (CLI, agents, server)** | `saleha/` | Python 3.10–3.14 | Primary product; ~220 core modules, 100+ CLI subcommands, 955 collected tests. |
+| **Python core (CLI, agents, server)** | `saleha/` | Python >=3.12 | Primary product. Run the suite for the current test count. |
 | **Web app** | `apps/web` | Next.js (App Router) | Working; calls the Python backend over HTTP for code execution and agent/swarm requests. |
 | **Desktop app** | `apps/desktop` | Tauri v2 + React | Recently wired to the same Python backend via a bundled sidecar process; less mature than the CLI/web app. |
 | **Landing page** | `apps/landing` | Astro | Marketing site for the project. |
@@ -50,7 +50,7 @@ No monetization is implemented in the codebase today (no billing, licensing, or 
 
 Rather than an unverifiable checklist, here's what the codebase actually enforces or measures:
 
-1. **Tests:** `python -m pytest saleha/tests/` — 955 collected tests across ~200 files; run locally for current pass/fail status.
+1. **Tests:** `PYTHONIOENCODING=utf-8 python -m pytest saleha/tests/ -q` — run it for the current count and pass/fail status.
 2. **Static security scanning:** `saleha sast` runs AST-based checks (unsafe `shell=True`, bare `except`, hardcoded secrets, string-built SQL) via `saleha/core/verification/security_scanner.py`.
 3. **Sandboxed execution:** generated/untrusted code runs through `sandbox_runner.py` (subprocess, resource-limited) or `docker_sandbox.py` (containerized), not directly on the host.
 4. **Human approval gate:** `approval_gate.py`/`execution_policy.py` can require confirmation before risky operations.

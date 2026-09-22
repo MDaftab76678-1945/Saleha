@@ -74,7 +74,7 @@ The mechanism behind "which voice is Saleha speaking in right now" is the **soul
 
 - Each persona lives under `souls/<name>/` as a `soul.json` (name, display name, version, archetype, tags, `cognitive_params` such as temperature/top_p, and an `allowed_tools` list), validated against a versioned schema in `souls/schema/v1/soul.json`, plus prose files `SOUL.md`, `IDENTITY.md`, and `STYLE.md`.
 - `saleha/core/cognitive/soul_engine.py` discovers and loads these packages (`SoulPackage`) and renders them into a system prompt via `render_system_prompt()`, combining the persona's description, its invariants (from `SOUL.md`), and its communication style (from `STYLE.md`).
-- Ten personas ship today: **architect** (systems/DDD-focused), **artisan**, **auditor**, **sage**, **sentinel** (security-focused), **sovereign**, **speedrunner** (perf-focused), **sre**, **alchemist**, and **minimalist**. `saleha soul list`/`saleha soul use <name>` (and `saleha/cli/soul_cli.py`) expose this from the CLI.
+- The personas under `souls/` today: **architect** (systems/DDD-focused), **artisan**, **auditor**, **sage**, **sentinel** (security-focused), **sovereign**, **speedrunner** (perf-focused), **sre**, **alchemist**, and **minimalist**. `saleha soul list`/`saleha soul use <name>` (and `saleha/cli/soul_cli.py`) expose this from the CLI.
 - What this changes in practice: the system prompt, sampling parameters, and which tools an agent is allowed to call. It does not change the underlying model's weights or give the agent new capabilities beyond what the base model and available tools support — it's a structured way to constrain and flavor agent behavior consistently, which is a genuinely useful pattern for a team standardizing on house style or safety posture.
 
 ---

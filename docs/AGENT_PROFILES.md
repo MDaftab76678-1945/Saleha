@@ -1,10 +1,10 @@
 # Saleha AI -- Domain Agent Profiles Catalog
 
-Saleha dynamically parses, indexes, and adopts 30 specialized domain personas defined in Markdown specifications.
+Saleha parses and adopts the domain personas defined in `saleha/skills/agent_*.md` (list them for the current set).
 
 ---
 
-## Catalog of 30 Specialized Agent Profiles
+## Catalog of Specialized Agent Profiles
 
 | Profile ID | Role Name | Primary Responsibilities & Expertise |
 |---|---|---|

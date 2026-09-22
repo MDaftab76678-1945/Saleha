@@ -20,7 +20,7 @@ saleha-0.1/
 │   └── core/              # Shared TypeScript utilities for the JS apps
 ├── saleha/               # Python package: the actual agent runtime
 │   ├── agents/            # PlannerAgent, CoderAgent, TesterAgent, DebuggerAgent, base classes
-│   ├── cli/                # Click CLI (100+ subcommands), TUI, REPL, dashboards
+│   ├── cli/                # Click CLI, TUI, REPL, dashboards
 │   ├── core/               # Agentic loop, indexing, sandboxing, memory, routing, souls, etc.
 │   ├── server/             # Dependency-light HTTP/SSE REST API + browser UI
 │   └── tests/               # The suite; run it for the current count
@@ -65,6 +65,19 @@ Several modules use "swarm" and consensus-related terminology in their names and
 - **`emergence_detector.py`** — heuristics for detecting circular message patterns or inequality in agent workload (Gini-coefficient-style metrics) across logged agent interactions.
 
 These are genuine pieces of logic worth describing plainly. Framing them as "PBFT Byzantine consensus" or "sovereign swarm intelligence" overstates what a single-process voting/scoring function does.
+
+### Subsystems added 2026-09-22 (audited 2026-09-23)
+
+AgentPC (`agent_pc.py`: per-agent workspace, job-object sandbox, hash-chained
+flight log), alignment rewards (`alignment/`: sandboxed test reward that only
+counts when the tests ran to the end, plus heuristic AST rubrics), a heuristic
+PRM-guided search (`prm_mcts_engine.py`), self-correction (`self_correction.py`:
+three canned AST transforms plus an optional external patcher, each strategy
+named in the result), the SalehaFlow DAG engine (`workflow/`: code nodes run in a
+job-object subprocess), and arm agents for TypeScript contracts (regex-based,
+`polyglot/`), inline-style HTML layout (`vision/`, no real browser), SQLite
+migration checks (`db/`), and conflict merging (`git/`). Each was audited and its
+fabrications fixed; the limits above are what remains true.
 
 ### Formal verification (one real prover, one scaffold)
 
@@ -157,7 +170,7 @@ None of these are disqualifying on their own — same conclusion as the swarm/co
 
 ### Other notable modules
 
-`agentic_loop.py` (the ReAct loop behind `saleha agent`/`saleha run`: eight repo-sandboxed tools -- `list_dir`, `read_file` with optional line ranges, `get_file_outline`, `find_symbols`, `search_repo`, `run_code`, plus `patch_file`/`write_file` under `--write` and the approval gate. Completion is gated on evidence, not on the model's word: a crashed call, a duplicate call, and a policy-blocked write all license nothing, and a run whose every patch attempt failed is refused rather than reported green -- see `NOTEBOOK_IMPORT.md` pass 53 for the measured defects behind each gate), `browser_agent.py`/`browser_runner.py` (headless browser DOM/console checks), `real_task_bench.py` (**the honest measurement path** — twelve self-contained problems, each carrying a deliberately wrong implementation that the test must fail against before any run starts; exposed as `saleha benchmark-local`), `swe_bench_harness.py` (a sandbox self-check — it executes pre-written correct code to confirm the executor observes its output; it is **not** SWE-bench and invokes no model, see its own docstring), `swe_bench_runner.py` (real SWE-bench `predictions.jsonl` generation against an actual repo checkout, for when scored-SWE-bench infrastructure is available), `mcp_engine.py`/`mcp_hub.py` (Model Context Protocol client/server support), `pr_generator.py` (PR body/diff generation), `changelog_generator.py`, `chaos_engine.py`/`load_tester.py` (basic fault-injection and load-testing helpers), `voice_engine.py`/`full_duplex_voice.py` (local STT/TTS wiring, hardware/driver-dependent). Not all 252 modules in `saleha/core/` are equally exercised by tests or CLI commands; the test suite (`saleha/tests/`) is the most reliable signal for what's actively maintained.
+`agentic_loop.py` (the ReAct loop behind `saleha agent`/`saleha run`: eight repo-sandboxed tools -- `list_dir`, `read_file` with optional line ranges, `get_file_outline`, `find_symbols`, `search_repo`, `run_code`, plus `patch_file`/`write_file` under `--write` and the approval gate. Completion is gated on evidence, not on the model's word: a crashed call, a duplicate call, and a policy-blocked write all license nothing, and a run whose every patch attempt failed is refused rather than reported green -- see `NOTEBOOK_IMPORT.md` pass 53 for the measured defects behind each gate), `browser_agent.py`/`browser_runner.py` (headless browser DOM/console checks), `real_task_bench.py` (**the honest measurement path** — twelve self-contained problems, each carrying a deliberately wrong implementation that the test must fail against before any run starts; exposed as `saleha benchmark-local`), `swe_bench_harness.py` (a sandbox self-check — it executes pre-written correct code to confirm the executor observes its output; it is **not** SWE-bench and invokes no model, see its own docstring), `swe_bench_runner.py` (real SWE-bench `predictions.jsonl` generation against an actual repo checkout, for when scored-SWE-bench infrastructure is available), `mcp_engine.py`/`mcp_hub.py` (Model Context Protocol client/server support), `pr_generator.py` (PR body/diff generation), `changelog_generator.py`, `chaos_engine.py`/`load_tester.py` (basic fault-injection and load-testing helpers), `voice_engine.py`/`full_duplex_voice.py` (local STT/TTS wiring, hardware/driver-dependent). Not all modules in `saleha/core/` are equally exercised by tests or CLI commands; the test suite (`saleha/tests/`) is the most reliable signal for what's actively maintained.
 
 ---
 
@@ -198,7 +211,7 @@ The frontend previously rendered a "Chain-of-Thought Reasoning" panel with hardc
 ## Testing
 
 ```bash
-python -m pytest saleha/tests/ -q
+PYTHONIOENCODING=utf-8 python -m pytest saleha/tests/ -q
 ```
 
 `saleha/tests/` covers CLI commands, core modules, and the web server's REST surface. Run `python -m pytest saleha/tests/ -q` for the current pass/skip counts rather than quoting them here, since they move with every change. Some tests are environment-dependent (Docker, a running Ollama instance, browser drivers); check locally for current pass/fail status.

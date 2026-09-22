@@ -45,16 +45,16 @@ pip install -e ".[dev,formal]"
 
 ## 3. TypeScript Monorepo Setup
 
-Saleha includes an 8-workspace TypeScript monorepo — 5 libraries under
-`packages/` (`api`, `auth`, `core`, `db`, `ui`) plus 3 apps under `apps/`
-(`desktop`, `landing`, `web`). The workspace globs live in
+Saleha includes a TypeScript monorepo — libraries under `packages/`
+(`api`, `auth`, `core`, `db`, `ui`) plus apps under `apps/` (`desktop`,
+`landing`, `web`). The workspace globs live in
 `pnpm-workspace.yaml`, not `package.json`:
 
 ```powershell
 # Install TypeScript monorepo dependencies
 pnpm install
 
-# Run typecheck across all 8 packages (must exit 0 with 8/8 successful)
+# Typecheck every workspace (must exit 0 with every workspace successful)
 npx turbo run typecheck
 ```
 
@@ -65,6 +65,9 @@ npx turbo run typecheck
 Before submitting or staging any change:
 
 ```powershell
+# PYTHONIOENCODING=utf-8 is required on this cp1252 console
+$env:PYTHONIOENCODING = "utf-8"
+
 # 1. Run surgical module test
 python -m pytest saleha/tests/test_math_logic.py -v
 
@@ -76,4 +79,7 @@ python -m ruff check saleha/
 
 # 4. Verify cyclomatic complexity
 radon cc saleha/core/ -s
+
+# 5. Commit gate (also runs on every commit; never bypass it)
+python .agents/scripts/preflight_lint.py
 ```

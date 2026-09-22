@@ -11,7 +11,7 @@ This rule codifies context limits and specialized role routing to maximize the c
 
 - Local models suffer severe attention degradation beyond their trained attention span.
 - Never feed full multi-file dumps into a single prompt.
-- When file size exceeds 150 lines, slice the AST or extract relevant def-use chains via `cpg_slicer.py` or `compact_context.py`.
+- When file size exceeds 150 lines, slice the AST or extract relevant def-use chains via `saleha/core/cognitive/cpg_context_slicer.py` or `.agents/scripts/compact_context.py`.
 - Target prompt ceiling: Under 2000 tokens for generation, reserving remaining capacity for output tokens.
 
 ## 2. Model Routing Specialization Matrix

@@ -1,11 +1,11 @@
 # AGENTSKILLS.md — Real Capability Matrix & Tool Registry
 
 > **Project:** saleha-0.1 (Local-First Autonomous Multi-Agent AI Coding Assistant)  
-> **Audience:** Saleha Core Orchestrators, 30 Domain Personas, Antigravity IDE, Claude Code  
+> **Audience:** Saleha Core Orchestrators, domain personas, Antigravity IDE, Claude Code  
 > **Source of Truth:** Aligned with `docs/AGENT_PROFILES.md` and `saleha/skills/`
 
 This document defines the real, executable capability matrix, tool permissions, and context budgets
-for Saleha's 30 domain personas and autonomous workflow skills.
+for Saleha's domain personas and autonomous workflow skills.
 
 ---
 
@@ -104,9 +104,11 @@ prompts. Do not quote numbers that are not in that registry.
 
 ---
 
-## 5. Autonomous Evolution & Self-Building Architecture
+## 5. Autonomous Evolution & Self-Building Architecture (design intent)
 
-Saleha agents are architected to self-improve without human hand-holding while respecting absolute safety invariants:
+This section is the target design, not a description of what runs today.
+Some steps exist (`tool_forge.py`, the `self-improve-engine` skill); others
+do not. Check the code before relying on any step below:
 
 ### 5.1 Dynamic Tool Synthesis Lifecycle
 

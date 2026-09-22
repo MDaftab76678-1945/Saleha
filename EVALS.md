@@ -12,7 +12,7 @@ Fabricated scores and unmeasured passes are strictly forbidden in this repositor
 ## 1. The Core Honesty Protocol (No Fake Greens)
 
 1. **Every Score Must Be Measured:** Never print hand-typed literals or hardcoded percentages as benchmark results (eradicated in Pass 20 and Pass 28).
-2. **Real Sandbox Execution:** A generated code candidate is only scored as PASS if it runs inside `saleha/sandbox/sandbox_jail.py` and exits code 0 with zero runtime exceptions.
+2. **Real Sandbox Execution:** A generated code candidate is only scored as PASS if it runs in a sandboxed subprocess (`saleha/core/windows_job_sandbox.py`, `saleha/sandbox/sandbox_jail.py`), exits code 0, and its tests ran to the end.
 3. **No Test Pinning:** Tests must never assert hardcoded mock scores (`assert score == 93.3`). Tests must assert the physical outcome of the execution.
 4. **Isolate Memory Caches:** When comparing Model A and Model B, the orchestrator must swap in an ephemeral, throwaway `MemoryStore` so Model B cannot replay Model A's cached solution.
 
@@ -40,9 +40,9 @@ Fabricated scores and unmeasured passes are strictly forbidden in this repositor
 > the current `datasets/*.json` files directly gives row counts that do
 > not sum to 59 either (7 + 7 + 31 + 7 + 1000 + 30, across files with very
 > different purposes). Rather than repeat an unsourced number, the real,
-> attributed purge history is in `CLAUDE.md`'s "`datasets/synthesize_*.py`
-> lineage" entries (pass 44, pass 46) and `NOTEBOOK_IMPORT.md`'s "Forty-fourth
-> pass" (8.5) — read those for actual before/after counts per file, each
+> attributed purge history is in the `audit-history` skill's
+> `datasets/synthesize_*.py` lineage entries (pass 44, pass 46) and
+> `NOTEBOOK_IMPORT.md`'s "Forty-fourth pass" (8.5) — read those for actual before/after counts per file, each
 > with a named pass and a reproducible check.
 
 - **Empty Placeholders Purged:** Generator scripts that synthesized identical math constants or tautological questions were replaced with real algorithmic challenges.
@@ -63,5 +63,5 @@ $env:PYTHONIOENCODING = "utf-8"
 python scripts/benchmark_ollama_speed.py --model qwen2.5-coder:3b
 
 # Run core test suite verification
-python -m pytest saleha/tests/ -q
+PYTHONIOENCODING=utf-8 python -m pytest saleha/tests/ -q
 ```

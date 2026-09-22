@@ -9,7 +9,7 @@ stays accurate forever.
 
 | Path | What it is |
 | --- | --- |
-| `saleha/core/` | The real implementation: 177 flat `.py` modules plus 10 category subpackages (66 more modules -- see below). This is what almost everything actually imports from. |
+| `saleha/core/` | The real implementation: flat `.py` modules plus category subpackages (see below). This is what almost everything actually imports from. |
 | `saleha/agents/` | Agent persona classes (ArchitectAgent, CoderAgent, etc.) that wrap `saleha/core/` modules with a role/prompt. |
 | `saleha/cli/` | The Click CLI (`commands/` package) and the interactive REPL (`repl.py`, `chat_session.py`). |
 | `saleha/server/` | The stdlib HTTP server (`web_server.py`) serving `/api/*` and the bundled web Studio. |
@@ -30,32 +30,41 @@ The LLM-facing function-calling tools (`web_fetch`, etc.) are registered in
 
 ## The `saleha/core/<category>/` subpackages -- migration completed (pass 139, 144, 145)
 
-`saleha/core/` contains ten subdirectories --
-`cognitive/ graph/ harness/ loop/ memory/ platform/ rag/ swarm/ telemetry/ verification/`
--- each holding the *real* implementation files for its 4-11 named modules
-(66 total). This used to be a curated index with the flat files still holding
+`saleha/core/` has category subdirectories (`ls -d saleha/core/*/` for the
+current list). Ten of them -- `cognitive/ graph/ harness/ loop/ memory/
+platform/ rag/ swarm/ telemetry/ verification/` -- came from the flat-module
+migration below. The rest (`alignment/ daemons/ db/ git/ polyglot/ vision/
+workflow/`) were created for new subsystems and never had flat
+counterparts. This used to be a curated index with the flat files still holding
 the real code (both paths existed side by side); pass 139 completed the
 migration the earlier note on this page said was deferred: the 46 modules now
 live only under their category folder, and the corresponding flat
 `saleha/core/<name>.py` file no longer exists. Every import site across the
 whole repo (~450 real references) was rewritten to the new dotted path.
 
-**Which modules moved where:**
+**Which modules live where** (new-subsystem modules sit alongside the migrated ones):
 
 | Category | Modules |
 | --- | --- |
-| `cognitive/` | `causal_world_model`, `neuro_symbolic_engine`, `padic_ultrametric`, `persona_debate`, `soul_engine` |
+| `cognitive/` | `causal_world_model`, `cpg_context_slicer`, `neuro_symbolic_engine`, `padic_ultrametric`, `persona_debate`, `soul_engine` |
 | `graph/` | `codebase_indexer`, `dependency_graph`, `graph_memory`, `hypergraph_indexer`, `multi_repo_graph`, `system1_scout` |
 | `harness/` | `approval_gate`, `benchmark_harness`, `code_executor`, `sandbox_runner`, `swebench_runner`, `test_runner` |
 | `loop/` | `agentic_loop`, `deliberation_engine`, `recursive_solver`, `tot_orchestrator` |
 | `memory/` | `memory_journal`, `memory_store`, `project_memory`, `semantic_memory_cache`, `tri_tier_memory` |
-| `platform/` | `git_native`, `lsp_engine`, `mcp_hub`, `model_provider`, `self_healer`, `smart_router` |
+| `platform/` | `git_native`, `lora_adapter_hot_swapper`, `lsp_engine`, `mcp_hub`, `model_provider`, `self_healer`, `smart_router` |
 | `rag/` | `bm25`, `embedding_backends`, `fast_search`, `graph_rag`, `repo_context_packer`, `semantic_cache`, `semantic_search`, `tree_context_ranker`, `vector_store` |
-| `swarm/` | `agent_message_bus`, `agent_worker_pool`, `p2p_mesh`, `p2p_swarm`, `saleha_swarm_topology`, `swarm_checkpoint_store`, `swarm_cluster_node`, `swarm_consensus`, `swarm_pipeline_engine`, `swarm_self_play_arena`, `team_orchestrator` |
+| `swarm/` | `agent_message_bus`, `agent_worker_pool`, `octopus_swarm_expansion`, `p2p_mesh`, `p2p_swarm`, `saleha_swarm_topology`, `swarm_checkpoint_store`, `swarm_cluster_node`, `swarm_consensus`, `swarm_pipeline_engine`, `swarm_self_play_arena`, `team_orchestrator` |
 | `telemetry/` | `audit_log`, `hardware_profiler`, `latency_histogram`, `metrics`, `performance_profiler`, `session_tracer`, `stats_tracker`, `token_analytics`, `token_ledger` |
 | `verification/` | `apex_97_validator`, `formal_smt_verifier`, `quality_guard`, `safety_guard`, `security_scanner`, `ttc_solver` |
+| `alignment/` | `contrastive_rlcd`, `multi_file_prm`, `preference_store`, `verifiable_rewards` |
+| `daemons/` | `continuous_learning_daemon` |
+| `db/` | `migration_safety_verifier` |
+| `git/` | `semantic_merge_arbiter` |
+| `polyglot/` | `ts_interface_propagator` |
+| `vision/` | `headless_browser_renderer`, `visual_layout_auditor` |
+| `workflow/` | `bft_consensus_node`, `dsl`, `nodes`, `self_healing_node`, `triggers`, `verified_sandbox_node`, `workflow_engine` |
 
-All other `saleha/core/*.py` files (177 of them) remain flat -- they were
+All other `saleha/core/*.py` files remain flat -- they were
 never assigned to a category by any prior pass, and inventing new categories
 for them was a separate, larger design decision not attempted here.
 

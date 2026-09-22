@@ -1,4 +1,4 @@
-# 🛡️ Saleha AI — Security Model & SAST Guardrails
+# Saleha AI — Security Model & SAST Guardrails
 
 Saleha AI is designed around a zero-trust, local-first security architecture to prevent credential leaks, code injection, and arbitrary remote code execution.
 

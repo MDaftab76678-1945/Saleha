@@ -5,17 +5,21 @@
 > **Source of Truth:** Aligned with `AGENTS.md` and `saleha/orchestrator.py`
 
 This document defines the central coordinating intelligence ("Main Dimag") of Saleha's Octopus architecture.
-It governs how goals are disambiguated, broken down, delegated across 20 specialized domain agents, verified in isolation, and safely committed.
+It describes how goals are meant to be disambiguated, broken down, delegated to specialized domain agents, verified in isolation, and safely committed.
+
+> Sections 1-7 are the intended design. What each module really does, audited
+> and probed, is in section 8 and `NOTEBOOK_IMPORT.md`; where they disagree,
+> the audit wins.
 
 ---
 
-## 1. The Octopus Architecture (1 Central Mind, 20 Domain Brains)
+## 1. The Octopus Architecture (1 Central Mind, many Domain Brains)
 
 Saleha is built on the biological principle of an octopus:
 > *"Octopus ke paas nau dimag hote hain. Ye system bilkul octopus jaisa hai — har ek ke paas apna dimag, par ek main dimag hoga."*
 
 - **The Central Mind (`SalehaOrchestrator`):** Manages state, memory routing, security gates, consensus, and atomic commits. It does not write arbitrary code itself; it coordinates, delegates, verifies, and judges.
-- **The Specialized Worker Brains (20 Personas):** Deep specialists defined in `docs/AGENT_PROFILES.md` and `saleha/skills/agent_*.md` (e.g., `agent_sde`, `agent_security_engineer`, `agent_tester`, `agent_cloud_architect`). They execute domain-specific tasks under the supervisor's instruction.
+- **The Specialized Worker Brains (personas):** Deep specialists defined in `docs/AGENT_PROFILES.md` and `saleha/skills/agent_*.md` (e.g., `agent_sde`, `agent_security_engineer`, `agent_tester`, `agent_cloud_architect`). They execute domain-specific tasks under the supervisor's instruction.
 
 ---
 
@@ -27,7 +31,7 @@ Every incoming user instruction flows through a deterministic, guard-railed life
 User Request
      │
      ▼
-[Stage 1: Clarity Gate] (active_inference_gate.py)
+[Stage 1: Clarity Gate] (active_inference.py)
      │ ── If ambiguous / underspecified ──► Halt & Request User Clarification
      ▼
 [Stage 2: Complexity Scoring & Planning] (math_logic.py & planner.py)
@@ -39,7 +43,7 @@ User Request
 [Stage 3: Persona Selection & Task Dispatch] (AGENT_PROFILES.md)
      │ ── Selects best persona (e.g., security_engineer for auth, sde for algorithms)
      ▼
-[Stage 4: Isolated Execution Loop] (AgentLoop in base_agent.py)
+[Stage 4: Isolated Execution Loop] (AgentLoop in core/loop/agentic_loop.py)
      │ ── min_actions_before_finish >= 1 (Enforces real tool investigation)
      │ ── Sandboxed Subprocess (Windows-safe subprocess jail)
      ▼
@@ -120,10 +124,10 @@ The orchestrator operates inside physical consumer-grade hardware limits (1 loca
 
 ## 8. Full Repository File Index
 
-`CLAUDE.md` names five files as the record of project state (`NOTEBOOK_IMPORT.md`,
-`ARCHITECTURE.md`, `COORDINATION.md`, `README.md`, `ROADMAP.md`) plus this file.
-Everything below exists in the repo but was not named in `CLAUDE.md`. None of
-these have been through the audit process described in `CLAUDE.md` — treat
+`AGENTS.md` (the shared agent contract) names the record of project state:
+`NOTEBOOK_IMPORT.md`, `COORDINATION.md` and this file. Everything below exists
+in the repo but was not named there. None of these have been through the audit
+process described in `AGENTS.md` and `.claude/rules/auditing.md` — treat
 every claim inside them as unverified until it is read in full and probed,
 same rule as everything else.
 
@@ -131,20 +135,20 @@ same rule as everything else.
 
 | File | Apparent purpose |
 | --- | --- |
-| `AGENTS.md` | Agent roster / contract, root level (relationship to `docs/AGENT_PROFILES.md` and `saleha/skills/agent_*.md` **resolved, see 8.4a below**). |
+| `AGENTS.md` | The shared contract every agent follows (`CLAUDE.md` imports it; `GEMINI.md`, `.agents/rules/agents.md` and `.cursor/rules/agents.mdc` point to it). |
 | `AGENTSKILLS.md` | Capability Module Index, reframed pass 137 (relationship to `saleha/skills/` and `.agents/skills/` **resolved, see 8.4a below**). |
 | `CHANGELOG.md` | Release/change history. |
 | `CODE_OF_CONDUCT.md` | Standard community doc. |
 | `CONTRIBUTING.md` | Contributor guide. |
-| `DEVELOPMENT.md` | Dev setup instructions — may overlap with "Environment facts" in `CLAUDE.md`; check for drift. |
+| `DEVELOPMENT.md` | Dev setup instructions — must agree with the Environment section of `AGENTS.md`; that section wins on conflict. |
 | `EVALS.md` | Evaluation/benchmark methodology — check against the fabricated-benchmark history (pass 20) before trusting any number in it. |
-| `GEMINI.md` | Instructions for the Gemini agent that runs alongside Claude Code per `COORDINATION.md`. |
+| `GEMINI.md` | Pointer to `AGENTS.md` plus Gemini-only notes. |
 | `PRODUCT_BRIEF.md` | Product framing/pitch doc. |
 | `SECURITY.md` | Security policy/disclosure doc. |
 | `SOUL.md` | Root "soul" doc — relationship to `souls/` (below) not yet reconciled. |
 | `.saleharules` | Rules file, unclear consumer — grep for a reader before trusting it's live config vs. dead file. |
 | `mcp_config.json` | MCP server config. |
-| `Modelfile` | Ollama model definition — check which model it builds and whether it's still referenced anywhere (`saleha-asi` was deleted per `CLAUDE.md`; confirm this isn't a stale leftover). |
+| `Modelfile` | Ollama model definition — check which model it builds and whether it's still referenced anywhere (`saleha-asi` was deleted per `AGENTS.md`; confirm this isn't a stale leftover). |
 
 ### 8.2 `docs/` — a second, older, partly-generated, partly-foreign doc tree (resolved)
 
@@ -159,24 +163,25 @@ Compared both duplicate pairs directly instead of guessing:
   generic mermaid diagrams — a stale auto-generated artifact from an
   earlier version of the project, not a source of truth. Treat it as
   historical, not current.
-- **`docs/threat_model.md` is the only remaining threat-model doc; its
-  sibling was foreign and is gone (pass 44).**
+- **Both threat-model docs are gone.** `docs/threat_model.md` was deleted
+  2026-09-23: it was the output of the old `threat_modeler.py` run on an empty
+  directory (6 threats, 4 HIGH, recorded in `NOTEBOOK_IMPORT.md`), reading as a
+  real audit. Its sibling was foreign and went in pass 44:
   `docs/manifestos/threat_model.md` (47 lines, "v1.0.0") was titled for the
   "Nexus-Universe + MUKTI ecosystem" — the same foreign project confirmed
   contaminating `deploy/` (8.5) — and described NATS/gRPC/DID/mTLS
   agent-to-agent auth that had nothing to do with Saleha's local
   single-user CLI. Deleted alongside `deploy/`, see 8.5 for the
-  verification done before deletion. `docs/threat_model.md` (12 lines,
-  2026-09-01) remains — a terse auto-generated STRIDE table, thin but at
-  least on-topic; not independently verified as current this pass.
+  verification done before deletion.
 - **`docs/manifestos/soul.md` — checked for the Mukti/Nexus contamination
   its `threat_model.md` sibling had; clean (pass 83).** No
   mukti/nexus-omni/nexus-protocol/genesis-api hits; content not otherwise
   read this pass.
-- Not yet independently diffed: `docs/AGENT_PROFILES.md`,
-  `docs/CLI_REFERENCE.md`, `docs/MCP_SPEC.md`, `docs/SECURITY_MODEL.md`,
-  `docs/TUTORIALS.md`, `docs/manifestos/agentskills.md`,
-  `docs/manifestos/harness.md`.
+- Read 2026-09-23: `docs/AGENT_PROFILES.md`, `docs/SECURITY_MODEL.md`,
+  `docs/TUTORIALS.md` (commands checked against the CLI), and
+  `docs/MCP_SPEC.md` (now labelled not implemented: none of its tool names or
+  its `saleha mcp` command exist). Not yet read: `docs/CLI_REFERENCE.md`,
+  `docs/manifestos/agentskills.md`, `docs/manifestos/harness.md`.
 - `docs/architecture-code-review-2026-09-03.md`,
   `docs/notes/orchestrator-audit-2026-09-07.md` — prior review/audit notes;
   cross-check against `NOTEBOOK_IMPORT.md` for findings already fixed.
@@ -244,7 +249,7 @@ Unlike most of section 8, these were traced end to end, not just listed.
   `CLAUDE.md` sense (nothing claims it works), just unfinished and honestly
   marked as such in the code itself.
 
-### 8.3 `saleha/` subpackages not named in `CLAUDE.md`
+### 8.3 `saleha/` subpackages (as first indexed, pass 43)
 
 `CLAUDE.md` discusses individual modules (`orchestrator.py`, `base_agent.py`,
 `quality_guard.py`, etc.) but never names these package directories as such:
@@ -338,13 +343,13 @@ one to its actual loader/caller shows five distinct, non-competing jobs:
 
 | Directory | What it is | Loaded by |
 | --- | --- | --- |
-| `saleha/agents/` | 30 executable `BaseAgent` Python subclasses (`architect.py`, `coder.py`, ...) | Direct import, instantiated by the orchestrator/loop |
-| `saleha/skills/agent_*.md` | 30 markdown persona specs (YAML frontmatter + prompt body) | `agent_profile_loader.py`, parsed into `AgentProfile` at runtime for role/task selection (see 8.4) |
-| `souls/` | 9 personas' identity/style/sampling-parameter files | `soul_engine.py`, governs prompt *flavor*, not role (see 8.4) |
+| `saleha/agents/` | Executable `BaseAgent` Python subclasses (`architect.py`, `coder.py`, ...) | Direct import, instantiated by the orchestrator/loop |
+| `saleha/skills/agent_*.md` | Markdown persona specs (YAML frontmatter + prompt body) | `agent_profile_loader.py`, parsed into `AgentProfile` at runtime for role/task selection (see 8.4) |
+| `souls/` | Personas' identity/style/sampling-parameter files | `soul_engine.py`, governs prompt *flavor*, not role (see 8.4) |
 | `saleha/tools/` | The real ToolForge tool registry (`ast_inspector.py`, `release_manager.py`, `base.py`'s `tool_registry`) | `tool_forge.py`, `agentic_loop.py`, `octopus_coordinator.py` -- genuinely live production code |
-| Root `tools/` | One standalone repo-maintenance script (`code_quality_auditor.py`), unrelated to the LLM tool registry above -- name collision only | Invoked directly as `python -m tools.code_quality_auditor` (documented in `CLAUDE.md`, pass 44) |
+| Root `tools/` | One standalone repo-maintenance script (`code_quality_auditor.py`), unrelated to the LLM tool registry above -- name collision only | Invoked directly as `python -m tools.code_quality_auditor` (pass 44, see the `audit-history` skill) |
 | `.agents/skills/self-improve-engine/` | External automation tooling (a CLI wrapper around `saleha/core/self_improve.py`), plus `.agents/scripts/preflight_lint.py` (the pre-commit quality gate) | Not an LLM persona system at all -- coincidental "skills" name overlap with `saleha/skills/` |
-| `AGENTS.md` (root) | Human-readable roster describing the personas that `saleha/skills/agent_*.md` define programmatically | Documentation only, not a code path |
+| `AGENTS.md` (root) | The shared contract every coding agent in this repo follows | Loaded by Claude Code (via `CLAUDE.md`), Gemini, Cursor; not a code path |
 | `AGENTSKILLS.md` | Capability Module Index (reframed pass 137) describing the six real implementation modules behind Saleha's tool-calling system | Documentation only, not a code path |
 | `docs/AGENT_PROFILES.md` | Static markdown mirror of the same personas `saleha/skills/agent_*.md` define | Documentation only, not a code path |
 
@@ -422,12 +427,14 @@ None of these is dead, and none should be moved or merged: `agent_profile_loader
   failure path now unstages, deletes the generated file, and returns to the
   starting branch. Teeth-checked (2 failed against the unfixed module).
   Full evidence: `NOTEBOOK_IMPORT.md`, "Sixty-fifth pass."
-  Still unaudited in this directory: `.agents/rules/agents.md` and
+  `.agents/rules/agents.md` was rewritten 2026-09-23 as a pointer to
+  `AGENTS.md`. Still unaudited in this directory:
   `.agents/scripts/preflight_lint.py` (the latter read only in part, while
   tracing why the commit was blocked — it is the repo's real AST quality
   gate and was not the defect).
-- `.cursor/rules/agents.mdc` — Cursor-IDE-specific rules; check for drift
-  against `CLAUDE.md`/`AGENTS.md`.
+- `.cursor/rules/agents.mdc` — rewritten 2026-09-23 as a pointer to
+  `AGENTS.md` (it had restated rules and drifted: "zero Hindi in source
+  files" contradicted the data exception).
 - `editors/vscode/` — a VS Code extension (`build_extension.py`,
   `extension.ts`) not mentioned anywhere in `CLAUDE.md`.
 - `examples/` — `01_rate_limiter`, `02_fastapi_crud`, `03_mcp_custom_tool`,
@@ -530,7 +537,7 @@ files not explicitly diffed above, `generative-art/`, `apps/landing/`) is
 still just an inventory entry — named, not read. Before relying on anything
 still in that state:
 
-1. Read the whole file (`CLAUDE.md`'s audit rule #1 — no `grep`-and-conclude).
+1. Read the whole file (`.claude/rules/auditing.md` rule 1 — no `grep`-and-conclude).
 2. If it's a doc, check it against git history and the other docs it
    duplicates or overlaps (section 8.2, 8.4) — and check it for
    Mukti/Nexus-Omni contamination the way `deploy/` and
@@ -538,7 +545,7 @@ still in that state:
 3. If it's code, probe it the way every `NOTEBOOK_IMPORT.md` pass does:
    call it, vary the input, show the output actually varies.
 4. Once audited, move its entry out of section 8 and into the appropriate
-   place in `CLAUDE.md` ("Known open work") or `NOTEBOOK_IMPORT.md`.
+   place in `NOTEBOOK_IMPORT.md` (or the `audit-history` skill).
 
 **Three findings from this pass are fixed, not just flagged (pass 44):**
 `tools/code_quality_auditor.py`'s hardcoded "870/870 Tests Passed" now
