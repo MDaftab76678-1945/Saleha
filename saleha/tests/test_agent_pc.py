@@ -261,7 +261,7 @@ class TestAgentPCSubsystem(unittest.TestCase):
         from saleha.core import agent_pc as agent_pc_module
 
         root = agent_pc_module.DEFAULT_AGENT_PC_ROOT.resolve()
-        for role in ("../..", r"....", "a/../../b", "C:/Windows"):
+        for role in ("../..", "..\\..", "a/../../b", "C:/Windows"):
             pc = AgentPersonalComputer(agent_role=role)
             self.assertEqual(pc.workspace_root.resolve().parent, root, role)
         clear_agent_pc_registry()
