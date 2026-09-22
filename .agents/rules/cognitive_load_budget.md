@@ -23,7 +23,7 @@ Tasks must be routed to the appropriate engine rather than burdening a single ge
 | **AST Inspection & Parsing** | `python:ast` / `QualityGuard` | Deterministic, zero tokens, instant execution. |
 | **Surgical Syntax Fixes (<30 lines)** | `qwen2.5-coder:3b` | Fast latency (80+ tok/s), high syntax precision. |
 | **Architectural Design & Planning** | `qwen3:8b` / `deepseek-r1:7b` | Multi-step reasoning and structural coherence. |
-| **Mathematical Contract Proof** | `saleha/core/formal_smt_verifier.py` (Z3) | Exact logical proofs; zero stochastic hallucinations. |
+| **Mathematical Contract Proof** | `saleha/core/verification/formal_smt_verifier.py` (Z3) | Exact logical proofs; zero stochastic hallucinations. |
 | **Semantic Recall** | `BM25` + `nomic-embed-text` | Dense semantic retrieval under 50ms. |
 
 ## 3. Epistemic Foraging Constraint

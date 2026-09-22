@@ -11070,3 +11070,62 @@ every doc in the repo passing its own gate. All 5 fail against the pre-fix gate.
 
 Measured: full suite **2390 passed, 13 skipped, 175 subtests, 0 failures**
 (2386 -> 2390). Gate `[SUCCESS]`, 12 docs checked clean.
+
+## Pass 151 (2026-09-22) -- the sweep extended to every remaining doc
+
+Pass 150 covered twelve root docs. The user said there were more files with
+problems. Scanned every tracked `.md` not already gated -- skills, specs,
+souls, `docs/`, `.agents/`, `ORCHESTRATOR.md` -- with the same two checks.
+
+**11 raw findings; 5 were real.** Each of the other 6 was checked before being
+touched, and each turned out to be a record rather than a claim:
+
+- `ORCHESTRATOR.md` x3 -- two quote a fabrication being documented as a defect
+  (*"printed `870/870 Tests Passed`, without ever running a test"*) and one
+  records a measurement from the pass that took it (*"real result `1859
+  passed, 8 skipped` in 102.73s"*). Rewriting any of them would delete the
+  evidence the sentence exists to preserve.
+- `docs/architecture-code-review-2026-09-03.md` x3 -- a dated review. Its
+  numbers and paths were correct on 2026-09-03; `saleha/cli/commands.py`
+  genuinely was 6,470 lines then.
+
+**The 5 real ones were all dead paths left by the subpackage migrations:**
+
+| File | Cited | Actual |
+| --- | --- | --- |
+| `ORCHESTRATOR.md` | `saleha/core/memory_store.py` | `core/memory/memory_store.py` |
+| `ORCHESTRATOR.md` | `saleha/core/bm25.py` | `core/rag/bm25.py` |
+| `ORCHESTRATOR.md` | `saleha/agents/active_inference_gate.py` | `core/active_inference.py` (the cited file never existed) |
+| `.agents/rules/cognitive_load_budget.md` | `saleha/core/formal_smt_verifier.py` | `core/verification/formal_smt_verifier.py` |
+| `.agents/rules/formal_verification_rules.md` | same | same |
+
+The two `.agents/rules/` entries matter most: those files are loaded as
+operating rules, and both were pointing an agent at a file that is not there.
+
+The review doc was left unedited but given a header stating plainly that it is
+a point-in-time snapshot, since nothing inside it said so and the filename
+alone is easy to miss.
+
+**Gate widened from 12 docs to 36**: the named list plus every `.md` under
+`.agents/rules`, `.agents/skills`, `.claude/rules`, `.claude/skills`, minus an
+explicit history list (`NOTEBOOK_IMPORT.md`, `CHANGELOG.md`, `COORDINATION.md`,
+the audit-history skill, and any `docs/architecture-code-review-*`).
+
+**One more rule correction, again found by probing.** The test-count pattern
+flagged all three `ORCHESTRATOR.md` lines. The distinction that works:
+a bare count is a claim about now; the same count **inside backticks** is a
+measurement being recorded or a fabrication being quoted. Added a lookbehind
+for a backtick, a slash and a digit -- the slash because `870/870 Tests Passed`
+matched on its second half. Verified against five cases: two bare claims still
+caught, three records spared.
+
+That is the third time in three passes that the first version of a rule was too
+broad and only probing showed it. Reading the pattern is not enough; it has to
+be run against the real lines it will judge.
+
+3 new tests (records spared while bare claims are caught; the gated set covers
+agent instructions but excludes every history doc; all 36 pass). Teeth-checked
+against the pre-fix state.
+
+Measured: full suite **2392 passed, 13 skipped, 175 subtests, 0 failures**
+(2390 -> 2392). Gate `[SUCCESS]`, 36 docs checked clean.

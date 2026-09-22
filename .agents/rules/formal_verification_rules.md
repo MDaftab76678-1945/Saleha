@@ -17,7 +17,7 @@ This rule codifies the physical verification boundaries and mathematical rigor r
 
 For critical algorithms (such as complexity scoring in `math_logic.py`, routing bounds in `dynamic_lora_router.py`, and token allocation):
 - Define mathematical pre-conditions and post-conditions.
-- Use `saleha/core/formal_smt_verifier.py` with Z3 to prove that invariants hold for all valid inputs across domain bounds.
+- Use `saleha/core/verification/formal_smt_verifier.py` with Z3 to prove that invariants hold for all valid inputs across domain bounds.
 - If an edge case counterexample is produced by Z3, treat it as a hard reproduction unit test before writing production code.
 
 ## 3. Sandboxed Execution Safety

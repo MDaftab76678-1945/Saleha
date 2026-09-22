@@ -63,7 +63,7 @@ A central defect caught in Pass 24 was memory poisoning: Model B replayed Model 
 1. **Turn Scratchpad (Ephemeral Working Memory):**
    - Active only during the execution of a single user request.
    - Cleared completely upon stage completion.
-2. **Semantic Memory Store (`saleha/core/memory_store.py`):**
+2. **Semantic Memory Store (`saleha/core/memory/memory_store.py`):**
    - Stores BM25 and vector embeddings for code retrieval and past solutions.
    - **Isolation Rule:** Every model family (`qwen2.5-coder:3b`, `qwen3:8b`, `deepseek-r1:7b`) must have an isolated namespace. Caches must never be shared across different model runs.
 3. **Persistent Audit Ledger (`NOTEBOOK_IMPORT.md`):**
@@ -99,7 +99,7 @@ The orchestrator guarantees repository safety during autonomous runs:
 
 The orchestrator operates inside physical consumer-grade hardware limits (1 local GPU, Ollama backend):
 
-- **Strict Context Budget:** Prompts must remain under 2048-4096 tokens. Massive multi-file dumps are chunked using BM25 relevance filtering (`saleha/core/bm25.py`).
+- **Strict Context Budget:** Prompts must remain under 2048-4096 tokens. Massive multi-file dumps are chunked using BM25 relevance filtering (`saleha/core/rag/bm25.py`).
 - **Structured JSON Fallback:** If a small local model generates malformed JSON or markdown prefixes, the orchestrator applies a regex JSON-extractor fallback before reporting a parsing error.
 - **Anti-Premature Finish:** Enforces `min_actions_before_finish >= 1`. If an agent attempts to finish without executing at least one investigative tool, the orchestrator rejects the finish call and forces an inspection step.
 
@@ -109,7 +109,7 @@ The orchestrator operates inside physical consumer-grade hardware limits (1 loca
 
 | Subsystem | Primary Module | Orchestrator Handshake |
 | --- | --- | --- |
-| **Clarity Gate** | `saleha/agents/active_inference_gate.py` | Halts execution if user intent has high ambiguity score. |
+| **Clarity Gate** | `saleha/core/active_inference.py` | Halts execution if user intent has high ambiguity score. |
 | **Complexity Gate** | `saleha/core/math_logic.py` | Estimates complexity (0.0 to 10.0) from file types and keywords. |
 | **Task Planner** | `saleha/agents/planner.py` | Generates 3-5 step plan for complex tasks. |
 | **Sandbox Jail** | `saleha/sandbox/sandbox_jail.py` | Executes subprocesses with timeout and Windows path normalization. |

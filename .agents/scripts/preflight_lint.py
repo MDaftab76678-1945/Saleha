@@ -147,7 +147,12 @@ _STALE_CLAIM_PATTERNS = (
      "a repo-wide count"),
     (r"\*\*\d{2,}\s*\+?\s*(?:modules|commands|subcommands|personas)\b",
      "a repo-wide count"),
-    (r"\b\d{3,}\s+(?:passed|tests?\s+pass)", "a hardcoded test-suite count"),
+    # A bare count is a claim about now. The same count inside backticks is
+    # either a measurement being recorded ("real result `1859 passed`") or a
+    # fabrication being quoted as a defect ("printed `870/870 Tests Passed`,
+    # without ever running a test") -- both are records, and rewriting them
+    # would destroy the evidence they exist to preserve.
+    (r"(?<![`/\d])\b\d{3,}\s+(?:passed|tests?\s+pass)", "a hardcoded test-suite count"),
     # Only a pass *total* goes stale. A citation ("fixed in pass 43", "see pass
     # 139") is a permanent pointer at evidence in the ledger and must not be
     # flagged -- an earlier version of this rule flagged 14 of those and would
@@ -168,7 +173,23 @@ _STALE_CLAIM_PATTERNS = (
 _GATED_DOCS = (
     "AGENTS.md", "GEMINI.md", "DEVELOPMENT.md", "README.md", "ARCHITECTURE.md",
     "ROADMAP.md", "CONTRIBUTING.md", "AGENTSKILLS.md", "SOUL.md", "EVALS.md",
-    "PRODUCT_BRIEF.md", "saleha/STRUCTURE.md",
+    "PRODUCT_BRIEF.md", "saleha/STRUCTURE.md", "ORCHESTRATOR.md", "CLAUDE.md",
+)
+
+# Every tracked .md under these directories is gated too. They are agent-facing
+# instructions and skill definitions: a path that has moved sends an agent to a
+# file that is not there.
+_GATED_DOC_DIRS = (".agents/rules", ".agents/skills", ".claude/rules", ".claude/skills")
+
+# Docs that record a moment rather than describe the present. Their numbers and
+# paths are correct for when they were written, and rewriting them would
+# destroy the record.
+_HISTORY_DOCS = (
+    "NOTEBOOK_IMPORT.md",
+    "CHANGELOG.md",
+    "COORDINATION.md",
+    ".claude/skills/audit-history",
+    "docs/architecture-code-review-",
 )
 
 # A repo-relative python path inside backticks. Used to catch references to
@@ -202,6 +223,33 @@ def _doc_lines_outside_fences(path: str) -> Optional[List[tuple]]:
     return out
 
 
+def _collect_gated_docs() -> List[str]:
+    """Repo-relative .md files subject to the stale-claim rule.
+
+    The named docs plus every .md under the agent-instruction directories,
+    minus anything that records history rather than describing the present.
+    """
+    found: List[str] = [d for d in _GATED_DOCS
+                        if os.path.isfile(os.path.join(REPO_ROOT, d))]
+
+    for rel_dir in _GATED_DOC_DIRS:
+        abs_dir = os.path.join(REPO_ROOT, rel_dir)
+        if not os.path.isdir(abs_dir):
+            continue
+        for root, dirs, files in os.walk(abs_dir):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
+            for name in sorted(files):
+                if not name.endswith(".md"):
+                    continue
+                rel = os.path.relpath(os.path.join(root, name), REPO_ROOT)
+                found.append(rel.replace("\\", "/"))
+
+    return sorted(
+        {d for d in found
+         if not any(d.startswith(h) for h in _HISTORY_DOCS)}
+    )
+
+
 def check_docs_for_stale_claims() -> bool:
     """Blocks a commit when a prospective doc freezes a count or names a dead path.
 
@@ -212,7 +260,7 @@ def check_docs_for_stale_claims() -> bool:
     """
     failures = 0
 
-    for rel_doc in _GATED_DOCS:
+    for rel_doc in _collect_gated_docs():
         lines = _doc_lines_outside_fences(os.path.join(REPO_ROOT, rel_doc))
         if lines is None:
             continue
@@ -243,7 +291,7 @@ def check_docs_for_stale_claims() -> bool:
         print("  history, and their numbers are correct for when they were written.)")
         return True
 
-    print(f"[preflight] Docs OK ({len(_GATED_DOCS)} checked, no frozen counts or dead paths).")
+    print(f"[preflight] Docs OK ({len(_collect_gated_docs())} checked, no frozen counts or dead paths).")
     return False
 
 

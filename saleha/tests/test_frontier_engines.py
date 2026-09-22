@@ -298,6 +298,43 @@ def test_docs_gate_flags_a_path_that_no_longer_exists() -> None:
     assert Path(mod.REPO_ROOT, real[0]).exists()
 
 
+def test_stale_claim_patterns_spare_recorded_measurements() -> None:
+    """A count inside backticks is evidence, not a claim about now.
+
+    "real result `1859 passed`" records what a run produced, and
+    "printed `870/870 Tests Passed`, without ever running a test" quotes a
+    fabrication being documented as a defect. Rewriting either would destroy
+    the evidence the sentence exists to preserve.
+    """
+    recorded = (
+        "Verified end-to-end: real result `1859 passed, 8 skipped` in 102.73s.",
+        "printed `870/870 Tests Passed`, without ever running a test",
+        '`code_quality_auditor.py`\'s hardcoded "870/870 Tests Passed" now runs pytest',
+    )
+    for line in recorded:
+        assert not _stale_claim_hits(line), f"false positive: {line}"
+
+    # ...while a bare count still reads as a claim about the present.
+    assert _stale_claim_hits("Test suite: 2303 passed, 13 skipped.")
+
+
+def test_gated_docs_cover_agent_instructions_but_not_history() -> None:
+    """Agent-facing rules and skills are gated; records of a moment are not."""
+    mod = _load_preflight()
+    gated = mod._collect_gated_docs()
+
+    assert "CLAUDE.md" in gated
+    assert "ORCHESTRATOR.md" in gated
+    assert any(d.startswith(".agents/rules/") for d in gated)
+    assert any(d.startswith(".agents/skills/") for d in gated)
+    assert any(d.startswith(".claude/rules/") for d in gated)
+
+    for history in ("NOTEBOOK_IMPORT.md", "CHANGELOG.md", "COORDINATION.md"):
+        assert history not in gated
+    assert not any(d.startswith(".claude/skills/audit-history") for d in gated)
+    assert not any("architecture-code-review-" in d for d in gated)
+
+
 def test_real_docs_pass_the_stale_claim_gate() -> None:
     """Every prospective doc in this repo must satisfy the rule."""
     mod = _load_preflight()

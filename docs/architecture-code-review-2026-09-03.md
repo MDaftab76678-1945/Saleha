@@ -1,5 +1,13 @@
 # Saleha (saleha-0.1) — Architecture Assessment & Code Review
 
+> **This is a point-in-time snapshot, not current state.** Every number, path
+> and finding below describes the repository as it stood on 2026-09-03, and is
+> deliberately left unedited so the review stays an honest record of what was
+> seen. Several findings have since been fixed and several paths have moved --
+> `saleha/cli/commands.py` is now the `saleha/cli/commands/` package, and much
+> of `saleha/core/` has moved into category subpackages. Check the current code
+> and `NOTEBOOK_IMPORT.md` before acting on anything here.
+
 **Date:** 2026-09-03
 **Scope:** Full repository audit (`C:\Users\alama\saleha-0.1`), focused on the Python core (`saleha/`, 476 files / ~53.5k LOC excluding tests) and the HTTP server (`saleha/server/web_server.py`, 2,460 lines). The TypeScript monorepo (`apps/`, `packages/`) and Rust crate (`rust/`) were surveyed structurally but not deep-reviewed line-by-line.
 **Method:** Direct inspection of source files, greps for known risk patterns (`eval`/`exec`, `shell=True`, bare `except`, hardcoded secrets, pickle), and reading of the project's own docs (`README.md`, `ARCHITECTURE.md`) against the code that backs their claims.
