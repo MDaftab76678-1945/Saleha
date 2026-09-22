@@ -41,7 +41,7 @@ from saleha.agents.skill_creator import NewSkillCreatorAgent, CreatedSkillResult
 from saleha.agents.web_dev import WebDevAgent, WebDevOutput
 from saleha.agents.devops import DevOpsAgent, DevOpsPipelineSpec
 from saleha.agents.data_engineer import DataEngineerAgent, DataPipelineSpec
-from saleha.agents.issue_resolver import AutonomousIssueResolver, IssueResolutionPlan, issue_resolver
+from saleha.agents.issue_resolver import AutonomousIssueResolver, IssueResolutionPlan
 from saleha.agents.vision_designer import VisionDesignerAgent, VisionLayoutSpec, vision_designer
 from saleha.agents.doc_generator import DocGeneratorAgent, CodebaseDocSpec, doc_generator
 from saleha.agents.deep_researcher import DeepResearcherAgent, DeepResearchReport, deep_researcher
@@ -85,7 +85,6 @@ __all__ = [
     "DataPipelineSpec",
     "AutonomousIssueResolver",
     "IssueResolutionPlan",
-    "issue_resolver",
     "VisionDesignerAgent",
     "VisionLayoutSpec",
     "vision_designer",
@@ -133,3 +132,14 @@ from saleha.agents.chaos_resilience import (
     ChaosExperimentResult,
     chaos_resilience,
 )
+
+
+# NOTE: `issue_resolver` is deliberately NOT re-exported here. It is a lazy
+# singleton (see issue_resolver.py) because constructing it imports
+# saleha.core.swarm.swarm_pipeline_engine, whose package __init__ reaches
+# memory -> rag -> saleha.agents and re-enters this module. A package-level
+# __getattr__ could not serve it anyway: the submodule
+# `saleha.agents.issue_resolver` already occupies that attribute name once
+# imported, so the accessor would never fire (the same module-vs-singleton
+# name collision documented in saleha/STRUCTURE.md for the core subpackages).
+# Real callers use `from saleha.agents.issue_resolver import issue_resolver`.

@@ -10849,3 +10849,92 @@ Live re-run of the fixed `self_mutator.py` against `cpg_slicer.py`:
 2 real mutants rejected on failing tests, 1 accepted with a genuine (not
 fabricated) measured speedup, original file confirmed restored via
 `git diff --stat`.
+
+## Pass 148 (2026-09-22) -- ran the graphify repo graph against this repo and fixed what it reported
+
+Pass 147 recorded `graphify` as a real, wired feature but had never actually
+run it against this repository. Did that. The graph itself is genuine --
+**1010 files, 15,072 nodes, 32,005 edges in ~25s**, with real relation counts
+(5,438 `calls`, 4,056 `imports`, 146 `inherits`, 36 `implements`). Its two
+warnings and one silence turned out to name four real defects.
+
+**1. `pr_generator.py` could not be parsed, and the reason was a live crash.**
+graphify warned "syntax errors ... 8 symbol(s) extracted". Checked before
+believing it: `ast.parse()` on the file succeeds, so the file is valid Python
+and this is a tree-sitter limitation -- but the *trigger* is real. Line 77
+began a PR-markdown template carrying **10 decorative emoji**. Measured:
+`src.encode('cp1252')` raises `UnicodeEncodeError` on `\U0001f680`, and
+`git_release.py:104` renders that markdown straight to the console
+(`console.print(Markdown(res.pr_markdown[:800]))`) whenever `saleha pr` runs
+without `--output-dir`. So `saleha pr` crashes on this machine's default
+console -- the exact failure mode Rule 3 exists to prevent, found in a live
+command. Emoji removed from the template and from the `pr` command's own
+panels in `git_release.py`; graph coverage for the file went from 8 symbols
+to full.
+
+**2. A fabrication behind the emoji: the PR checklist was hardcoded.** While
+removing the emoji, read the surrounding template in full (Rule 5) and found
+all four checklist boxes rendered `[x]` unconditionally -- ticked even when
+the tests failed and the security stage reported VULNERABLE. Pass 30 fixed
+the two *badges* directly above these lines in this same file and left the
+checklist standing; the code comment it added is still there, four lines
+above the fabrication it missed. Now `tests_box`/`security_box` read
+`team_res.success` and the real security verdict, a failing box states
+"NOT verified: tests did not pass", and the architecture-guidelines box --
+which this generator genuinely cannot check -- says so instead of claiming a
+tick. New test `test_checklist_is_not_ticked_when_tests_failed`, plus a
+`md.encode("cp1252")` assertion in the existing structure test that fails if
+emoji are reintroduced. **The existing test pinned the emoji**
+(`assertIn("# 🚀 Pull Request: ...")`) -- the recurring trap, found again.
+
+**3. `files_scanned` implied a coverage it did not have.** graphify warned
+that 1 `.sql` file contributed nothing (`tree_sitter_sql` not installed).
+Installing that grammar would have been the wrong fix: the file is
+`rust/crates/secure-node/migrations/001_create_tables.sql`, and `rust/Cargo.toml`
+lists only `intent-kernel` as a workspace member with `secure-node` among
+"candidates to promote once they build" -- it is in no build. The real defect
+was that `GraphStats.files_scanned` counted files handed to the extractor,
+making a file that yielded zero symbols indistinguishable from one with
+genuinely no symbols. Added `files_with_symbols`, `files_absent` and
+`coverage_is_complete`. Measured immediately: **10 files absent, not 1** --
+the 9 graphify never warned about are all `.sol` (Solidity) contracts,
+silently missing from every graph this repo has ever built. `saleha impact`
+now names them; it had been swallowing graphify's own warnings inside
+`contextlib.redirect_stdout` as well. This matters because "no importer
+found" is only trustworthy if the files that might import it were parsed.
+Two new tests, teeth-checked 2/2 failing against pre-fix code.
+
+**4. Two pre-existing full-suite failures, confirmed pre-existing by
+`git stash -u` before touching them.**
+
+- `test_doc_consistency.py` -- `AGENTSKILLS.md` still cited
+  `saleha/core/bm25.py` and `saleha/core/memory_store.py`, both moved by the
+  passes 143-145 migration (`rag/` and `memory/`). Paths corrected.
+- `test_import_side_effects.py` -- a real circular import, reachable by
+  `import saleha.core.swarm.swarm_checkpoint_store`:
+  `swarm/__init__` -> `swarm_pipeline_engine` -> `memory/__init__` ->
+  `rag/__init__` -> `graph_rag` -> `saleha.agents/__init__` ->
+  `issue_resolver` -> back into the partially-initialised
+  `swarm_pipeline_engine`. Same class the pass-139 migration exposed, now
+  reachable through the newer `memory`/`rag` subpackages. Fixed the same way
+  precedent already set in `self_healer.py`: the `swarm_engine` import moved
+  into `__init__`, `SwarmExecutionResult` behind `TYPE_CHECKING`, and the
+  module-level `issue_resolver = AutonomousIssueResolver()` replaced with a
+  PEP-562 lazy singleton.
+
+  **My first fix was wrong and probing caught it.** I added a matching
+  package-level `__getattr__` to `saleha/agents/__init__.py`, then verified
+  it: `A.issue_resolver` returned a *module*, not the instance -- the
+  submodule already occupies that attribute name once imported, so the
+  accessor can never fire. That is the module-vs-singleton collision
+  `saleha/STRUCTURE.md` documents for the core subpackages, reproduced in a
+  new package. Rather than ship a dead accessor, removed it and dropped
+  `issue_resolver` from `__all__` (grep confirmed zero callers used the
+  package-level name; every real caller imports from the module directly),
+  with a comment explaining why it is deliberately not re-exported.
+
+**Measured:** full suite 2377 passed / **2 failed** before -> **2379 passed,
+13 skipped, 172 subtests, 0 failures** after. Affected-file tests 26/26.
+Pre-flight gate `[SUCCESS]`, 9/9 files -- including `test_repo_graph.py`,
+whose pre-existing 28.0/100 annotation score (confirmed via `git stash`, not
+introduced here) was brought to 96.0 rather than bypassed.

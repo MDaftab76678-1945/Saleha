@@ -271,6 +271,9 @@ def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
             'importers': importers,
             'importer_count': len(importers),
             'files_scanned': stats.files_scanned,
+            'files_with_symbols': stats.files_with_symbols,
+            'files_absent': stats.files_absent,
+            'coverage_is_complete': stats.coverage_is_complete,
             'nodes': stats.nodes,
             'edges': stats.edges,
             'build_seconds': stats.build_seconds,
@@ -279,6 +282,18 @@ def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
 
     console.print(f'[dim]{stats.files_scanned} files -> {stats.nodes} nodes, '
                   f'{stats.edges} edges in {stats.build_seconds}s[/]')
+    # An absent file contributes no edges, so "no importer found" for a target
+    # is only trustworthy if the files that might import it were parsed at all.
+    if not stats.coverage_is_complete:
+        n = len(stats.files_absent)
+        console.print(f'[yellow]Warning: {n} scanned file(s) contributed no symbols '
+                      f'and are missing from this graph[/]')
+        for f in stats.files_absent[:5]:
+            console.print(f'[dim]  - {f}[/]')
+        if n > 5:
+            console.print(f'[dim]  ... and {n - 5} more[/]')
+        console.print('[dim]  (usually a language grammar graphify does not have '
+                      'installed; results below may be incomplete)[/]')
     if importers:
         table = Table(title=f'Files that import {target}', show_lines=False)
         table.add_column('Dependent file', style='cyan')

@@ -30,7 +30,7 @@ requires_graphify = unittest.skipUnless(
 class DiscoveryTests(unittest.TestCase):
     """File discovery works without graphify installed."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp()
         os.makedirs(os.path.join(self.tmp, "pkg"))
         os.makedirs(os.path.join(self.tmp, "node_modules", "junk"))
@@ -41,7 +41,7 @@ class DiscoveryTests(unittest.TestCase):
         self._w("node_modules/junk/vendor.py", "y = 2\n")
         self._w("__pycache__/cached.py", "z = 3\n")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _w(self, rel, content):
@@ -50,7 +50,7 @@ class DiscoveryTests(unittest.TestCase):
         with open(p, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def test_finds_real_source_and_skips_noise(self):
+    def test_finds_real_source_and_skips_noise(self) -> None:
         found = {p.name for p in RepoGraph(self.tmp).discover_files()}
         self.assertIn("a.py", found)
         self.assertIn("b.ts", found)
@@ -58,23 +58,23 @@ class DiscoveryTests(unittest.TestCase):
         self.assertNotIn("vendor.py", found)     # node_modules excluded
         self.assertNotIn("cached.py", found)     # __pycache__ excluded
 
-    def test_excludes_and_suffixes_are_configurable(self):
+    def test_excludes_and_suffixes_are_configurable(self) -> None:
         g = RepoGraph(self.tmp, excludes=set(), suffixes={".md"})
         found = {p.name for p in g.discover_files()}
         self.assertIn("notes.md", found)
         self.assertNotIn("a.py", found)
 
-    def test_querying_before_build_raises(self):
+    def test_querying_before_build_raises(self) -> None:
         g = RepoGraph(self.tmp)
         with self.assertRaises(RuntimeError):
             g.importers_of("a.py")
 
-    def test_module_key_accepts_path_or_name(self):
+    def test_module_key_accepts_path_or_name(self) -> None:
         self.assertEqual(RepoGraph._module_key("saleha/core/agentic_loop.py"),
                          "agentic_loop")
         self.assertEqual(RepoGraph._module_key("agentic_loop"), "agentic_loop")
 
-    def test_defaults_are_sane(self):
+    def test_defaults_are_sane(self) -> None:
         self.assertIn("__pycache__", DEFAULT_EXCLUDES)
         self.assertIn("node_modules", DEFAULT_EXCLUDES)
         self.assertIn(".py", CODE_SUFFIXES)
@@ -86,7 +86,7 @@ class RealCrossFileGraphTests(unittest.TestCase):
     """Builds a real graph over real files -- the behaviour that matters."""
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         cls.tmp = tempfile.mkdtemp()
         pkg = os.path.join(cls.tmp, "mypkg")
         os.makedirs(pkg)
@@ -109,54 +109,87 @@ class RealCrossFileGraphTests(unittest.TestCase):
         cls.stats = cls.graph.build()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def test_build_produced_a_real_graph(self):
+    def test_build_produced_a_real_graph(self) -> None:
         self.assertGreater(self.stats.files_scanned, 0)
         self.assertGreater(self.stats.nodes, 0)
         self.assertGreater(self.stats.edges, 0)
         self.assertIn("imports", self.stats.relations)
 
-    def test_finds_cross_file_importers(self):
+    def test_finds_cross_file_importers(self) -> None:
         """The exact query our own dependency_graph returned [] for."""
         importers = self.graph.importers_of("mypkg/engine.py")
         names = {os.path.basename(p) for p in importers}
         self.assertIn("driver.py", names)
         self.assertIn("cli.py", names)
 
-    def test_module_does_not_count_as_its_own_importer(self):
+    def test_module_does_not_count_as_its_own_importer(self) -> None:
         importers = self.graph.importers_of("mypkg/engine.py")
         self.assertNotIn("mypkg/engine.py", importers)
 
-    def test_module_with_no_importers_reports_none(self):
+    def test_module_with_no_importers_reports_none(self) -> None:
         self.assertEqual(self.graph.importers_of("mypkg/orphan.py"), [])
 
-    def test_neighbors_returns_real_edges_with_locations(self):
+    def test_neighbors_returns_real_edges_with_locations(self) -> None:
         hits = self.graph.neighbors_of("engine")
         self.assertTrue(hits)
         for h in hits:
             self.assertIn("relation", h)
             self.assertIn("at", h)
 
-    def test_unused_candidates_include_orphan_only(self):
+    def test_unused_candidates_include_orphan_only(self) -> None:
         cands = self.graph.find_unused_module_candidates()
         names = {os.path.basename(c) for c in cands}
         self.assertIn("orphan.py", names)
         self.assertNotIn("engine.py", names)   # really is imported
 
-    def test_summary_reports_real_numbers(self):
+    def test_summary_reports_real_numbers(self) -> None:
         s = self.graph.summary()
         self.assertEqual(s["nodes"], self.stats.nodes)
         self.assertEqual(s["edges"], self.stats.edges)
         self.assertGreaterEqual(s["build_seconds"], 0.0)
+
+    def test_all_python_fixtures_are_represented_in_the_graph(self) -> None:
+        """Coverage is reported, not assumed.
+
+        files_scanned counts what was handed to the extractor; a file whose
+        grammar is missing yields no nodes and would otherwise be invisible.
+        These fixtures are all plain Python, so coverage must be complete.
+        """
+        self.assertEqual(self.stats.files_absent, [])
+        self.assertTrue(self.stats.coverage_is_complete)
+        self.assertEqual(self.stats.files_with_symbols, self.stats.files_scanned)
+
+    def test_unparseable_file_is_reported_absent_not_silently_dropped(self) -> None:
+        """A file the extractor cannot represent must be named, not hidden."""
+        tmp = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(tmp, "real.py"), "w") as f:
+                f.write("def hello():\n    return 1\n")
+            # .sql needs a grammar graphify does not ship by default; this is
+            # the exact case that silently vanished from this repo's own graph.
+            with open(os.path.join(tmp, "schema.sql"), "w") as f:
+                f.write("CREATE TABLE t (id INT);\n")
+
+            g = RepoGraph(tmp)
+            stats = g.build()
+
+            self.assertGreater(stats.files_with_symbols, 0)
+            if stats.files_absent:
+                self.assertFalse(stats.coverage_is_complete)
+                self.assertLess(stats.files_with_symbols, stats.files_scanned)
+                self.assertNotIn("real.py", stats.files_absent)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 @requires_graphify
 class RealSalehaRepoTests(unittest.TestCase):
     """Regression guard on this repo itself, using the known-true answer."""
 
-    def test_agentic_loop_importers_are_found_in_this_repo(self):
+    def test_agentic_loop_importers_are_found_in_this_repo(self) -> None:
         repo_root = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", ".."))
         core = os.path.join(repo_root, "saleha", "core")

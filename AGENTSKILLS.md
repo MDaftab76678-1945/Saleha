@@ -34,7 +34,7 @@ parses from each profile's frontmatter.
 | AST verifier | `saleha/sandbox/ast_security_verifier.py` | Static AST audit of imports & syscalls | Deterministic Python AST |
 | math engine | `saleha/core/math_logic.py` | Complexity estimation (0.0 to 10.0) | Regex & Weighted Scoring |
 | SMT verifier | `saleha/core/verification/formal_smt_verifier.py` | Mathematical & logical constraint proofs | Z3 Theorem Solver |
-| BM25 search | `saleha/core/bm25.py` | Lexical indexing and relevant code retrieval | Lexical Inverted Index |
+| BM25 search | `saleha/core/rag/bm25.py` | Lexical indexing and relevant code retrieval | Lexical Inverted Index |
 | AST cache | `saleha/core/incremental_ast_cache.py` | Cache AST parses to detect change impact | AST Dependency Graph |
 
 ---
@@ -100,7 +100,7 @@ prompts. Do not quote numbers that are not in that registry.
 
 - **Fast Tier (`qwen2.5-coder:3b`):** 32768-token context. Used for surgical unit test generation, regex extraction, and single-function patches.
 - **Reasoning Tier (`qwen3:8b`: 40960, `qwen3.5:9b`: 40960, `deepseek-r1:7b`: 32768):** Used for multi-step planning, security reviews, and SMT verification tasks. Note these are *reasoning* models — Ollama bills their chain of thought against the same `num_predict` budget as the answer, so a small output budget can return an empty reply (pass 63); `budget_for_model()` in `model_provider.py` accounts for this.
-- **BM25 Pruning:** Any prompt referencing multiple files must prune irrelevant functions using `saleha/core/bm25.py` before model submission.
+- **BM25 Pruning:** Any prompt referencing multiple files must prune irrelevant functions using `saleha/core/rag/bm25.py` before model submission.
 
 ---
 
@@ -130,7 +130,7 @@ When an agent identifies a missing capability (e.g., a custom dependency checker
 
 ### 5.4 Reflexion Memory & Error Playbooks
 
-- When an execution path fails or encounters an edge case, the orchestrator records a structured lesson in `saleha/core/memory_store.py`.
+- When an execution path fails or encounters an edge case, the orchestrator records a structured lesson in `saleha/core/memory/memory_store.py`.
 - Future sessions targeting similar tasks automatically inject these lessons to eliminate repetitive mistakes.
 
 ### 5.5 Self-Design & Complexity Refactoring

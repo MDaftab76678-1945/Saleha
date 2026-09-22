@@ -63,11 +63,28 @@ def graphify_available() -> bool:
 
 @dataclass
 class GraphStats:
+    """Real counts from one graph build.
+
+    `files_scanned` is how many files were handed to the extractor, which is
+    not the same as how many are actually represented in the graph: a file
+    whose language grammar is not installed, or one the parser chokes on,
+    contributes nothing and would otherwise be indistinguishable from a file
+    with genuinely no symbols. `files_with_symbols` and `files_absent` make
+    that gap visible instead of letting `files_scanned` imply full coverage.
+    """
+
     files_scanned: int = 0
+    files_with_symbols: int = 0
+    files_absent: List[str] = field(default_factory=list)
     nodes: int = 0
     edges: int = 0
     build_seconds: float = 0.0
     relations: Dict[str, int] = field(default_factory=dict)
+
+    @property
+    def coverage_is_complete(self) -> bool:
+        """True only if every scanned file contributed at least one symbol."""
+        return not self.files_absent
 
 
 class RepoGraph:
@@ -138,8 +155,30 @@ class RepoGraph:
             rel = str(e.get("relation") or "unknown")
             relations[rel] = relations.get(rel, 0) + 1
 
+        # A file the extractor could not parse (missing language grammar, or a
+        # construct its grammar rejects) yields no nodes at all. Counting it
+        # under files_scanned alone would report full coverage over a graph
+        # that is silently missing that file's symbols.
+        represented: Set[str] = set()
+        for n in self.nodes:
+            src = n.get("source_file")
+            if src:
+                represented.add(str(src).replace("\\", "/"))
+
+        absent: List[str] = []
+        for p in paths:
+            try:
+                rel_path = str(Path(p).relative_to(self.root))
+            except ValueError:
+                rel_path = str(p)
+            if rel_path.replace("\\", "/") not in represented:
+                absent.append(rel_path.replace("\\", "/"))
+
         self.stats = GraphStats(
-            files_scanned=len(paths), nodes=len(self.nodes),
+            files_scanned=len(paths),
+            files_with_symbols=len(paths) - len(absent),
+            files_absent=sorted(absent),
+            nodes=len(self.nodes),
             edges=len(self.edges), build_seconds=round(elapsed, 2),
             relations=dict(sorted(relations.items(), key=lambda kv: -kv[1])),
         )

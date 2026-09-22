@@ -14,9 +14,15 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List
+from typing import TYPE_CHECKING, Optional, Dict, Any, List
 
-from saleha.core.swarm.swarm_pipeline_engine import swarm_engine, SwarmExecutionResult
+# Imported lazily inside __init__, not at module level: saleha.core.swarm's
+# package __init__ pulls in memory -> rag -> saleha.agents, which re-enters
+# this module before swarm_pipeline_engine has finished defining swarm_engine.
+# Same layering fix pass 139 applied to four other modules after the core
+# flat-to-subpackage migration made these latent cycles reachable.
+if TYPE_CHECKING:
+    from saleha.core.swarm.swarm_pipeline_engine import SwarmExecutionResult
 
 
 @dataclass
@@ -38,6 +44,8 @@ class AutonomousIssueResolver:
     """Autonomous Bot for End-to-End Bug Triage, Code Patching, and PR Generation."""
 
     def __init__(self):
+        from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
+
         self.engine = swarm_engine
 
     def _sanitize_branch_name(self, issue_id: str, title: str) -> str:
@@ -205,5 +213,17 @@ class AutonomousIssueResolver:
 """
 
 
-# Global Singleton Instance
-issue_resolver = AutonomousIssueResolver()
+_issue_resolver_instance: Optional[AutonomousIssueResolver] = None
+
+
+def __getattr__(name: str) -> Any:
+    # Lazy singleton (PEP 562): constructing AutonomousIssueResolver() imports
+    # saleha.core.swarm.swarm_pipeline_engine, whose package __init__ reaches
+    # memory -> rag -> saleha.agents and re-enters this module -- a circular
+    # import if it ran at module-load time. Same fix as self_healer.py (pass 139).
+    global _issue_resolver_instance
+    if name == "issue_resolver":
+        if _issue_resolver_instance is None:
+            _issue_resolver_instance = AutonomousIssueResolver()
+        return _issue_resolver_instance
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

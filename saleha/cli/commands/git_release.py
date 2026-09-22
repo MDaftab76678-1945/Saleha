@@ -93,19 +93,19 @@ def pr(goal, branch, output_dir, debate, push, open_remote, base, model, as_json
         if not res.success:
             raise click.exceptions.Exit(1)
         return
-    console.print(Panel.fit(f"[bold cyan]🎯 Goal:[/] {goal}\n[bold cyan]🌿 Branch:[/] {branch or generator._sanitize_branch_name(goal)}\n[bold cyan]📁 Output Dir:[/] {output_dir or 'Console Only'}\n[bold cyan]☁️ Remote Push:[/] {('Enabled' if push or open_remote else 'Disabled')}", title='[bold green]🚀 Autonomous Git CI/CD & PR Agent[/]', border_style='green'))
+    console.print(Panel.fit(f"[bold cyan]Goal:[/] {goal}\n[bold cyan]Branch:[/] {branch or generator._sanitize_branch_name(goal)}\n[bold cyan]Output Dir:[/] {output_dir or 'Console Only'}\n[bold cyan]Remote Push:[/] {('Enabled' if push or open_remote else 'Disabled')}", title='[bold green]Autonomous Git CI/CD & PR Agent[/]', border_style='green'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
         progress.add_task('[cyan]Deliberating, implementing, testing & generating PR...', total=None)
         res = generator.generate_pr(goal=goal, branch_name=branch, output_dir=output_dir, debate=debate, push=push, open_pr=open_remote, base_branch=base)
     if res.success:
-        console.print(Panel(f"[bold green]✅ Pull Request Package Ready[/]\n[bold cyan]Branch:[/] {res.branch_name}\n[bold cyan]Commit:[/] {res.commit_title}\n[bold cyan]Remote PR:[/] {res.pr_url or 'Local Only'}", border_style='green'))
+        console.print(Panel(f"[bold green]Pull Request Package Ready[/]\n[bold cyan]Branch:[/] {res.branch_name}\n[bold cyan]Commit:[/] {res.commit_title}\n[bold cyan]Remote PR:[/] {res.pr_url or 'Local Only'}", border_style='green'))
         if res.output_dir:
-            console.print(f'\n[bold green]📁 Exported PULL_REQUEST.md to:[/] {res.output_dir}')
+            console.print(f'\n[bold green]Exported PULL_REQUEST.md to:[/] {res.output_dir}')
         else:
-            console.print('\n[bold cyan]📄 PULL_REQUEST.md Preview:[/]')
+            console.print('\n[bold cyan]PULL_REQUEST.md Preview:[/]')
             console.print(Markdown(res.pr_markdown[:800] + '\n\n*(Full markdown generated)*'))
     else:
-        console.print(Panel(f'[bold red]❌ PR Generation Failed:[/] {res.error}', border_style='red'))
+        console.print(Panel(f'[bold red]PR Generation Failed:[/] {res.error}', border_style='red'))
 
 @cli.command()
 @click.option('--hard', is_flag=True, help='Hard reset instead of soft revert')

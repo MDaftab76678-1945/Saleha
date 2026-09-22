@@ -25,7 +25,7 @@ class PRGeneratorTests(unittest.TestCase):
             prd="### Requirements\n1. Token bucket",
             design="### Architecture\nClass TokenBucket",
             code="class TokenBucket: pass",
-            security_report="✅ Zero high severity vulnerabilities",
+            security_report="Zero high severity vulnerabilities",
             test_code="class TestRateLimiter: pass",
             attempts=1
         )
@@ -35,10 +35,42 @@ class PRGeneratorTests(unittest.TestCase):
             commit_title="feat(async): implement build async rate limiter",
             team_res=team_res
         )
-        self.assertIn("# 🚀 Pull Request: Build async rate limiter", md)
+        self.assertIn("# Pull Request: Build async rate limiter", md)
         self.assertIn("feature/async-rate-limiter", md)
         self.assertIn("TokenBucket", md)
         self.assertIn("Zero high severity", md)
+        # Rule 3: the markdown reaches a cp1252 console via `saleha pr`'s
+        # own preview, so it must contain no characters that console cannot
+        # encode. This assertion is what fails if emoji are reintroduced.
+        md.encode("cp1252")
+
+    def test_checklist_is_not_ticked_when_tests_failed(self):
+        """A failing run must not render ticked verification boxes.
+
+        The four checklist boxes were hardcoded `[x]` regardless of outcome --
+        the same fabrication the badges above them carried before pass 30.
+        """
+        failed_res = TeamResult(
+            success=False,
+            goal="Build broken thing",
+            prd="PRD",
+            design="Design",
+            code="def broken(): pass",
+            security_report="VULNERABLE: eval() on user input",
+            test_code="def test_broken(): assert False",
+            attempts=3,
+        )
+        md = self.generator._generate_pr_markdown(
+            goal="Build broken thing",
+            branch_name="feature/broken",
+            commit_title="feat(broken): implement build broken thing",
+            team_res=failed_res,
+        )
+        self.assertIn("- [ ] Generated tests executed and passed.", md)
+        self.assertIn("NOT verified: tests did not pass", md)
+        self.assertIn("- [ ] Security audit clean.", md)
+        self.assertNotIn("- [x] Generated tests executed and passed.", md)
+        self.assertNotIn("- [x] Security audit clean.", md)
 
     def test_generate_pr_with_mock_and_export(self):
         fake_team_res = TeamResult(

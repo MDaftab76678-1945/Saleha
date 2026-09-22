@@ -67,53 +67,67 @@ class PRGenerator:
             "[![Status: Needs Review](https://img.shields.io/badge/Status-Needs%20Review-red.svg)]()"
         )
         security_upper = (team_res.security_report or "")[:400].upper()
+        security_clean = True
         if "VULNERABLE" in security_upper:
             security_badge = "[![Security: Vulnerable](https://img.shields.io/badge/Security-Vulnerable-red.svg)]()"
+            security_clean = False
         elif "WARNINGS" in security_upper:
             security_badge = "[![Security: Warnings](https://img.shields.io/badge/Security-Warnings-yellow.svg)]()"
+            security_clean = False
         else:
             security_badge = "[![Security: Approved](https://img.shields.io/badge/Security-Audit%20Passed-green.svg)]()"
 
-        return f"""# 🚀 Pull Request: {goal}
+        # The checklist below used to be four hardcoded `[x]` boxes, ticked even
+        # when the tests failed or the security stage reported VULNERABLE -- the
+        # same fabrication the two badges above carried before pass 30, left
+        # behind in this template when they were fixed. Each box now reflects a
+        # real result, and anything this generator cannot verify says so instead
+        # of claiming a tick.
+        tests_box = "[x]" if team_res.success else "[ ]"
+        tests_note = "" if team_res.success else " -- NOT verified: tests did not pass"
+        security_box = "[x]" if security_clean else "[ ]"
+        security_note = "" if security_clean else " -- NOT verified: see the security audit above"
+
+        return f"""# Pull Request: {goal}
 
 [![Type: Feature](https://img.shields.io/badge/Type-Feature-blue.svg)]()
 {status_badge}
 {security_badge}
 [![Agent: Saleha Swarm](https://img.shields.io/badge/Orchestrator-Saleha%20AI-purple.svg)]()
 
-## 📌 Executive Summary
+## Executive Summary
 This Pull Request autonomously implements and verifies **{goal}** using Saleha's Multi-Agent Engineering Swarm.
 
 ---
 
-## 🌿 Git Metadata
+## Git Metadata
 - **Branch**: `{branch_name}`
 - **Conventional Commit**: `{commit_title}`
 
 ---
 
-## 📋 Product Requirements (PRD)
+## Product Requirements (PRD)
 {team_res.prd}
 
 ---
 
-## 📐 Architecture & Low-Level Design (LLD)
+## Architecture & Low-Level Design (LLD)
 {team_res.design}
 
 ---
 
-## 🛡️ Security & Vulnerability Audit
+## Security & Vulnerability Audit
 {team_res.security_report}
 
 ---
 
-## 🧪 Test Automation & Evidence
+## Test Automation & Evidence
 ```python
 {team_res.test_code}
 ```
 
 ### Execution Status:
-- **Status**: `{'✅ PASSED' if team_res.success else '⚠️ NEEDS REVIEW'}`
+- **Status**: `{'PASSED' if team_res.success else 'NEEDS REVIEW'}`
 - **Healing Cycles**: `{team_res.attempts}`
 - **Execution Log**:
 ```text
@@ -126,11 +140,12 @@ This Pull Request autonomously implements and verifies **{goal}** using Saleha's
 
 ---
 
-## ✅ Pull Request Checklist
-- [x] Code conforms to project architecture guidelines.
-- [x] Full unit test coverage added and executed.
-- [x] Security and AST compliance verified.
+## Pull Request Checklist
+- {tests_box} Generated tests executed and passed.{tests_note}
+- {security_box} Security audit clean.{security_note}
 - [x] Conventional commit format applied.
+- [ ] Code conforms to project architecture guidelines -- NOT checked by this
+  generator; a human reviewer must confirm.
 """
 
     def generate_pr(self, goal: str,

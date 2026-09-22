@@ -2340,6 +2340,54 @@ reports a measurement, ask first where the ground truth came from.
 
 Detail: `NOTEBOOK_IMPORT.md`, "Pass 147 correction."
 
+**Pass 148 — ran the graphify repo graph against this repo for the first
+time; its warnings named four real defects.** Pass 147 recorded graphify as
+a real, wired feature but never ran it here. The graph is genuine (1010
+files, 15,072 nodes, 32,005 edges, ~25s), and what it reported was worth
+acting on:
+
+- **`saleha pr` crashed on this machine's console.** graphify could not
+  parse `pr_generator.py` (8 symbols only). The file is valid Python
+  (`ast.parse` passes), but its PR-markdown template carried **10 decorative
+  emoji**, and `git_release.py` prints that markdown straight to the console
+  when `saleha pr` runs without `--output-dir` — measured
+  `UnicodeEncodeError` on cp1252. Rule 3's exact failure mode, in a live
+  command. Removed; graph coverage for the file went from 8 symbols to full.
+- **A fabrication behind it: the PR checklist was hardcoded `[x]`** — all
+  four boxes ticked even when tests failed and security reported VULNERABLE.
+  **Pass 30 fixed the two badges directly above these lines in this same
+  file and left the checklist standing**; its own explanatory comment sits
+  four lines above the fabrication it missed. Now reads the real result, and
+  the box this generator genuinely cannot check says so. The existing test
+  pinned the emoji (`assertIn("# 🚀 Pull Request: ...")`) — the recurring
+  trap again.
+- **`files_scanned` implied coverage it did not have.** A file yielding zero
+  symbols was indistinguishable from one with genuinely no symbols. Added
+  `files_with_symbols` / `files_absent` / `coverage_is_complete` to
+  `GraphStats` — which immediately showed **10 absent files, not the 1
+  graphify warned about**: 9 `.sol` contracts silently missing from every
+  graph this repo has ever built. `saleha impact` now names them instead of
+  swallowing graphify's warnings in `contextlib.redirect_stdout`. Note the
+  one `.sql` file is in no build (`rust/Cargo.toml` lists only
+  `intent-kernel`), so installing `tree_sitter_sql` would have been the
+  wrong fix.
+- **Two pre-existing full-suite failures**, confirmed pre-existing via
+  `git stash -u` first: stale `AGENTSKILLS.md` paths from the 143-145
+  migration (`bm25.py` → `rag/`, `memory_store.py` → `memory/`), and a real
+  circular import reachable by `import saleha.core.swarm.swarm_checkpoint_store`
+  (`swarm` → `memory` → `rag` → `agents` → `issue_resolver` → back). Fixed
+  with the `self_healer.py` precedent: lazy import plus a PEP-562 lazy
+  singleton. **My first attempt at that fix was wrong and probing caught
+  it** — a package-level `__getattr__` in `saleha/agents/__init__.py` can
+  never fire, because the submodule already occupies that attribute name.
+  Removed it rather than ship a dead accessor, and dropped `issue_resolver`
+  from `__all__` (grep: zero callers used the package-level name).
+
+Measured: 2377 passed / **2 failed** → **2379 passed, 13 skipped, 172
+subtests, 0 failures**. Gate `[SUCCESS]` 9/9, including bringing
+`test_repo_graph.py`'s pre-existing 28.0/100 annotation score to 96.0 rather
+than bypassing it. Detail: `NOTEBOOK_IMPORT.md`, "Pass 148."
+
 ---
 
 ## Environment facts worth knowing
