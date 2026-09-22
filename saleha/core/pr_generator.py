@@ -66,16 +66,27 @@ class PRGenerator:
             if team_res.success else
             "[![Status: Needs Review](https://img.shields.io/badge/Status-Needs%20Review-red.svg)]()"
         )
-        security_upper = (team_res.security_report or "")[:400].upper()
-        security_clean = True
-        if "VULNERABLE" in security_upper:
+        # A review that did not run is not a clean review. team_orchestrator.py
+        # reports UNAVAILABLE when the security agent's model call fails (pass
+        # 135), and an empty report means the stage produced nothing -- neither
+        # can be treated as approval, so both fall through to "did not run"
+        # rather than the green badge.
+        security_report = (team_res.security_report or "").strip()
+        security_upper = security_report[:400].upper()
+        security_clean = False
+        security_reason = ""
+        if not security_report or "UNAVAILABLE" in security_upper:
+            security_badge = "[![Security: Not Run](https://img.shields.io/badge/Security-Not%20Run-lightgrey.svg)]()"
+            security_reason = " -- NOT verified: the security review did not run"
+        elif "VULNERABLE" in security_upper:
             security_badge = "[![Security: Vulnerable](https://img.shields.io/badge/Security-Vulnerable-red.svg)]()"
-            security_clean = False
+            security_reason = " -- NOT verified: see the security audit above"
         elif "WARNINGS" in security_upper:
             security_badge = "[![Security: Warnings](https://img.shields.io/badge/Security-Warnings-yellow.svg)]()"
-            security_clean = False
+            security_reason = " -- NOT verified: see the security audit above"
         else:
             security_badge = "[![Security: Approved](https://img.shields.io/badge/Security-Audit%20Passed-green.svg)]()"
+            security_clean = True
 
         # The checklist below used to be four hardcoded `[x]` boxes, ticked even
         # when the tests failed or the security stage reported VULNERABLE -- the
@@ -86,7 +97,7 @@ class PRGenerator:
         tests_box = "[x]" if team_res.success else "[ ]"
         tests_note = "" if team_res.success else " -- NOT verified: tests did not pass"
         security_box = "[x]" if security_clean else "[ ]"
-        security_note = "" if security_clean else " -- NOT verified: see the security audit above"
+        security_note = "" if security_clean else security_reason
 
         return f"""# Pull Request: {goal}
 

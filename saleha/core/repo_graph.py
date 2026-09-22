@@ -165,19 +165,25 @@ class RepoGraph:
             if src:
                 represented.add(str(src).replace("\\", "/"))
 
-        absent: List[str] = []
+        # Deduplicated: the same path passed twice is one file, not two, so
+        # counting raw `paths` would inflate both totals.
+        scanned_keys: Set[str] = set()
         for p in paths:
+            abs_p = Path(p).resolve()
             try:
-                rel_path = str(Path(p).relative_to(self.root))
+                key = str(abs_p.relative_to(self.root))
             except ValueError:
-                rel_path = str(p)
-            if rel_path.replace("\\", "/") not in represented:
-                absent.append(rel_path.replace("\\", "/"))
+                # Outside root: keep the absolute path, but normalised the same
+                # way so every entry in files_absent reads consistently.
+                key = str(abs_p)
+            scanned_keys.add(key.replace("\\", "/"))
+
+        absent = sorted(k for k in scanned_keys if k not in represented)
 
         self.stats = GraphStats(
-            files_scanned=len(paths),
-            files_with_symbols=len(paths) - len(absent),
-            files_absent=sorted(absent),
+            files_scanned=len(scanned_keys),
+            files_with_symbols=len(scanned_keys) - len(absent),
+            files_absent=absent,
             nodes=len(self.nodes),
             edges=len(self.edges), build_seconds=round(elapsed, 2),
             relations=dict(sorted(relations.items(), key=lambda kv: -kv[1])),

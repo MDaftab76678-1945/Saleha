@@ -14,7 +14,7 @@ import os
 import re
 import subprocess
 import sys
-from typing import List, Optional, Set
+from typing import List, Set
 
 # Add repo root to sys.path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -126,53 +126,78 @@ def _scan_and_report(files_to_check: List[str], guard: QualityGuard) -> bool:
     return has_failure
 
 
-def _highest_pass_number(file_path: str) -> Optional[int]:
-    """Returns the highest 'Pass N' / 'passes N-M' number mentioned in a file.
+CLAUDE_MD_MAX_LINES = 200
 
-    Returns None if the file is absent or names no pass at all, so a missing
-    file is reported as unknown rather than silently treated as up to date.
+# Claims that go stale silently. Each pattern is a count or a positional
+# reference that was wrong in the 2761-line CLAUDE.md: module totals, test
+# totals, command totals, pass numbers, and "line N" pointers that rot on the
+# next edit. The fix is always the same -- write the command that produces the
+# number, or point at `file.py:123`, instead of freezing the value.
+_STALE_CLAIM_PATTERNS = (
+    (r"\b\d{2,}\s*\+?\s*(?:modules|commands|subcommands|agents|personas)\b",
+     "a hardcoded count of modules/commands/agents"),
+    (r"\b\d{3,}\s+(?:passed|tests?\s+pass)", "a hardcoded test-suite count"),
+    (r"\b(?:pass(?:es)?)\s+\d{1,4}\b", "a pass number"),
+    (r"\blines?\s+\d+\s*[-–]\s*\d+\b", "a line-number reference"),
+)
+
+
+def check_claude_md_health() -> bool:
+    """Blocks a commit when CLAUDE.md grows past its budget or freezes a count.
+
+    CLAUDE.md loads in full at the start of every session, so its length is paid
+    on every task and its stale claims are read as fact. It reached 2761 lines
+    once; the result was that its own rules stopped being followed and nine of
+    its own claims went stale (module count, test count, command count, a pass
+    number, a dead "line 447-448" pointer, a directory deleted 100 passes
+    earlier). Returns True on failure, matching _scan_and_report's convention.
     """
-    if not os.path.isfile(file_path):
-        return None
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as handle:
-            text = handle.read()
-    except OSError:
-        return None
-
-    numbers = [int(n) for n in re.findall(r"[Pp]ass(?:es)?\s+(\d{1,4})", text)]
-    numbers += [int(n) for n in re.findall(r"[Pp]asses\s+\d{1,4}\s*[-–]\s*(\d{1,4})", text)]
-    return max(numbers) if numbers else None
-
-
-def check_ledger_sync() -> bool:
-    """Blocks a commit when NOTEBOOK_IMPORT.md records passes CLAUDE.md does not.
-
-    CLAUDE.md is the only file loaded automatically at session start, so a pass
-    recorded solely in the ledger is invisible to the next session -- the exact
-    drift that left passes 66-80 and 140-147 unrecorded there. Returns True on
-    failure, matching _scan_and_report's convention.
-    """
-    ledger_path = os.path.join(REPO_ROOT, "NOTEBOOK_IMPORT.md")
     claude_path = os.path.join(REPO_ROOT, "CLAUDE.md")
-
-    ledger_pass = _highest_pass_number(ledger_path)
-    claude_pass = _highest_pass_number(claude_path)
-
-    if ledger_pass is None or claude_pass is None:
-        print("[preflight] Ledger sync check skipped: CLAUDE.md or NOTEBOOK_IMPORT.md not readable.")
+    if not os.path.isfile(claude_path):
+        print("[preflight] CLAUDE.md health check skipped: file not found.")
         return False
 
-    if ledger_pass > claude_pass:
-        print("\n[FAIL] Audit ledger and CLAUDE.md have drifted apart.")
-        print(f"  NOTEBOOK_IMPORT.md records up to pass {ledger_pass}")
-        print(f"  CLAUDE.md records up to pass {claude_pass}")
-        print("  CLAUDE.md is the only file auto-loaded at session start, so passes")
-        print("  recorded only in the ledger are invisible to the next session.")
-        print(f"  Add a short summary of pass {claude_pass + 1}-{ledger_pass} to CLAUDE.md.")
+    try:
+        with open(claude_path, "r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.read().splitlines()
+    except OSError as exc:
+        print(f"[preflight] CLAUDE.md health check skipped: {exc}")
+        return False
+
+    failed = False
+
+    if len(lines) > CLAUDE_MD_MAX_LINES:
+        print(f"\n[FAIL] CLAUDE.md is {len(lines)} lines (budget: {CLAUDE_MD_MAX_LINES}).")
+        print("  It loads in full every session, so every line costs context on")
+        print("  every task, and an overlong file gets its own rules ignored.")
+        print("  Move detail to .claude/rules/ (path-scoped) or a skill.")
+        failed = True
+
+    # Skip fenced code blocks: a command that *prints* a count is the fix being
+    # recommended here, not the defect.
+    in_fence = False
+    for number, text in enumerate(lines, 1):
+        if text.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for pattern, described_as in _STALE_CLAIM_PATTERNS:
+            if re.search(pattern, text, re.IGNORECASE):
+                if not failed:
+                    print("")
+                print(f"[FAIL] CLAUDE.md:{number} states {described_as}.")
+                print(f"       {text.strip()[:100]}")
+                failed = True
+                break
+
+    if failed:
+        print("\n  Counts and line numbers go stale silently and are then read as")
+        print("  fact. Write the command that produces the number, or point at")
+        print("  `file.py:123`, instead of freezing the value here.")
         return True
 
-    print(f"[preflight] Ledger sync OK (CLAUDE.md pass {claude_pass} >= ledger pass {ledger_pass}).")
+    print(f"[preflight] CLAUDE.md health OK ({len(lines)} lines, no frozen counts).")
     return False
 
 
@@ -181,20 +206,20 @@ def main() -> int:
     parser.add_argument("files", nargs="*", help="Python files to check")
     parser.add_argument("--all-core", action="store_true", help="Check all core and tool modules")
     parser.add_argument(
-        "--skip-ledger-check",
+        "--skip-claude-md-check",
         action="store_true",
-        help="Skip the CLAUDE.md/NOTEBOOK_IMPORT.md drift check.",
+        help="Skip the CLAUDE.md length and stale-claim check.",
     )
     args = parser.parse_args()
 
     # Runs even when no Python file changed: a docs-only commit is exactly when
-    # the ledger tends to move without CLAUDE.md following it.
-    ledger_drifted = False if args.skip_ledger_check else check_ledger_sync()
+    # CLAUDE.md grows and freezes counts.
+    claude_md_unhealthy = False if args.skip_claude_md_check else check_claude_md_health()
 
     files_to_check = _collect_files_to_check(args.files, args.all_core)
     if not files_to_check:
         print("[preflight] No Python files to verify.")
-        if ledger_drifted:
+        if claude_md_unhealthy:
             print("\n[BLOCKED] Pre-flight gate failed. Fix all issues before proceeding.")
             return 1
         return 0
@@ -203,7 +228,7 @@ def main() -> int:
     guard = QualityGuard(strict_mode=True)
     has_failure = _scan_and_report(files_to_check, guard)
 
-    if has_failure or ledger_drifted:
+    if has_failure or claude_md_unhealthy:
         print("\n[BLOCKED] Pre-flight gate failed. Fix all issues before proceeding.")
         return 1
 

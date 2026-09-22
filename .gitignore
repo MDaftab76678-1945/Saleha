@@ -127,8 +127,13 @@ saleha.spec
 # Model checkpoints and adapters (multi-GB, distributed out of band)
 models/
 
-# Claude Code agent worktrees and session scratch
-.claude/
+# Claude Code: worktrees and machine-local settings are scratch, but
+# .claude/rules/ and .claude/skills/ are shared project instructions and
+# belong in version control -- they are the path-scoped and on-demand half
+# of CLAUDE.md.
+.claude/worktrees/
+.claude/settings.local.json
+.claude/launch.json
 COORDINATION.md
 
 # Local safety-net copies before a destructive dataset cleanup -- git

@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 from saleha.core.repo_graph import (
     CODE_SUFFIXES,
@@ -161,6 +162,30 @@ class RealCrossFileGraphTests(unittest.TestCase):
         self.assertEqual(self.stats.files_absent, [])
         self.assertTrue(self.stats.coverage_is_complete)
         self.assertEqual(self.stats.files_with_symbols, self.stats.files_scanned)
+
+    def test_same_path_passed_twice_counts_once(self) -> None:
+        """A duplicate path is one file, not two -- it must not inflate totals."""
+        target = Path(self.tmp) / "mypkg" / "engine.py"
+        g = RepoGraph(self.tmp)
+        stats = g.build(files=[target, target])
+
+        self.assertEqual(stats.files_scanned, 1)
+        self.assertEqual(stats.files_with_symbols, 1)
+
+    def test_absent_paths_are_normalised_consistently(self) -> None:
+        """Every files_absent entry uses forward slashes, whatever was passed in."""
+        tmp = tempfile.mkdtemp()
+        try:
+            outside = Path(tmp) / "outside.sql"
+            outside.write_text("CREATE TABLE t (id INT);\n")
+
+            g = RepoGraph(self.tmp)
+            stats = g.build(files=[outside])
+
+            for entry in stats.files_absent:
+                self.assertNotIn("\\", entry)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_unparseable_file_is_reported_absent_not_silently_dropped(self) -> None:
         """A file the extractor cannot represent must be named, not hidden."""

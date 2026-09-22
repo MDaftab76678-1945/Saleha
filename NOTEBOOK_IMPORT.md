@@ -10938,3 +10938,71 @@ Two new tests, teeth-checked 2/2 failing against pre-fix code.
 Pre-flight gate `[SUCCESS]`, 9/9 files -- including `test_repo_graph.py`,
 whose pre-existing 28.0/100 annotation score (confirmed via `git stash`, not
 introduced here) was brought to 96.0 rather than bypassed.
+
+## Pass 149 (2026-09-22) -- CLAUDE.md rewritten against Anthropic's own guidance
+
+The user asked why things keep breaking and why rules have to be repeated.
+Root cause, confirmed against the official docs rather than guessed:
+**CLAUDE.md had grown to 2761 lines.**
+
+Anthropic's own best-practices page states the mechanism directly: *"Bloated
+CLAUDE.md files cause Claude to ignore your actual instructions"*, and
+*"If Claude keeps doing something you don't want despite having a rule against
+it, the file is probably too long and the rule is getting lost."* Target given
+there is **under 200 lines**. This file was 14x that. Every rule the user had to
+repeat was a rule buried in 2200 lines of history.
+
+**Nine stale claims found by reading the file in full**, each a value frozen at
+writing time:
+
+- `~220 modules` (real: 254), `CLI (100+ subcommands)` (real: 163)
+- `109 passes as of 2026-09-21` -- while the same file documented through 148
+- `2303 passed ... as of pass 109` (real: 2379)
+- `all 139 CLI commands triaged` -- 24 commands never covered by that triage
+- "the self-building vision from **line 447-448** of this file" -- line 447 is
+  an unrelated paragraph; the real location had moved to 2659
+- `see "Next candidates" above` -- no such section exists
+- `deploy/` listed as a "highest-priority open question" -- deleted at pass 44,
+  by an entry *in this same file*
+- "Known open work ... predate passes 66-109" -- 40 passes out of date
+
+**Restructured by where content actually loads**, per the docs' own split
+(CLAUDE.md every session / `.claude/rules/` path-scoped / skills on demand):
+
+| Content | Destination | Loads |
+| --- | --- | --- |
+| Project, commands, 6 code rules, environment, user preferences | `CLAUDE.md` (126 lines) | every session |
+| How to audit a file; what a fabrication looks like | `.claude/rules/auditing.md` | every session, small |
+| Test conventions, teeth-checking, Windows tempdir notes | `.claude/rules/testing.md` | **only on `saleha/tests/**`** |
+| Recurring core defect shapes, circular-import fixes | `.claude/rules/core-modules.md` | **only on `saleha/core/**`, `saleha/agents/**`** |
+| Passes 13-148 (2256 lines) | `.claude/skills/audit-history/passes.md` | **only when asked** |
+| Engineering principles, vision, quality pipeline | `.claude/skills/audit-history/principles.md` | **only when asked** |
+
+Nothing was deleted -- `git show HEAD~1:CLAUDE.md` still has the original, and
+`NOTEBOOK_IMPORT.md` remains the full record.
+
+**Two corrections made while moving content**, not mechanical copies:
+
+- The Korotkevich principle said "solve, then verify." It now says *know it is
+  correct before you run it*, with pass 148's own `security_clean = True` bug as
+  the worked example -- an `else` branch that read "the stage never ran" as
+  approval, written while fixing that exact class of bug and found only
+  afterwards by testing. The user's words: think before writing, not after.
+- The stale command checklist was replaced with the command that prints the
+  real count.
+
+**The gate now enforces this rather than trusting memory.** `check_ledger_sync`
+is replaced by `check_claude_md_health` in `preflight_lint.py`: it blocks any
+commit where CLAUDE.md exceeds 200 lines or freezes a count (module/command/
+agent totals, test totals, pass numbers, `line N-M` references). Counts inside
+fenced code blocks are exempt -- a command that *prints* a number is the
+recommended fix, not the defect.
+
+Teeth-checked against the real pre-fix file: the 2761-line version is blocked,
+and the gate names the line of every stale claim listed above. 5 new tests
+(boundary at exactly 200 lines, each stale-claim shape, the fenced-command
+exemption, absent file skips rather than blocks, and the repo's real CLAUDE.md
+passing its own rule); all 5 fail against the pre-fix gate.
+
+Measured: full suite **2386 passed, 13 skipped, 175 subtests, 0 failures**
+(2379 -> 2386, +7 new tests). Gate `[SUCCESS]`. CLAUDE.md **2761 -> 126 lines**.

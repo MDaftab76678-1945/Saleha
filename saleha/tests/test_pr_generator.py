@@ -11,14 +11,14 @@ from saleha.cli.commands import cli
 
 
 class PRGeneratorTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.generator = PRGenerator(model="test-model")
 
-    def test_sanitize_branch_name(self):
+    def test_sanitize_branch_name(self) -> None:
         branch = self.generator._sanitize_branch_name("Implement In-Memory Cache With TTL!")
         self.assertEqual(branch, "feature/implement-in-memory-cache-with")
 
-    def test_generate_pr_markdown_structure(self):
+    def test_generate_pr_markdown_structure(self) -> None:
         team_res = TeamResult(
             success=True,
             goal="Build async rate limiter",
@@ -44,7 +44,7 @@ class PRGeneratorTests(unittest.TestCase):
         # encode. This assertion is what fails if emoji are reintroduced.
         md.encode("cp1252")
 
-    def test_checklist_is_not_ticked_when_tests_failed(self):
+    def test_checklist_is_not_ticked_when_tests_failed(self) -> None:
         """A failing run must not render ticked verification boxes.
 
         The four checklist boxes were hardcoded `[x]` regardless of outcome --
@@ -72,7 +72,58 @@ class PRGeneratorTests(unittest.TestCase):
         self.assertNotIn("- [x] Generated tests executed and passed.", md)
         self.assertNotIn("- [x] Security audit clean.", md)
 
-    def test_generate_pr_with_mock_and_export(self):
+    def test_security_box_not_ticked_when_review_never_ran(self) -> None:
+        """A review that did not run is not a clean review.
+
+        team_orchestrator reports UNAVAILABLE when the security agent's model
+        call fails, and an empty report means the stage produced nothing.
+        Treating either as approval is the fake green this repo exists to stop.
+        """
+        for report in ("UNAVAILABLE: security agent model call failed", "", "   "):
+            with self.subTest(report=report):
+                res = TeamResult(
+                    success=True,
+                    goal="Ship it",
+                    prd="PRD",
+                    design="Design",
+                    code="def f(): pass",
+                    security_report=report,
+                    test_code="def test_f(): pass",
+                    attempts=1,
+                )
+                md = self.generator._generate_pr_markdown(
+                    goal="Ship it",
+                    branch_name="feature/ship",
+                    commit_title="feat(ship): ship it",
+                    team_res=res,
+                )
+                self.assertIn("- [ ] Security audit clean.", md)
+                self.assertNotIn("- [x] Security audit clean.", md)
+                self.assertIn("the security review did not run", md)
+                self.assertNotIn("Security-Audit%20Passed-green", md)
+
+    def test_security_box_ticked_only_on_a_real_clean_review(self) -> None:
+        """The green path must still work, or the gate above is useless."""
+        res = TeamResult(
+            success=True,
+            goal="Ship it",
+            prd="PRD",
+            design="Design",
+            code="def f(): pass",
+            security_report="Approved. No vulnerabilities found.",
+            test_code="def test_f(): pass",
+            attempts=1,
+        )
+        md = self.generator._generate_pr_markdown(
+            goal="Ship it",
+            branch_name="feature/ship",
+            commit_title="feat(ship): ship it",
+            team_res=res,
+        )
+        self.assertIn("- [x] Security audit clean.", md)
+        self.assertIn("Security-Audit%20Passed-green", md)
+
+    def test_generate_pr_with_mock_and_export(self) -> None:
         fake_team_res = TeamResult(
             success=True,
             goal="Add JWT auth",
@@ -90,7 +141,7 @@ class PRGeneratorTests(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(tmpdir, "PULL_REQUEST.md")))
                 self.assertTrue(os.path.exists(os.path.join(tmpdir, "COMMIT_MSG.txt")))
 
-    def test_cli_pr_json_output(self):
+    def test_cli_pr_json_output(self) -> None:
         fake_team_res = TeamResult(
             success=True,
             goal="Implement Bloom Filter",

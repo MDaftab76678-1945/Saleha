@@ -171,45 +171,73 @@ def _load_preflight() -> Any:
     return mod
 
 
-def test_ledger_sync_reads_highest_pass_number() -> None:
-    """Ensures the drift checker finds the highest pass number, not the first."""
+def _claude_md_health(body: str) -> bool:
+    """Runs the real gate against a CLAUDE.md containing `body`."""
     mod = _load_preflight()
-
     with tempfile.TemporaryDirectory() as tmp_dir:
-        doc = Path(tmp_dir) / "doc.md"
-        doc.write_text(
-            "Pass 12 did a thing.\nPasses 66-80 were a hardening run.\nPass 7 earlier.\n",
-            encoding="utf-8",
-        )
-        assert mod._highest_pass_number(str(doc)) == 80
-
-        missing = Path(tmp_dir) / "absent.md"
-        assert mod._highest_pass_number(str(missing)) is None
-
-        no_passes = Path(tmp_dir) / "empty.md"
-        no_passes.write_text("nothing relevant here\n", encoding="utf-8")
-        assert mod._highest_pass_number(str(no_passes)) is None
-
-
-def test_ledger_sync_blocks_when_claude_md_lags_behind() -> None:
-    """The real defect this gate exists for: ledger ahead of CLAUDE.md must block."""
-    mod = _load_preflight()
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        ledger = Path(tmp_dir) / "NOTEBOOK_IMPORT.md"
-        claude = Path(tmp_dir) / "CLAUDE.md"
-        ledger.write_text("Pass 147 correction.\n", encoding="utf-8")
-        claude.write_text("Detail: Pass 139.\n", encoding="utf-8")
-
+        (Path(tmp_dir) / "CLAUDE.md").write_text(body, encoding="utf-8")
         original_root = mod.REPO_ROOT
         try:
             mod.REPO_ROOT = tmp_dir
-            assert mod.check_ledger_sync() is True  # drifted -> blocks
-
-            claude.write_text("Passes 140-147 recorded.\n", encoding="utf-8")
-            assert mod.check_ledger_sync() is False  # in sync -> allows
+            return mod.check_claude_md_health()
         finally:
             mod.REPO_ROOT = original_root
+
+
+def test_claude_md_gate_blocks_an_overlong_file() -> None:
+    """The file loads every session, so length is the primary failure mode."""
+    mod = _load_preflight()
+    budget = mod.CLAUDE_MD_MAX_LINES
+
+    assert _claude_md_health("ok\n" * budget) is False  # at budget -> allowed
+    assert _claude_md_health("ok\n" * (budget + 1)) is True  # over -> blocked
+
+
+def test_claude_md_gate_blocks_counts_that_go_stale() -> None:
+    """Each of these was a real stale claim in the 2761-line version."""
+    stale = (
+        "It has a CLI (100+ subcommands) and ~220 modules under `saleha/core/`.",
+        "Test suite: 2303 passed, 13 skipped.",
+        "Fixed in pass 139; see the ledger.",
+        "the self-building vision from line 447-448 of this file",
+    )
+    for claim in stale:
+        assert _claude_md_health(claim + "\n") is True, f"not caught: {claim}"
+
+
+def test_claude_md_gate_allows_a_command_that_prints_a_count() -> None:
+    """The recommended fix must not trip the rule it is the fix for.
+
+    A count inside a fenced block is a command that produces the number at run
+    time -- the opposite of freezing it.
+    """
+    body = (
+        "Get the real count:\n"
+        "\n"
+        "```bash\n"
+        "python -c \"from saleha.cli.commands import cli; print(len(cli.commands))\"\n"
+        "# prints e.g. 163 commands\n"
+        "```\n"
+    )
+    assert _claude_md_health(body) is False
+
+
+def test_claude_md_gate_skips_rather_than_blocks_when_file_is_absent() -> None:
+    """A missing file is unknown, not a violation -- it must not block a commit."""
+    mod = _load_preflight()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        original_root = mod.REPO_ROOT
+        try:
+            mod.REPO_ROOT = tmp_dir  # no CLAUDE.md written
+            assert mod.check_claude_md_health() is False
+        finally:
+            mod.REPO_ROOT = original_root
+
+
+def test_real_claude_md_passes_its_own_gate() -> None:
+    """This repo's actual CLAUDE.md must satisfy the rule it documents."""
+    mod = _load_preflight()
+    assert mod.check_claude_md_health() is False
 
 
 def test_hdc_memory_associative_recall() -> None:

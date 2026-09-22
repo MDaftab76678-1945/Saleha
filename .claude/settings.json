@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --version)",
+      "Read(//c/Users/alama/.cargo/bin/**)",
+      "Bash(cargo --version)",
+      "Bash(git status *)",
+      "Bash(python -m pytest saleha/tests/ -q)",
+      "Bash(python3 -c \"import pytest\")",
+      "Bash(py -m pytest saleha/tests -q --collect-only)",
+      "Bash(/c/Users/alama/AppData/Local/Python/pythoncore-3.14-64/python.exe -m pytest saleha/tests -q --collect-only)",
+      "Bash(python -c \"import web3; print\\(web3.__version__\\)\")"
+    ]
+  }
+}
