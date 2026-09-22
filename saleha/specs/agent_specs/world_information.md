@@ -6,6 +6,9 @@ version: "3.0.0"
 
 # Global System State & World Information
 
+> Illustrative example environment, not Saleha's infrastructure (Saleha is a
+> local, single-user tool).
+
 ## 1. Deployment Topology Matrix
 | Environment | Kubernetes Cluster | Primary Region | Fallback Region | Datastore Endpoint |
 |---|---|---|---|---|

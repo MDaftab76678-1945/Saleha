@@ -1,4 +1,4 @@
-# 🌌 Saleha SoulSpec Library
+# Saleha SoulSpec Library
 
 The **Saleha SoulSpec Library** provides a modular, portable collection of cognitive personas and behavioral archetypes for Saleha AI and autonomous agent swarms.
 
@@ -6,7 +6,7 @@ Compliant with the **[SoulSpec v1.0 Standard](https://soulspec.org)**, each soul
 
 ---
 
-## 📚 Soul Catalog
+## Soul Catalog
 
 | Soul Name | Archetype | Tone | Primary Focus |
 | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Compliant with the **[SoulSpec v1.0 Standard](https://soulspec.org)**, each soul
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. List Available Souls
 
@@ -51,7 +51,7 @@ saleha soul validate
 
 ---
 
-## 📁 Soul Package Structure
+## Soul Package Structure
 
 Each soul package contains the following standard files:
 
@@ -62,3 +62,6 @@ souls/<name>/
 ├── IDENTITY.md     # Optional: Origin story, ethos, visual avatar, and motto
 └── STYLE.md        # Optional: Communication guidelines, vocabulary, and formatting
 ```
+
+The flat `souls/<name>.soul.md` files are older single-file copies; `soul_engine.py`
+loads only the `souls/<name>/` packages.

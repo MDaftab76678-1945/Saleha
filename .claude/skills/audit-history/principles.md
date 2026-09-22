@@ -78,7 +78,7 @@ these" but "should these commands exist at all".
 
 The web worked because it was open and decentralised. Every artifact here must
 be usable by someone with no context: honest READMEs, real error messages,
-`CLAUDE.md` itself. A tool that only its author can operate has failed.
+`AGENTS.md` itself. A tool that only its author can operate has failed.
 
 *Caught:* the project had no `CLAUDE.md` at all until 2026-09-07, so every
 session began by asking the user to re-explain their own project.

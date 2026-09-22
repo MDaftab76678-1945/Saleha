@@ -6,6 +6,9 @@ version: "3.0.0"
 
 # Hardware-in-the-Loop (HIL) Orchestration Engine
 
+> Illustrative template only: every rig method below is a logging stub that
+> returns True, so its final "PASSED" line proves nothing about hardware.
+
 ## 1. Executable Automated HIL Test Suite in Python
 ```python
 import time
