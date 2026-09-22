@@ -198,11 +198,14 @@ def test_claude_md_gate_blocks_counts_that_go_stale() -> None:
     stale = (
         "It has a CLI (100+ subcommands) and ~220 modules under `saleha/core/`.",
         "Test suite: 2303 passed, 13 skipped.",
-        "Fixed in pass 139; see the ledger.",
+        "Over 135 audit passes have been recorded so far.",
         "the self-building vision from line 447-448 of this file",
     )
     for claim in stale:
         assert _claude_md_health(claim + "\n") is True, f"not caught: {claim}"
+
+    # A citation is a permanent pointer at evidence, not a claim about now.
+    assert _claude_md_health("Fixed in pass 139; see the ledger.\n") is False
 
 
 def test_claude_md_gate_allows_a_command_that_prints_a_count() -> None:
@@ -238,6 +241,67 @@ def test_real_claude_md_passes_its_own_gate() -> None:
     """This repo's actual CLAUDE.md must satisfy the rule it documents."""
     mod = _load_preflight()
     assert mod.check_claude_md_health() is False
+
+
+def _stale_claim_hits(text: str) -> bool:
+    """True if any stale-claim pattern matches `text`."""
+    mod = _load_preflight()
+    return any(
+        __import__("re").search(pattern, text, __import__("re").IGNORECASE)
+        for pattern, _ in mod._STALE_CLAIM_PATTERNS
+    )
+
+
+def test_stale_claim_patterns_catch_repo_wide_counts() -> None:
+    """Each of these was a real frozen claim found across the project's docs."""
+    stale = (
+        "It is a large codebase — **241 modules under `saleha/core/`**,",
+        'CLI["CLI — 156 commands"]',
+        "core/ # 252 modules: agentic loop, indexing, sandboxing",
+        "Over 135 audit passes (see the ledger), the following were found",
+        "tests/ # 2332 passed, 13 skipped, 172 subtests",
+        "the self-building vision from line 447-448 of this file",
+    )
+    for claim in stale:
+        assert _stale_claim_hits(claim), f"not caught: {claim}"
+
+
+def test_stale_claim_patterns_spare_permanent_citations() -> None:
+    """A citation points at evidence and never goes stale -- it must not trip.
+
+    An earlier version of this rule flagged 14 of these and would have pushed
+    real provenance out of the docs to satisfy the gate.
+    """
+    permanent = (
+        "Read in full and audited 2026-09-11 (pass 43, `NOTEBOOK_IMPORT.md`)",
+        "migration completed (pass 139, 144, 145)",
+        "It proves division-by-zero safety (pass 39, pass 67).",
+        "eight repo-sandboxed tools -- `list_dir`, `read_file`",
+        'a literal "PBFT Quorum: 16/19 agents reached 98.1% consensus" string',
+        "the 46 modules now live in category subpackages",
+    )
+    for line in permanent:
+        assert not _stale_claim_hits(line), f"false positive: {line}"
+
+
+def test_docs_gate_flags_a_path_that_no_longer_exists() -> None:
+    """The core subpackage migration left dead paths in three docs."""
+    mod = _load_preflight()
+    pattern = mod._DOC_PATH_PATTERN
+
+    moved = pattern.findall("see `saleha/core/memory_store.py` for the store")
+    assert moved == ["saleha/core/memory_store.py"]
+    assert not Path(mod.REPO_ROOT, moved[0]).exists()
+
+    real = pattern.findall("see `saleha/core/memory/memory_store.py` instead")
+    assert real == ["saleha/core/memory/memory_store.py"]
+    assert Path(mod.REPO_ROOT, real[0]).exists()
+
+
+def test_real_docs_pass_the_stale_claim_gate() -> None:
+    """Every prospective doc in this repo must satisfy the rule."""
+    mod = _load_preflight()
+    assert mod.check_docs_for_stale_claims() is False
 
 
 def test_hdc_memory_associative_recall() -> None:

@@ -49,7 +49,7 @@ Saleha is an autonomous, self-improving coding intelligence designed under stric
 
 ## 3. The Defect Graveyard (Past Failure Signatures — NEVER REPEAT)
 
-Over 135 audit passes (see `NOTEBOOK_IMPORT.md` for the full ledger), the following concrete fabrications were uncovered and eradicated. Every agent is strictly forbidden from repeating these patterns:
+Across the audit passes recorded in `NOTEBOOK_IMPORT.md`, the following concrete fabrications were uncovered and eradicated. Every agent is strictly forbidden from repeating these patterns:
 
 | Historical Defect | Module / Area | Forbidden Anti-Pattern |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ saleha-0.1/
 │   │   ├── sandbox_jail.py         # Cross-platform sandbox runner (Windows safe)
 │   │   ├── ast_security_verifier.py# AST static security auditor
 │   │   └── v5_production_core.py   # Production runtime kernel
-│   └── tests/                      # 2332 passed, 13 skipped, 172 subtests (as of pass 135)
+│   └── tests/                      # Run the suite for the current count; never quote it here
 ├── packages/                       # TS libraries: api, auth, core, db, ui (5)
 ├── apps/                           # TS apps: desktop, landing, web (3)
 │                                   # 8 workspaces total; 'npx turbo run typecheck' must be 8/8

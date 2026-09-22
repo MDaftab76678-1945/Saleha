@@ -21,9 +21,9 @@ saleha-0.1/
 ├── saleha/               # Python package: the actual agent runtime
 │   ├── agents/            # PlannerAgent, CoderAgent, TesterAgent, DebuggerAgent, base classes
 │   ├── cli/                # Click CLI (100+ subcommands), TUI, REPL, dashboards
-│   ├── core/               # 252 modules: agentic loop, indexing, sandboxing, memory, routing, souls, etc.
+│   ├── core/               # Agentic loop, indexing, sandboxing, memory, routing, souls, etc.
 │   ├── server/             # Dependency-light HTTP/SSE REST API + browser UI
-│   └── tests/               # 280 test files, 2303 passed (as of pass 109)
+│   └── tests/               # The suite; run it for the current count
 ├── souls/                # SoulSpec persona packages (soul.json + SOUL.md/IDENTITY.md/STYLE.md per persona)
 ├── rust/                 # Experimental Rust crates (zkVM/blockchain research) — separate subsystem
 ├── contracts/             # Solidity contracts — separate subsystem
@@ -165,7 +165,7 @@ None of these are disqualifying on their own — same conclusion as the swarm/co
 
 ### CLI (`saleha/cli/`)
 
-Built on Click, `saleha/cli/commands.py` (~6,500 lines) registers well over 100 subcommands, from core workflow commands (`run`, `agent`, `team`, `plan`, `scan`, `refactor`) to diagnostics (`status`, `doctor`), memory (`memory list/search/stats`), and the coordination-module commands described above. `saleha tui` launches a full-screen terminal UI (`saleha/cli/tui_app.py`, `tui_canvas.py`); `saleha repl`/`saleha chat` provide REPL-style sessions.
+Built on Click, the `saleha/cli/commands/` package registers the CLI surface, from core workflow commands (`run`, `agent`, `team`, `plan`, `scan`, `refactor`) to diagnostics (`status`, `doctor`), memory (`memory list/search/stats`), and the coordination-module commands described above. `saleha tui` launches a full-screen terminal UI (`saleha/cli/tui_app.py`, `tui_canvas.py`); `saleha repl`/`saleha chat` provide REPL-style sessions.
 
 ### Web server (`saleha/server/web_server.py`)
 
@@ -201,4 +201,4 @@ The frontend previously rendered a "Chain-of-Thought Reasoning" panel with hardc
 python -m pytest saleha/tests/ -q
 ```
 
-`saleha/tests/` currently collects 2303 passed tests (13 skipped) across 280 files, covering CLI commands, core modules, and the web server's REST surface (as of pass 109). Some tests are environment-dependent (Docker, a running Ollama instance, browser drivers); check locally for current pass/fail status.
+`saleha/tests/` covers CLI commands, core modules, and the web server's REST surface. Run `python -m pytest saleha/tests/ -q` for the current pass/skip counts rather than quoting them here, since they move with every change. Some tests are environment-dependent (Docker, a running Ollama instance, browser drivers); check locally for current pass/fail status.

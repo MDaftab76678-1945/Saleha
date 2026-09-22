@@ -33,7 +33,9 @@ ollama pull qwen2.5-coder:7b            # fast local model for manual testing
 ## 🧪 Testing Notes
 
 - LLM calls are always mocked in unit tests (offline deterministic testing).
-- CI runs on **Ubuntu + Windows** across Python 3.10, 3.11, 3.12 (780+ tests).
+- CI runs on **Ubuntu + Windows** across Python 3.12, 3.13 and 3.14 (see
+  `.github/workflows/ci.yml`). `requires-python` is `>=3.12`; 3.10 and 3.11
+  are not supported.
 
 ## 📜 License
 

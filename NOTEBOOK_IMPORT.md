@@ -11006,3 +11006,67 @@ passing its own rule); all 5 fail against the pre-fix gate.
 
 Measured: full suite **2386 passed, 13 skipped, 175 subtests, 0 failures**
 (2379 -> 2386, +7 new tests). Gate `[SUCCESS]`. CLAUDE.md **2761 -> 126 lines**.
+
+## Pass 150 (2026-09-22) -- the same staleness swept across the rest of the docs
+
+Pass 149 fixed CLAUDE.md and gated it. The user asked whether other files had
+the same problem. They did: **sixteen stale claims across six prospective
+docs**, every one the same two shapes -- a count frozen at writing time, or a
+path left behind by a migration.
+
+Real values measured first, then every doc checked against them (core modules
+254, CLI commands 163, suite 2386 at the time of the sweep, personas 33).
+
+| Doc | Stale claim | Reality |
+| --- | --- | --- |
+| `CONTRIBUTING.md` | "CI runs on Python 3.10, 3.11, 3.12 (780+ tests)" | `requires-python = ">=3.12"`; CI matrix is **3.12/3.13/3.14** |
+| `AGENTS.md` | "Over 135 audit passes", "243 modules", "2332 passed", "30 personas", "Passes 1-135" | 149 / 254 / 2386 / 33 |
+| `AGENTS.md` | `core/memory_store.py`, `core/bm25.py` in the tree diagram | moved to `core/memory/` and `core/rag/` at passes 144-145 |
+| `GEMINI.md` | "Over 135 audit passes", "2332 passed (as of pass 135)" | same two |
+| `DEVELOPMENT.md` | "2332 passed, 13 skipped (as of pass 135)" | 2386 |
+| `README.md` | "241 modules", "CLI - 156 commands", "1939 passed" | 254 / 163 / 2386 |
+| `README.md` | `saleha/core/memory_store.py` | moved at pass 145 |
+| `README.md` | "The **7** skips" beside output reading "**13** skipped" | the file contradicted itself |
+| `ARCHITECTURE.md` | "252 modules", "2303 passed (as of pass 109)" | 254 / 2386 |
+| `ARCHITECTURE.md` | "`saleha/cli/commands.py` (~6,500 lines)" | **deleted at pass 139**; it is a package now |
+| `ROADMAP.md` | "~220 `saleha/core/` modules" | 254 |
+
+`CONTRIBUTING.md` was the most damaging: a new contributor following it would
+set up a Python version the project forbids and CI never tests.
+
+Every count was replaced with the command that produces it, or with wording
+that does not freeze a number; every moved path was corrected.
+
+**The gate now covers these files too.** `check_docs_for_stale_claims()` in
+`preflight_lint.py` blocks a commit when any of twelve prospective docs freezes
+a repo-wide count or cites a `.py` path that does not exist.
+`NOTEBOOK_IMPORT.md`, `CHANGELOG.md` and the audit-history skill are exempt --
+they record what was true when written, and rewriting their numbers would
+destroy the record.
+
+**Two rounds of correcting the rule itself, both caught by probing rather than
+by reading:**
+
+1. The first version flagged **every** mention of a pass number, catching 14
+   citations like "audited 2026-09-11 (pass 43)" and "migration completed (pass
+   139, 144, 145)". Those are permanent pointers at evidence -- they never go
+   stale, and a gate that forced them out would have pushed real provenance out
+   of the docs to satisfy itself. Narrowed to pass *totals* ("Over 135 audit
+   passes"), which are the only form that rots.
+2. The count pattern then flagged three more false positives: "eight
+   repo-sandboxed tools" (scoped to one tool list), "the 46 modules now live in
+   category subpackages" (a historical fact about one migration), and a
+   *quoted fabrication* being documented as a defect ("PBFT Quorum: 16/19
+   agents"). Narrowed again so a count must be attached to a repo-wide phrase.
+   21 findings -> 10 -> **7 real ones, zero false positives.**
+
+A third gap was found by the new tests, not by reading: `252 modules: agentic
+loop, ...` (colon rather than "under") slipped past the pattern even though I
+had already fixed that line by hand. The test caught what the sweep had not.
+
+5 new tests: repo-wide counts caught, permanent citations spared (six real
+examples from these docs), a moved path detected while the real one is not, and
+every doc in the repo passing its own gate. All 5 fail against the pre-fix gate.
+
+Measured: full suite **2390 passed, 13 skipped, 175 subtests, 0 failures**
+(2386 -> 2390). Gate `[SUCCESS]`, 12 docs checked clean.

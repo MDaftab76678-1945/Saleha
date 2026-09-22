@@ -10,7 +10,7 @@ This is a list of directions Saleha could go, not a set of commitments or dates.
 - **Decide the fate of the "formal verification" modules.** `formal_verifier.py`/`formal_smt_verifier.py` currently emit Lean 4-/SMT-shaped template text without invoking a real toolchain. Either wire them up to an actual Lean 4 or Z3 process and validate the output, or rename/relabel them clearly as "proof-template generators" so nobody mistakes their output for a checked proof.
 - **Rename or clearly scope the "consensus"/"swarm" modules.** `swarm_consensus.py` implements a real in-process multi-phase voting scheme; deciding whether to (a) actually build out cross-process/distributed behavior, or (b) keep it in-process and rename away from "PBFT"/"Byzantine," would remove a recurring source of confusion (this rewrite of the docs took the second approach for now).
 - **Harden the desktop (`apps/desktop`) sidecar integration.** It's newer than the CLI/web-app path; more end-to-end testing of startup, shutdown, and error states would be valuable before calling it stable.
-- **Widen test coverage of the ~220 `saleha/core/` modules** relative to what the CLI actually calls — some modules currently have thin or no direct test coverage; auditing this would clarify which modules are "supported" versus experimental scaffolding.
+- **Widen test coverage of the `saleha/core/` modules** relative to what the CLI actually calls — some modules currently have thin or no direct test coverage; auditing this would clarify which modules are "supported" versus experimental scaffolding.
 
 ## Medium-term ideas (unscheduled)
 

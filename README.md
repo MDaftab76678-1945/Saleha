@@ -10,7 +10,7 @@
 runs against local models through **Ollama** (or a cloud provider, if you
 configure one) and ships a CLI, an interactive TUI, and a REST/SSE web server.
 
-It is a large, actively evolving codebase — **241 modules under `saleha/core/`**,
+It is a large, actively evolving codebase — **several hundred modules under `saleha/core/`**,
 a Click-based CLI with **159 registered subcommands**, and **1,939 passing tests**
 (7 opt-in skips). Not every module is equally mature. **This README describes what
 is real and working today**; speculative and future work lives in
@@ -47,7 +47,7 @@ them.
 | **AST indexing & patching** | Symbol scanning and unified-diff patch generation; edits are parse-checked, not string-spliced. | `saleha/core/graph/codebase_indexer.py` · `saleha scan` |
 | **Sandboxed execution** | Generated / untrusted code runs in a subprocess or Docker container with resource limits and an audit log. | `saleha/core/harness/code_executor.py` · `saleha exec` |
 | **Static security scanning** | AST-based SAST: `shell=True`, bare `except`, hardcoded secrets, SQL string formatting, and more. Some Verilog/SystemVerilog support. | `saleha/core/verification/security_scanner.py` · `saleha sast` |
-| **Retrieval & memory** | A persistent solution-memory store, a lightweight RAG / graph-memory layer, and fast local code search. | `saleha/core/memory_store.py` · `graph_rag.py` |
+| **Retrieval & memory** | A persistent solution-memory store, a lightweight RAG / graph-memory layer, and fast local code search. | `saleha/core/memory/memory_store.py` · `rag/graph_rag.py` |
 | **Model routing** | Routes requests across configured local (Ollama) and remote backends, with a runtime-probing smart router. | `saleha/core/platform/model_provider.py` · `smart_router.py` |
 | **Project scaffolder** | `saleha new fastapi\|express\|go <name>` copies a starter service from a template and verifies it builds — deterministic, no model call. | `saleha/core/project_scaffolder.py` · `saleha new` |
 | **Headless browser checks** | DOM / console inspection of a page via a headless browser driver, when one is installed. | `saleha/core/browser_agent.py` · `saleha browser` |
@@ -64,7 +64,7 @@ The ten personas: `architect`, `artisan`, `auditor`, `sage`, `sentinel`,
 ```mermaid
 flowchart TB
     subgraph entry["Entry points"]
-        CLI["CLI — 156 commands"]
+        CLI["CLI — 160+ commands"]
         TUI["Interactive TUI"]
         WEB["REST / SSE server"]
     end
@@ -74,7 +74,7 @@ flowchart TB
         TEAM["Team orchestrator<br/>planner · coder · tester · debugger"]
     end
 
-    subgraph core["Core services — saleha/core/ (241 modules)"]
+    subgraph core["Core services — saleha/core/"]
         INDEX["AST index & patcher"]
         EXEC["Sandboxed executor"]
         SAST["Security scanner"]
@@ -256,11 +256,13 @@ python -m pytest saleha/tests/ -q       # set PYTHONIOENCODING=utf-8 on cp1252 c
 The suite covers the CLI, core modules, the web-server API, and integration
 points. A full local run (no Ollama / Docker needed for the default set):
 
-```text
-1939 passed, 13 skipped, 80 subtests passed in ~110s
+```powershell
+$env:PYTHONIOENCODING = "utf-8"
+python -m pytest saleha/tests/ -q
 ```
 
-The 7 skips are all genuinely opt-in — real GPU fine-tuning runs, a multi-minute
+The counts move with every change, so read them from that run rather than from
+this page. The skips are all genuinely opt-in — real GPU fine-tuning runs, a multi-minute
 live-model debate, an `npm install` — each gated behind an env flag
 (`SALEHA_RUN_GPU_TESTS`, `SALEHA_LIVE_MODEL_TESTS`, `SALEHA_RUN_SLOW_TESTS`) and
 verified to pass when enabled. `saleha/tests/conftest.py` sets

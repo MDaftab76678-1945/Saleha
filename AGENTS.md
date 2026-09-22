@@ -49,7 +49,7 @@ Saleha is not just another wrapper; it is an autonomous, self-improving coding i
 
 ## 3. The Defect Graveyard (Past Failure Signatures — NEVER REPEAT)
 
-Over 135 audit passes (see `NOTEBOOK_IMPORT.md` for the full ledger), the following concrete fabrications were uncovered and eradicated. Every agent is strictly forbidden from repeating these patterns:
+Across the audit passes recorded in `NOTEBOOK_IMPORT.md`, the following concrete fabrications were uncovered and eradicated. Every agent is strictly forbidden from repeating these patterns:
 
 | Historical Defect | Module / Area | Forbidden Anti-Pattern |
 | --- | --- | --- |
@@ -97,12 +97,12 @@ Every engineering decision in this repo is guided by foundational builders and m
 ```text
 saleha-0.1/
 ├── saleha/                         # Core Python Engine
-│   ├── core/                       # 243 specialized domain & algorithmic modules
-│   │   ├── bm25.py                 # Real BM25 lexical search
+│   ├── core/                       # Domain & algorithmic modules, partly in category subpackages
+│   │   ├── rag/bm25.py             # Real BM25 lexical search
 │   │   ├── math_logic.py           # Complexity scoring engine (0.0 to 10.0)
 │   │   ├── formal_smt_verifier.py  # Z3-based SMT contract verification
 │   │   ├── dynamic_lora_router.py  # Dynamic LoRA adapter routing
-│   │   ├── memory_store.py         # Semantic memory & embedding cache
+│   │   ├── memory/memory_store.py  # Semantic memory & embedding cache
 │   │   └── incremental_ast_cache.py# AST caching and change impact
 │   ├── agents/                     # Specialized Agent Implementations
 │   │   ├── base_agent.py           # Core agent lifecycle & Ollama driver
@@ -112,14 +112,14 @@ saleha-0.1/
 │   │   ├── sandbox_jail.py         # Cross-platform sandbox runner (Windows safe)
 │   │   ├── ast_security_verifier.py# AST static security auditor
 │   │   └── v5_production_core.py   # Production runtime kernel
-│   └── tests/                      # 2332 passed, 13 skipped, 172 subtests (as of pass 135)
+│   └── tests/                      # Run the suite for the current count; never quote it here
 ├── packages/                       # 5 TS libraries: api, auth, core, db, ui
 ├── apps/                           # 3 TS apps: desktop, landing, web
 │                                   # 8 workspaces total; 'npx turbo run typecheck' must be 8/8
 ├── docs/                           # Architectural Truth & Catalogs
-│   ├── AGENT_PROFILES.md           # 30 Specialized Persona Definitions
+│   ├── AGENT_PROFILES.md           # Specialized persona definitions
 │   └── ARCHITECTURE.md             # Subsystem integrity & honest command ledger
-├── NOTEBOOK_IMPORT.md              # The Audit Ledger (Passes 1-135, all findings & numbers)
+├── NOTEBOOK_IMPORT.md              # The Audit Ledger (every pass, findings & numbers)
 ├── COORDINATION.md                 # Parallel Agent Coordination Hub (Claude + Gemini)
 └── CLAUDE.md / GEMINI.md           # Session Operating Handbooks
 ```
