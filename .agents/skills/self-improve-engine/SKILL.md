@@ -25,7 +25,7 @@ These constraints are non-negotiable and baked into the execution:
 
 ## Dependencies
 
-- Python 3.10+
+- Python 3.12+ (the repo's `requires-python` floor)
 - `pytest`
 - Ollama with a tagged coder model installed (e.g. `deepseek-coder:6.7b`, `qwen2.5-coder:1.5b`)
 - Git repository with `saleha/core/` and `saleha/tests/`

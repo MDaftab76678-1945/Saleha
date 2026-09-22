@@ -179,9 +179,11 @@ Compared both duplicate pairs directly instead of guessing:
   read this pass.
 - Read 2026-09-23: `docs/AGENT_PROFILES.md`, `docs/SECURITY_MODEL.md`,
   `docs/TUTORIALS.md` (commands checked against the CLI), and
-  `docs/MCP_SPEC.md` (now labelled not implemented: none of its tool names or
-  its `saleha mcp` command exist). Not yet read: `docs/CLI_REFERENCE.md`,
-  `docs/manifestos/agentskills.md`, `docs/manifestos/harness.md`.
+  `docs/MCP_SPEC.md` (banner now lists the real tools in `mcp_engine.py`; the
+  old table mostly did not match), and `docs/CLI_REFERENCE.md` (regenerated).
+  `docs/manifestos/agentskills.md` and `harness.md` were Nexus-Universe/MUKTI
+  documents from the same foreign project as `deploy/` (8.5) and were deleted
+  2026-09-23; `docs/manifestos/soul.md` remains (checked clean, pass 83).
 - `docs/architecture-code-review-2026-09-03.md`,
   `docs/notes/orchestrator-audit-2026-09-07.md` — prior review/audit notes;
   cross-check against `NOTEBOOK_IMPORT.md` for findings already fixed.

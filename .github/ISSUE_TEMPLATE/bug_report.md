@@ -1,5 +1,5 @@
 ---
-name: 🐛 Bug Report
+name: Bug Report
 about: Report something broken in Saleha
 title: "[bug] "
 labels: bug

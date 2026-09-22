@@ -14,6 +14,13 @@ The `bft-swarm-consensus` coordinates a heterogeneous multi-brain voting gate ac
 
 A proposed change is only ratified and written to disk if a **$2/3$ Byzantine Supermajority** is achieved, with the Formal Arbiter possessing veto power over mathematical invariants.
 
+## What this actually is
+
+`bft_consensus_gate.py` calls no model. Its three "votes" are: does the
+proposal parse (`ast.parse`), is its branch count at most 5, and does Z3 prove
+the post-condition from the pre-condition. The node names ending in `_3B` /
+`_8B` are labels, not models. Nothing is written to disk on ratification.
+
 ## Safety & Invariants
 
 1. **Deterministic Veto:** If Z3 SMT reports a counterexample, the proposal is rejected regardless of model voting.

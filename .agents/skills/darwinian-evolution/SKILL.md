@@ -13,6 +13,13 @@ The `darwinian-evolution` skill empowers Saleha to autonomously optimize its own
 3. Benchmarks candidates in an isolated temporary sandbox.
 4. If a mutant achieves physical speedup (e.g. >= 15% latency reduction) while maintaining 100% test passing, it is ratified for hot-reload.
 
+## What this actually is
+
+`self_mutator.py` does not synthesize algorithms and does not hot-reload
+anything. It tries the operator-flip mutants the mutation-engine skill can
+generate, keeps only those that still pass the test command, and reports one
+as ratified if it measured faster at all (any speedup above 0%, not 15%).
+
 ## Safety & Invariants
 
 1. **Strict Sandboxing:** All evolutionary trials execute in temporary directories. Broken mutants are instantly discarded.

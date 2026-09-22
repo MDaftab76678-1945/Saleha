@@ -1,10 +1,13 @@
-# Saleha AI — Model Context Protocol (MCP) Specification (not implemented)
+# Saleha AI — Model Context Protocol (MCP) Specification
 
-> **Checked 2026-09-23:** none of the tool names below (`saleha_file_search`,
-> `saleha_sast_scan`, `saleha_code_exec`, `saleha_git_commit`, `saleha_vault_get`)
-> appear anywhere in `saleha/`, and there is no `saleha mcp` CLI command. This
-> page is a design proposal, not documentation of running code. What exists is
-> `saleha/core/platform/mcp_hub.py`.
+> **Checked against the code 2026-09-23.** `saleha mcp serve` starts the stdio
+> JSON-RPC server (`saleha/core/mcp_engine.py`); `saleha mcp list/export/connect`
+> manage external servers (`saleha/core/platform/mcp_hub.py`). The tools the
+> server really exposes are the `name=` entries in `mcp_engine.py`
+> (`saleha_team_swarm`, `saleha_dag_execute`, `saleha_sast_scan`,
+> `saleha_sandbox_run`, `saleha_memory_recall`). The table and the `--stdio` /
+> `--port` examples below are an older proposal and do not match: only
+> `saleha_sast_scan` exists, and there is no `--port` HTTP mode.
 
 Saleha implements the universal **Model Context Protocol (JSON-RPC 2.0)** to seamlessly connect internal agents to external developer tooling and expose Saleha capabilities to external IDEs and agents.
 

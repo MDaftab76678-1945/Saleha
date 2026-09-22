@@ -9,6 +9,13 @@ description: Repository-wide AST Call-Graph and Directed Acyclic Graph (DAG) top
 
 The `code-knowledge-graph` parses all Python source files in the repository to build a unified **Call-Graph & Import DAG**. It exposes programmatic queries to discover callers, callees, class hierarchies, and structural dependencies without brute-force string searches.
 
+## What this actually is
+
+`build_ast_graph.py` is a real `ast` walk that records classes, functions,
+inheritance and call sites per file. Calls are matched by bare name, so
+same-named methods on different classes are merged, and dynamic calls are
+invisible.
+
 ## Safety & Invariants
 
 1. **Deterministic Static Analysis:** Graph is built strictly using the Python standard `ast` module.

@@ -17,6 +17,13 @@ This engine performs **counterfactual interventions**:
 
 The variable with the highest causal effect is identified as the true root cause.
 
+## What this actually is
+
+`causal_intervention.py` takes one boolean expression and one failing state
+dict (both supplied by the caller), re-evaluates the expression with each
+variable swapped to alternative values, and reports which swap flips it. It
+does not read code, tracebacks or tests, and finds no variables on its own.
+
 ## Safety & Invariants
 
 1. **Pure Counterfactual Analysis:** Interventions run inside an isolated simulation space without modifying disk files.

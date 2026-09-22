@@ -1,13 +1,13 @@
 ---
 name: audit-history
-description: History of Saleha's audit passes (13-148) and the engineering principles behind them. Use when you need to know whether a file or command was already audited, what a past pass found or fixed, why a design decision was made, or whether an open item was ever closed.
+description: History of Saleha's audit passes and the engineering principles behind them. Use when you need to know whether a file or command was already audited, what a past pass found or fixed, why a design decision was made, or whether an open item was ever closed.
 ---
 
 # Saleha audit history
 
 Two references, loaded only when you need them:
 
-- **`passes.md`** — summary of passes 13-148: what was found, what was fixed,
+- **`passes.md`** — summary of the audit passes: what was found, what was fixed,
   what was measured.
 - **`principles.md`** — the engineering rules this project works by, each paired
   with the real defect in this repo that it would have caught.

@@ -9,6 +9,14 @@ description: Karl Friston's Free Energy / Active Inference loop that iteratively
 
 The `active-inference-loop` implements the Free Energy Principle for agentic code synthesis. Instead of open-loop generation or naive retries, it treats compiler messages, AST validations, and test execution outcomes as **sensory observations**. It continuously computes the delta between the expected state (prior) and physical observation (evidence) and selects actions that maximally reduce variational free energy (prediction error).
 
+## What this actually is
+
+`run_inference_loop.py` re-checks one file each iteration: it `ast.parse`s it,
+optionally runs a test command, and calls the error count "free energy". It
+takes no action between iterations -- the file is never changed -- so repeated
+iterations observe the same state, and "PHASE_RESET_REQUIRED" is a label only.
+No model is called.
+
 ## Safety & Invariants
 
 1. **Physical Sensory Feedback:** Every step must execute an AST inspection or sandbox test to obtain physical evidence.

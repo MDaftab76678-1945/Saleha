@@ -1,23 +1,24 @@
-## 🚀 Description of Changes
+## Description of Changes
 
 Provide a brief explanation of the changes introduced by this pull request.
 
-- **Feature / Fix**: 
-- **Modules Touched**: 
-- **Tests Added / Updated**: 
+- **Feature / Fix**:
+- **Modules Touched**:
+- **Tests Added / Updated**:
 
 ---
 
-## 🧪 Verification & Testing
+## Verification & Testing
 
-- [ ] All automated tests pass: `python -m pytest saleha/tests/ -q`
-- [ ] Code review audit passed: `saleha review-ai <path>`
-- [ ] No regression on existing systems (780+ passing tests).
+- [ ] Full suite passes: `PYTHONIOENCODING=utf-8 python -m pytest saleha/tests/ -q` (paste the real count)
+- [ ] Commit gate passes: `python .agents/scripts/preflight_lint.py`
+- [ ] Each bug fix has a test that fails on the old code
+- [ ] Code review audit: `saleha review-ai <path>`
 
 ---
 
-## 🛡️ Security & Constitutional AI Compliance
+## Security
 
 - [ ] No hardcoded secrets or sensitive tokens.
 - [ ] Follows least-privilege capability permissions.
-- [ ] PBFT consensus & formal verification invariant compatible.
+- [ ] No result is reported that was not actually computed (see `AGENTS.md`).

@@ -9,6 +9,13 @@ description: Stack-trace diagnosis and surgical patch loop that autonomously iso
 
 The `self-healing-loop` skill provides automated diagnosis and repair for test and runtime failures. When a crash or assertion failure occurs, it parses the standard Python traceback, extracts the exact file and line number, analyzes the failing expression, and generates a minimal surgical patch.
 
+## What this actually is
+
+`self_heal_engine.py` only diagnoses: it runs the test command, parses the
+Python traceback, and reports the failing file, line and exception. It
+generates no patch, verifies nothing, and has no retry loop -- the steps
+below describe the intended workflow, not what the script does.
+
 ## Safety & Invariants
 
 1. **Minimal Blast Radius:** Edits only the targeted failing function or expression. Never modifies unrelated files or global configurations.
