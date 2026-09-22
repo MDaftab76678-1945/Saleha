@@ -51,9 +51,11 @@ class PersonaCatalogTests(unittest.TestCase):
         )
 
     def test_the_stated_count_matches_the_file_count(self) -> None:
-        """The doc claimed '20 specialized domain personas' while 30 shipped."""
+        """The doc claimed '20 specialized domain personas' while 30 shipped.
+
+        AGENTS.md forbids frozen counts, so the catalog may state none; any
+        count it does state must match the files."""
         stated = {int(n) for n in re.findall(r"(\d+)\s+[Ss]pecialized", self.doc)}
-        self.assertTrue(stated, "no 'N specialized' count found in the catalog")
         for n in stated:
             self.assertEqual(
                 n, len(self.actual),
