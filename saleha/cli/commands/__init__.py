@@ -437,6 +437,7 @@ from saleha.cli.soul_cli import soul_group
 # (not via the generic `from saleha.cli.commands import doom_group` used for
 # the others, which would bind this name to the submodule, not the group).
 # ==============================================================================
+from saleha.cli.commands import autonomous_cmd  # noqa: F401
 from saleha.cli.commands import core_agentic  # noqa: F401
 from saleha.cli.commands import deploy_infra  # noqa: F401
 from saleha.cli.commands import desktop_web  # noqa: F401

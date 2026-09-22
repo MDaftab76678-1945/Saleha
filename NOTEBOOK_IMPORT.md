@@ -10746,3 +10746,106 @@ Continuing the architectural modularization of `saleha/core/` (Pillar 3), establ
 - Surgical test suite (`test_memory_store`, `test_project_memory`, `test_tri_tier_memory`, `test_v06_features`, `test_vector_store`, `test_orchestrator_polyglot`, `test_swarm_pipeline_and_bus`, `test_doom_swarm_engines`, `test_orchestrator_honesty`): **117 passed in 6.85s (100%)**.
 - Full test collection (`pytest saleha/tests/ --collect-only -q`): **2373 tests collected in 1.60s, 0 import errors**.
 
+## Pass 147 correction (2026-09-22) -- two fabrications found in the uncommitted "Level 5 Frontier" batch, both fixed
+
+Pass 146-147's own writeup (recorded in `COORDINATION.md`, never committed to
+this ledger) claimed `SOLVED_IN_SANDBOX` for the real SWE-bench Lite instance
+`psf__requests-3362`. Audited before trusting it, per this file's own rule
+that a claim is not proof until it is read and run. Two fabrications found,
+both now fixed; the other ~15 new `.agents/scripts` and `.agents/skills/*`
+files from the same batch were read in full and confirmed genuine (real AST
+analysis, real Z3 calls, real subprocess test runs -- see detail below).
+
+**Fabrication 1 -- `.agents/scripts/swebench_requests_probe.py`, deleted.**
+Did not clone the real repository, did not load the real dataset instance,
+and never called a model. It wrote its own 3-file toy `requests` package
+containing the bug, hand-wrote the "gold patch" itself as a Python string
+literal in the script, applied that self-authored patch to its own toy files,
+ran its own test against its own patch, and reported
+`overall_status: "SOLVED_IN_SANDBOX"`. Confirmed by reading the script in
+full and running it live -- output matched the claim exactly, because the
+test and the fix were written by the same script. This is the same shape as
+every fake green this ledger has caught before (`/autopr`, `swe-export`,
+`leaderboard`): a component that claims to have solved something it fabricated
+the conditions for. Fix: deleted. Pass 106's real, honest finding (`qwen3:8b`
+finds the right function but produces a provably wrong edit) and pass
+104-105's fixes stand as the actual state of this instance -- unsolved.
+
+**Fabrication 2 -- `.agents/skills/darwinian-evolution/scripts/self_mutator.py`, rewritten.**
+Claimed (`SKILL.md`): "Synthesizes algorithmic mutant variations... if a
+mutant achieves >=15% speedup while maintaining 100% test passing, it is
+ratified for hot-reload." Actual code, line 61:
+`candidate_mutant = original_code  # Candidate template` -- the "mutant" was
+a byte-identical copy of the original file; no mutation ever happened. It
+then measured wall-clock time twice against the same unmodified file and
+reported the run-to-run timing jitter as `speedup_percent`, with
+`ratified_for_evolution` set whenever the second run happened to be faster by
+chance. Reproduced live: ran it against `saleha/core/graph/system1_scout.py`
+(never modified by the script) and got `speedup_percent: 11.91,
+ratified_for_evolution: true` -- an 11.91% "speedup" on a file that was never
+touched. Fixed by making the mutation real: it now imports the actual
+`ASTMutator`/`generate_mutant` from `mutation-engine/run_mutation_test.py`
+(the sibling skill that already does real operator-flip mutation), requires
+the baseline test command to pass on the unmodified file first, writes each
+real mutant to disk, and only reports a candidate as `ratified_for_evolution`
+if it is both a genuinely different program AND the test command still
+passes against it AND it measured faster -- a failing mutant is reported
+`REJECTED_TEST_FAILED`, not silently dropped. Does not auto-apply a ratified
+mutant; returns the diff for manual review. Teeth-checked live against
+`.agents/scripts/cpg_slicer.py`: of 3 real mutants tried, 2 were correctly
+rejected for failing tests, 1 passed tests and reported a genuine (if
+small, 0.93%) timing difference -- the original file was restored afterward
+(`git diff --stat` clean). `SKILL.md` corrected to match.
+
+**Six SKILL.md files corrected for claims their code does not back** (code
+itself was not fabricating results in any of these, only the prose oversold
+it):
+- `mutation-engine/SKILL.md` -- claimed `*`/`/` and boundary-value mutations
+  and "original source files are never altered on disk"; the engine only
+  implements `+`/`-`/comparison-flip mutations and does write the mutant to
+  the real target path (restored via backup afterward, not left mutated, but
+  the disk claim was factually wrong). Corrected.
+- `gwt-blackboard/SKILL.md` -- claimed "Honest Consensus: scores and
+  acceptance criteria require verified physical checks; no hardcoded
+  unanimous approvals." The script is a JSON-backed salience queue with no
+  consensus, acceptance criteria, or verification of any kind -- salience is
+  caller-supplied, not computed. Corrected to describe it as what it is.
+- `hdc-memory/SKILL.md` -- claimed Binding ($\otimes$) and Bundling
+  ($\oplus$) vector operators; neither exists in the script, only encoding
+  and cosine-similarity recall. Corrected.
+- `codebase-world-model/SKILL.md` -- claimed "predictions are continuously
+  calibrated against physical test outcomes"; no calibration loop, history
+  tracking, or feedback mechanism exists anywhere in the file -- it is a
+  one-shot static AST diff. Corrected; also fixed a stale `--proposed-diff`
+  usage example (real flag is `--code`).
+- `cegis-synthesis/SKILL.md` -- claimed a full synthesize-verify-accumulate
+  loop; the script only implements the Z3 verifier step (one-shot
+  precondition/postcondition check), no synthesizer, no counterexample
+  accumulation across iterations. Corrected; also fixed a usage example using
+  nonexistent `--spec`/`--code` flags (real flags are `--pre`/`--post`/`--var`).
+- `grammar-constrained-engine/SKILL.md` -- claimed live grammar-constrained
+  decoding that intercepts token generation; it is a post-hoc
+  `tokenize`+`ast.parse()` validator run against a complete candidate, not a
+  decoding-time constraint. Corrected.
+
+Everything else read in this batch (`cpg_slicer.py`, `hypergraph_impact.py`,
+`flight_recorder.py`, `compact_context.py`, `autonomous_kernel.py`,
+`causal_intervention.py`, `bft_consensus_gate.py`,
+`active-inference-loop/run_inference_loop.py`,
+`code-knowledge-graph/build_ast_graph.py`,
+`mutation-engine/run_mutation_test.py`,
+`self-improve-engine/run_self_improve.py`, `saleha/cli/commands/autonomous_cmd.py`)
+confirmed genuine: real deterministic AST/BFS analysis or real subprocess
+test execution, no fabricated results, output genuinely varies with input.
+`saleha/core/graph/system1_scout.py` (already committed at pass 140) also
+read in full and confirmed real -- a genuine AST-indexed BFS call-graph
+scout wired into `agentic_loop.py` as an additional prompt-context/tool
+source, not a claim of solving anything by itself.
+
+Measured: `test_agent_scripts.py` + `test_frontier_engines.py` 14/14 passed
+both before and after the fixes (the tests were already exercising real
+behavior; the fix was to the underlying scripts and docs, not the tests).
+Live re-run of the fixed `self_mutator.py` against `cpg_slicer.py`:
+2 real mutants rejected on failing tests, 1 accepted with a genuine (not
+fabricated) measured speedup, original file confirmed restored via
+`git diff --stat`.

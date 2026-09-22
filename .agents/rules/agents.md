@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Antigravity Global Agent Operating Contract
 
 This rule file is automatically loaded by Antigravity IDE and Google Agentic Tools.
