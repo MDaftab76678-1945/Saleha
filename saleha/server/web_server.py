@@ -41,7 +41,6 @@ from saleha.core.tool_calling import global_tool_registry
 from saleha.core.memory.memory_store import memory_store
 from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
 from saleha.core.swarm.team_orchestrator import TeamOrchestrator
-from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.polyglot_executor import polyglot_executor
 from saleha.core.vault import vault
 from saleha.core.vision_coder import vision_coder
@@ -3244,37 +3243,6 @@ still required before merging -- neither ran here."""
                 self._send_json(200, {
                     "valid": False,
                     "error": str(e),
-                })
-            return
-
-        if path == "/api/workflow/heal":
-            from saleha.core.workflow.nodes import ActionNode, WorkflowExecutionContext
-            from saleha.core.workflow.self_healing_node import SelfHealingNode
-            inputs = payload.get("inputs") or {}
-            expected_key = payload.get("expected_key") or "target"
-
-            def flaky_action(inp, ctx):
-                return {"result": inp[expected_key]}
-
-            inner = ActionNode("test_heal_node", "Flaky Action", flaky_action)
-            healer = SelfHealingNode(inner, max_repair_attempts=2)
-            ctx = WorkflowExecutionContext(workflow_id="heal_test", execution_id="exec_heal")
-            ctx.set_output("root", inputs)
-            inner.depends_on = ["root"]
-
-            try:
-                out = healer.execute(ctx)
-                self._send_json(200, {
-                    "healed": healer.metadata.get("healed", False),
-                    "status": healer.status.value,
-                    "outputs": out,
-                    "repair_history": healer.repair_history,
-                })
-            except Exception as e:
-                self._send_json(200, {
-                    "healed": False,
-                    "error": str(e),
-                    "repair_history": healer.repair_history,
                 })
             return
 

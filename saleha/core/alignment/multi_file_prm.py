@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 
 @dataclass
@@ -81,23 +81,36 @@ class MultiFilePRM:
                     has_ret = node.returns is not None
                     defined_symbols[node.name] = (filename, arg_names, has_ret)
 
-        # 3. Check import coherence (from module import func)
+        # 3. Import coherence: only imports that target a file in this cluster
+        # are checkable; external modules are not counted either way.
+        module_names: Dict[str, Set[str]] = {}
+        for filename, tree in trees.items():
+            names: Set[str] = set()
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    names.add(node.name)
+                elif isinstance(node, ast.Assign):
+                    names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+                elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                    names.add(node.target.id)
+            module_names[filename.replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".py")] = names
+
         total_imports = 0
         valid_imports = 0
-
         for filename, tree in trees.items():
             for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    mod_name = node.module or ""
-                    # Check if imported module matches one of our files (basename)
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    target = node.module.rsplit(".", 1)[-1]
+                    if target not in module_names:
+                        continue
                     for alias in node.names:
                         total_imports += 1
-                        sym = alias.name
-                        if sym in defined_symbols:
+                        if alias.name in module_names[target]:
                             valid_imports += 1
                         else:
-                            # It could be stdlib or external package
-                            valid_imports += 1
+                            diagnostics.append(
+                                f"{filename} imports '{alias.name}' from '{node.module}', which does not define it"
+                            )
 
         import_coherence = (valid_imports / total_imports) if total_imports > 0 else 1.0
 

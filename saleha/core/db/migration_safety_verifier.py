@@ -114,6 +114,20 @@ class StaticMigrationScanner:
         return hazards
 
 
+def _schema_snapshot(cursor: sqlite3.Cursor) -> List[Tuple[str, str, Tuple[Tuple[object, ...], ...]]]:
+    """Tables with their column definitions, plus index names, in a stable order."""
+    cursor.execute(
+        "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+    )
+    snapshot: List[Tuple[str, str, Tuple[Tuple[object, ...], ...]]] = []
+    for obj_type, name in cursor.fetchall():
+        cols: Tuple[Tuple[object, ...], ...] = ()
+        if obj_type == "table":
+            cols = tuple(tuple(row) for row in cursor.execute(f'PRAGMA table_info("{name}")').fetchall())
+        snapshot.append((obj_type, name, cols))
+    return snapshot
+
+
 class ShadowDatabaseVerifier:
     """Executes migration up and rollback in an isolated in-memory database."""
 
@@ -133,6 +147,7 @@ class ShadowDatabaseVerifier:
             # 1. Apply baseline
             if baseline_schema_sql.strip():
                 cursor.executescript(baseline_schema_sql)
+            baseline_snapshot = _schema_snapshot(cursor)
 
             # 2. Apply up() migration
             cursor.executescript(up_migration_sql)
@@ -144,7 +159,12 @@ class ShadowDatabaseVerifier:
             # 4. Apply down() rollback migration
             cursor.executescript(down_migration_sql)
 
+            # 5. Reversible means down() restored the baseline schema, not just
+            # that it ran without error.
+            after_down = _schema_snapshot(cursor)
             conn.close()
+            if after_down != baseline_snapshot:
+                return False, "down() ran but did not restore the baseline schema."
             return True, None
         except Exception as e:
             return False, f"Shadow database simulation failed: {e}"

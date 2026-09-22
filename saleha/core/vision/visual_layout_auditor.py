@@ -104,11 +104,13 @@ class VisualAuditReport:
     overlap_defects: List[LayoutOverlapDefect] = field(default_factory=list)
     clipping_defects: List[LayoutClippingDefect] = field(default_factory=list)
     contrast_defects: List[ContrastDefect] = field(default_factory=list)
+    unverifiable: List[str] = field(default_factory=list)
 
     @property
     def is_clean(self) -> bool:
         return (
-            len(self.overlap_defects) == 0
+            not self.unverifiable
+            and len(self.overlap_defects) == 0
             and len(self.clipping_defects) == 0
             and len(self.contrast_defects) == 0
         )

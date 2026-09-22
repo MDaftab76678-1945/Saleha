@@ -242,3 +242,16 @@ def run():
     broken_score = prm.evaluate_file_cluster(broken_cluster)
     assert broken_score.is_valid is False
     assert len(broken_score.diagnostics) > 0
+
+
+def test_multi_file_prm_flags_import_of_undefined_symbol() -> None:
+    cluster = {
+        "service.py": "def get_user(uid: int) -> dict:\n    return {}\n",
+        "controller.py": "import json\nfrom service import get_account\n",
+    }
+
+    score = MultiFilePRM().evaluate_file_cluster(cluster)
+
+    assert score.import_coherence == 0.0
+    assert score.is_valid is False
+    assert any("get_account" in d for d in score.diagnostics)

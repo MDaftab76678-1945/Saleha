@@ -53,13 +53,16 @@ class ContinuousLearningDaemon:
 
     def is_system_idle(self) -> bool:
         """Determines if the runtime is currently idle and ready for background tasks."""
-        # Check environment override or evaluate CPU load
         if os.environ.get("SALEHA_FORCE_IDLE") == "1":
             return True
         if os.environ.get("SALEHA_TEST_MODE") == "1":
             return True
-        # In everyday desktop use, return True if not under heavy active test execution
-        return True
+        try:
+            import psutil
+        except ImportError:
+            # Load cannot be measured, so idleness cannot be claimed.
+            return False
+        return psutil.cpu_percent(interval=0.5) < 25.0
 
     def find_untested_core_modules(self) -> List[str]:
         """Identifies modules in saleha/core/ that lack corresponding test files."""

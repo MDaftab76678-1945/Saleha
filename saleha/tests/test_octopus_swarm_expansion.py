@@ -252,8 +252,7 @@ def test_migration_safety_shadow_simulation() -> None:
     ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'MEMBER';
     """
     down_safe = """
-    -- SQLite doesn't natively drop column easily in older versions, but reversible logic
-    SELECT 1;
+    ALTER TABLE users DROP COLUMN role;
     """
     fixture = """
     INSERT INTO users (id, email, role) VALUES (1, 'alice@example.com', 'ADMIN');
@@ -269,6 +268,36 @@ def test_migration_safety_shadow_simulation() -> None:
     assert report.shadow_simulation_passed is True
     assert report.is_safe is True
     assert report.veto_triggered is False
+
+
+def test_migration_noop_down_is_not_reversible() -> None:
+    report = MigrationSafetyVerifier().audit_migration(
+        up_sql="ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'MEMBER';",
+        down_sql="SELECT 1;",
+        baseline_schema="CREATE TABLE users (id INTEGER PRIMARY KEY);",
+    )
+
+    assert report.is_reversible is False
+    assert report.veto_triggered is True
+    assert "did not restore the baseline schema" in (report.simulation_error or "")
+
+
+def test_swarm_mission_not_ratified_when_visual_audit_fails(tmp_path: Path) -> None:
+    swarm = OctopusSwarmExpansion(repo_root=tmp_path, blackboard_path=tmp_path / "bb.json")
+    faint = DOMElement(
+        selector=".faint",
+        tag="p",
+        bbox=DOMBoundingBox(x=0.0, y=0.0, width=100.0, height=20.0),
+        text="hard to read",
+        text_color="#dddddd",
+        background_color="#ffffff",
+    )
+
+    outcome = swarm.run_coordinated_audit(mission_goal="visual gate", dom_elements=[faint])
+
+    assert outcome.visual_report is not None
+    assert outcome.visual_report["is_clean"] is False
+    assert outcome.consensus_ratified is False
 
 
 # ---------------------------------------------------------------------------

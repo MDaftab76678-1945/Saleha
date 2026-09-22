@@ -42,7 +42,7 @@ class SemanticMergeArbiter:
 
     # Matches 2-way and 3-way conflict markers
     CONFLICT_REGEX = re.compile(
-        r"^<{7}\s*(.*?)\n(.*?)(?:\|{7}\s*(.*?)\n(.*?))?={7}\n(.*?)>{7}\s*(.*?)\n",
+        r"^<{7}[ \t]*(.*?)\n(.*?)(?:\|{7}[ \t]*(.*?)\n(.*?))?={7}\n(.*?)>{7}[ \t]*([^\n]*)(?:\n|\Z)",
         re.MULTILINE | re.DOTALL,
     )
 
@@ -81,6 +81,17 @@ class SemanticMergeArbiter:
 
         ours_symbols: Dict[str, ast.AST] = {}
         theirs_symbols: Dict[str, ast.AST] = {}
+
+        # Any other statement (assignment, call, if ...) that differs between the
+        # sides is a real contradiction; a union would silently keep both.
+        def _other_stmts(tree: ast.Module) -> List[str]:
+            return [
+                ast.unparse(n) for n in tree.body
+                if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom))
+            ]
+
+        if _other_stmts(tree_ours) != _other_stmts(tree_theirs):
+            return None
 
         for n in tree_ours.body:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):

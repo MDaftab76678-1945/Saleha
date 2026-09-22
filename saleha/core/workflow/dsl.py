@@ -11,7 +11,7 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional
 
-from saleha.core.workflow.nodes import ActionNode, WorkflowExecutionContext, WorkflowNode
+from saleha.core.workflow.nodes import ActionNode, WorkflowExecutionContext
 from saleha.core.workflow.self_healing_node import SelfHealingNode
 from saleha.core.workflow.verified_sandbox_node import VerifiedSandboxNode
 from saleha.core.workflow.bft_consensus_node import BFTConsensusNode

@@ -7,15 +7,18 @@ for the SalehaFlow autonomous workflow system.
 
 from __future__ import annotations
 
-import ast
 import json
+import secrets
+import sys
+import tempfile
 import time
+from pathlib import Path
 import urllib.request
 import urllib.parse
 import urllib.error
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
 
 class NodeStatus(str, Enum):
@@ -63,6 +66,49 @@ class WorkflowExecutionContext:
                 listener(event_type, payload)
             except Exception:
                 pass
+
+
+_RESTRICTED_BUILTINS = (
+    "abs", "all", "any", "bool", "dict", "enumerate", "filter", "float", "int", "len",
+    "list", "map", "max", "min", "range", "round", "set", "str", "sum", "tuple", "zip",
+)
+
+
+def run_code_isolated(
+    code: str,
+    inputs: Dict[str, Any],
+    timeout_sec: float = 10.0,
+    memory_limit_mb: int = 256,
+    restricted_builtins: bool = False,
+) -> Dict[str, Any]:
+    """Runs a node snippet in a job-object subprocess; `inputs`/`outputs` travel as JSON."""
+    from saleha.core.windows_job_sandbox import WindowsJobSandbox
+
+    marker = "__saleha_node_outputs__" + secrets.token_hex(8)
+    builtins_expr = (
+        f"{{n: getattr(builtins, n) for n in {_RESTRICTED_BUILTINS!r}}}"
+        if restricted_builtins else "builtins"
+    )
+    harness = "\n".join([
+        "import builtins, json",
+        f"_scope = {{'inputs': json.loads({json.dumps(inputs, default=str)!r}), 'outputs': {{}}}}",
+        f"exec(compile({code!r}, '<workflow_node>', 'exec'), {{'__builtins__': {builtins_expr}}}, _scope)",
+        "_out = _scope.get('outputs', {})",
+        "_out = _out if isinstance(_out, dict) else {'result': _out}",
+        f"print({marker!r} + json.dumps(_out, default=str))",
+    ]) + "\n"
+    sandbox = WindowsJobSandbox(memory_limit_mb=memory_limit_mb, timeout_ms=int(timeout_sec * 1000))
+    with tempfile.TemporaryDirectory(prefix="saleha_node_", ignore_cleanup_errors=True) as tmp:
+        script = Path(tmp) / "node.py"
+        script.write_text(harness, encoding="utf-8")
+        res = sandbox.run_isolated([sys.executable, str(script)], timeout_sec=timeout_sec, cwd=tmp)
+    for line in reversed(res.output.splitlines()):
+        if line.startswith(marker):
+            if not res.passed:
+                break
+            return json.loads(line[len(marker):])
+    detail = res.error.strip().splitlines()[-1] if res.error.strip() else f"exit code {res.exit_code}"
+    raise RuntimeError(f"Node code failed in sandbox: {detail}")
 
 
 class WorkflowNode:
@@ -148,7 +194,9 @@ class ActionNode(WorkflowNode):
 
 class CodeNode(WorkflowNode):
     """
-    Executes an in-memory Python script snippet safely with input mapping.
+    Runs a Python snippet in a job-object subprocess. The snippet reads the
+    JSON-serialisable `inputs` dict and assigns `outputs`; it has no access to
+    the workflow context.
     """
 
     def __init__(
@@ -164,19 +212,9 @@ class CodeNode(WorkflowNode):
 
     def execute(self, context: WorkflowExecutionContext) -> Dict[str, Any]:
         inputs = self.resolve_inputs(context)
-        # Safe local execution namespace
-        local_scope: Dict[str, Any] = {
-            "inputs": inputs,
-            "context": context,
-            "outputs": {},
-        }
-        # Compile and execute AST
-        compiled = compile(self.code_str, f"<code_node_{self.id}>", "exec")
-        exec(compiled, {"__builtins__": __builtins__}, local_scope)  # saleha: allow-exec
-        outputs = local_scope.get("outputs", {})
-        if not isinstance(outputs, dict):
-            outputs = {"result": outputs}
-        return outputs
+        return run_code_isolated(
+            self.code_str, inputs, timeout_sec=float(self.config.get("timeout_sec", 10.0))
+        )
 
 
 class HTTPNode(WorkflowNode):
@@ -249,8 +287,9 @@ class HTTPNode(WorkflowNode):
 
 class ConditionNode(WorkflowNode):
     """
-    Evaluates a branching boolean condition against incoming data.
-    Directs workflow execution toward True or False downstream branches.
+    Evaluates a boolean condition and outputs `verdict` / `branch`.
+    The engine does not route on it: every downstream node still runs, and
+    must read `verdict` itself.
     """
 
     def __init__(

@@ -7,11 +7,26 @@ across specialized micro-LoRA adapters in local memory.
 
 from __future__ import annotations
 
-import os
+import re
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
+
+CommandRunner = Callable[[List[str]], Tuple[int, str]]
+
+
+def _run_command(cmd: List[str]) -> Tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600
+        )
+    except FileNotFoundError:
+        return 127, f"{cmd[0]} not found on PATH"
+    except subprocess.TimeoutExpired:
+        return 124, f"{cmd[0]} timed out"
+    return proc.returncode, (proc.stderr or proc.stdout).strip()
 
 
 @dataclass
@@ -20,7 +35,7 @@ class AdapterMetadata:
     adapter_id: str
     file_path: str
     file_size_bytes: int
-    format_type: str  # "GGUF", "SAFETENSORS", "PYTORCH_BIN", "MOCK_WEIGHTS"
+    format_type: str  # "GGUF", "SAFETENSORS", "PYTORCH_BIN"
     is_valid: bool
     base_model: str = "qwen2.5-coder:3b"
     rank_r: int = 16
@@ -36,6 +51,7 @@ class HotSwapResult:
     modelfile_path: Optional[str]
     switch_latency_ms: float
     error_message: Optional[str] = None
+    ollama_model: Optional[str] = None
 
 
 class LoRAAdapterValidator:
@@ -63,9 +79,6 @@ class LoRAAdapterValidator:
                     return True, "SAFETENSORS", size
                 elif p.suffix in [".bin", ".pt", ".pth"]:
                     return True, "PYTORCH_BIN", size
-                elif os.environ.get("SALEHA_TEST_MODE") == "1" and p.suffix == ".lora":
-                    # Synthetic test adapter validation
-                    return True, "MOCK_WEIGHTS", size
         except Exception:
             return False, "CORRUPTED", size
 
@@ -79,8 +92,10 @@ class DynamicLoRAHotSwapper:
         self,
         base_model: str = "qwen2.5-coder:3b",
         registry_dir: Optional[Path] = None,
+        runner: Optional[CommandRunner] = None,
     ) -> None:
         self.base_model = base_model
+        self._run = runner or _run_command
         self.registry_dir = registry_dir or Path(".saleha/lora_registry")
         self.registry_dir.mkdir(parents=True, exist_ok=True)
         self.active_adapter: Optional[AdapterMetadata] = None
@@ -149,13 +164,33 @@ class DynamicLoRAHotSwapper:
                 error_message=f"Adapter file at '{meta.file_path}' failed physical integrity check.",
             )
 
-        # Compile Modelfile and switch active reference
-        modelfile = self.compile_modelfile(meta)
         prev_id = self.active_adapter.adapter_id if self.active_adapter else None
-        self.active_adapter = meta
+        if meta.format_type not in ("GGUF", "SAFETENSORS"):
+            return HotSwapResult(
+                success=False,
+                previous_adapter_id=prev_id,
+                active_adapter_id=prev_id or "none",
+                modelfile_path=None,
+                switch_latency_ms=0.0,
+                error_message=f"Ollama ADAPTER needs GGUF or safetensors, got {meta.format_type}.",
+            )
 
+        # The switch happens only if Ollama accepts the Modelfile.
+        modelfile = self.compile_modelfile(meta)
+        model_name = "saleha-" + re.sub(r"[^a-z0-9_.-]+", "-", adapter_id.lower())
+        code, message = self._run(["ollama", "create", model_name, "-f", str(modelfile)])
         elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 3)
+        if code != 0:
+            return HotSwapResult(
+                success=False,
+                previous_adapter_id=prev_id,
+                active_adapter_id=prev_id or "none",
+                modelfile_path=str(modelfile),
+                switch_latency_ms=elapsed_ms,
+                error_message=f"ollama create failed (exit {code}): {message}",
+            )
 
+        self.active_adapter = meta
         return HotSwapResult(
             success=True,
             previous_adapter_id=prev_id,
@@ -163,4 +198,5 @@ class DynamicLoRAHotSwapper:
             modelfile_path=str(modelfile),
             switch_latency_ms=elapsed_ms,
             error_message=None,
+            ollama_model=model_name,
         )

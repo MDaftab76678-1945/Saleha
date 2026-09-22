@@ -161,7 +161,15 @@ def test_lora_adapter_hot_swapper() -> None:
 
         # Register and hot-swap
         registry = temp_dir / "registry"
-        swapper = DynamicLoRAHotSwapper(base_model="qwen2.5-coder:3b", registry_dir=registry)
+        calls = []
+
+        def fake_ollama(cmd: list) -> tuple:
+            calls.append(cmd)
+            return 0, "success"
+
+        swapper = DynamicLoRAHotSwapper(
+            base_model="qwen2.5-coder:3b", registry_dir=registry, runner=fake_ollama
+        )
 
         meta = swapper.register_adapter(
             adapter_id="coder_v1",
@@ -178,6 +186,16 @@ def test_lora_adapter_hot_swapper() -> None:
         assert swap_res.modelfile_path is not None
         assert Path(swap_res.modelfile_path).exists()
         assert f"ADAPTER {gguf_file.resolve()}" in Path(swap_res.modelfile_path).read_text(encoding="utf-8")
+        assert calls == [["ollama", "create", "saleha-coder_v1", "-f", swap_res.modelfile_path]]
+        assert swap_res.ollama_model == "saleha-coder_v1"
+
+        # When Ollama rejects the Modelfile, the switch has not happened.
+        failing = DynamicLoRAHotSwapper(registry_dir=registry, runner=lambda cmd: (1, "bad adapter"))
+        failing.register_adapter("coder_v2", gguf_file)
+        failed = failing.hot_swap("coder_v2")
+        assert failed.success is False
+        assert failed.active_adapter_id == "none"
+        assert "bad adapter" in (failed.error_message or "")
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -215,6 +233,36 @@ def format_currency(amount: float) -> str:
     assert "def calculate_tax" in result.resolved_code
     assert "def format_currency" in result.resolved_code
     assert "<<<<<<<" not in result.resolved_code
+
+
+def test_semantic_merge_arbiter_rejects_contradicting_assignments() -> None:
+    conflicted_source = (
+        "<<<<<<< HEAD\nRATE = 1\ndef a():\n    return RATE\n"
+        "=======\nRATE = 2\ndef b():\n    return RATE\n>>>>>>> incoming\n"
+    )
+
+    result = SemanticMergeArbiter().resolve_conflicted_content(conflicted_source, "rates.py")
+
+    assert result.status == "MANUAL_REQUIRED"
+    assert result.unresolved_conflicts == 1
+
+
+def test_semantic_merge_arbiter_sees_hunk_at_end_of_file() -> None:
+    conflicted_source = "<<<<<<< HEAD\nX = 1\n=======\nX = 2\n>>>>>>> incoming"
+
+    result = SemanticMergeArbiter().resolve_conflicted_content(conflicted_source, "eof.py")
+
+    assert result.total_conflicts == 1
+    assert result.status != "CLEAN_RESOLVED"
+
+
+def test_renderer_reports_unevaluated_css_as_unverifiable() -> None:
+    html = "<style>.muted { color: #eeeeee; }</style><p class='muted'>faint text</p>"
+
+    report = HeadlessBrowserRenderer().audit_html_string(html)
+
+    assert report.is_clean is False
+    assert report.unverifiable
 
 
 def test_semantic_merge_arbiter_unresolvable_conflict() -> None:

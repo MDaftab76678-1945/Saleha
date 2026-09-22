@@ -1,8 +1,8 @@
 """Saleha Core: Octopus Swarm Expansion & Multi-Brain Coordination Hub.
 
 Integrates specialized peripheral arm brains (Polyglot TS, Visual UI, Continuous Daemon,
-Database Safety) with the central coordinating mind via GWT Blackboard sparse attention
-and Byzantine Fault Tolerant (BFT) consensus gates.
+Database Safety) with the central coordinating mind via the GWT Blackboard. A mission
+is ratified only when every arm that ran returned a passing verdict.
 """
 
 from __future__ import annotations
@@ -34,12 +34,7 @@ def _load_skill_symbol(script_path: Path, class_name: str) -> Any:
 
 
 _repo_root = Path(__file__).resolve().parents[3]
-
 _gwt_script = _repo_root / ".agents" / "skills" / "gwt-blackboard" / "scripts" / "octopus_blackboard.py"
-BlackboardCoordinator = _load_skill_symbol(_gwt_script, "BlackboardCoordinator")
-
-_bft_script = _repo_root / ".agents" / "skills" / "bft-swarm-consensus" / "scripts" / "bft_consensus_gate.py"
-BFTConsensusGate = _load_skill_symbol(_bft_script, "BFTConsensusGate")
 
 
 @dataclass
@@ -68,17 +63,8 @@ class OctopusSwarmExpansion:
         self.repo_root = repo_root or Path(".")
         bb_path = blackboard_path or (self.repo_root / ".agents" / "scratch" / "gwt_blackboard.json")
         
-        # Initialize GWT Blackboard coordinator
-        if BlackboardCoordinator:
-            self.blackboard = BlackboardCoordinator(storage_path=bb_path)
-        else:
-            self.blackboard = None
-
-        # Initialize BFT consensus gate
-        if BFTConsensusGate:
-            self.consensus_gate = BFTConsensusGate()
-        else:
-            self.consensus_gate = None
+        blackboard_cls = _load_skill_symbol(_gwt_script, "BlackboardCoordinator")
+        self.blackboard = blackboard_cls(storage_path=bb_path) if blackboard_cls else None
 
         # Specialized Arm Brains
         self.polyglot_agent = PolyglotTSAgent()
@@ -166,17 +152,9 @@ class OctopusSwarmExpansion:
         # 5. GWT Blackboard Attention Arbitration (Brain 0 Global Broadcast)
         top_fact = self.blackboard.arbitrate_attention() if self.blackboard else None
 
-        # 6. BFT Consensus Gate Supermajority Ratification
-        candidate_code = "def ratified_action(): return True"
-        consensus_result = {"ratified": True}
-        if self.consensus_gate:
-            consensus_result = self.consensus_gate.evaluate_proposal(
-                candidate_code=candidate_code,
-                precond_expr="x >= 0" if db_ratified else "x < 0",
-                postcond_expr="x >= 0",
-            )
-
-        mission_ratified = consensus_result.get("ratified", True) and db_ratified
+        # 6. Ratification: every arm that ran must pass.
+        visual_ok = visual_summary is None or bool(visual_summary["is_clean"])
+        mission_ratified = db_ratified and visual_ok
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
         summary = (

@@ -8,7 +8,6 @@ surgical in-memory adaptations to prevent workflow failure.
 
 from __future__ import annotations
 
-import ast
 import difflib
 import traceback
 from typing import Any, Callable, Dict, List, Optional
@@ -63,12 +62,8 @@ class SelfHealingNode(WorkflowNode):
                     f"from '{close_matches[0]}'"
                 )
                 return repaired_inputs
-            else:
-                # Provide safe empty fallback for missing key
-                repaired_inputs = dict(inputs)
-                repaired_inputs[missing_key] = None
-                context.log(f"Self-Healing [KeyError]: Provided null fallback for missing key '{missing_key}'")
-                return repaired_inputs
+            # No similar key: inventing a None value would hide the failure.
+            return None
 
         if isinstance(exc, TypeError):
             # Attempt type coercion if input string needs to be int or vice-versa
@@ -150,22 +145,7 @@ class SelfHealingNode(WorkflowNode):
                                     dep_data[hk] = hv
                     continue
 
-                # 3. CodeNode syntax or runtime exception healing
-                from saleha.core.workflow.nodes import CodeNode
-                if isinstance(self.inner_node, CodeNode):
-                    try:
-                        code = self.inner_node.code_str
-                        # Auto-inject dictionary defensive access if KeyError
-                        if isinstance(exc, KeyError):
-                            k = str(exc).strip("'\"")
-                            patched_code = code.replace(f"inputs['{k}']", f"inputs.get('{k}', None)")
-                            patched_code = patched_code.replace(f'inputs["{k}"]', f'inputs.get("{k}", None)')
-                            if patched_code != code:
-                                self.inner_node.code_str = patched_code
-                                context.log(f"Self-Healing: Patched CodeNode AST to safe .get('{k}') access")
-                                continue
-                    except Exception:
-                        pass
+                break
 
         # If repairs failed, propagate genuine failure
         self.status = NodeStatus.FAILED

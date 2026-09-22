@@ -148,6 +148,35 @@ class TestSalehaFlowEngine(unittest.TestCase):
         )
         self.assertTrue(result.node_results["consumer"]["metadata"]["healed"])
 
+    def test_self_healing_does_not_invent_missing_keys(self) -> None:
+        dag = WorkflowDAG(name="No Invented Keys")
+        source = ActionNode("source", "Source", lambda inp, ctx: {"unrelated": 1})
+        consumer = ActionNode(
+            "consumer", "Consumer", lambda inp, ctx: {"x": inp["account_id"]}, depends_on=["source"]
+        )
+        dag.add_node(source).add_node(SelfHealingNode(consumer, max_repair_attempts=2))
+
+        result = dag.execute()
+
+        self.assertFalse(result.success)
+        self.assertIn("consumer", result.failed_nodes)
+
+    def test_code_node_runs_out_of_process(self) -> None:
+        import os
+
+        node = CodeNode("pid", "Pid", code_str="import os\noutputs = {'pid': os.getpid()}")
+        ctx = WorkflowExecutionContext(workflow_id="t", execution_id="e")
+
+        self.assertNotEqual(node.execute(ctx)["pid"], os.getpid())
+
+    def test_verified_sandbox_enforces_timeout(self) -> None:
+        node = VerifiedSandboxNode("spin", "Spin", code_str="while True:\n    pass", timeout_sec=1.0)
+        ctx = WorkflowExecutionContext(workflow_id="t", execution_id="e")
+
+        with self.assertRaises(RuntimeError) as cm:
+            node.execute(ctx)
+        self.assertIn("TIMEOUT", str(cm.exception))
+
     def test_verified_sandbox_blocks_forbidden_imports(self) -> None:
         """Proves malicious code with unauthorized syscalls/imports is blocked before execution."""
         malicious_code = """
@@ -275,10 +304,21 @@ outputs = {
         self.assertEqual(len(data["connections"]), 1)
         self.assertEqual(data["connections"][0], {"from": "start", "to": "end"})
 
-        # Deserialize back
-        reconstructed = WorkflowDAG.from_dict(data)
-        self.assertEqual(len(reconstructed.nodes), 2)
-        self.assertEqual(reconstructed.nodes["end"].depends_on, ["start"])
+        # Action nodes hold Python callables; loading them from JSON must fail
+        # rather than come back as pass-through stand-ins.
+        with self.assertRaises(ValueError):
+            WorkflowDAG.from_dict(data)
+
+        code_dag = WorkflowDAG.from_dict({
+            "name": "Code DAG",
+            "nodes": [
+                {"id": "start", "type": "code", "config": {"code": "outputs = {'n': 2}"}},
+                {"id": "end", "type": "code", "depends_on": ["start"],
+                 "config": {"code": "outputs = {'n': inputs['n'] * 3}"}},
+            ],
+        })
+        self.assertEqual(code_dag.nodes["end"].depends_on, ["start"])
+        self.assertEqual(code_dag.execute().node_results["end"]["outputs"], {"n": 6})
 
         # Mermaid output
         mermaid = dag.to_mermaid()

@@ -1,8 +1,9 @@
-"""Saleha Core: Headless Browser Auto-Spinup & Route Renderer.
+"""Saleha Core: Inline-style HTML layout approximator.
 
-Renders HTML and web app routes, extracts live DOM bounding box trees,
-computed styles, and coordinates, and feeds them into the VisualLayoutAuditor
-for automated visual, layout collision, and accessibility inspection.
+No browser is launched. Boxes come from inline `style` attributes (width,
+height, left, top) with a 200x40 default and naive vertical flow; <style>
+blocks, stylesheets and class rules are not evaluated. A page that relies on
+them is reported as unverifiable, never as clean.
 """
 
 from __future__ import annotations
@@ -183,9 +184,15 @@ class HeadlessBrowserRenderer:
         h = height or (800.0 if viewport_name == "desktop" else 568.0)
 
         elements = self.render_html_to_elements(html_content, viewport_width=w, viewport_height=h)
-        return self.auditor.audit_layout(
+        report = self.auditor.audit_layout(
             elements=elements,
             viewport_width=w,
             viewport_height=h,
             viewport_name=viewport_name,
         )
+        lowered = html_content.lower()
+        if "<style" in lowered or "<link" in lowered or re.search(r"\sclass\s*=", lowered):
+            report.unverifiable.append(
+                "Page uses <style>, stylesheets or class rules, which this approximator does not evaluate."
+            )
+        return report

@@ -1,17 +1,21 @@
 """
 Saleha Workflow Engine: Formally Verified & Sandboxed Code Node.
 
-Enforces AST security verification and cross-platform process isolation (Windows Job Objects
-or POSIX limits) to prevent unauthorized file deletion, arbitrary shell execution, and CVE escapes.
+Static AST audit, then execution in a job-object subprocess with restricted builtins,
+a wall-clock timeout and (on Windows) a memory limit.
 """
 
 from __future__ import annotations
 
 import ast
-import sys
 from typing import Any, Dict, List, Optional, Set
 
-from saleha.core.workflow.nodes import NodeStatus, WorkflowExecutionContext, WorkflowNode
+from saleha.core.workflow.nodes import (
+    NodeStatus,
+    WorkflowExecutionContext,
+    WorkflowNode,
+    run_code_isolated,
+)
 
 
 class SecurityViolationError(PermissionError):
@@ -127,43 +131,13 @@ class VerifiedSandboxNode(WorkflowNode):
 
         inputs = self.resolve_inputs(context)
 
-        # Execute in restricted environment
-        safe_builtins = {
-            "abs": abs,
-            "all": all,
-            "any": any,
-            "bool": bool,
-            "dict": dict,
-            "enumerate": enumerate,
-            "filter": filter,
-            "float": float,
-            "int": int,
-            "len": len,
-            "list": list,
-            "map": map,
-            "max": max,
-            "min": min,
-            "range": range,
-            "round": round,
-            "set": set,
-            "str": str,
-            "sum": sum,
-            "tuple": tuple,
-            "zip": zip,
-        }
-
-        local_scope: Dict[str, Any] = {
-            "inputs": inputs,
-            "outputs": {},
-            "context": context,
-        }
-
-        compiled = compile(self.code_str, f"<verified_sandbox_{self.id}>", "exec")
-        exec(compiled, {"__builtins__": safe_builtins}, local_scope)  # saleha: allow-exec
-
-        out = local_scope.get("outputs", {})
-        if not isinstance(out, dict):
-            out = {"result": out}
+        out = run_code_isolated(
+            self.code_str,
+            inputs,
+            timeout_sec=self.timeout_sec,
+            memory_limit_mb=self.max_mem_mb,
+            restricted_builtins=True,
+        )
 
         self.status = NodeStatus.COMPLETED
         self.outputs = out

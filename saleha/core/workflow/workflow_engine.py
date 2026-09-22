@@ -10,23 +10,19 @@ from __future__ import annotations
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set
 
 from saleha.core.workflow.nodes import (
     NodeStatus,
     WorkflowExecutionContext,
     WorkflowNode,
-    ActionNode,
     CodeNode,
     HTTPNode,
     ConditionNode,
     AgentNode,
 )
-from saleha.core.workflow.self_healing_node import SelfHealingNode
 from saleha.core.workflow.verified_sandbox_node import VerifiedSandboxNode
-from saleha.core.workflow.bft_consensus_node import BFTConsensusNode
-from saleha.core.workflow.triggers import TriggerNode, CronTrigger, WebhookTrigger
 
 
 @dataclass
@@ -268,7 +264,10 @@ class WorkflowDAG:
             elif ntype == "verified_sandbox":
                 node = VerifiedSandboxNode(nid, title, code_str=cfg.get("code", ""), depends_on=deps, config=cfg)
             else:
-                node = ActionNode(nid, title, action_fn=lambda inp, ctx: inp, depends_on=deps, config=cfg)
+                # Action, trigger and consensus nodes carry Python callables that
+                # JSON cannot hold; a pass-through stand-in would report COMPLETED
+                # without doing the work.
+                raise ValueError(f"Node '{nid}' has type '{ntype}', which cannot be loaded from JSON.")
 
             dag.add_node(node)
 
