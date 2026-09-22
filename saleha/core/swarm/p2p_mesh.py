@@ -48,15 +48,15 @@ class P2PMeshNode:
         node_id: str = "Node-Alpha-Laptop",
         port: int = DEFAULT_PORT,
         hosted_depts: tuple[int, int] = (1, 5),
-    ):
-        self.node_id = node_id
-        self.port = port
+    ) -> None:
+        self.node_id: str = node_id
+        self.port: int = port
         self.hosted_dept_start, self.hosted_dept_end = hosted_depts
         self.discovered_peers: Dict[str, MeshNodeHeartbeat] = {}
-        self.is_running = False
+        self.is_running: bool = False
         self._threads: List[threading.Thread] = []
 
-    def start(self, broadcast_interval_sec: float = 1.0):
+    def start(self, broadcast_interval_sec: float = 1.0) -> None:
         self.is_running = True
         # In testing/non-root/isolated environments, we run simulated heartbeat and dispatch
         self.discovered_peers[self.node_id] = MeshNodeHeartbeat(
@@ -68,13 +68,13 @@ class P2PMeshNode:
             cpu_load_percent=22.5,
         )
 
-    def stop(self):
+    def stop(self) -> None:
         self.is_running = False
         for t in self._threads:
             if t.is_alive():
                 t.join(timeout=0.5)
 
-    def register_peer(self, peer: MeshNodeHeartbeat):
+    def register_peer(self, peer: MeshNodeHeartbeat) -> None:
         self.discovered_peers[peer.node_id] = peer
 
     def offload_task_to_peer(self, task_id: int, sender_agent_id: int, target_dept: int, code: str) -> Dict[str, Any]:

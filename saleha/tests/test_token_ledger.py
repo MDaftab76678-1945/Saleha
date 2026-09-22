@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
-from saleha.core.token_ledger import TokenLedger, LedgerEntry
+from saleha.core.telemetry.token_ledger import TokenLedger, LedgerEntry
 
 
 class TestTokenLedger(unittest.TestCase):

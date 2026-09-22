@@ -57,6 +57,24 @@ class DependencyGraphTests(unittest.TestCase):
         self.assertTrue(len(callers) >= 1)
         self.assertEqual(callers[0].caller_file, "caller.py")
 
+    def test_find_callees(self) -> None:
+        """The module docstring has claimed callee discovery since this
+        class was written; only find_callers existed until this pass.
+        run() in caller.py calls both Service() and helper() -- both
+        must come back, since a bug traced to run() could live in
+        either of the functions it actually calls."""
+        self.graph.build_graph(root_dir=self.temp_dir)
+        callees = self.graph.find_callees("run")
+        called_names = {c.symbol_called for c in callees}
+        self.assertIn("Service", called_names)
+        self.assertIn("helper", called_names)
+        for c in callees:
+            self.assertEqual(c.caller_file, "caller.py")
+
+    def test_find_callees_empty_for_unknown_symbol(self) -> None:
+        self.graph.build_graph(root_dir=self.temp_dir)
+        self.assertEqual(self.graph.find_callees("does_not_exist"), [])
+
     def test_atomic_multi_file_patch_success(self) -> None:
         patches = {
             self.file_a: "def helper():\n    return 100\n",

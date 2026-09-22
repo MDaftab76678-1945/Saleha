@@ -12,7 +12,7 @@ from saleha.agents.screen_copilot import (
     ScreenInspectionResult,
     screen_copilot,
 )
-from saleha.core.swarm_cluster_node import (
+from saleha.core.swarm.swarm_cluster_node import (
     SwarmClusterNode,
     ClusterPeer,
     swarm_cluster,

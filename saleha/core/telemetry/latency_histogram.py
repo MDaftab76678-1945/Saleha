@@ -66,4 +66,3 @@ class NanosecondLatencyHistogram:
             "p99_99_ns": self.percentile(99.99),
             "max_peak_jitter_ns": self.max_ns,
         }
-

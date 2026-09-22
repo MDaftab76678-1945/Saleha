@@ -22,7 +22,7 @@ from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
 from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.emergence_detector import emergence_detector
-from saleha.core.stats_tracker import StatsTracker
+from saleha.core.telemetry.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
 
 
@@ -44,15 +44,20 @@ class TeamResult:
 
 
 class TeamOrchestrator:
-    def __init__(self, model: str = "auto", max_healing_attempts: int = 3):
+    def __init__(
+        self,
+        model: str = "auto",
+        max_healing_attempts: int = 3,
+        inference: Optional[Any] = None,
+    ):
         self.model = model
         self.max_healing_attempts = max_healing_attempts
         self.executor = CodeExecutor(timeout=20)
         self.debugger = DebuggerAgent(model=model)
-        # NOTE: DeliberationEngine instance yahan pehle banta tha par kabhi
-        # call nahi hota tha (debate logic inline re-implemented hai) -- dead
-        # construction removed. Jab debate mode chahiye ho to run_team_workflow
-        # khud ek engine bana leta hai.
+        self.inference = inference
+        # NOTE: DeliberationEngine was previously constructed here but never
+        # called directly (debate logic is inlined). If debate mode is required,
+        # run_team_workflow constructs an engine on demand.
         self.history = TaskHistory()
         self.stats = StatsTracker()
 

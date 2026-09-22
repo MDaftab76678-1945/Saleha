@@ -73,7 +73,7 @@ def ledger_cmd() -> None:
     
     Example: saleha ledger
     """
-    from saleha.core.token_ledger import token_ledger
+    from saleha.core.telemetry.token_ledger import token_ledger
     summary = token_ledger.get_summary()
     console.print(Panel('[bold green]💰 Saleha Double-Entry Token & Compute ROI Ledger[/bold green]', border_style='green'))
     table = Table(border_style='green')
@@ -208,7 +208,7 @@ def search_code_cmd(query: str, path: str) -> None:
     
     Example: saleha search-code "solve_issue"
     """
-    from saleha.core.fast_search import fast_search_engine
+    from saleha.core.rag.fast_search import fast_search_engine
     fast_search_engine.index_directory(path)
     matches = fast_search_engine.search(query, limit=10)
     console.print(Panel(f"[bold cyan]🔍 Fast Code Search for '{query}' ({len(matches)} matches)[/bold cyan]", border_style='cyan'))

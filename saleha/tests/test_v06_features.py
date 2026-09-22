@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 from saleha.core.rag.repo_context_packer import RepoContextPacker
 from saleha.core.rag.vector_store import VectorStore
-from saleha.core.memory_store import MemoryStore
+from saleha.core.memory.memory_store import MemoryStore
 
 
 class RepoContextPackerTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class RepoContextPackerTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _write(self, rel: str, content: str) -> None:
+    def _write(self, rel: str, content: str) -> str:
         path = os.path.join(self.root, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:

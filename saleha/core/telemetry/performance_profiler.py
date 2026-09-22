@@ -65,4 +65,3 @@ class PerformanceProfiler:
 
 # Global instance
 performance_profiler = PerformanceProfiler()
-

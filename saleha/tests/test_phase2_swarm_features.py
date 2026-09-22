@@ -9,40 +9,40 @@ import pytest
 
 from saleha.cli.salehatop import SalehaTopDashboard
 from saleha.core.sandboxed_mcp_client import SandboxedMCPClient, DiscoveredMCPTool
-from saleha.core.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat
+from saleha.core.swarm.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat
 
 
 class TestSalehaTopDashboard:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.dash = SalehaTopDashboard()
 
-    def test_dashboard_layout_renders_without_exceptions(self):
+    def test_dashboard_layout_renders_without_exceptions(self) -> None:
         layout = self.dash.make_layout()
         assert layout is not None
         assert layout.get("header") is not None
         assert layout.get("main") is not None
         assert layout.get("footer") is not None
 
-    def test_hardware_panel_generation(self):
+    def test_hardware_panel_generation(self) -> None:
         panel = self.dash.generate_hardware_panel()
         assert panel is not None
         assert "RAM Usage" in str(panel.renderable)
 
-    def test_agent_matrix_grid_generation(self):
+    def test_agent_matrix_grid_generation(self) -> None:
         panel = self.dash.generate_agents_grid()
         assert panel is not None
 
-    def test_departments_table_generation(self):
+    def test_departments_table_generation(self) -> None:
         table = self.dash.generate_departments_table()
         assert table is not None
         assert len(table.rows) == 10
 
 
 class TestSandboxedMCPClient:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = SandboxedMCPClient()
 
-    def test_default_tools_registered(self):
+    def test_default_tools_registered(self) -> None:
         tools = self.client.list_tools()
         assert len(tools) >= 3
         tool_names = [t.name for t in tools]
@@ -50,43 +50,47 @@ class TestSandboxedMCPClient:
         assert "mcp__git_create_commit" in tool_names
         assert "mcp__sql_execute_query" in tool_names
 
-    def test_safe_tool_execution(self):
+    def test_safe_tool_execution(self) -> None:
         res = self.client.execute_tool("mcp__fs_read_file", {"path": "src/main.py"})
         assert res.success is True
         assert res.is_blocked is False
         assert res.output["status"] == "success"
 
-    def test_malicious_rm_rf_payload_blocked(self):
+    def test_malicious_rm_rf_payload_blocked(self) -> None:
         res = self.client.execute_tool("mcp__fs_read_file", {"path": "/etc/shadow; rm -rf /"})
         assert res.success is False
         assert res.is_blocked is True
-        assert "GAMMA_SECURITY_ALERT" in res.security_reason
-        assert "Recursive deletion" in res.security_reason or "credential" in res.security_reason
+        reason = res.security_reason
+        assert reason is not None
+        assert "GAMMA_SECURITY_ALERT" in reason
+        assert "Recursive deletion" in reason or "credential" in reason
 
-    def test_unauthorized_credential_access_blocked(self):
+    def test_unauthorized_credential_access_blocked(self) -> None:
         res = self.client.execute_tool("mcp__fs_read_file", {"path": "/etc/passwd"})
         assert res.success is False
         assert res.is_blocked is True
-        assert "credential path access" in res.security_reason
+        reason = res.security_reason
+        assert reason is not None
+        assert "credential path access" in reason
 
 
 class TestP2PMeshNode:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.node_a = P2PMeshNode(node_id="Node-Alpha-Laptop", hosted_depts=(1, 5))
         self.node_b = P2PMeshNode(node_id="Node-Beta-Termux", hosted_depts=(6, 10))
         self.node_a.start()
         self.node_b.start()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         self.node_a.stop()
         self.node_b.stop()
 
-    def test_mesh_node_initialization(self):
+    def test_mesh_node_initialization(self) -> None:
         status = self.node_a.get_mesh_status()
         assert status["local_node"] == "Node-Alpha-Laptop"
         assert "[1 - 5]" in status["hosted_departments"]
 
-    def test_peer_registration_and_remote_offloading(self):
+    def test_peer_registration_and_remote_offloading(self) -> None:
         # Register Node B as a peer on Node A
         self.node_a.register_peer(MeshNodeHeartbeat(
             node_id="Node-Beta-Termux",

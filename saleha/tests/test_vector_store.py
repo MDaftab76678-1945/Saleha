@@ -1,13 +1,13 @@
 import unittest
 from saleha.core.rag.vector_store import VectorStore, SparseVectorEmbedder, cosine_similarity
-from saleha.core.memory_store import MemoryStore
+from saleha.core.memory.memory_store import MemoryStore
 
 
 class VectorStoreTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.store = VectorStore()
 
-    def test_sparse_vector_embedder_and_similarity(self):
+    def test_sparse_vector_embedder_and_similarity(self) -> None:
         embedder = SparseVectorEmbedder()
         docs = [
             "Distributed rate limiting with Redis token bucket algorithm",
@@ -27,7 +27,7 @@ class VectorStoreTests(unittest.TestCase):
         self.assertGreater(sim_redis, 0.30)
         self.assertLess(sim_unrelated, sim_redis)
 
-    def test_vector_store_top_k_search(self):
+    def test_vector_store_top_k_search(self) -> None:
         self.store.add_document("doc1", "Build in-memory cache with LRU eviction policy")
         self.store.add_document("doc2", "Deploy microservices on Kubernetes cluster")
         self.store.add_document("doc3", "JWT authentication and RSA token validation")
@@ -37,7 +37,7 @@ class VectorStoreTests(unittest.TestCase):
         self.assertEqual(results[0].doc_id, "doc1")
         self.assertGreater(results[0].score, 0.2)
 
-    def test_memory_store_semantic_search_integration(self):
+    def test_memory_store_semantic_search_integration(self) -> None:
         mem = MemoryStore(storage_path=":memory:")
         mem.remember("Design a distributed lock manager in Python", "def acquire_lock(): pass", tags=["redis", "lock"])
         mem.remember("Create HTML canvas charting library", "function draw() {}", tags=["frontend", "chart"])

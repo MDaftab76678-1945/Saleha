@@ -5,7 +5,7 @@ import tempfile
 import json
 from click.testing import CliRunner
 
-from saleha.core.memory_store import MemoryStore, MemoryEntry
+from saleha.core.memory.memory_store import MemoryStore, MemoryEntry
 from saleha.cli.commands import cli
 
 

@@ -15,7 +15,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from saleha.core.rag.bm25 import BM25Hit, BM25Index, hybrid_search
+from saleha.core.rag.embedding_backends import OllamaEmbedder, dense_dot
+from saleha.core.rag.fast_search import FastSearchEngine, SearchMatch, fast_search_engine
+from saleha.core.rag.graph_rag import GraphRAGAnswer, GraphRAGEngine, graph_rag
 from saleha.core.rag.repo_context_packer import RepoContextPacker, repo_context_packer
+from saleha.core.rag.semantic_cache import CacheEntry, SemanticCache, semantic_cache
 from saleha.core.rag.semantic_search import SearchResult, SemanticSearchEngine, semantic_search
 from saleha.core.rag.tree_context_ranker import TreeContextRanker, tree_context_ranker
 from saleha.core.rag.vector_store import VectorDocument, VectorSearchResult, VectorStore, vector_store
@@ -109,4 +114,18 @@ __all__ = [
     "HybridRetriever",
     "hybrid_retriever",
     "FusedRetrievalHit",
+    "BM25Index",
+    "BM25Hit",
+    "hybrid_search",
+    "FastSearchEngine",
+    "fast_search_engine",
+    "SearchMatch",
+    "GraphRAGEngine",
+    "graph_rag",
+    "GraphRAGAnswer",
+    "OllamaEmbedder",
+    "dense_dot",
+    "SemanticCache",
+    "semantic_cache",
+    "CacheEntry",
 ]

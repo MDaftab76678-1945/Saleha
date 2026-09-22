@@ -373,7 +373,7 @@ def profile_cmd(code_snippet: str) -> None:
     
     Example: saleha profile "sum([i**2 for i in range(100000)])"
     """
-    from saleha.core.performance_profiler import performance_profiler
+    from saleha.core.telemetry.performance_profiler import performance_profiler
     console.print(f'[bold cyan]⏱️ Profiling snippet:[/] [yellow]{code_snippet}[/]')
 
     def target_exec() -> None:

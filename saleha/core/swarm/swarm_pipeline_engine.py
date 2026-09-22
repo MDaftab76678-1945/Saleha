@@ -33,7 +33,7 @@ from saleha.core.swarm.agent_message_bus import (
     message_bus,
 )
 from saleha.core.merkle_provenance import merkle_provenance_ledger
-from saleha.core.semantic_memory_cache import semantic_memory
+from saleha.core.memory.semantic_memory_cache import semantic_memory
 from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpoint, checkpoint_store
 
 

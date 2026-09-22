@@ -31,6 +31,29 @@ from saleha.core.telemetry.token_analytics import (
     token_analytics,
 )
 
+from saleha.core.telemetry.hardware_profiler import (
+    HardwareProfiler,
+    HardwareSnapshot,
+    get_profiler,
+)
+from saleha.core.telemetry.latency_histogram import (
+    NanosecondLatencyHistogram,
+)
+from saleha.core.telemetry.performance_profiler import (
+    PerformanceProfiler,
+    ProfileMetrics,
+    performance_profiler,
+)
+from saleha.core.telemetry.stats_tracker import (
+    ModelStats,
+    StatsTracker,
+)
+from saleha.core.telemetry.token_ledger import (
+    LedgerEntry,
+    TokenLedger,
+    token_ledger,
+)
+
 __all__ = [
     "SessionTracer",
     "session_tracer",
@@ -43,4 +66,16 @@ __all__ = [
     "audit_log",
     "MetricsTracker",
     "metrics_tracker",
+    "NanosecondLatencyHistogram",
+    "StatsTracker",
+    "ModelStats",
+    "TokenLedger",
+    "LedgerEntry",
+    "token_ledger",
+    "HardwareProfiler",
+    "HardwareSnapshot",
+    "get_profiler",
+    "PerformanceProfiler",
+    "ProfileMetrics",
+    "performance_profiler",
 ]

@@ -12,7 +12,7 @@ import argparse
 import os
 import subprocess
 import sys
-from typing import List
+from typing import List, Set
 
 # Add repo root to sys.path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -23,39 +23,66 @@ from saleha.core.verification.quality_guard import QualityGuard
 
 
 def _list_py_files(folder_path: str) -> List[str]:
-    """Returns absolute paths of every .py file directly inside folder_path."""
+    """Returns absolute paths of all .py files inside folder_path (recursively)."""
     if not os.path.exists(folder_path):
         return []
-    return [
-        os.path.join(folder_path, f)
-        for f in os.listdir(folder_path)
-        if f.endswith(".py")
-    ]
+    py_files: List[str] = []
+    for root, dirs, files in os.walk(folder_path):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
+        for f in sorted(files):
+            if f.endswith(".py"):
+                py_files.append(os.path.abspath(os.path.join(root, f)))
+    return py_files
 
 
 def _git_modified_py_files() -> List[str]:
-    """Returns absolute paths of .py files git reports as modified since HEAD."""
-    proc = subprocess.run(
+    """Returns absolute paths of .py files git reports as modified or untracked since HEAD."""
+    file_rel_paths: Set[str] = set()
+
+    # Tracked modified/staged files
+    proc_diff = subprocess.run(
         ["git", "diff", "--name-only", "HEAD"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
     )
-    if proc.returncode != 0 or not proc.stdout:
-        return []
+    if proc_diff.returncode == 0 and proc_diff.stdout:
+        for line in proc_diff.stdout.splitlines():
+            stripped = line.strip()
+            if stripped:
+                file_rel_paths.add(stripped)
 
-    candidates = (line.strip() for line in proc.stdout.splitlines())
-    return [
-        os.path.join(REPO_ROOT, f)
-        for f in candidates
-        if f.endswith(".py") and os.path.exists(os.path.join(REPO_ROOT, f))
-    ]
+    # Untracked files (new files not yet staged or committed)
+    proc_untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if proc_untracked.returncode == 0 and proc_untracked.stdout:
+        for line in proc_untracked.stdout.splitlines():
+            stripped = line.strip()
+            if stripped:
+                file_rel_paths.add(stripped)
+
+    result: List[str] = []
+    for rel_f in sorted(file_rel_paths):
+        if rel_f.endswith(".py"):
+            full_path = os.path.abspath(os.path.join(REPO_ROOT, rel_f))
+            if os.path.isfile(full_path):
+                result.append(full_path)
+    return result
 
 
 def _collect_files_to_check(explicit_files: List[str], all_core: bool) -> List[str]:
     """Resolves which files to scan: explicit args > --all-core > git diff."""
     if explicit_files:
-        return [f for f in explicit_files if f.endswith(".py") and os.path.exists(f)]
+        collected: List[str] = []
+        for f in explicit_files:
+            abs_p = os.path.abspath(f)
+            if abs_p.endswith(".py") and os.path.isfile(abs_p):
+                collected.append(abs_p)
+        return collected
 
     if all_core:
         files: List[str] = []
@@ -81,9 +108,18 @@ def _scan_and_report(files_to_check: List[str], guard: QualityGuard) -> bool:
 
         has_failure = True
         print(f"\n[FAIL] {rel_path} (Score: {report.quality_score}/100)")
+        has_critical_or_major = False
         for issue in report.issues:
             if issue.severity in ("CRITICAL", "MAJOR"):
+                has_critical_or_major = True
                 print(f"  Line {issue.line_number}:{issue.column} [{issue.severity} {issue.rule_id}] {issue.message}")
+
+        if not has_critical_or_major:
+            print(f"  Score fell below threshold (Score: {report.quality_score} < 70.0). Minor issues:")
+            for issue in report.issues[:10]:
+                print(f"  Line {issue.line_number}:{issue.column} [{issue.severity} {issue.rule_id}] {issue.message}")
+            if len(report.issues) > 10:
+                print(f"  ... and {len(report.issues) - 10} more minor issue(s)")
 
     return has_failure
 

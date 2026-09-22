@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.tri_tier_memory import (
+from saleha.core.memory.tri_tier_memory import (
     EpisodicMemory,
     SemanticKnowledgeGraph,
     TriTierMemoryEngine,

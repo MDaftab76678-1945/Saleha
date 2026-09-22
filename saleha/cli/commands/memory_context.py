@@ -39,7 +39,7 @@ def memory_project_cmd(project, query, new_fact, cat):
     
     Example: saleha memory-project --remember "Use SQLite for session" --cat decision
     """
-    from saleha.core.project_memory import get_project_memory
+    from saleha.core.memory.project_memory import get_project_memory
     mem = get_project_memory(project)
     if new_fact:
         entry = mem.remember(new_fact, category=cat)

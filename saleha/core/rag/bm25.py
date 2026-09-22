@@ -49,7 +49,7 @@ DEFAULT_B = 0.75
 _WORD = re.compile(r"[A-Za-z0-9_]+")
 
 
-def tokenize(text: str) -> List[str]:
+def tokenize(text: Optional[str]) -> List[str]:
     """
     Split text into terms, splitting identifiers as well as keeping them.
 
@@ -79,6 +79,9 @@ class BM25Result:
     doc_id: str
     score: float
     matched_terms: List[str] = field(default_factory=list)
+
+
+BM25Hit = BM25Result
 
 
 class BM25Index:

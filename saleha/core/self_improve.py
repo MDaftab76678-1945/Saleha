@@ -164,6 +164,21 @@ def _heal_test_source(code: str, module_name: str, public_symbols: list[str]) ->
         injections.append("import os")
     if "sys" in referenced_names and "sys" not in imported_names:
         injections.append("import sys")
+    if "dataclass" in referenced_names and "dataclass" not in imported_names:
+        injections.append("from dataclasses import dataclass")
+    if "unittest" in referenced_names and "unittest" not in imported_names:
+        injections.append("import unittest")
+
+    typing_names = {"Any", "Callable", "Dict", "List", "Optional", "Set", "Tuple", "Union"}
+    needed_typing = [t for t in typing_names if t in referenced_names and t not in imported_names]
+    if needed_typing:
+        injections.append(f"from typing import {', '.join(sorted(needed_typing))}")
+
+    stdlib_modules = {"base64", "secrets", "hashlib", "json", "re", "time", "tempfile", "math", "shutil"}
+    for mod in sorted(stdlib_modules):
+        if mod in referenced_names and mod not in imported_names:
+            injections.append(f"import {mod}")
+
     if missing_symbols:
         injections.append(f"from saleha.core.{module_name} import {', '.join(sorted(missing_symbols))}")
 
@@ -245,6 +260,7 @@ def _generate_test_source(module_filename: str, public_symbols: Optional[list[st
         f"{symbols_hint}"
         f"Import only what actually exists below. Test real public functions/classes "
         f"with simple, realistic inputs -- no mocks unless the module does network/file I/O. "
+        f"Do NOT write pytest fixtures; instantiate classes and test objects directly inside each test function. "
         f"Output ONLY valid Python code, no markdown fences, no explanation.\n\n"
         f"--- saleha/core/{module_filename} ---\n{source}\n"
     )
@@ -282,7 +298,8 @@ def _repair_test_source(
         f"--- PYTEST ERROR OUTPUT ---\n{error_detail}\n\n"
         f"--- CURRENT FAILING TEST CODE ---\n{current_code}\n\n"
         f"--- TARGET MODULE SOURCE (saleha/core/{module_filename}) ---\n{source}\n\n"
-        f"Fix the errors (missing imports, incorrect assertions, or wrong argument types). "
+        f"Fix the errors (missing imports, incorrect assertions, wrong argument types, or fixture misuse). "
+        f"Do NOT use pytest fixtures; instantiate classes directly inside test functions. "
         f"Note: If an assertion failed because the actual return value was different from what you expected, update the assertion to match the actual return value. If a specific test function cannot pass, remove it. "
         f"Output ONLY valid Python code, no markdown fences, no explanation."
     )
@@ -298,8 +315,25 @@ def _repair_test_source(
     return None
 
 
-def run_self_improvement_cycle(skip: Optional[set] = None, max_repairs: int = 2) -> SelfImproveResult:
-    module = find_untested_module(skip=skip)
+def run_self_improvement_cycle(
+    skip: Optional[set] = None,
+    max_repairs: int = 2,
+    target_module: Optional[str] = None,
+) -> SelfImproveResult:
+    if target_module:
+        module = target_module if target_module.endswith(".py") else f"{target_module}.py"
+        if not os.path.exists(os.path.join(CORE_DIR, module)):
+            result = SelfImproveResult(
+                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                module=module,
+                goal=f"Write a real pytest test for saleha/core/{module}",
+                status="generation_failed",
+                detail=f"Target module file does not exist: {module}",
+            )
+            _log(result)
+            return result
+    else:
+        module = find_untested_module(skip=skip)
     if module is None:
         result = SelfImproveResult(
             timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -393,74 +427,85 @@ def run_self_improvement_cycle(skip: Optional[set] = None, max_repairs: int = 2)
         _log(result)
         return result
 
-    with open(test_path, "w", encoding="utf-8") as f:
-        f.write(test_source)
+    import shutil
 
-    original_branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
+    test_relpath = os.path.join("saleha", "tests", test_filename)
+    branch_exists = _run(["git", "show-ref", "--verify", "--quiet", f"refs/heads/{BRANCH_NAME}"]).returncode == 0
+    if not branch_exists:
+        init_branch = _run(["git", "branch", BRANCH_NAME, "HEAD"])
+        if init_branch.returncode != 0:
+            res = SelfImproveResult(
+                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                module=module,
+                goal=goal,
+                status="commit_failed",
+                detail=f"Could not create branch {BRANCH_NAME}: {(init_branch.stderr or init_branch.stdout).strip()[:600]}",
+            )
+            _log(res)
+            return res
 
-    def _abandon(detail: str) -> SelfImproveResult:
-        """Removes the generated file and returns to the starting branch.
+    wt_dir = tempfile.mkdtemp(prefix="saleha_si_wt_")
+    try:
+        wt_add = _run(["git", "worktree", "add", wt_dir, BRANCH_NAME])
+        if wt_add.returncode != 0:
+            res = SelfImproveResult(
+                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                module=module,
+                goal=goal,
+                status="commit_failed",
+                detail=f"Could not create worktree for {BRANCH_NAME}: {(wt_add.stderr or wt_add.stdout).strip()[:600]}",
+            )
+            _log(res)
+            return res
 
-        Leaving the file behind is what previously stranded a generated test
-        staged on the branch the cycle started from -- the exact branch the
-        module's safety rails promise never to touch."""
-        with contextlib.suppress(OSError):
-            os.remove(test_path)
-        _run(["git", "reset", "HEAD", "--", os.path.relpath(test_path, REPO_ROOT)])
-        current = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
-        if original_branch and current != original_branch:
-            _run(["git", "checkout", original_branch])
-        res = SelfImproveResult(
+        wt_test_path = os.path.join(wt_dir, test_relpath)
+        os.makedirs(os.path.dirname(wt_test_path), exist_ok=True)
+        with open(wt_test_path, "w", encoding="utf-8") as f:
+            f.write(test_source)
+
+        add_proc = _run(["git", "add", test_relpath], cwd=wt_dir)
+        if add_proc.returncode != 0:
+            res = SelfImproveResult(
+                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                module=module,
+                goal=goal,
+                status="commit_failed",
+                detail=f"git add failed: {(add_proc.stderr or add_proc.stdout).strip()[:600]}",
+            )
+            _log(res)
+            return res
+
+        commit_msg = f"test: autonomous test for saleha/core/{module}\n\nGenerated and verified passing by saleha's self-improvement engine."
+        commit_proc = _run(["git", "commit", "-m", commit_msg], cwd=wt_dir)
+        if commit_proc.returncode != 0:
+            res = SelfImproveResult(
+                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                module=module,
+                goal=goal,
+                status="commit_failed",
+                detail=(
+                    "git commit failed (returncode "
+                    f"{commit_proc.returncode}): {(commit_proc.stderr or commit_proc.stdout).strip()[:600]}"
+                ),
+            )
+            _log(res)
+            return res
+
+        sha = _run(["git", "rev-parse", "HEAD"], cwd=wt_dir).stdout.strip()
+        result = SelfImproveResult(
             timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
             module=module,
             goal=goal,
-            status="commit_failed",
-            detail=detail,
+            status="committed",
+            detail=commit_proc.stdout.strip() or commit_proc.stderr.strip() or f"committed {sha[:8]}",
+            branch=BRANCH_NAME,
+            commit_sha=sha,
         )
-        _log(res)
-        return res
-
-    branch_exists = _run(["git", "show-ref", "--verify", "--quiet", f"refs/heads/{BRANCH_NAME}"]).returncode == 0
-    checkout = _run(["git", "checkout", BRANCH_NAME] if branch_exists else ["git", "checkout", "-b", BRANCH_NAME])
-    if checkout.returncode != 0:
-        # Continuing here would run `git add` + `git commit` against whatever
-        # branch is still checked out, i.e. commit to the working branch.
-        return _abandon(f"Could not switch to {BRANCH_NAME}: {(checkout.stderr or checkout.stdout).strip()[:600]}")
-
-    on_branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
-    if on_branch != BRANCH_NAME:
-        return _abandon(f"Expected to be on {BRANCH_NAME} after checkout, but HEAD is {on_branch!r}.")
-
-    add_proc = _run(["git", "add", os.path.relpath(test_path, REPO_ROOT)])
-    if add_proc.returncode != 0:
-        return _abandon(f"git add failed: {(add_proc.stderr or add_proc.stdout).strip()[:600]}")
-
-    commit_msg = f"test: autonomous test for saleha/core/{module}\n\nGenerated and verified passing by saleha's self-improvement engine."
-    commit_proc = _run(["git", "commit", "-m", commit_msg])
-    if commit_proc.returncode != 0:
-        # A pre-commit hook rejects the commit here. Reading HEAD regardless
-        # yields the *previous* commit's sha, which is how a blocked commit
-        # used to be reported as a successful one.
-        return _abandon(
-            "git commit failed (returncode "
-            f"{commit_proc.returncode}): {(commit_proc.stderr or commit_proc.stdout).strip()[:600]}"
-        )
-
-    sha = _run(["git", "rev-parse", "HEAD"]).stdout.strip()
-    if original_branch and original_branch != BRANCH_NAME:
-        _run(["git", "checkout", original_branch])
-
-    result = SelfImproveResult(
-        timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-        module=module,
-        goal=goal,
-        status="committed",
-        detail=commit_proc.stdout.strip() or commit_proc.stderr.strip() or f"committed {sha[:8]}",
-        branch=BRANCH_NAME,
-        commit_sha=sha,
-    )
-    _log(result)
-    return result
+        _log(result)
+        return result
+    finally:
+        _run(["git", "worktree", "remove", "--force", wt_dir])
+        shutil.rmtree(wt_dir, ignore_errors=True)
 
 
 def _log(result: SelfImproveResult) -> None:

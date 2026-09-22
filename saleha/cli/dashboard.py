@@ -24,16 +24,20 @@ from rich.live import Live
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
-from saleha.core.memory_store import memory_store
-from saleha.core.stats_tracker import StatsTracker
+from saleha.core.memory.memory_store import memory_store
+from saleha.core.telemetry.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
 from saleha.core.telemetry.audit_log import AuditLog
 from saleha.core.platform.smart_router import SmartRouter
 
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        reconfig_stdout = getattr(sys.stdout, "reconfigure", None)
+        if callable(reconfig_stdout):
+            reconfig_stdout(encoding="utf-8", errors="replace")
+        reconfig_stderr = getattr(sys.stderr, "reconfigure", None)
+        if callable(reconfig_stderr):
+            reconfig_stderr(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -42,7 +46,7 @@ console = Console(safe_box=True)
 
 def create_header_panel() -> Panel:
     title = Text()
-    title.append("🧠 SALEHA AI FRAMEWORK ", style="bold green")
+    title.append("SALEHA AI FRAMEWORK ", style="bold green")
     title.append(f"v{__version__} ", style="bold cyan")
     title.append("• MULTI-AGENT LIVE DASHBOARD • ", style="bold magenta")
     title.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", style="dim")
@@ -50,7 +54,7 @@ def create_header_panel() -> Panel:
 
 
 def create_profiles_table() -> Table:
-    table = Table(title="🎭 Active Agent Profiles", show_header=True, header_style="bold magenta", expand=True)
+    table = Table(title="Active Agent Profiles", show_header=True, header_style="bold magenta", expand=True)
     table.add_column("ID", style="cyan", no_wrap=True)
     table.add_column("Role Name", style="green")
     table.add_column("Ver", style="dim", justify="center")
@@ -65,7 +69,7 @@ def create_profiles_table() -> Table:
 
 
 def create_skills_table() -> Table:
-    table = Table(title="⚡ Registered Skills", show_header=True, header_style="bold magenta", expand=True)
+    table = Table(title="Registered Skills", show_header=True, header_style="bold magenta", expand=True)
     table.add_column("Skill Name", style="cyan", no_wrap=True)
     table.add_column("Capability Scope", style="yellow")
 
@@ -77,7 +81,7 @@ def create_skills_table() -> Table:
 
 
 def create_stats_table() -> Table:
-    table = Table(title="📊 Model Performance", show_header=True, header_style="bold magenta", expand=True)
+    table = Table(title="Model Performance", show_header=True, header_style="bold magenta", expand=True)
     table.add_column("Model", style="cyan")
     table.add_column("Uses", justify="right")
     table.add_column("Success", justify="right", style="green")
@@ -99,7 +103,7 @@ def create_memory_panel() -> Panel:
     memories = memory_store.list_all(limit=4)
 
     text = Text()
-    text.append(f"📦 Total Cached Solutions: {mem_stats['total_memories']}  |  🎯 Total Reused Hits: {mem_stats['total_hits']}\n", style="bold cyan")
+    text.append(f"Total Cached Solutions: {mem_stats['total_memories']}  |  Total Reused Hits: {mem_stats['total_hits']}\n", style="bold cyan")
     text.append("-" * 55 + "\n", style="dim")
 
     if not memories:
@@ -110,7 +114,7 @@ def create_memory_panel() -> Panel:
             text.append(f"{m.goal[:38]}... ", style="yellow")
             text.append(f"(Hits: {m.hit_count})\n", style="green")
 
-    return Panel(text, title="🧠 Knowledge Base & Memory Cache", border_style="cyan")
+    return Panel(text, title="Knowledge Base & Memory Cache", border_style="cyan")
 
 
 def create_history_table() -> Table:
@@ -126,7 +130,7 @@ def create_history_table() -> Table:
         table.add_row("-", "-", "-", "No tasks executed yet")
     else:
         for r in records:
-            status = "[green]✅ PASS[/]" if r.success else "[red]❌ FAIL[/]"
+            status = "[green][PASS][/]" if r.success else "[red][FAIL][/]"
             table.add_row(status, r.timestamp, r.model[:18], r.goal[:65])
     return table
 
@@ -165,13 +169,13 @@ def build_dashboard_layout() -> Layout:
     return layout
 
 
-def render_dashboard():
+def render_dashboard() -> None:
     """Renders the dashboard snapshot once."""
     layout = build_dashboard_layout()
     console.print(layout)
 
 
-def run_live_dashboard(refresh_seconds: float = 2.0, max_iterations: Optional[int] = None):
+def run_live_dashboard(refresh_seconds: float = 2.0, max_iterations: Optional[int] = None) -> None:
     """Runs a live auto-updating dashboard stream."""
     console.clear()
     iteration = 0

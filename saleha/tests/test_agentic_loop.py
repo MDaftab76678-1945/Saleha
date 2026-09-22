@@ -1,6 +1,7 @@
 """v1.1 Agentic Loop tests -- scripted fake agents (deterministic)."""
 import json
 import os
+import sys
 import tempfile
 import time
 import unittest
@@ -513,6 +514,33 @@ class AgentLoopTests(unittest.TestCase):
         with open(os.path.join(self.root, "app.py"), "r") as f:
             self.assertIn("amount * 10", f.read())
 
+    def test_patch_file_rejects_a_result_that_would_not_parse(self) -> None:
+        """Measured live against a real requests clone (pass 140, two
+        separate runs): a single-line search paired with a multi-line,
+        self-indented replace hits SmartPatcher's exact-match path, which
+        (unlike its fuzzy-match path) never corrects indentation --
+        splicing the replacement in verbatim produced an IndentationError,
+        and patch_file reported "successfully patched" anyway. The target
+        file never imported again for the rest of that run, and the
+        model's own auto-verify-tests observation only said "FAILED
+        (exit 4)" with no hint that the file was now unparseable. The
+        broken write must never land, and the tool must say why."""
+        search = "amount * 2"
+        replace = "amount * 2\n        if True:\n    pass"  # bad indent on purpose
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="app.py", search=search, replace=replace),
+            _finish("patched"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True)
+        with patch_gate(approve_result=True):
+            res = loop.run("patch charge")
+        obs = res.steps[0].observation
+        self.assertIn("patch rejected", obs)
+        self.assertIn("not be valid Python", obs)
+        with open(os.path.join(self.root, "app.py"), "r") as f:
+            original = f.read()
+        self.assertEqual(original, "def charge(amount):\n    return amount * 2\n")
+
     def test_get_file_outline_and_find_symbols(self) -> None:
         agent = ScriptedAgent([
             _tool_call("get_file_outline", path="app.py"),
@@ -524,6 +552,43 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertIn("def charge()", res.steps[0].observation)
         self.assertIn("app.py", res.steps[1].observation)
+
+    def test_find_callees_reveals_a_deeper_frame(self) -> None:
+        """Measured, real, and still open at the end of pass 106: the model
+        found the right function for a planted bug in 3 steps, then patched
+        it wrong, because the actual defect was one call deeper in a helper
+        it never looked at -- and it had no tool to see that helper without
+        guessing a filename. find_callees is the fix: given the located
+        function, name what it calls so the model can jump straight to the
+        real frame instead of inventing a path."""
+        path = os.path.join(self.root, "billing.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "def _apply_discount(amount):\n"
+                "    return amount  # bug: forgot to subtract the discount\n\n"
+                "def charge_total(amount):\n"
+                "    return _apply_discount(amount)\n"
+            )
+        agent = ScriptedAgent([
+            _tool_call("find_callees", symbol_name="charge_total"),
+            _finish("inspected"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("fix charge_total -- the discount is not applied")
+        self.assertTrue(res.success)
+        obs = res.steps[0].observation
+        self.assertIn("_apply_discount", obs)
+        self.assertIn("billing.py", obs)
+
+    def test_find_callees_reports_unresolved_symbol(self) -> None:
+        agent = ScriptedAgent([
+            _tool_call("find_callees", symbol_name="does_not_exist_anywhere"),
+            _finish("checked"),
+        ])
+        loop = AgentLoop(agent=agent, root_dir=self.root)
+        res = loop.run("investigate")
+        self.assertTrue(res.success)
+        self.assertIn("calls nothing", res.steps[0].observation)
 
     def test_outline_hint_points_at_the_goal_relevant_function_not_the_first(self) -> None:
         """Measured against a real repo bug: super_len() is what the goal
@@ -1253,6 +1318,35 @@ class RunTestsToolTests(unittest.TestCase):
         assert argv is not None
         self.assertIn("pytest", argv)
         self.assertIn("tests/", why)
+
+    # ---- interpreter selection for a foreign target repo -----------
+    def test_discovery_prefers_a_venv_inside_root_dir_over_sys_executable(self) -> None:
+        """Repair goals point root_dir at someone else's repo, not Saleha's
+        own. Measured live (pass 140): a planted bug in a cloned psf/requests
+        was auto-verified with sys.executable (Saleha's own interpreter),
+        which imports Saleha's own unrelated, already-installed `requests`
+        dependency instead of the clone's edited source -- so the test run
+        graded the wrong code every time (a false PASS when Saleha's copy
+        already passed cleanly, or unrelated collection errors when the
+        target's own dev extras were absent from Saleha's venv). A venv
+        living inside root_dir must win."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\ntestpaths = ['t']\n")
+        fake_python = os.path.join(self.root, ".venv", "Scripts", "python.exe")
+        os.makedirs(os.path.dirname(fake_python), exist_ok=True)
+        with open(fake_python, "w", encoding="utf-8") as f:
+            f.write("")
+        argv, _why = self._loop()._discover_test_command()
+        assert argv is not None
+        self.assertEqual(argv[0], fake_python)
+        self.assertNotEqual(argv[0], sys.executable)
+
+    def test_discovery_falls_back_to_sys_executable_with_no_venv_in_root(self) -> None:
+        """root_dir with no venv of its own (e.g. Saleha auditing itself)
+        keeps using sys.executable -- unchanged behavior."""
+        self._write("pyproject.toml", "[tool.pytest.ini_options]\ntestpaths = ['t']\n")
+        argv, _why = self._loop()._discover_test_command()
+        assert argv is not None
+        self.assertEqual(argv[0], sys.executable)
 
     # ---- running ---------------------------------------------------
     def test_missing_test_command_is_reported_not_faked(self) -> None:

@@ -24,12 +24,12 @@ from saleha.agents.debugger import DebuggerAgent
 from saleha.agents.tester import TesterAgent, TestResult
 from saleha.agents.reviewer import ReviewerAgent, ReviewResult
 from saleha.core.self_healing import SelfHealingEngine, HealingResult
-from saleha.core.stats_tracker import StatsTracker
+from saleha.core.telemetry.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
 from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
 from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.memory_store import memory_store
+from saleha.core.memory.memory_store import memory_store
 from saleha.core.platform.git_native import git_engine
 
 load_builtin_skills()

@@ -108,7 +108,7 @@ def callers_cmd(symbol: Any, as_json: Any) -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
     """Natural language architectural Q&A fused with AST Dependency Graph."""
-    from saleha.core.graph_rag import graph_rag
+    from saleha.core.rag.graph_rag import graph_rag
     ans = graph_rag.query(question=question, root_dir=path)
     if as_json:
         click.echo(json.dumps({'question': ans.question, 'answer': ans.answer, 'relevant_files': ans.relevant_files, 'key_symbols': ans.key_symbols, 'call_hierarchy': ans.call_hierarchy}, ensure_ascii=True))

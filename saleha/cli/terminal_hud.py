@@ -21,7 +21,7 @@ from rich.text import Text
 from rich.live import Live
 
 from saleha.core.graph.dependency_graph import dependency_graph
-from saleha.core.memory_store import memory_store
+from saleha.core.memory.memory_store import memory_store
 from saleha.core.platform.git_native import git_engine
 from saleha.core.platform.model_provider import default_provider
 

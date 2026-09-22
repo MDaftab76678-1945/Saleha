@@ -21,7 +21,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from saleha.orchestrator import SalehaOrchestrator
-from saleha.core.token_ledger import token_ledger
+from saleha.core.telemetry.token_ledger import token_ledger
 from saleha.core.swarm.swarm_consensus import swarm_consensus
 
 

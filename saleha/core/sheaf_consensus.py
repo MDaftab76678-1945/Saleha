@@ -33,7 +33,7 @@ class SheafCohomologyConsensus:
 
     def verify_cech_differential(
         self, section_ij: int, section_ik: int, section_jk: int
-    ) -> Tuple[bool, int, Optional[str]]:
+    ) -> Tuple[bool, int, str]:
         """
         Evaluates the 1st Čech boundary differential across 3 intersecting regions:
         delta^1(c)_ijk = c_jk - c_ik + c_ij (mod Prime)

@@ -14,8 +14,8 @@ from typing import Any, Dict, Optional, Tuple
 
 from saleha.core.gamma_critic_sandbox import GammaReport, GammaSandboxEngine
 from saleha.core.incremental_ast_cache import IncrementalASTCache
-from saleha.core.saleha_swarm_topology import SalehaSwarmTopology
-from saleha.core.tri_tier_memory import TriTierMemoryEngine
+from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology
+from saleha.core.memory.tri_tier_memory import TriTierMemoryEngine
 
 
 @dataclass

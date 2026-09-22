@@ -80,6 +80,24 @@ def test_raises():
     assert "import pytest" in healed
 
 
+def test_heal_test_source_injects_dataclass_and_typing_if_missing() -> None:
+    raw_code = """
+@dataclass
+class Payload:
+    data: Optional[Dict[str, Any]] = None
+
+def test_payload():
+    raw = base64.b64encode(secrets.token_bytes(8)).decode()
+    p = Payload(data={"key": raw})
+    assert p.data is not None
+"""
+    healed = _heal_test_source(raw_code, "my_mod", ["my_func"])
+    assert "from dataclasses import dataclass" in healed
+    assert "from typing import Any, Dict, Optional" in healed
+    assert "import base64" in healed
+    assert "import secrets" in healed
+
+
 def test_self_improve_result_dataclass() -> None:
     res = SelfImproveResult(
         timestamp="2026-09-08 04:00:00",
@@ -155,8 +173,8 @@ def sandbox_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(self_improve, "LOG_PATH", str(tmp_path / "log.jsonl"))
     monkeypatch.setattr(
         self_improve, "_run",
-        lambda cmd, cwd=str(repo): subprocess.run(
-            cmd, cwd=str(repo), capture_output=True, text=True, timeout=120
+        lambda cmd, cwd=None: subprocess.run(
+            cmd, cwd=cwd or str(repo), capture_output=True, text=True, timeout=120
         ),
     )
     # A passing test, so the cycle always reaches the git stage.

@@ -142,7 +142,7 @@ class SemanticCache:
     def _embed(self, text: str) -> Optional[List[float]]:
         embedder = self._embedder
         if embedder is None:
-            from saleha.core.embedding_backends import OllamaEmbedder
+            from saleha.core.rag.embedding_backends import OllamaEmbedder
             embedder = self._embedder = OllamaEmbedder()
         try:
             vectors = embedder.embed_batch([text])
@@ -235,3 +235,7 @@ class SemanticCache:
                 "threshold": self.threshold,
                 "strict": self.strict,
             }
+
+
+semantic_cache = SemanticCache()
+

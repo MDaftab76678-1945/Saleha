@@ -19,9 +19,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from saleha import __version__
 from saleha.core.platform.model_provider import default_provider
 from saleha.core.hyperbolic_engine import MultiAttractorLandscape
-from saleha.core.saleha_swarm_topology import SalehaSwarmTopology, SwarmMessage
+from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, SwarmMessage
 from saleha.core.self_healing import SelfHealingEngine
-from saleha.core.latency_histogram import NanosecondLatencyHistogram
+from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
 
 console = Console()

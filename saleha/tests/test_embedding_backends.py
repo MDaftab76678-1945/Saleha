@@ -13,7 +13,7 @@ from io import BytesIO
 from typing import List, Optional
 from unittest.mock import patch, MagicMock
 
-from saleha.core.embedding_backends import (
+from saleha.core.rag.embedding_backends import (
     OllamaEmbedder,
     dense_dot,
     _normalize_ollama_url,

@@ -38,7 +38,7 @@ from typing import Optional, Dict, Any, List
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.tool_calling import global_tool_registry
-from saleha.core.memory_store import memory_store
+from saleha.core.memory.memory_store import memory_store
 from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
 from saleha.core.swarm.team_orchestrator import TeamOrchestrator
 from saleha.orchestrator import SalehaOrchestrator
@@ -46,7 +46,7 @@ from saleha.core.polyglot_executor import polyglot_executor
 from saleha.core.vault import vault
 from saleha.core.vision_coder import vision_coder
 from saleha.core.api_fuzzer import api_fuzzer
-from saleha.core.graph_rag import graph_rag
+from saleha.core.rag.graph_rag import graph_rag
 from saleha.core.deployer import cloud_deployer
 from saleha.core.sre_responder import sre_responder
 from saleha.core.load_tester import load_tester
@@ -2676,7 +2676,7 @@ still required before merging -- neither ran here."""
             # saleha/core/p2p_swarm.py docstring.
             code = payload.get("code", "def fn(): pass")
             mutations = int(payload.get("mutations", 100))
-            from saleha.core.p2p_swarm import batched_fuzzing_engine
+            from saleha.core.swarm.p2p_swarm import batched_fuzzing_engine
             res = batched_fuzzing_engine.distribute_mutation_fuzzing(code=code, total_mutations=mutations)
             self._send_json(200, {
                 "task_id": res.task_id,
@@ -2992,7 +2992,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/v2/memory/search":
-            from saleha.core.semantic_memory_cache import semantic_memory
+            from saleha.core.memory.semantic_memory_cache import semantic_memory
             q = payload.get("query", "")
             matches = semantic_memory.search_memory(q, top_k=5)
             self._send_json(200, {

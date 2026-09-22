@@ -17,7 +17,7 @@ from rich.syntax import Syntax
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.memory_store import memory_store
+from saleha.core.memory.memory_store import memory_store
 from saleha.core.graph.codebase_indexer import CodebaseIndexer
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 from saleha.core.tool_calling import global_tool_registry

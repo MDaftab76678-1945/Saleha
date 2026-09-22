@@ -39,7 +39,7 @@ from saleha.core.model_distillation_pipeline import model_distillation_pipeline
 from saleha.core.local_inference_engine import local_inference_engine
 from saleha.core.repo_orchestrator import repo_orchestrator
 from saleha.core.mcp_server import saleha_mcp_server
-from saleha.core.swarm_cluster_node import swarm_cluster
+from saleha.core.swarm.swarm_cluster_node import swarm_cluster
 from saleha.core.ephemeral_container_runner import container_runner
 from saleha.core.mcts_search_engine import mcts_search_engine
 from saleha.core.speculative_accelerator import speculative_accelerator

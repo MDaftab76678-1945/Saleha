@@ -1,27 +1,27 @@
 import pytest
 
-from saleha.core.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat, RemoteTaskPacket
+from saleha.core.swarm.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat, RemoteTaskPacket
 
 
-def test_p2pmeshnode_start():
+def test_p2pmeshnode_start() -> None:
     node = P2PMeshNode()
-    assert node.is_running is False
+    assert not node.is_running
     node.start(broadcast_interval_sec=1.0)
-    assert node.is_running is True
+    assert node.is_running
 
-def test_p2pmeshnode_stop():
+def test_p2pmeshnode_stop() -> None:
     node = P2PMeshNode()
     node.start(broadcast_interval_sec=1.0)
     node.stop()
-    assert node.is_running is False
+    assert not node.is_running
 
-def test_p2pmeshnode_register_peer():
+def test_p2pmeshnode_register_peer() -> None:
     node = P2PMeshNode()
     peer = MeshNodeHeartbeat(node_id="Peer-Alpha-Laptop", host_ip="192.168.1.1")
     node.register_peer(peer)
     assert "Peer-Alpha-Laptop" in node.discovered_peers
 
-def test_p2pmeshnode_offload_task_to_peer():
+def test_p2pmeshnode_offload_task_to_peer() -> None:
     node = P2PMeshNode()
     peer = MeshNodeHeartbeat(node_id="Peer-Beta-Laptop", host_ip="192.168.1.2")
     node.register_peer(peer)
@@ -29,7 +29,7 @@ def test_p2pmeshnode_offload_task_to_peer():
     assert task_info["status"] == "OFFLOADED_SUCCESS"
     assert task_info["assigned_destination_node"] == "Peer-Beta-Laptop"
 
-def test_p2pmeshnode_get_mesh_status():
+def test_p2pmeshnode_get_mesh_status() -> None:
     node = P2PMeshNode()
     peer1 = MeshNodeHeartbeat(node_id="Peer-Alpha-Laptop", host_ip="192.168.1.1")
     peer2 = MeshNodeHeartbeat(node_id="Peer-Beta-Laptop", host_ip="192.168.1.2")

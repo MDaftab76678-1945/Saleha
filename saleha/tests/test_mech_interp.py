@@ -28,14 +28,14 @@ def src(text: str) -> str:
 
 class ClassificationTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = CodeStructureEngine()
 
-    def _types_by_line(self, code: str):
+    def _types_by_line(self, code: str) -> None:
         rep = self.engine.explain_code(code)
         return {a.line_number: a.circuit_type for a in rep.attributions}
 
-    def test_keyword_inside_a_string_is_not_an_error_guard(self):
+    def test_keyword_inside_a_string_is_not_an_error_guard(self) -> None:
         """
         The regression that motivated the rewrite. The substring version
         classified this as `error_guard` at 0.95 because the line contains
@@ -44,7 +44,7 @@ class ClassificationTests(unittest.TestCase):
         types = self._types_by_line('x = "raise the roof"\n')
         self.assertEqual(types[1], CORE_LOGIC)
 
-    def test_keyword_in_a_comment_is_not_classified(self):
+    def test_keyword_in_a_comment_is_not_classified(self) -> None:
         code = src("""
             # raise an issue with the team
             y = 1
@@ -53,11 +53,11 @@ class ClassificationTests(unittest.TestCase):
         lines = {a.line_number for a in rep.attributions}
         self.assertNotIn(1, lines)
 
-    def test_real_raise_is_an_error_guard(self):
+    def test_real_raise_is_an_error_guard(self) -> None:
         types = self._types_by_line("raise ValueError('bad')\n")
         self.assertEqual(types[1], ERROR_GUARD)
 
-    def test_node_types_map_to_expected_circuits(self):
+    def test_node_types_map_to_expected_circuits(self) -> None:
         code = src("""
             import os
             def f(a: int) -> int:
@@ -84,7 +84,7 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(types[11], ERROR_GUARD)     # raise
         self.assertEqual(types[12], CONTROL_FLOW)    # return
 
-    def test_bare_except_is_called_out_specifically(self):
+    def test_bare_except_is_called_out_specifically(self) -> None:
         code = src("""
             try:
                 risky()
@@ -96,26 +96,26 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(len(bare), 1)
         self.assertEqual(bare[0].line_number, 3)
 
-    def test_confidence_is_full_for_parsed_source(self):
+    def test_confidence_is_full_for_parsed_source(self) -> None:
         rep = self.engine.explain_code("x = 1\n")
         self.assertTrue(all(a.confidence == 1.0 for a in rep.attributions))
 
 
 class ComplexityTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = CodeStructureEngine()
 
     def _complexity(self, code: str, name: str) -> int:
         rep = self.engine.explain_code(code)
         return next(f.complexity for f in rep.functions if f.name == name)
 
-    def test_straight_line_function_is_one(self):
+    def test_straight_line_function_is_one(self) -> None:
         self.assertEqual(self._complexity("def f():\n    return 1\n", "f"), 1)
 
-    def test_branches_count(self):
+    def test_branches_count(self) -> None:
         code = src("""
-            def f(a):
+            def f(a) -> None:
                 if a:
                     return 1
                 for _ in range(3):
@@ -126,9 +126,9 @@ class ComplexityTests(unittest.TestCase):
         """)
         self.assertEqual(self._complexity(code, "f"), 4)
 
-    def test_boolop_adds_one_per_extra_operand(self):
+    def test_boolop_adds_one_per_extra_operand(self) -> None:
         code = src("""
-            def f(a, b, c):
+            def f(a, b, c) -> None:
                 if a and b and c:
                     return 1
                 return 0
@@ -136,31 +136,31 @@ class ComplexityTests(unittest.TestCase):
         # 1 base + 1 if + 2 extra operands
         self.assertEqual(self._complexity(code, "f"), 4)
 
-    def test_with_is_not_a_decision_point(self):
+    def test_with_is_not_a_decision_point(self) -> None:
         """`with` takes no branch; counting it disagreed with radon."""
         code = src("""
-            def f():
+            def f() -> None:
                 with open('x') as fh:
                     return fh.read()
         """)
         self.assertEqual(self._complexity(code, "f"), 1)
 
-    def test_comprehension_if_filter_counts(self):
+    def test_comprehension_if_filter_counts(self) -> None:
         code = src("""
-            def f(xs):
+            def f(xs) -> None:
                 return [x for x in xs if x > 0]
         """)
         # 1 base + 1 comprehension + 1 filter
         self.assertEqual(self._complexity(code, "f"), 3)
 
-    def test_nested_function_branches_are_not_charged_to_the_parent(self):
+    def test_nested_function_branches_are_not_charged_to_the_parent(self) -> None:
         """
         A factory that returns a branchy closure is itself simple. Walking
         into the nested def reported one such factory as complexity 24.
         """
         code = src("""
-            def factory():
-                def inner(a):
+            def factory() -> None:
+                def inner(a) -> None:
                     if a:
                         for _ in range(3):
                             if a > 1:
@@ -171,16 +171,16 @@ class ComplexityTests(unittest.TestCase):
         self.assertEqual(self._complexity(code, "factory"), 1)
         self.assertEqual(self._complexity(code, "inner"), 4)
 
-    def test_lambda_branches_are_charged_to_the_enclosing_function(self):
+    def test_lambda_branches_are_charged_to_the_enclosing_function(self) -> None:
         """A lambda gets no profile of its own, so its branch must land here."""
         code = src("""
-            def f(xs):
+            def f(xs) -> None:
                 g = lambda v: 1 if v else 0
                 return g(xs)
         """)
         self.assertEqual(self._complexity(code, "f"), 2)
 
-    def test_matches_radon_on_this_repos_own_source(self):
+    def test_matches_radon_on_this_repos_own_source(self) -> None:
         """
         Cross-check against the reference implementation. Skipped when radon
         is not installed rather than silently passing.
@@ -191,7 +191,7 @@ class ComplexityTests(unittest.TestCase):
         from radon.complexity import cc_visit
 
         import pathlib
-        target = pathlib.Path(__file__).resolve().parents[1] / "core" / "bm25.py"
+        target = pathlib.Path(__file__).resolve().parents[1] / "core" / "rag" / "bm25.py"
         if not target.exists():
             self.skipTest("bm25.py not present")
         code = target.read_text(encoding="utf-8")
@@ -214,13 +214,13 @@ class ComplexityTests(unittest.TestCase):
 
 class StructureTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = CodeStructureEngine()
 
-    def test_scope_records_the_enclosing_chain(self):
+    def test_scope_records_the_enclosing_chain(self) -> None:
         code = src("""
             class Outer:
-                def method(self):
+                def method(self) -> None:
                     x = 1
                     return x
         """)
@@ -229,7 +229,7 @@ class StructureTests(unittest.TestCase):
         self.assertEqual(by_line[3], ["Outer", "method"])
         self.assertEqual(rep.classes, ["Outer"])
 
-    def test_scope_does_not_leak_between_files(self):
+    def test_scope_does_not_leak_between_files(self) -> None:
         """
         `_scope_at` was a class attribute in the first draft, so scopes from
         one analysed file were reported against another file's lines.
@@ -239,22 +239,22 @@ class StructureTests(unittest.TestCase):
         rep = engine.explain_code("x = 1\n")
         self.assertEqual([a.scope for a in rep.attributions], [[]])
 
-    def test_qualname_includes_the_class(self):
+    def test_qualname_includes_the_class(self) -> None:
         code = src("""
             class Outer:
-                def method(self):
+                def method(self) -> None:
                     pass
         """)
         rep = self.engine.explain_code(code)
         self.assertEqual([f.qualname for f in rep.functions], ["Outer.method"])
 
-    def test_annotation_and_docstring_flags(self):
+    def test_annotation_and_docstring_flags(self) -> None:
         code = src("""
             def documented(a: int) -> int:
                 '''Doc.'''
                 return a
 
-            def bare(a):
+            def bare(a) -> None:
                 return a
         """)
         rep = self.engine.explain_code(code)
@@ -264,24 +264,24 @@ class StructureTests(unittest.TestCase):
         self.assertFalse(by_name["bare"].has_docstring)
         self.assertFalse(by_name["bare"].is_annotated)
 
-    def test_partially_annotated_signature_is_not_annotated(self):
+    def test_partially_annotated_signature_is_not_annotated(self) -> None:
         code = src("""
-            def half(a: int, b):
+            def half(a: int, b) -> None:
                 return a
         """)
         rep = self.engine.explain_code(code)
         self.assertFalse(rep.functions[0].is_annotated)
 
-    def test_async_function_is_flagged(self):
+    def test_async_function_is_flagged(self) -> None:
         rep = self.engine.explain_code("async def go():\n    return 1\n")
         self.assertTrue(rep.functions[0].is_async)
 
-    def test_most_complex_picks_the_worst_function(self):
+    def test_most_complex_picks_the_worst_function(self) -> None:
         code = src("""
-            def simple():
+            def simple() -> None:
                 return 1
 
-            def branchy(a):
+            def branchy(a) -> None:
                 if a:
                     return 1
                 if a > 2:
@@ -293,16 +293,16 @@ class StructureTests(unittest.TestCase):
         self.assertIsNotNone(worst)
         self.assertEqual(worst.name, "branchy")
 
-    def test_most_complex_is_none_without_functions(self):
+    def test_most_complex_is_none_without_functions(self) -> None:
         rep = self.engine.explain_code("x = 1\n")
         self.assertIsNone(rep.most_complex)
 
-    def test_per_function_circuit_counts_are_scoped_to_that_function(self):
+    def test_per_function_circuit_counts_are_scoped_to_that_function(self) -> None:
         code = src("""
-            def guarded():
+            def guarded() -> None:
                 raise ValueError()
 
-            def plain():
+            def plain() -> None:
                 x = 1
                 return x
         """)
@@ -311,7 +311,7 @@ class StructureTests(unittest.TestCase):
         self.assertEqual(by_name["guarded"].circuits[ERROR_GUARD], 1)
         self.assertEqual(by_name["plain"].circuits[ERROR_GUARD], 0)
 
-    def test_code_lines_excludes_blanks_and_comments(self):
+    def test_code_lines_excludes_blanks_and_comments(self) -> None:
         code = "x = 1\n\n# a comment\ny = 2\n"
         rep = self.engine.explain_code(code)
         self.assertEqual(rep.total_lines, 4)
@@ -320,24 +320,24 @@ class StructureTests(unittest.TestCase):
 
 class FallbackTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = CodeStructureEngine()
 
-    def test_unparseable_source_is_reported_not_guessed(self):
+    def test_unparseable_source_is_reported_not_guessed(self) -> None:
         rep = self.engine.explain_code("def broken( :\n", "broken.py")
         self.assertFalse(rep.parsed)
         self.assertIsNotNone(rep.parse_error)
         self.assertIn("could not be parsed", rep.summary)
         self.assertEqual(rep.functions, [])
 
-    def test_fallback_marks_lower_confidence_and_claims_no_labels(self):
+    def test_fallback_marks_lower_confidence_and_claims_no_labels(self) -> None:
         rep = self.engine.explain_code("def broken( :\n    raise X\n")
         self.assertTrue(all(a.confidence == 0.5 for a in rep.attributions))
         # It must not label the `raise` line, having no AST to judge from.
         self.assertTrue(all(a.circuit_type == CORE_LOGIC
                             for a in rep.attributions))
 
-    def test_empty_source_is_parsed_and_empty(self):
+    def test_empty_source_is_parsed_and_empty(self) -> None:
         rep = self.engine.explain_code("")
         self.assertTrue(rep.parsed)
         self.assertEqual(rep.attributions, [])
@@ -346,7 +346,7 @@ class FallbackTests(unittest.TestCase):
 
 class CompatibilityTests(unittest.TestCase):
 
-    def test_legacy_names_still_resolve(self):
+    def test_legacy_names_still_resolve(self) -> None:
         """Existing callers import MechInterpEngine / mech_interp_engine."""
         from saleha.core.mech_interp import mech_interp_engine
         self.assertIs(MechInterpEngine, CodeStructureEngine)
@@ -354,14 +354,14 @@ class CompatibilityTests(unittest.TestCase):
         self.assertIsInstance(rep, MechInterpReport)
         self.assertEqual(rep.target_name, "legacy.py")
 
-    def test_report_carries_the_expected_circuit_keys(self):
+    def test_report_carries_the_expected_circuit_keys(self) -> None:
         rep = CodeStructureEngine().explain_code("x = 1\n")
         self.assertEqual(
             set(rep.circuits_identified),
             {ERROR_GUARD, TYPE_CONTRACT, CORE_LOGIC, RESOURCE_MGMT, CONTROL_FLOW},
         )
 
-    def test_saliency_score_is_gone(self):
+    def test_saliency_score_is_gone(self) -> None:
         """The field was a constant per label; it must not come back."""
         rep = CodeStructureEngine().explain_code("x = 1\n")
         self.assertFalse(hasattr(rep.attributions[0], "saliency_score"))

@@ -89,7 +89,7 @@ class MeasuredLatencyActuallyVariesTests(unittest.TestCase):
     distinguishes them, not a specific number."""
 
     def _sample_peak_jitter(self) -> int:
-        from saleha.core.latency_histogram import NanosecondLatencyHistogram
+        from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
         hist = NanosecondLatencyHistogram()
         probe = {i: i for i in range(64)}
@@ -100,7 +100,7 @@ class MeasuredLatencyActuallyVariesTests(unittest.TestCase):
         return hist.get_report()["max_peak_jitter_ns"]
 
     def test_measured_samples_are_non_negative_and_bounded_by_the_peak(self) -> None:
-        from saleha.core.latency_histogram import NanosecondLatencyHistogram
+        from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
         hist = NanosecondLatencyHistogram()
         probe = {i: i for i in range(64)}

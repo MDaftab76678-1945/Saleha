@@ -1,8 +1,8 @@
 """
 Saleha Core: Agentic Tool-Use Loop (ReAct) -- v1.1 keystone
 
-Ab tak Saleha FIXED-stage pipeline chalata tha (Plan->Code->Test...). Ye
-advanced mode hai jahan model KHUD decide karta hai agla kadam kya ho:
+Saleha previously ran a FIXED-stage pipeline (Plan->Code->Test...). This is
+the advanced mode where the model decides the next step itself:
 
     think -> tool call -> observation -> think -> ... -> finish
 
@@ -13,14 +13,14 @@ Available tools (repo-sandboxed, read-only by default):
     run_code(code)            -- sandboxed execution (Docker policy applies)
     write_file(path, content) -- OPTIONAL (allow_write=True + approval gate)
 
-Termination: model ```json {"finish": "<summary>"}``` emit kare, ya
-max_steps exhaust. Har step on_event callback se stream hota hai (Web
-Studio/CLI live view ke liye).
+Termination: the model emits ```json {"finish": "<summary>"}``` or
+max_steps is exhausted. Every step is streamed via the on_event callback
+(for the Web Studio / CLI live view).
 
 Security:
-- Saare paths root_dir ke andar force (traversal blocked)
-- run_code CodeExecutor policy follow karta hai (SALEHA_SANDBOX)
-- write_file approval_gate se gated (SALEHA_APPROVAL=dangerous/always)
+- All paths are forced inside root_dir (traversal blocked)
+- run_code follows the CodeExecutor policy (SALEHA_SANDBOX)
+- write_file is gated by approval_gate (SALEHA_APPROVAL=dangerous/always)
 """
 
 from __future__ import annotations
@@ -369,6 +369,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                       '"end_line": <optional int>}'),
         "get_file_outline": '{"path": "<.py file path>"}',
         "find_symbols": '{"symbol_name": "<function or class name>"}',
+        "find_callees": '{"symbol_name": "<function or method name>"}',
         "search_repo": '{"pattern": "<regex>"}',
         "run_code": '{"code": "<python source>"}',
         "run_tests": ('{} (no arguments -- discovers the project\'s test command; '
@@ -378,6 +379,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         "forge_tool": ('{"name": "<snake_case_tool_name>", "description": "<what tool does>", '
                        '"parameters": {"type": "object", "properties": {...}}, '
                        '"auto_commit": <optional bool>}'),
+        "scout_symbols": '{"query": "<symbol name or search phrase>"}',
     }
 
     def __init__(self, agent: Any, root_dir: str = ".",
@@ -390,9 +392,12 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  max_parse_retries: int = 3,
                  require_evidence: bool = False,
                  required_evidence=None,
-                 budget=None):
+                 budget=None,
+                 enable_scout: bool = True):
         self.agent = agent
         self.tool_signatures: Dict[str, str] = dict(self.TOOL_SIGNATURES)
+        self.enable_scout = enable_scout
+        self.scout_dossier: Optional[Any] = None
         # Sizing the prompt to the model, not to a fixed constant. See the
         # _REASONING_* constants for the measurement that motivated this.
         from saleha.core.platform.model_provider import is_reasoning_model
@@ -669,6 +674,35 @@ Never invent tool outputs. One block per reply. Be efficient."""
             out += f"\nstderr: {_truncate(res.error, 800)}"
         return out
 
+    def _python_for_root(self) -> str:
+        """Pick the interpreter to run the target repo's own tests with.
+
+        `sys.executable` is Saleha's own interpreter. When root_dir is a
+        *different* project (the common case for a repair goal against
+        someone else's repo, e.g. `saleha agent --dir <clone>`), that
+        interpreter's site-packages belongs to Saleha, not the target --
+        confirmed live: running `sys.executable -m pytest` against a
+        planted bug in a cloned `psf/requests` silently imported Saleha's
+        own unrelated, unpatched `requests` dependency instead of the
+        clone's edited source, so the test run graded the wrong code
+        every time (a false PASS when Saleha's copy already passed, and
+        205 unrelated collection errors when the clone's dev extras
+        -- e.g. pytest-httpbin -- were absent from Saleha's own venv).
+        Prefer a venv that lives inside root_dir itself; fall back to
+        sys.executable only when none exists (root_dir is Saleha's own
+        repo, or a target with no isolated venv of its own).
+        """
+        candidates = (
+            os.path.join(self.root_dir, ".venv", "Scripts", "python.exe"),
+            os.path.join(self.root_dir, ".venv", "bin", "python"),
+            os.path.join(self.root_dir, "venv", "Scripts", "python.exe"),
+            os.path.join(self.root_dir, "venv", "bin", "python"),
+        )
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return candidate
+        return sys.executable
+
     # Test-command discovery, most specific signal first. Each entry is
     # (marker file, predicate on its text, command). The predicate exists
     # because a marker's presence is not the same as it configuring tests:
@@ -683,6 +717,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         nothing.
         """
         root = self.root_dir
+        python = self._python_for_root()
 
         def read(name: str) -> Optional[str]:
             p = os.path.join(root, name)
@@ -696,16 +731,16 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
         pyproject = read("pyproject.toml")
         if pyproject and "[tool.pytest.ini_options]" in pyproject:
-            return ([sys.executable, "-m", "pytest", "-q"],
+            return ([python, "-m", "pytest", "-q"],
                     "pyproject.toml declares [tool.pytest.ini_options]")
         if read("pytest.ini") is not None:
-            return ([sys.executable, "-m", "pytest", "-q"], "pytest.ini present")
+            return ([python, "-m", "pytest", "-q"], "pytest.ini present")
         if read("tox.ini") is not None:
-            return ([sys.executable, "-m", "pytest", "-q"], "tox.ini present")
+            return ([python, "-m", "pytest", "-q"], "tox.ini present")
 
         setup_cfg = read("setup.cfg")
         if setup_cfg and "[tool:pytest]" in setup_cfg:
-            return ([sys.executable, "-m", "pytest", "-q"],
+            return ([python, "-m", "pytest", "-q"],
                     "setup.cfg declares [tool:pytest]")
 
         cargo = read("Cargo.toml")
@@ -725,7 +760,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # A tests/ directory with no config still usually means pytest.
         for candidate in ("tests", "test"):
             if os.path.isdir(os.path.join(root, candidate)):
-                return ([sys.executable, "-m", "pytest", candidate, "-q"],
+                return ([python, "-m", "pytest", candidate, "-q"],
                         f"{candidate}/ directory present, no test config found")
 
         return (None,
@@ -822,20 +857,20 @@ Never invent tool outputs. One block per reply. Be efficient."""
         here because a new mutation already resets the whole chain.
         """
         if not patched:
-            return (None, "revert-check skipped: nothing was patched")
+            return (None, "revert-check skipped: nothing was patched", "")
         # Phase 1: read everything first -- no writes yet, so any failure
         # here leaves the tree untouched and honestly unevaluated.
         patched_now: Dict[str, Optional[str]] = {}
         for rel in patched:
             abs_p = self._safe_path(rel)
             if not abs_p or not os.path.isfile(abs_p):
-                return (None, f"revert-check skipped: {rel} is not readable")
+                return (None, f"revert-check skipped: {rel} is not readable", "")
             try:
                 with open(abs_p, "r", encoding="utf-8",
                           errors="replace") as f:
                     patched_now[rel] = f.read()
             except OSError:
-                return (None, f"revert-check skipped: {rel} unreadable")
+                return (None, f"revert-check skipped: {rel} unreadable", "")
         # Phase 2+3: restore originals, run the suite, restore the patch.
         # The finally guarantees the fix comes back even when the suite
         # itself errors; an OSError inside either write propagates so the
@@ -986,7 +1021,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         bounded_timeout = self._bounded_test_timeout()
         try:
             subprocess.run(
-                [sys.executable, runner, coverdir] + targets,
+                [self._python_for_root(), runner, coverdir] + targets,
                 cwd=self.root_dir,
                 capture_output=True,
                 text=True,
@@ -1062,6 +1097,24 @@ Never invent tool outputs. One block per reply. Be efficient."""
             ok, patched, err = SmartPatcher.apply_search_replace(old_content, search, replace)
             if not ok:
                 return f"patch failed: {err}"
+            # A patch that leaves a .py file syntactically broken must not
+            # be reported as a success -- measured live (pass 140): the
+            # exact-match path in apply_search_replace splices a multi-line
+            # replace_block in verbatim with no indentation correction
+            # (only the fuzzy-match path re-indents), so a model's
+            # single-line search paired with a multi-line, self-indented
+            # replace produced an IndentationError that patch_file reported
+            # as "successfully patched" -- the target file never imported
+            # again for the rest of that run.
+            if path.endswith(".py"):
+                import ast
+                try:
+                    ast.parse(patched, filename=abs_p)
+                except SyntaxError as syn_err:
+                    return (f"patch rejected: the result would not be valid "
+                            f"Python ({syn_err.__class__.__name__}: "
+                            f"{syn_err.msg} at line {syn_err.lineno}). "
+                            f"The search/replace text was not written to disk.")
             with open(abs_p, "w", encoding="utf-8") as f:
                 f.write(patched)
             return f"successfully patched: {path}"
@@ -1117,7 +1170,50 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         f"start_line {lo} and end_line {int(num) + 80}.")
         return f"symbol '{name}' defined at: {', '.join(located)}{hint}"
 
+    def _tool_find_callees(self, symbol_name: str) -> str:
+        """List what a function calls, so a fix one level too shallow can
+        be told apart from the real one without guessing.
+
+        Measured, real, and still open at the end of pass 106: qwen3:8b
+        found the exact right function for a planted requests.py bug in 3
+        steps, then patched it -- and the patch was wrong, because the
+        actual defect lived one call deeper, in a helper the located
+        function calls but the model never looked at (it had no tool that
+        would show it without a blind read_file guess at a filename it did
+        not have). find_symbols only answers "where is X defined"; this
+        answers "what does X call", which is the missing half of the same
+        question when the symptom and the defect are in different frames.
+        """
+        from saleha.core.graph.dependency_graph import CodebaseDependencyGraph
+        name = symbol_name.strip()
+        graph = CodebaseDependencyGraph(root_dir=self.root_dir)
+        graph.build_graph()
+        callees = graph.find_callees(name)
+        if not callees:
+            return (f"'{name}' calls nothing this graph resolved (either it "
+                     f"has no calls, or '{name}' itself was not found as a "
+                     f"function/method -- check the name with find_symbols).")
+        # One line per distinct callee, first call site only -- a function
+        # called five times only needs to be inspected once.
+        seen: Dict[str, str] = {}
+        for ref in callees:
+            if ref.symbol_called not in seen:
+                seen[ref.symbol_called] = f"{ref.symbol_called} (called at {ref.caller_file}:{ref.caller_line})"
+        lines = list(seen.values())
+        return (f"'{name}' calls: {', '.join(lines)}\n"
+                f"To inspect one, call find_symbols on its name.")
+
+    def _tool_scout_symbols(self, query: str = "") -> str:
+        """Query the System-1 AST Scout for symbol definitions, callees, and test files."""
+        from saleha.core.graph.system1_scout import System1Scout
+        scout = System1Scout(root_dir=self.root_dir)
+        dossier = scout.scout(query or "")
+        if not dossier.has_matches:
+            return f"no symbols or callees resolved for query: {query}"
+        return dossier.format_briefing(max_chars=self.max_observation_chars)
+
     @staticmethod
+
     def _outline_lines(body: list) -> List[str]:
         """One line per top-level class/function in `body`, methods indented under their class."""
         import ast
@@ -1291,12 +1387,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
             "read_file": self._tool_read_file,
             "get_file_outline": self._tool_get_file_outline,
             "find_symbols": self._tool_find_symbols,
+            "find_callees": self._tool_find_callees,
             "search_repo": self._tool_search_repo,
             "run_code": self._tool_run_code,
             "run_tests": self._tool_run_tests,
             "patch_file": self._tool_patch_file,
             "write_file": self._tool_write_file,
             "forge_tool": self._tool_forge_tool,
+            "scout_symbols": self._tool_scout_symbols,
         }
 
         # Dynamic tool discovery: ingest registered tools from tool_registry
@@ -1313,8 +1411,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
         except Exception:
             pass
 
-        # Profile-driven restriction: allowed_tools diya gaya to intersection
-        # use karo (khali result par sab wapas -- dead-end se bachne ke liye).
+        # Profile-driven restriction: when allowed_tools is set, use the
+        # intersection (fall back to the full set on an empty result, to
+        # avoid a dead end).
         if self.allowed_tools:
             filtered = {k: v for k, v in tools.items() if k in self.allowed_tools}
             if filtered:
@@ -1359,6 +1458,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 "list_dir": EvidenceKind.SEARCH_PERFORMED,
                 "search_repo": EvidenceKind.SEARCH_PERFORMED,
                 "find_symbols": EvidenceKind.SEARCH_PERFORMED,
+                "find_callees": EvidenceKind.SEARCH_PERFORMED,
+                "scout_symbols": EvidenceKind.SEARCH_PERFORMED,
                 "write_file": EvidenceKind.FILE_MODIFIED,
                 "patch_file": EvidenceKind.FILE_MODIFIED,
                 "forge_tool": EvidenceKind.FILE_MODIFIED,
@@ -1404,7 +1505,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # range, and nudges toward acting once it runs long.
         reads_since_mutation_attempt = 0
         _READ_ONLY_TOOLS = ("read_file", "list_dir", "find_symbols",
-                            "get_file_outline", "search_repo")
+                            "find_callees", "get_file_outline", "search_repo",
+                            "scout_symbols")
         # Last region the tools actually located (path, start, end), from
         # get_file_outline or find_symbols. A rejection that says "read the
         # exact lines" is useless if the model has to invent the numbers --
@@ -1451,6 +1553,28 @@ Never invent tool outputs. One block per reply. Be efficient."""
         def _norm_rel(p: str) -> str:
             return p.strip().replace("\\", "/").lstrip("./")
 
+        # System-1 Scout: Fast deterministic static reconnaissance (0 LLM tokens).
+        # Pre-locates candidate symbols, 1-level and 2-level callee helper functions,
+        # and test files before prompting the model. Addresses Pass 106 depth gap.
+        scout_briefing = ""
+        if self.enable_scout:
+            try:
+                from saleha.core.graph.system1_scout import System1Scout
+                scout = System1Scout(root_dir=self.root_dir)
+                self.scout_dossier = scout.scout(goal)
+                if self.scout_dossier.has_matches:
+                    scout_briefing = self.scout_dossier.format_briefing(
+                        max_chars=self.max_observation_chars
+                    )
+                    emit({
+                        "step": 0,
+                        "action": "system1_scout",
+                        "observation": scout_briefing,
+                    })
+
+            except Exception:
+                self.scout_dossier = None
+
         for step_no in range(1, self.max_steps + 1):
             if time.time() - start_time > self.timeout_sec:
                 result.error = f"Agent execution timed out after {self.timeout_sec}s (step {step_no})"
@@ -1494,8 +1618,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
             else:
                 finish_ready = successful_actions >= self.min_actions_before_finish
             system = system_with_finish if finish_ready else system_no_finish
+            scout_section = f"## System-1 Static Intelligence\n{scout_briefing}\n\n" if scout_briefing else ""
             prompt = (
                 f"{system}\n\n## Goal\n{goal}\n\n"
+                f"{scout_section}"
                 f"## Action-Observation History (steps {len(transcript_parts)})\n"
                 + ("\n".join(transcript_parts[-self.transcript_steps:])
                    or "(none yet)")
@@ -1573,7 +1699,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 # with the file byte-identical and its tests still failing.
                 # A read-only run is a legitimate outcome; a run that tried to
                 # change a file, failed, and calls it done is a false green.
-                if mutations_attempted and not mutations_succeeded:
+                if mutations_attempted > 0 and mutations_succeeded == 0:
                     # Name the real region when the tools already found it. A
                     # placeholder template ("start_line": <n>) produced 16
                     # identical rejections in a row against a real repo: the

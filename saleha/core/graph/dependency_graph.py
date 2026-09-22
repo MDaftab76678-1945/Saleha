@@ -196,6 +196,26 @@ class CodebaseDependencyGraph:
         """Finds all code references calling or instantiating a symbol."""
         return self.references.get(symbol_name, [])
 
+    def find_callees(self, symbol_name: str) -> List[SymbolReference]:
+        """Finds every call made from inside a given function/method body.
+
+        The module docstring has claimed callee discovery since this class
+        was written; only find_callers existed. `_ASTGraphVisitor` already
+        records `caller_context` (the enclosing function name) on every
+        `SymbolReference` it collects, so this needed no new AST pass --
+        just filtering the same references by that field instead of by
+        `symbol_called`. `caller_context` is unqualified (`func foo`, not
+        `func Class.foo`), so a method name shared by two classes returns
+        both bodies' calls; callers needing one specific class should also
+        check `caller_file`.
+        """
+        needle = f"func {symbol_name}"
+        out: List[SymbolReference] = []
+        for refs in self.references.values():
+            out.extend(r for r in refs if r.caller_context == needle)
+        out.sort(key=lambda r: (r.caller_file, r.caller_line))
+        return out
+
     def find_definitions(self, symbol_name: str) -> List[SymbolLocation]:
         """Finds where a symbol is defined in the codebase."""
         return self.definitions.get(symbol_name, [])

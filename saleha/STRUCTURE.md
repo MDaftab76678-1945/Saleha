@@ -8,8 +8,8 @@ stays accurate forever.
 ## Top-level layout
 
 | Path | What it is |
-|---|---|
-| `saleha/core/` | The real implementation: 197 flat `.py` modules plus 9 category subpackages (46 more modules -- see below). This is what almost everything actually imports from. |
+| --- | --- |
+| `saleha/core/` | The real implementation: 177 flat `.py` modules plus 10 category subpackages (66 more modules -- see below). This is what almost everything actually imports from. |
 | `saleha/agents/` | Agent persona classes (ArchitectAgent, CoderAgent, etc.) that wrap `saleha/core/` modules with a role/prompt. |
 | `saleha/cli/` | The Click CLI (`commands/` package) and the interactive REPL (`repl.py`, `chat_session.py`). |
 | `saleha/server/` | The stdlib HTTP server (`web_server.py`) serving `/api/*` and the bundled web Studio. |
@@ -28,12 +28,12 @@ The LLM-facing function-calling tools (`web_fetch`, etc.) are registered in
 **`saleha/core/tool_calling.py`**'s `ToolRegistry` / `global_tool_registry` --
 **not** in `saleha/tools/`. `saleha/tools/` is the ToolForge registry (see above).
 
-## The `saleha/core/<category>/` subpackages -- migration completed (pass 139)
+## The `saleha/core/<category>/` subpackages -- migration completed (pass 139, 144, 145)
 
-`saleha/core/` contains nine subdirectories --
-`cognitive/ graph/ harness/ loop/ platform/ rag/ swarm/ telemetry/ verification/`
--- each holding the *real* implementation files for its 4-6 named modules
-(46 total). This used to be a curated index with the flat files still holding
+`saleha/core/` contains ten subdirectories --
+`cognitive/ graph/ harness/ loop/ memory/ platform/ rag/ swarm/ telemetry/ verification/`
+-- each holding the *real* implementation files for its 4-11 named modules
+(66 total). This used to be a curated index with the flat files still holding
 the real code (both paths existed side by side); pass 139 completed the
 migration the earlier note on this page said was deferred: the 46 modules now
 live only under their category folder, and the corresponding flat
@@ -43,18 +43,19 @@ whole repo (~450 real references) was rewritten to the new dotted path.
 **Which modules moved where:**
 
 | Category | Modules |
-|---|---|
+| --- | --- |
 | `cognitive/` | `causal_world_model`, `neuro_symbolic_engine`, `padic_ultrametric`, `persona_debate`, `soul_engine` |
-| `graph/` | `codebase_indexer`, `dependency_graph`, `graph_memory`, `hypergraph_indexer`, `multi_repo_graph` |
+| `graph/` | `codebase_indexer`, `dependency_graph`, `graph_memory`, `hypergraph_indexer`, `multi_repo_graph`, `system1_scout` |
 | `harness/` | `approval_gate`, `benchmark_harness`, `code_executor`, `sandbox_runner`, `swebench_runner`, `test_runner` |
 | `loop/` | `agentic_loop`, `deliberation_engine`, `recursive_solver`, `tot_orchestrator` |
+| `memory/` | `memory_journal`, `memory_store`, `project_memory`, `semantic_memory_cache`, `tri_tier_memory` |
 | `platform/` | `git_native`, `lsp_engine`, `mcp_hub`, `model_provider`, `self_healer`, `smart_router` |
-| `rag/` | `repo_context_packer`, `semantic_search`, `tree_context_ranker`, `vector_store` |
-| `swarm/` | `agent_message_bus`, `agent_worker_pool`, `swarm_checkpoint_store`, `swarm_consensus`, `swarm_pipeline_engine`, `team_orchestrator` |
-| `telemetry/` | `audit_log`, `metrics`, `session_tracer`, `token_analytics` |
+| `rag/` | `bm25`, `embedding_backends`, `fast_search`, `graph_rag`, `repo_context_packer`, `semantic_cache`, `semantic_search`, `tree_context_ranker`, `vector_store` |
+| `swarm/` | `agent_message_bus`, `agent_worker_pool`, `p2p_mesh`, `p2p_swarm`, `saleha_swarm_topology`, `swarm_checkpoint_store`, `swarm_cluster_node`, `swarm_consensus`, `swarm_pipeline_engine`, `swarm_self_play_arena`, `team_orchestrator` |
+| `telemetry/` | `audit_log`, `hardware_profiler`, `latency_histogram`, `metrics`, `performance_profiler`, `session_tracer`, `stats_tracker`, `token_analytics`, `token_ledger` |
 | `verification/` | `apex_97_validator`, `formal_smt_verifier`, `quality_guard`, `safety_guard`, `security_scanner`, `ttc_solver` |
 
-All other `saleha/core/*.py` files (197 of them) remain flat -- they were
+All other `saleha/core/*.py` files (177 of them) remain flat -- they were
 never assigned to a category by any prior pass, and inventing new categories
 for them was a separate, larger design decision not attempted here.
 

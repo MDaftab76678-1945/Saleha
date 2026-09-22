@@ -254,7 +254,7 @@ def stats(task_type: str = 'coding', as_json: bool = False) -> None:
     Example: saleha stats
     Example: saleha stats --task-type coding
     """
-    from saleha.core.stats_tracker import StatsTracker
+    from saleha.core.telemetry.stats_tracker import StatsTracker
     t_type: str = task_type or 'coding'
     tracker = StatsTracker()
     bucket = tracker._data.get(t_type, {})

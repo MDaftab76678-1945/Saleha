@@ -48,6 +48,13 @@ from saleha.core.graph.multi_repo_graph import (
     RepoMetadata,
     multi_repo_graph,
 )
+from saleha.core.graph.system1_scout import (
+    ScoutDossier,
+    SymbolDossier,
+    System1Scout,
+    system1_scout,
+)
+
 
 
 class CallGraphNavigator:
@@ -133,4 +140,8 @@ __all__ = [
     "HypergraphIndexStats",
     "CallGraphNavigator",
     "call_graph_navigator",
+    "System1Scout",
+    "system1_scout",
+    "ScoutDossier",
+    "SymbolDossier",
 ]

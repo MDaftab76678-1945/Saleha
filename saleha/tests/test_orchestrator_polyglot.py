@@ -10,7 +10,7 @@ import shutil
 from unittest.mock import MagicMock
 
 from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult
-from saleha.core.memory_store import MemoryStore
+from saleha.core.memory.memory_store import MemoryStore
 from saleha.agents.coder import CoderAgent, CodeResult
 from saleha.agents.tester import TesterAgent
 from saleha.agents.reviewer import ReviewerAgent, ReviewResult

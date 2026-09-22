@@ -28,7 +28,7 @@ import unittest
 import zlib
 from typing import List, Optional
 
-from saleha.core.semantic_cache import (
+from saleha.core.rag.semantic_cache import (
     DEFAULT_THRESHOLD,
     SemanticCache,
     cosine,
@@ -76,6 +76,14 @@ class RandomVectorsAreBrokenTests(unittest.TestCase):
     """The defect this module exists to fix, asserted rather than described."""
 
     def test_permissive_threshold_serves_an_unrelated_answer(self) -> None:
+        # Seeded, not because a favorable seed was hand-picked, but because
+        # this test is inherently statistical (unit-normalized uniform
+        # vectors) and an unseeded RNG makes it a genuine, measured flake:
+        # a direct 200-trial sample landed below 0.70 about 0.5% of the
+        # time even though the mean sits at ~0.75 (see module docstring).
+        # Any fixed seed demonstrates the real defect on every run instead
+        # of failing to demonstrate it on an unlucky one.
+        random.seed(1234567890)
         cache = SemanticCache(embedder=RandomEmbedder(), threshold=0.70,
                               strict=False)
         cache.put("reverse a string", "REVERSE_ANSWER")

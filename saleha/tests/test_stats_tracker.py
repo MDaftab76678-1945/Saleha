@@ -7,7 +7,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.stats_tracker import StatsTracker, ModelStats
+from saleha.core.telemetry.stats_tracker import StatsTracker, ModelStats
 
 
 class StatsTrackerTests(unittest.TestCase):

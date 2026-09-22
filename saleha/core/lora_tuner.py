@@ -57,7 +57,7 @@ def ensure_trl_dpo_importable() -> None:
     single-GPU run -- prepare_fsdp() is real code we simply never call.
     Call this before `from trl import DPOTrainer, DPOConfig`.
     """
-    import torch.distributed.fsdp as _fsdp_mod
+    import torch.distributed.fsdp as _fsdp_mod  # type: ignore
     if not hasattr(_fsdp_mod, "FSDPModule"):
         class FSDPModule:  # noqa: N801 -- matching torch's real (newer) class name
             """Placeholder only: real FSDP2 code never runs on this single-GPU setup."""
@@ -229,10 +229,10 @@ class LoRATuner:
     def _detect_backend(self) -> str:
         """Detect whether the real local fine-tuning stack is importable."""
         try:
-            import peft  # noqa: F401
-            import torch  # noqa: F401
-            import transformers  # noqa: F401
-            import trl  # noqa: F401
+            import peft  # type: ignore # noqa: F401
+            import torch  # type: ignore # noqa: F401
+            import transformers  # type: ignore # noqa: F401
+            import trl  # type: ignore # noqa: F401
         except ImportError:
             return "unavailable"
         return "transformers_peft"
@@ -320,13 +320,13 @@ class LoRATuner:
 
     def _train_dpo(self, config: TuningConfig, dataset_path: str, adapter_path: str) -> Dict[str, Any]:
         """Real DPO training via trl.DPOTrainer, fresh LoRA on the base model."""
-        import torch
-        from peft import LoraConfig
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch  # type: ignore
+        from peft import LoraConfig  # type: ignore
+        from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
 
-        from datasets import load_dataset
+        from datasets import load_dataset  # type: ignore
         ensure_trl_dpo_importable()
-        from trl import DPOConfig, DPOTrainer
+        from trl import DPOConfig, DPOTrainer  # type: ignore
 
         hf_base = self._resolve_hf_base(config.base_model)
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -344,6 +344,8 @@ class LoRATuner:
         )
 
         dataset = load_dataset("json", data_files=dataset_path, split="train")
+        train_ds: Any
+        eval_ds: Any
         if len(dataset) >= 10:
             split = dataset.train_test_split(test_size=0.1, seed=42)
             train_ds, eval_ds = split["train"], split["test"]
@@ -436,12 +438,12 @@ class LoRATuner:
         Uses real QLoRA (4-bit NF4 quantized base + bitsandbytes) for 7B+
         models so they fit in 6GB VRAM -- auto-detected from the model name
         unless config.load_in_4bit forces it explicitly."""
-        import torch
-        from peft import LoraConfig, prepare_model_for_kbit_training
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        from trl import SFTConfig, SFTTrainer
+        import torch  # type: ignore
+        from peft import LoraConfig, prepare_model_for_kbit_training  # type: ignore
+        from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
+        from trl import SFTConfig, SFTTrainer  # type: ignore
 
-        from datasets import load_dataset
+        from datasets import load_dataset  # type: ignore
 
         hf_base = self._resolve_hf_base(config.base_model)
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -455,7 +457,7 @@ class LoRATuner:
 
         quant_config = None
         if use_4bit:
-            from transformers import BitsAndBytesConfig
+            from transformers import BitsAndBytesConfig  # type: ignore
             quant_config = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=dtype, bnb_4bit_use_double_quant=True,
@@ -465,7 +467,7 @@ class LoRATuner:
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
-        def to_text(example: Dict[str, str]) -> str:
+        def to_text(example: Any) -> str:
             user_content = example["instruction"]
             if example.get("input"):
                 user_content += "\n\n" + example["input"]
@@ -476,6 +478,8 @@ class LoRATuner:
             return tokenizer.apply_chat_template(msgs, tokenize=False)
 
         raw = load_dataset("json", data_files=dataset_path, split="train")
+        train_ds: Any
+        eval_ds: Any
         if len(raw) >= 10:
             split = raw.train_test_split(test_size=max(0.05, min(0.3, config.eval_holdout_frac)), seed=42)
             train_ds, eval_ds = split["train"], split["test"]
@@ -513,7 +517,10 @@ class LoRATuner:
             dataset_text_field="text",
         )
 
-        train_ds = train_ds.map(lambda ex: {"text": to_text(ex)})
+        if hasattr(train_ds, "map"):
+            train_ds = train_ds.map(lambda ex: {"text": to_text(ex)})
+        else:
+            train_ds = [{"text": to_text(ex)} for ex in train_ds]
 
         trainer = SFTTrainer(
             model=model,
@@ -596,7 +603,7 @@ class LoRATuner:
     def _run_isolated_benchmark(self, before_model: str, after_model: str):
         """
         Real Pass@1 before/after via ModelBenchmarkEvaluator, with the
-        orchestrator's persistent solution cache (saleha.core.memory_store)
+        orchestrator's persistent solution cache (saleha.core.memory.memory_store)
         temporarily swapped for a throwaway store -- otherwise the second
         model's run just replays the first model's cached solution
         ("LLM skipped") instead of generating anything itself, which was
@@ -606,10 +613,10 @@ class LoRATuner:
         """
         import tempfile
 
-        import saleha.core.memory_store as memory_store_mod
+        import saleha.core.memory.memory_store as memory_store_mod
         import saleha.orchestrator as orch_mod
         from saleha.core.evaluator import ModelBenchmarkEvaluator
-        from saleha.core.memory_store import MemoryStore
+        from saleha.core.memory.memory_store import MemoryStore
 
         real_store = memory_store_mod.memory_store
         throwaway = MemoryStore(storage_path=os.path.join(tempfile.mkdtemp(), "throwaway_memory.json"))
@@ -629,7 +636,7 @@ class LoRATuner:
     @staticmethod
     def _eval_loss(model, tokenizer, eval_ds, to_text_fn) -> float:
         """Real cross-entropy loss on held-out samples (lower = better)."""
-        import torch
+        import torch  # type: ignore
         model.eval()
         total_loss, n = 0.0, 0
         device = next(model.parameters()).device
@@ -661,9 +668,9 @@ class LoRATuner:
         generation check (_verify_ollama_deployment).
         """
         try:
-            import torch
-            from peft import PeftModel
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch  # type: ignore
+            from peft import PeftModel  # type: ignore
+            from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
 
             base_id = hf_base_model or self._resolve_hf_base(TuningConfig().base_model)
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -721,9 +728,9 @@ class LoRATuner:
         The returned result includes a real post-merge sanity generation so
         callers can see actual output, not just a success flag.
         """
-        import torch
-        from peft import PeftModel
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch  # type: ignore
+        from peft import PeftModel  # type: ignore
+        from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
 
         if len(adapter_paths) < 2:
             return SoupMergeResult(success=False, output_name=output_name,

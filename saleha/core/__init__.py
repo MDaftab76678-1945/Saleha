@@ -76,6 +76,7 @@ __all__ = [
     "telemetry",
     "swarm",
     "platform",
+    "memory",
 ]
 
 _MOD_MAP = {
@@ -123,12 +124,44 @@ _MOD_MAP = {
     "skill_catalog": "skill_catalog",
     "UniversalMCPHub": "mcp_hub",
     "mcp_hub": "mcp_hub",
+    "TokenLedger": "token_ledger",
+    "token_ledger": "token_ledger",
+    "StatsTracker": "stats_tracker",
+    "NanosecondLatencyHistogram": "latency_histogram",
+    "HardwareProfiler": "hardware_profiler",
+    "PerformanceProfiler": "performance_profiler",
+    "performance_profiler": "performance_profiler",
+    "SalehaSwarmTopology": "saleha_swarm_topology",
+    "P2PMeshNode": "p2p_mesh",
+    "SwarmClusterNode": "swarm_cluster_node",
+    "swarm_cluster": "swarm_cluster_node",
+    "BatchedFuzzingEngine": "p2p_swarm",
+    "batched_fuzzing_engine": "p2p_swarm",
+    "SwarmSelfPlayArena": "swarm_self_play_arena",
+    "swarm_self_play_arena": "swarm_self_play_arena",
+    "BM25Index": "bm25",
+    "bm25_index": "bm25",
+    "FastSearchEngine": "fast_search",
+    "fast_search_engine": "fast_search",
+    "GraphRAGEngine": "graph_rag",
+    "graph_rag": "graph_rag",
+    "OllamaEmbedder": "embedding_backends",
+    "SemanticCache": "semantic_cache",
+    "semantic_cache": "semantic_cache",
+    "MemoryStore": "memory_store",
+    "memory_store": "memory_store",
+    "MemoryJournal": "memory_journal",
+    "memory_journal": "memory_journal",
+    "ProjectMemory": "project_memory",
+    "get_project_memory": "project_memory",
+    "TriTierMemoryEngine": "tri_tier_memory",
+    "tri_tier_memory": "tri_tier_memory",
 }
 
 
 _SUBPACKAGES = {
     "loop", "harness", "rag", "graph", "cognitive",
-    "verification", "telemetry", "swarm", "platform"
+    "verification", "telemetry", "swarm", "platform", "memory"
 }
 
 # Every flat module name that moved into one of the category subpackages
@@ -140,7 +173,7 @@ _MOD_TO_SUBPACKAGE = {
     "causal_world_model": "cognitive", "neuro_symbolic_engine": "cognitive",
     "padic_ultrametric": "cognitive", "persona_debate": "cognitive", "soul_engine": "cognitive",
     "codebase_indexer": "graph", "dependency_graph": "graph", "graph_memory": "graph",
-    "hypergraph_indexer": "graph", "multi_repo_graph": "graph",
+    "hypergraph_indexer": "graph", "multi_repo_graph": "graph", "system1_scout": "graph",
     "approval_gate": "harness", "benchmark_harness": "harness", "code_executor": "harness",
     "sandbox_runner": "harness", "swebench_runner": "harness", "test_runner": "harness",
     "agentic_loop": "loop", "deliberation_engine": "loop", "recursive_solver": "loop",
@@ -148,14 +181,21 @@ _MOD_TO_SUBPACKAGE = {
     "git_native": "platform", "lsp_engine": "platform", "mcp_hub": "platform",
     "model_provider": "platform", "self_healer": "platform", "smart_router": "platform",
     "repo_context_packer": "rag", "semantic_search": "rag", "tree_context_ranker": "rag",
-    "vector_store": "rag",
+    "vector_store": "rag", "bm25": "rag", "fast_search": "rag", "graph_rag": "rag",
+    "embedding_backends": "rag", "semantic_cache": "rag",
     "agent_message_bus": "swarm", "agent_worker_pool": "swarm", "swarm_checkpoint_store": "swarm",
     "swarm_consensus": "swarm", "swarm_pipeline_engine": "swarm", "team_orchestrator": "swarm",
+    "p2p_mesh": "swarm", "p2p_swarm": "swarm", "saleha_swarm_topology": "swarm",
+    "swarm_cluster_node": "swarm", "swarm_self_play_arena": "swarm",
     "audit_log": "telemetry", "metrics": "telemetry", "session_tracer": "telemetry",
-    "token_analytics": "telemetry",
+    "token_analytics": "telemetry", "latency_histogram": "telemetry",
+    "stats_tracker": "telemetry", "token_ledger": "telemetry",
+    "hardware_profiler": "telemetry", "performance_profiler": "telemetry",
     "apex_97_validator": "verification", "formal_smt_verifier": "verification",
     "quality_guard": "verification", "safety_guard": "verification",
     "security_scanner": "verification", "ttc_solver": "verification",
+    "memory_store": "memory", "memory_journal": "memory", "project_memory": "memory",
+    "semantic_memory_cache": "memory", "tri_tier_memory": "memory",
 }
 
 

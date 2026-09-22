@@ -75,7 +75,9 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 def cmd_cycle(args: argparse.Namespace) -> None:
     """Runs a single autonomous self-improvement cycle."""
-    result = run_self_improvement_cycle()
+    skip_set = set(args.skip) if getattr(args, "skip", None) else None
+    target_mod = getattr(args, "module", None)
+    result = run_self_improvement_cycle(skip=skip_set, target_module=target_mod)
     report = {
         "timestamp": result.timestamp,
         "module": result.module,
@@ -97,7 +99,7 @@ def cmd_batch(args: argparse.Namespace) -> None:
     generation OR repeatedly fail their pytest check (max 2 attempts each) --
     a module stuck on either failure mode used to consume the whole batch."""
     attempts = args.cycles
-    skip_set = set()
+    skip_set = set(args.skip) if getattr(args, "skip", None) else set()
     fail_counts: dict[str, int] = {}
     results = []
     committed_count = 0
@@ -176,12 +178,15 @@ def main() -> None:
     # cycle
     p_cycle = subparsers.add_parser("cycle", help="Execute one autonomous self-improvement cycle")
     p_cycle.add_argument("--output", required=True, help="Path to write JSON cycle result")
+    p_cycle.add_argument("--module", default=None, help="Target a specific core module (e.g. pqc_guard)")
+    p_cycle.add_argument("--skip", nargs="*", default=[], help="Module names to skip")
     p_cycle.set_defaults(func=cmd_cycle)
 
     # batch
     p_batch = subparsers.add_parser("batch", help="Run batch of cycles sequentially")
     p_batch.add_argument("--cycles", type=int, default=3, help="Number of cycles to attempt")
     p_batch.add_argument("--output", required=True, help="Path to write JSON batch report")
+    p_batch.add_argument("--skip", nargs="*", default=[], help="Module names to skip")
     p_batch.set_defaults(func=cmd_batch)
 
     # logs

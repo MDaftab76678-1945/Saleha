@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     from saleha.core.swarm.team_orchestrator import TeamOrchestrator
     from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
     from saleha.core.agent_profile_loader import profile_registry
-    from saleha.core.memory_store import memory_store
+    from saleha.core.memory.memory_store import memory_store
     from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
     from saleha.core.loop.deliberation_engine import DeliberationEngine
     from saleha.core.tool_calling import global_tool_registry
@@ -103,7 +103,7 @@ _LAZY_IMPORT_MAP = {
     "skill_registry": ("saleha.core.skill_registry", "registry"),
     "load_builtin_skills": ("saleha.core.skill_registry", "load_builtin_skills"),
     "profile_registry": ("saleha.core.agent_profile_loader", "profile_registry"),
-    "memory_store": ("saleha.core.memory_store", "memory_store"),
+    "memory_store": ("saleha.core.memory.memory_store", "memory_store"),
     "CodebaseIndexer": ("saleha.core.graph.codebase_indexer", "CodebaseIndexer"),
     "SmartPatcher": ("saleha.core.graph.codebase_indexer", "SmartPatcher"),
     "DeliberationEngine": ("saleha.core.loop.deliberation_engine", "DeliberationEngine"),

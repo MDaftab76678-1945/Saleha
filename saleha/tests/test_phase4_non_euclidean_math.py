@@ -8,7 +8,7 @@ import pytest
 from saleha.core.hyperbolic_engine import HyperbolicVector, SAMHAttractorController, HYPERBOLIC_DIM
 from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator, p_adic_valuation
 from saleha.core.sheaf_consensus import SheafCohomologyConsensus, SHEAF_MOD_PRIME
-from saleha.core.latency_histogram import NanosecondLatencyHistogram
+from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
 
 class TestHyperbolicEngine:
@@ -84,14 +84,14 @@ class TestSheafConsensus:
         ok, diff, msg = self.sheaf.verify_cech_differential(1000, 2000, 1000)
         assert ok is True
         assert diff == 0
-        assert "H^1 = 0" in msg
+        assert msg is not None and "H^1 = 0" in msg
 
     def test_desynchronized_cech_differential_detected(self) -> None:
         # Desynchronized state: delta^1 c = 1000 - 2500 + 1000 = -500 != 0
         ok, diff, msg = self.sheaf.verify_cech_differential(1000, 2500, 1000)
         assert ok is False
         assert diff != 0
-        assert "COHOMOLOGICAL_ANOMALY" in msg
+        assert msg is not None and "COHOMOLOGICAL_ANOMALY" in msg
 
     def test_multi_node_mesh_consensus_consistent_reports(self) -> None:
         # Each triplet independently satisfies c_jk - c_ik + c_ij = 0.

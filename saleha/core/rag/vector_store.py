@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from saleha.core.embedding_backends import dense_dot as dense_cosine
+from saleha.core.rag.embedding_backends import dense_dot as dense_cosine
 
 
 @dataclass
@@ -122,7 +122,7 @@ class VectorStore:
             self.mode = "sparse"
             return self.mode
         try:
-            from saleha.core.embedding_backends import OllamaEmbedder
+            from saleha.core.rag.embedding_backends import OllamaEmbedder
             embedder = self.dense_embedder or OllamaEmbedder()
             if embedder.available():
                 self.mode = "dense"

@@ -1,6 +1,6 @@
 import pytest
 
-from saleha.core.hardware_profiler import HardwareProfiler, HardwareSnapshot
+from saleha.core.telemetry.hardware_profiler import HardwareProfiler, HardwareSnapshot
 
 
 @pytest.fixture

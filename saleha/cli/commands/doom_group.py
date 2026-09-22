@@ -107,7 +107,7 @@ def doom_swarm_cmd(prompt: str, complexity: int) -> None:
     
     Example: saleha doom swarm "Create zero-copy ring buffer in C"
     """
-    from saleha.core.saleha_swarm_topology import SalehaSwarmTopology
+    from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology
     swarm = SalehaSwarmTopology()
     agent, is_fast_path, experts = swarm.route_task(prompt, complexity_score=complexity)
     console.print(Panel(f"[bold cyan]Saleha Swarm Dispatch[/]\n • Task: [white]{prompt}[/]\n • Assigned Agent: [bold green]Agent #{agent.agent_id} ({agent.role.value})[/]\n • Department: [yellow]{agent.department.value}[/]\n • 1:1 Private Shadow Model: [magenta]Model #{agent.private_model_id}[/]\n • Execution Route: [bold]{('FAST-PATH (0 Latency Private Binding)' if is_fast_path else 'SWARM CONSENSUS (Global MoE)')}[/]\n" + (f' • Attached Swarm Experts: [dim]{experts}[/]\n' if experts else ''), title='Swarm Task Allocation', border_style='green'))
@@ -120,7 +120,7 @@ def doom_memory_cmd(query: str) -> None:
     
     Example: saleha doom memory "kernel buffer"
     """
-    from saleha.core.tri_tier_memory import TriTierMemoryEngine
+    from saleha.core.memory.tri_tier_memory import TriTierMemoryEngine
     mem = TriTierMemoryEngine()
     if not query:
         console.print('[yellow]Listing active Tri-Tier memory status...[/]')
@@ -161,7 +161,7 @@ def doom_mesh_cmd(node_id: str, port: int) -> None:
     
     Example: saleha doom mesh Node-Alpha-Laptop
     """
-    from saleha.core.p2p_mesh import P2PMeshNode
+    from saleha.core.swarm.p2p_mesh import P2PMeshNode
     node = P2PMeshNode(node_id=node_id, port=port)
     node.start()
     console.print(Panel(f"[bold cyan]Saleha P2P Swarm Mesh Node Started[/]\n • Node ID: [bold green]{node.node_id}[/]\n • Port: [yellow]{node.port}[/]\n • Hosted Swarm Departments: [magenta]{node.get_mesh_status()['hosted_departments']}[/]\n • Broadcast Mode: [green]LAN UDP Heartbeat (Zero Cloud Required)[/]\n • Status: [bold white]READY TO STEAL / OFFLOAD TASKS[/]", title='P2P Mesh Controller', border_style='magenta'))
@@ -264,7 +264,7 @@ def doom_sheaf_cmd() -> None:
     Example: saleha doom sheaf
     """
     from saleha.core.sheaf_consensus import SheafCohomologyConsensus
-    from saleha.core.saleha_swarm_topology import SalehaSwarmTopology
+    from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology
 
     # Derive independently-reported pairwise overlaps from real per-agent
     # mailbox occupancy, rather than a fixed input pattern that always
@@ -293,7 +293,7 @@ def doom_jitter_cmd() -> None:
     Example: saleha doom jitter
     """
     import time
-    from saleha.core.latency_histogram import NanosecondLatencyHistogram
+    from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
     # This used to fill the histogram with random.randint() values and present
     # them as "Hardware Latency" and an "L1 Cache Hit" minimum -- invented

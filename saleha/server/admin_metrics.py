@@ -165,7 +165,7 @@ def models() -> Dict[str, Any]:
     the buckets, so the private store is read defensively: if its shape changes,
     the panel reports no model data rather than raising.
     """
-    from saleha.core.stats_tracker import StatsTracker
+    from saleha.core.telemetry.stats_tracker import StatsTracker
 
     tracker = StatsTracker()
     raw = getattr(tracker, "_data", None)

@@ -71,12 +71,12 @@ def run_fine_tuning():
     print("⚡ LoRA Config    : Rank=16, Alpha=32, 4-bit NF4 Quantization")
 
     try:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-        from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-        from trl import SFTTrainer
-        from datasets import load_dataset
-        print("✅ Required ML Dependencies (PyTorch, Transformers, PEFT, TRL) are Installed!")
+        import torch  # type: ignore
+        from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments  # type: ignore
+        from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training  # type: ignore
+        from trl import SFTTrainer  # type: ignore
+        from datasets import load_dataset  # type: ignore
+        print("Required ML Dependencies (PyTorch, Transformers, PEFT, TRL) are Installed!")
     except ImportError:
         print("⚠️ Note: Run `pip install torch transformers peft trl datasets bitsandbytes accelerate` to execute training locally.")
         print("🎯 Simulated Dry-Run Complete: Training Pipeline is 100% Configured & Validated.")

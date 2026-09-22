@@ -3,7 +3,7 @@
 import os
 import unittest
 
-from saleha.core.swarm_self_play_arena import (
+from saleha.core.swarm.swarm_self_play_arena import (
     SwarmSelfPlayArena,
     CurriculumLevelController,
     RewardAggregator,
