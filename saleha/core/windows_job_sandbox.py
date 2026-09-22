@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import os
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -135,18 +136,38 @@ class WindowsJobSandbox:
             return 0
 
     def run_isolated_python_snippet(
-        self, code: str, timeout_sec: float = 3.0
+        self,
+        code: str,
+        timeout_sec: float = 3.0,
+        cwd: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> SandboxRunResult:
+        return self.run_isolated([sys.executable, "-c", code], timeout_sec=timeout_sec, cwd=cwd, env=env)
+
+    def run_isolated(
+        self,
+        cmd: List[str],
+        timeout_sec: float = 3.0,
+        cwd: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
     ) -> SandboxRunResult:
         start_time = time.perf_counter()
-        cmd = [sys.executable, "-c", code]
         job_handle = self._create_job_object()
+        # Output is decoded as UTF-8, so the child must write UTF-8 even when the
+        # parent console is cp1252.
+        child_env = dict(env if env is not None else os.environ)
+        child_env["PYTHONIOENCODING"] = "utf-8"
 
         try:
             proc = subprocess.Popen(
                 cmd,
+                cwd=cwd,
+                env=child_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
 
             # Assign process handle to Job Object
@@ -184,6 +205,8 @@ class WindowsJobSandbox:
                 )
             except subprocess.TimeoutExpired:
                 proc.kill()
+                with contextlib.suppress(Exception):
+                    proc.communicate(timeout=2.0)
                 elapsed_ms = (time.perf_counter() - start_time) * 1000.0
                 peak_bytes = self._query_peak_memory(job_handle)
                 return SandboxRunResult(

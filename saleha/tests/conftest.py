@@ -46,7 +46,12 @@ os.environ.setdefault("SALEHA_TEST_MODE", "1")
 # (collection is alphabetical and unrandomised, and the file that sets this
 # variable sorts *after* test_code_executor.py). It closes the mechanism
 # anyway, because a leak of this kind is invisible in the failure message.
-_EXECUTION_ENV_VARS = ("SALEHA_SANDBOX", "SALEHA_APPROVAL", "SALEHA_MODEL_TIMEOUT")
+_EXECUTION_ENV_VARS = (
+    "SALEHA_SANDBOX",
+    "SALEHA_APPROVAL",
+    "SALEHA_MODEL_TIMEOUT",
+    "SALEHA_TEST_MODE",
+)
 
 
 @pytest.fixture(autouse=True)

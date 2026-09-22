@@ -164,8 +164,10 @@ def _heal_test_source(code: str, module_name: str, public_symbols: list[str]) ->
         injections.append("import os")
     if "sys" in referenced_names and "sys" not in imported_names:
         injections.append("import sys")
-    if "dataclass" in referenced_names and "dataclass" not in imported_names:
-        injections.append("from dataclasses import dataclass")
+    dc_names = {"dataclass", "field", "asdict", "fields"}
+    needed_dc = [d for d in dc_names if d in referenced_names and d not in imported_names]
+    if needed_dc:
+        injections.append(f"from dataclasses import {', '.join(sorted(needed_dc))}")
     if "unittest" in referenced_names and "unittest" not in imported_names:
         injections.append("import unittest")
 

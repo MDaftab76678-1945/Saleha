@@ -3174,6 +3174,178 @@ still required before merging -- neither ran here."""
             })
             return
 
+        if path == "/api/workflow/list":
+            from saleha.core.workflow.dsl import list_registered_workflows
+            wfs = list_registered_workflows()
+            self._send_json(200, {
+                "status": "success",
+                "workflows": [w.to_dict() for w in wfs],
+                "total": len(wfs),
+            })
+            return
+
+        if path == "/api/workflow/execute":
+            from saleha.core.workflow.dsl import get_workflow
+            from saleha.core.workflow.workflow_engine import WorkflowDAG
+            wf_id = payload.get("workflow_id") or payload.get("id") or payload.get("name")
+            wf_definition = payload.get("workflow") or payload.get("dag")
+
+            dag = None
+            if wf_definition and isinstance(wf_definition, dict):
+                try:
+                    dag = WorkflowDAG.from_dict(wf_definition)
+                except Exception as e:
+                    self._send_json(400, {"error": f"Malformed workflow definition: {e}"})
+                    return
+            elif wf_id:
+                dag = get_workflow(wf_id)
+                if not dag:
+                    self._send_json(404, {"error": f"Workflow '{wf_id}' not found in registry"})
+                    return
+            else:
+                self._send_json(400, {"error": "Must provide workflow_id or workflow DAG definition"})
+                return
+
+            try:
+                res = dag.execute()
+                self._send_json(200, {
+                    "success": res.success,
+                    "workflow_id": res.workflow_id,
+                    "execution_id": res.execution_id,
+                    "total_nodes": res.total_nodes,
+                    "completed_nodes": res.completed_nodes,
+                    "healed_nodes": res.healed_nodes,
+                    "failed_nodes": res.failed_nodes,
+                    "skipped_nodes": res.skipped_nodes,
+                    "total_duration_ms": res.total_duration_ms,
+                    "node_results": res.node_results,
+                    "logs": res.logs,
+                })
+            except Exception as e:
+                self._send_json(500, {"error": f"Workflow execution error: {str(e)}"})
+            return
+
+        if path == "/api/workflow/validate":
+            from saleha.core.workflow.workflow_engine import WorkflowDAG
+            wf_definition = payload.get("workflow") or payload.get("dag")
+            if not wf_definition or not isinstance(wf_definition, dict):
+                self._send_json(400, {"error": "workflow DAG definition required"})
+                return
+            try:
+                dag = WorkflowDAG.from_dict(wf_definition)
+                batches = dag.get_topological_batches()
+                self._send_json(200, {
+                    "valid": True,
+                    "total_nodes": len(dag.nodes),
+                    "total_stages": len(batches),
+                    "stages": [[n.id for n in b] for b in batches],
+                })
+            except Exception as e:
+                self._send_json(200, {
+                    "valid": False,
+                    "error": str(e),
+                })
+            return
+
+        if path == "/api/workflow/heal":
+            from saleha.core.workflow.nodes import ActionNode, WorkflowExecutionContext
+            from saleha.core.workflow.self_healing_node import SelfHealingNode
+            inputs = payload.get("inputs") or {}
+            expected_key = payload.get("expected_key") or "target"
+
+            def flaky_action(inp, ctx):
+                return {"result": inp[expected_key]}
+
+            inner = ActionNode("test_heal_node", "Flaky Action", flaky_action)
+            healer = SelfHealingNode(inner, max_repair_attempts=2)
+            ctx = WorkflowExecutionContext(workflow_id="heal_test", execution_id="exec_heal")
+            ctx.set_output("root", inputs)
+            inner.depends_on = ["root"]
+
+            try:
+                out = healer.execute(ctx)
+                self._send_json(200, {
+                    "healed": healer.metadata.get("healed", False),
+                    "status": healer.status.value,
+                    "outputs": out,
+                    "repair_history": healer.repair_history,
+                })
+            except Exception as e:
+                self._send_json(200, {
+                    "healed": False,
+                    "error": str(e),
+                    "repair_history": healer.repair_history,
+                })
+            return
+
+        if path == "/api/pc/list":
+            from saleha.core.agent_pc import list_active_agent_pcs
+            pcs = list_active_agent_pcs()
+            self._send_json(200, {
+                "status": "success",
+                "agent_pcs": pcs,
+                "total": len(pcs),
+            })
+            return
+
+        if path == "/api/pc/inspect":
+            from saleha.core.agent_pc import get_agent_pc
+            role = payload.get("agent_role") or payload.get("role") or "coder"
+            pc = get_agent_pc(role)
+            summary = pc.get_pc_summary()
+            self._send_json(200, {
+                "status": "success",
+                "summary": summary,
+            })
+            return
+
+        if path == "/api/pc/replay":
+            from saleha.core.agent_pc import get_agent_pc
+            role = payload.get("agent_role") or payload.get("role") or "coder"
+            limit = int(payload.get("limit", 50))
+            pc = get_agent_pc(role)
+            trace = pc.blackbox.replay(limit=limit)
+            self._send_json(200, {
+                "status": "success",
+                "agent_role": role,
+                "events_count": len(trace),
+                "timeline": trace,
+            })
+            return
+
+        if path == "/api/pc/execute":
+            from saleha.core.agent_pc import get_agent_pc
+            role = payload.get("agent_role") or payload.get("role") or "coder"
+            code = payload.get("code", "")
+            filename = payload.get("filename", "task.py")
+            verify_ast = bool(payload.get("verify_ast", True))
+            pc = get_agent_pc(role)
+            res = pc.execute_code(code=code, filename=filename, verify_ast=verify_ast)
+            self._send_json(200, {
+                "status": "success" if res.passed else "failed",
+                "passed": res.passed,
+                "output": res.output,
+                "error": res.error,
+                "exit_code": res.exit_code,
+                "execution_time_ms": res.execution_time_ms,
+                "memory_limit_hit": res.memory_limit_hit,
+                "timed_out": res.timed_out,
+            })
+            return
+
+        if path == "/api/pc/clean":
+            from saleha.core.agent_pc import get_agent_pc
+            role = payload.get("agent_role") or payload.get("role") or "coder"
+            all_data = bool(payload.get("all_data", False))
+            pc = get_agent_pc(role)
+            deleted = pc.workspace.clear_workspace(preserve_metadata=not all_data)
+            self._send_json(200, {
+                "status": "success",
+                "agent_role": role,
+                "deleted_files_count": deleted,
+            })
+            return
+
         self._send_json(404, {"error": "Endpoint not found"})
 
     def log_message(self, format: str, *args: Any) -> None:

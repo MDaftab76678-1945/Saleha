@@ -77,9 +77,52 @@ __all__ = [
     "swarm",
     "platform",
     "memory",
+    "workflow",
+    # Agent Personal Computer & Blackbox Workstation
+    "AgentPersonalComputer",
+    "AgentPC",
+    "AgentSandbox",
+    "AgentBlackbox",
+    "WorkspaceFS",
+    "PCCheckpoint",
+    "get_agent_pc",
+    "list_active_agent_pcs",
+    # Frontier Alignment, PRM & Self-Correction
+    "alignment",
+    "RLHVRVerifier",
+    "RLAIFAuditor",
+    "RewardSignal",
+    "RLCDGenerator",
+    "RLCDPair",
+    "RLHFStore",
+    "HumanFeedback",
+    "DPOBatchExporter",
+    "ProcessRewardModel",
+    "PRMMCTSEngine",
+    "PRMMCTSResult",
+    "CodeStep",
+    "VerifiedSelfCorrectionEngine",
+    "CorrectionResult",
+    # Cross-File Interface Propagation & Sandbox Mock Virtualization
+    "MultiFileInterfacePropagator",
+    "CrossFileCallSite",
+    "SignatureDelta",
+    "PropagationResult",
+    "SandboxMockSynthesizer",
+    "VIRTUAL_MOCK_PRELUDE",
+    "MultiFilePRM",
+    "MultiFilePRMScore",
 ]
 
 _MOD_MAP = {
+    "AgentPersonalComputer": "agent_pc",
+    "AgentPC": "agent_pc",
+    "AgentSandbox": "agent_pc",
+    "AgentBlackbox": "agent_pc",
+    "WorkspaceFS": "agent_pc",
+    "PCCheckpoint": "agent_pc",
+    "get_agent_pc": "agent_pc",
+    "list_active_agent_pcs": "agent_pc",
 
     "TreeOfThoughtsOrchestrator": "tot_orchestrator",
     "tot_orchestrator": "tot_orchestrator",
@@ -156,12 +199,35 @@ _MOD_MAP = {
     "get_project_memory": "project_memory",
     "TriTierMemoryEngine": "tri_tier_memory",
     "tri_tier_memory": "tri_tier_memory",
+    # Alignment, PRM & Self-Correction
+    "RLHVRVerifier": "verifiable_rewards",
+    "RLAIFAuditor": "verifiable_rewards",
+    "RewardSignal": "verifiable_rewards",
+    "RLCDGenerator": "contrastive_rlcd",
+    "RLCDPair": "contrastive_rlcd",
+    "RLHFStore": "preference_store",
+    "HumanFeedback": "preference_store",
+    "DPOBatchExporter": "preference_store",
+    "ProcessRewardModel": "prm_mcts_engine",
+    "PRMMCTSEngine": "prm_mcts_engine",
+    "PRMMCTSResult": "prm_mcts_engine",
+    "CodeStep": "prm_mcts_engine",
+    "VerifiedSelfCorrectionEngine": "self_correction",
+    "CorrectionResult": "self_correction",
+    "MultiFileInterfacePropagator": "multi_file_interface_propagator",
+    "CrossFileCallSite": "multi_file_interface_propagator",
+    "SignatureDelta": "multi_file_interface_propagator",
+    "PropagationResult": "multi_file_interface_propagator",
+    "SandboxMockSynthesizer": "sandbox_mock_synthesizer",
+    "VIRTUAL_MOCK_PRELUDE": "sandbox_mock_synthesizer",
+    "MultiFilePRM": "multi_file_prm",
+    "MultiFilePRMScore": "multi_file_prm",
 }
 
 
 _SUBPACKAGES = {
     "loop", "harness", "rag", "graph", "cognitive",
-    "verification", "telemetry", "swarm", "platform", "memory"
+    "verification", "telemetry", "swarm", "platform", "memory", "workflow", "alignment"
 }
 
 # Every flat module name that moved into one of the category subpackages
@@ -196,6 +262,8 @@ _MOD_TO_SUBPACKAGE = {
     "security_scanner": "verification", "ttc_solver": "verification",
     "memory_store": "memory", "memory_journal": "memory", "project_memory": "memory",
     "semantic_memory_cache": "memory", "tri_tier_memory": "memory",
+    "verifiable_rewards": "alignment", "contrastive_rlcd": "alignment", "preference_store": "alignment",
+    "multi_file_prm": "alignment",
 }
 
 

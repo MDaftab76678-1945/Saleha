@@ -2,12 +2,14 @@
 Unit & Integration Tests for Vision Designer, Swarm Chat Session, and Release Manager
 """
 
+import io
 import unittest
+
+from rich.console import Console
+
 from saleha.agents.vision_designer import VisionDesignerAgent, VisionLayoutSpec
 from saleha.cli.chat_session import SwarmChatSession
-from saleha.tools.release_manager import SalehaReleaseManager, ReleaseCheckReport
-from rich.console import Console
-import io
+from saleha.tools.release_manager import ReleaseCheckReport, SalehaReleaseManager
 
 
 class VisionDesignerAgentTests(unittest.TestCase):
@@ -18,7 +20,7 @@ class VisionDesignerAgentTests(unittest.TestCase):
         spec: VisionLayoutSpec = self.agent.synthesize_from_wireframe("Analytics Dashboard with Metrics Cards and Dark Theme")
         self.assertEqual(spec.layout_type, "Dashboard Grid")
         self.assertTrue(len(spec.color_palette) >= 4)
-        self.assertIn("import React from \"react\"", spec.jsx_component)
+        self.assertTrue("import React from 'react'" in spec.jsx_component or 'import React from "react"' in spec.jsx_component)
         self.assertIn("<!DOCTYPE html>", spec.html_markup)
         self.assertGreaterEqual(spec.generation_time_ms, 0.0)
 

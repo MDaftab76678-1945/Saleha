@@ -30,7 +30,13 @@ class AgentResponse:
 
 
 class BaseAgent:
-    def __init__(self, role: str, model: str = "auto", provider: Optional[ModelProvider] = None):
+    def __init__(
+        self,
+        role: str,
+        model: str = "auto",
+        provider: Optional[ModelProvider] = None,
+        **kwargs: Any,
+    ):
         self.role = role
         self.model_preference = model
         # Under SALEHA_TEST_MODE, any agent constructed without an explicit
@@ -38,30 +44,6 @@ class BaseAgent:
         # MockProvider instead of the real Ollama/OpenAI-compatible fallback
         # chain. A caller that passes `provider=` (a real integration test)
         # still overrides it below, unconditionally.
-        #
-        # The `model != "mock"` half of the guard matters just as much as the
-        # SALEHA_TEST_MODE check: model="mock" was already a widely-used
-        # convention across this codebase (RedTeamEngine, QALeadAgent, and
-        # others construct agents this way in their own tests) meaning "force
-        # the real provider chain to fail, so this agent's own fallback
-        # template runs" -- several tests assert on exactly that fallback
-        # content. MockProvider always returns success=True with a fixed
-        # generic body, which is a different contract: it would have made
-        # those fallback branches unreachable now that conftest.py (added
-        # alongside this fix) sets SALEHA_TEST_MODE for the whole suite. This
-        # branch is additive for modules with no mock convention of their own
-        # (ttc_solver.py, demo_cli.py, graph_rag.py -- the three that
-        # actually stalled the suite), not a replacement for model="mock"'s
-        # existing meaning.
-        #
-        # Found necessary in pass 30 after three independent modules stalled
-        # the full test suite for 15+ minutes each by reaching this class's
-        # default_provider with no mock in the chain: ttc_solver.py (fixed
-        # directly, since it bypasses BaseAgent entirely), demo_cli.py (fixed
-        # directly, for the same reason), and graph_rag.py's GraphRAGEngine,
-        # which does go through BaseAgent -- and was the module that made
-        # this the right place for the fix, rather than patching every
-        # caller individually as they turn up one at a time.
         if (provider is None and model != "mock"
                 and os.environ.get("SALEHA_TEST_MODE") == "1"):
             self.provider: ModelProvider = MockProvider()
@@ -76,6 +58,13 @@ class BaseAgent:
         else:
             self.router = None
         self.total_tokens_used = 0  # v1.2: agent-lifetime token accounting
+
+        # Agent Personal Computer (AgentPC): Dedicated workspace, hardware sandbox & blackbox
+        from saleha.core.agent_pc import get_agent_pc
+        self.pc = get_agent_pc(
+            agent_role=self.role,
+            base_dir=kwargs.get("pc_workspace_dir"),
+        )
 
     def _record_tokens(self, provider_result) -> int:
         used = int(getattr(provider_result, "tokens_used", 0) or 0)
@@ -137,13 +126,27 @@ class BaseAgent:
                 response_time, provider_result.success
             )
 
+        tokens_used = self._record_tokens(provider_result)
+        self.pc.blackbox.record(
+            event_type="THINK",
+            stage="LLM_INFERENCE",
+            payload={
+                "task_id": unique_task_id,
+                "model_used": selected_model,
+                "success": provider_result.success,
+                "response_time": response_time,
+                "tokens_used": tokens_used,
+            },
+            status="SUCCESS" if provider_result.success else "FAILED",
+        )
+
         if provider_result.success:
             return AgentResponse(
                 success=True,
                 content=provider_result.content,
                 model_used=selected_model,
                 response_time=response_time,
-                tokens_used=self._record_tokens(provider_result),
+                tokens_used=tokens_used,
                 context_trimmed_chars=context_trimmed_chars,
             )
         else:
@@ -202,13 +205,27 @@ class BaseAgent:
                 response_time, provider_result.success
             )
 
+        tokens_used = self._record_tokens(provider_result)
+        self.pc.blackbox.record(
+            event_type="THINK_STREAM",
+            stage="LLM_INFERENCE",
+            payload={
+                "task_id": unique_task_id,
+                "model_used": selected_model,
+                "success": provider_result.success,
+                "response_time": response_time,
+                "tokens_used": tokens_used,
+            },
+            status="SUCCESS" if provider_result.success else "FAILED",
+        )
+
         if provider_result.success:
             return AgentResponse(
                 success=True,
                 content=provider_result.content,
                 model_used=selected_model,
                 response_time=response_time,
-                tokens_used=self._record_tokens(provider_result),
+                tokens_used=tokens_used,
             )
         return AgentResponse(
             success=False,
@@ -216,4 +233,77 @@ class BaseAgent:
             error_message=provider_result.error_message,
             model_used=selected_model,
             response_time=response_time,
+        )
+
+    def run_in_pc(
+        self,
+        code: str,
+        filename: str = "task.py",
+        verify_ast: bool = True,
+        timeout_sec: Optional[float] = None,
+    ):
+        """Runs Python code inside this agent's isolated personal computer sandbox."""
+        return self.pc.execute_code(
+            code=code,
+            filename=filename,
+            verify_ast=verify_ast,
+            timeout_sec=timeout_sec,
+        )
+
+    def write_in_pc(self, rel_path: str, content: str) -> Any:
+        """Writes a file inside this agent's isolated PC workspace."""
+        path = self.pc.workspace.write_file(rel_path, content)
+        self.pc.blackbox.record(
+            event_type="FILE_WRITE",
+            stage="WORKSPACE",
+            payload={"filename": rel_path, "bytes": len(content)},
+            status="WRITTEN",
+        )
+        return path
+
+    def read_from_pc(self, rel_path: str) -> str:
+        """Reads a file from this agent's isolated PC workspace."""
+        content = self.pc.workspace.read_file(rel_path)
+        self.pc.blackbox.record(
+            event_type="FILE_READ",
+            stage="WORKSPACE",
+            payload={"filename": rel_path, "bytes": len(content)},
+            status="READ",
+        )
+        return content
+
+    def checkpoint_pc(self, tag: str) -> str:
+        """Creates a time-travel checkpoint of this agent's PC workspace."""
+        chk = self.pc.workspace.create_checkpoint(tag)
+        self.pc.blackbox.record(
+            event_type="CHECKPOINT",
+            stage="SNAPSHOT",
+            payload={"checkpoint_id": chk.checkpoint_id, "tag": tag},
+            status="CREATED",
+        )
+        return chk.checkpoint_id
+
+    def restore_pc(self, checkpoint_id_or_tag: str) -> bool:
+        """Restores this agent's PC workspace to a previous checkpoint."""
+        ok = self.pc.workspace.restore_checkpoint(checkpoint_id_or_tag)
+        status = "RESTORED" if ok else "NOT_FOUND"
+        self.pc.blackbox.record(
+            event_type="RESTORE",
+            stage="ROLLBACK",
+            payload={"target": checkpoint_id_or_tag, "success": ok},
+            status=status,
+        )
+        return ok
+
+    def export_from_pc(
+        self,
+        src_relpath: str,
+        dest_abspath: Any,
+        require_green_run: bool = True,
+    ) -> bool:
+        """Exports a verified file from this agent's PC to the repository."""
+        return self.pc.export_verified_artifact(
+            src_relpath=src_relpath,
+            dest_abspath=dest_abspath,
+            require_green_run=require_green_run,
         )

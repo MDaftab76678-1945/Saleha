@@ -16,6 +16,7 @@ for the expected call pattern.
 """
 
 import re
+from typing import Any
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 
@@ -71,8 +72,8 @@ class CoderAgent(BaseAgent):
         "bash": "POSIX-safe bash: set -euo pipefail, functions, quotes on all expansions.",
     }
 
-    def __init__(self, model: str = "auto", max_attempts: int = 3):
-        super().__init__(role="Coder", model=model)
+    def __init__(self, model: str = "auto", max_attempts: int = 3, **kwargs: Any):
+        super().__init__(role="Coder", model=model, **kwargs)
         self.max_attempts = max_attempts
 
     @classmethod

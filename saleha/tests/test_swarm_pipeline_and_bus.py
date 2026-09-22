@@ -3,21 +3,21 @@ Unit & Integration Tests for Swarm Pipeline Engine, Event Bus, and Semantic Memo
 """
 
 import unittest
+
+from saleha.cli.swarm_visualizer import SwarmAsciiVisualizer
+from saleha.core.memory.semantic_memory_cache import SemanticMemoryCache
 from saleha.core.swarm.agent_message_bus import (
-    AgentMessageBus,
     AgentEvent,
-    TaskAssignedEvent,
+    AgentMessageBus,
     CodeSynthesizedEvent,
     SecurityVulnerabilityEvent,
-    TestExecutionEvent,
+    TaskAssignedEvent,
 )
-from saleha.core.memory.semantic_memory_cache import SemanticMemoryCache
 from saleha.core.swarm.swarm_pipeline_engine import (
     AutonomousSwarmRouter,
     SwarmPipelineEngine,
     SwarmPipelineStage,
 )
-from saleha.cli.swarm_visualizer import SwarmAsciiVisualizer
 
 
 class AgentMessageBusTests(unittest.TestCase):
@@ -52,7 +52,10 @@ class AgentMessageBusTests(unittest.TestCase):
 
     def test_unsubscribe(self) -> None:
         called = []
-        handler = lambda e: called.append(1)
+
+        def handler(e):
+            called.append(1)
+
         self.bus.subscribe("task_assigned", handler)
         self.bus.publish(TaskAssignedEvent(task_goal="G1"))
         self.assertEqual(len(called), 1)

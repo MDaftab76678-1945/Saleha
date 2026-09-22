@@ -38,6 +38,11 @@ class ASTContractAuditor(ast.NodeVisitor):
             if node.func.id in {"eval", "exec"}:
                 self.violations.append(f"Dangerous dynamic code execution '{node.func.id}()' detected at line {node.lineno}")
 
+        # Detect os.system()
+        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            if node.func.value.id == "os" and node.func.attr == "system":
+                self.violations.append(f"Dangerous 'os.system()' execution detected at line {node.lineno}")
+
         # Detect subprocess with shell=True
         for keyword in node.keywords:
             if keyword.arg == "shell":
