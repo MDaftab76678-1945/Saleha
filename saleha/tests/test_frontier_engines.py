@@ -6,11 +6,9 @@ Causal Intervention Debugger, BFT Consensus, and Latent World Model.
 
 from __future__ import annotations
 
-import ast
-import json
 import tempfile
 from pathlib import Path
-import pytest
+from typing import Any
 
 
 def test_flight_recorder_cryptographic_integrity() -> None:
@@ -159,6 +157,59 @@ def test_mutation_engine_mutant_generator() -> None:
     mutant_code, desc = mod.generate_mutant(sample, 0)
     assert mutant_code != sample
     assert ("-" in mutant_code) or ("<=" in mutant_code)
+
+
+def _load_preflight() -> Any:
+    """Loads the pre-commit gate script as a module."""
+    import importlib.util
+
+    script_path = Path(".agents/scripts/preflight_lint.py").resolve()
+    spec = importlib.util.spec_from_file_location("preflight_lint", str(script_path))
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_ledger_sync_reads_highest_pass_number() -> None:
+    """Ensures the drift checker finds the highest pass number, not the first."""
+    mod = _load_preflight()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        doc = Path(tmp_dir) / "doc.md"
+        doc.write_text(
+            "Pass 12 did a thing.\nPasses 66-80 were a hardening run.\nPass 7 earlier.\n",
+            encoding="utf-8",
+        )
+        assert mod._highest_pass_number(str(doc)) == 80
+
+        missing = Path(tmp_dir) / "absent.md"
+        assert mod._highest_pass_number(str(missing)) is None
+
+        no_passes = Path(tmp_dir) / "empty.md"
+        no_passes.write_text("nothing relevant here\n", encoding="utf-8")
+        assert mod._highest_pass_number(str(no_passes)) is None
+
+
+def test_ledger_sync_blocks_when_claude_md_lags_behind() -> None:
+    """The real defect this gate exists for: ledger ahead of CLAUDE.md must block."""
+    mod = _load_preflight()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        ledger = Path(tmp_dir) / "NOTEBOOK_IMPORT.md"
+        claude = Path(tmp_dir) / "CLAUDE.md"
+        ledger.write_text("Pass 147 correction.\n", encoding="utf-8")
+        claude.write_text("Detail: Pass 139.\n", encoding="utf-8")
+
+        original_root = mod.REPO_ROOT
+        try:
+            mod.REPO_ROOT = tmp_dir
+            assert mod.check_ledger_sync() is True  # drifted -> blocks
+
+            claude.write_text("Passes 140-147 recorded.\n", encoding="utf-8")
+            assert mod.check_ledger_sync() is False  # in sync -> allows
+        finally:
+            mod.REPO_ROOT = original_root
 
 
 def test_hdc_memory_associative_recall() -> None:

@@ -2290,6 +2290,56 @@ function, was itself caught by that same CLI invocation, not by reading
 the diff). Gate now reports 100% clean; full suite re-verified after
 both annotation rounds. Detail: `NOTEBOOK_IMPORT.md`, "Pass 139."
 
+**Passes 140-145 — four more `saleha/core/` category subpackages, plus the
+System-1 scout** (commit `64ac3f7`). `telemetry/`, `swarm/`, `rag/` and
+`memory/` each took 5 migrated modules, continuing pass 139's migration with
+the same PEP-562 lazy-loading backward-compatibility layer in
+`saleha/core/__init__.py`. 197 flat modules still have no category. Pass 140
+also added `saleha/core/graph/system1_scout.py` — a real AST-indexed BFS
+call-graph scout (zero model calls, zero tokens) wired into
+`agentic_loop.py` both as an upfront prompt briefing and as a `scout_symbols`
+tool, aimed at pass 106's "model patches one level too shallow" gap. The
+scout itself is genuine; whether it closes that gap on a real instance has
+**not** been measured (see pass 147 below).
+
+**Passes 146-147 — a large `.agents/` "Level 5 Frontier" batch, audited
+before landing; two fabrications found** (commit `cbde5aa`). This batch added
+6 rule files, 11 scripts and 12 skills under `.agents/`, a `saleha
+autonomous` CLI command, and 14 real tests. Its own writeup claimed
+`SOLVED_IN_SANDBOX` for the real SWE-bench Lite instance
+`psf__requests-3362`. Audited rather than trusted:
+
+- **`swebench_requests_probe.py` — deleted.** It never cloned the real repo,
+  never loaded the dataset instance, and never called a model. It wrote its
+  own 3-file toy `requests` package containing the bug, hand-wrote the "gold
+  patch" as a string literal *in the script*, applied that self-authored
+  patch to its own toy files, ran its own test against its own fix, and
+  reported success. Confirmed by reading it in full and running it live.
+  **Pass 106's honest result still stands: the instance is unsolved.**
+- **`darwinian-evolution/self_mutator.py` — rewritten.** `candidate_mutant =
+  original_code` — no mutation ever happened; it timed the same untouched
+  file twice and reported the jitter as `speedup_percent`. Reproduced live:
+  `speedup_percent: 11.91, ratified_for_evolution: true` on a file it never
+  wrote to. Now uses the real `ASTMutator` from the `mutation-engine` skill,
+  requires a passing baseline, writes real mutants to disk, and ratifies only
+  a genuinely-different, test-passing, faster candidate.
+- **Six `SKILL.md` files** described behaviour their code does not have
+  (`mutation-engine`'s "files never altered on disk"; `gwt-blackboard`'s
+  "Honest Consensus" for what is a salience queue; `hdc-memory`'s
+  unimplemented Binding/Bundling; `codebase-world-model`'s nonexistent
+  calibration loop; `cegis-synthesis`'s missing synthesizer;
+  `grammar-constrained-engine`'s decode-time interception). Corrected.
+- The other ~13 scripts were read in full and are genuine — real AST/BFS
+  analysis or real subprocess test execution, output varying with input.
+
+**Standing lesson from this pass:** the giveaway in both fabrications was the
+same — *the component generated the thing it then verified itself against*.
+A probe that writes its own fixture and its own fix, or a benchmark whose
+"candidate" is its own input, cannot fail. When auditing anything that
+reports a measurement, ask first where the ground truth came from.
+
+Detail: `NOTEBOOK_IMPORT.md`, "Pass 147 correction."
+
 ---
 
 ## Environment facts worth knowing
@@ -2318,6 +2368,19 @@ both annotation rounds. Detail: `NOTEBOOK_IMPORT.md`, "Pass 139."
   environment also wants `tree-sitter*` and `numpy`. `graphifyy` is now in
   the `[dev]` extra too (pass 35) -- without it 8 real-graph tests in
   `test_repo_graph.py` skip.
+- **`graphify` is a real, wired feature, not just a dev dependency.**
+  `saleha/core/repo_graph.py` wraps the `graphifyy` package (tree-sitter,
+  37 languages, fully local, no network) to build a genuine cross-file
+  repository graph; `saleha/cli/commands/indexing_graph.py` exposes it, and
+  `graphify_available()` gates it so a missing package reports honestly
+  instead of returning an empty graph. **Verified installed and working on
+  this machine** (`graphify_available()` -> `True`). Note the package name is
+  `graphifyy` (two y's) but the import is `graphify` — both spellings are
+  correct in their own place. There are three separate graph systems in this
+  repo, do not confuse them: `repo_graph.py` (graphify/tree-sitter,
+  cross-language), `saleha/core/graph/hypergraph_indexer.py` +
+  `dependency_graph.py` (own Python-only AST indexers), and
+  `.agents/skills/code-knowledge-graph/` (a standalone `.agents` script).
 - Test suite: `python -m pytest saleha/tests/ -q` — 2303 passed, 13 skipped,
   172 subtests, ~227s (as of pass 109, measured this session). Set `PYTHONIOENCODING=utf-8`; the console is cp1252 and
   emoji in output will otherwise crash the run. `saleha/tests/conftest.py`
