@@ -116,12 +116,24 @@ class GeminiProviderTests(unittest.TestCase):
 
     def test_http_error_is_a_failure_with_the_reason(self) -> None:
         with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \
+                patch("saleha.core.platform.model_provider.time.sleep"), \
                 patch("saleha.core.platform.model_provider.requests.post",
                       lambda url, **kw: _Resp(429, {"error": {"message": "quota exceeded"}})):
             res = GeminiProvider(api_key="k").generate("gemini", "hi")
         self.assertFalse(res.success)
         self.assertIn("429", res.error_message)
         self.assertIn("quota", res.error_message)
+
+    def test_transient_503_is_retried(self) -> None:
+        replies = [_Resp(503, {"error": {"message": "high demand"}}),
+                   _Resp(200, {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})]
+        with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \
+                patch("saleha.core.platform.model_provider.time.sleep") as slept, \
+                patch("saleha.core.platform.model_provider.requests.post",
+                      lambda url, **kw: replies.pop(0)):
+            res = GeminiProvider(api_key="k").generate("gemini", "hi")
+        self.assertTrue(res.success, res.error_message)
+        slept.assert_called_once()
 
     def test_blocked_or_empty_answer_is_not_success(self) -> None:
         with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \

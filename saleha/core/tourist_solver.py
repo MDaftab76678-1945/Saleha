@@ -49,6 +49,10 @@ _BUILTIN_NAMES = set(dir(builtins))
 _CODE_BLOCK = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
 
 
+class ModelCallError(RuntimeError):
+    """The model could not be reached or refused -- distinct from a bad answer."""
+
+
 @dataclass
 class Attempt:
     stage: str
@@ -303,11 +307,21 @@ def solve(goal: str, root_dir: str = ".", think: Optional[Callable[[str, str, bo
     existing_defs = _top_level_names(original_target)
     result = SolveResult(False, "FAILED", "", target_file=u.target)
 
+    last_call_error = ""
+
     def call(stage: str, model: str, prompt: str, reasoning: bool) -> str:
+        nonlocal last_call_error
         s = time.time()
-        reply = think(model, prompt, reasoning)
+        try:
+            reply = think(model, prompt, reasoning)
+            last_call_error = ""
+        except ModelCallError as exc:
+            # Measured: a Gemini 503 ("high demand") was reported as "model
+            # returned no code block", blaming an answer that never came.
+            reply, last_call_error = "", str(exc)
         result.model_calls += 1
-        result.attempts.append(Attempt(stage, model, round(time.time() - s, 1), None))
+        result.attempts.append(Attempt(stage, model, round(time.time() - s, 1), None,
+                                       f"model call failed: {last_call_error}" if last_call_error else ""))
         return reply
 
     def check(code: str) -> Tuple[bool, str]:
@@ -329,7 +343,8 @@ def solve(goal: str, root_dir: str = ".", think: Optional[Callable[[str, str, bo
         return time_budget is not None and time.time() - t0 >= time_budget
 
     code = _extract_code(call("write", fast, _write_prompt(goal, u), False))
-    ok, out = check(code) if code else (False, "model returned no code block")
+    ok, out = check(code) if code else (False, f"model call failed: {last_call_error}"
+                                        if last_call_error else "model returned no code block")
     emit(f"write: tests {'PASS' if ok else 'FAIL'}")
 
     for i in range(max_repairs):
@@ -342,6 +357,8 @@ def solve(goal: str, root_dir: str = ".", think: Optional[Callable[[str, str, bo
         if fixed:
             code = fixed
             ok, out = check(code)
+        elif last_call_error:
+            out = f"model call failed: {last_call_error}"
         emit(f"repair {i + 1} ({model}): tests {'PASS' if ok else 'FAIL'}")
 
     if ok and stress and not out_of_time():
@@ -377,7 +394,9 @@ def _ollama_think(model: str, prompt: str, reasoning: bool) -> str:
     # run and failed on the next.
     agent = BaseAgent(role="Tourist", model=model, temperature=0.2)
     resp = agent.think(prompt, disable_reasoning=not reasoning)
-    return resp.content if resp.success else ""
+    if not resp.success:
+        raise ModelCallError(resp.error_message or "model call failed")
+    return resp.content
 
 
 def as_dict(r: SolveResult) -> Dict[str, Any]:

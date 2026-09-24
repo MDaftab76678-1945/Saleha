@@ -103,6 +103,14 @@ class TouristSolverTests(unittest.TestCase):
         self.assertEqual(r.model_calls, 1)
         self.assertIn("time budget", r.reason)
 
+    def test_unreachable_model_is_reported_as_such(self) -> None:
+        def down(model: str, _prompt: str, reasoning: bool) -> str:
+            raise ts.ModelCallError("Gemini HTTP 503: high demand")
+        r = ts.solve("add", str(self.root), think=down)
+        self.assertFalse(r.success)
+        self.assertIn("model call failed: Gemini HTTP 503", r.reason)
+        self.assertNotIn("no code block", r.reason)
+
     def test_folder_without_tests_is_not_run(self) -> None:
         (self.root / "test_solution.py").unlink()
         r = ts.solve("x", str(self.root), think=_Scripted([GOOD]))

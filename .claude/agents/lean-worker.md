@@ -1,7 +1,7 @@
 ---
 name: lean-worker
 description: Cheap worker for one narrow, well-specified task in this repo (one file or one command). Use for parallel small jobs; not for audits or open-ended search.
-model: sonnet
+model: haiku
 tools: Read, Edit, Grep, Glob, Bash, PowerShell
 ---
 

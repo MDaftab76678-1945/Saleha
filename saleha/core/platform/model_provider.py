@@ -583,13 +583,22 @@ class GeminiProvider(ModelProvider):
         if options and "temperature" in options:
             body["generationConfig"] = {"temperature": options["temperature"]}
         start = time.time()
-        try:
-            resp = requests.post(_GEMINI_URL.format(model=self.api_model(model)), json=body,
-                                 headers={"x-goog-api-key": self.api_key}, timeout=self.timeout)
-        except requests.RequestException as exc:
-            return ProviderResponse(False, "", f"Gemini request failed: {type(exc).__name__}",
-                                    response_time=time.time() - start,
-                                    provider_name=self.provider_name)
+        # 429 / 500 / 503 are usually momentary ("high demand" was measured
+        # mid-benchmark); retry twice with backoff before giving up.
+        resp = None
+        for delay in (0, 2, 6):
+            if delay:
+                time.sleep(delay)
+            try:
+                resp = requests.post(_GEMINI_URL.format(model=self.api_model(model)), json=body,
+                                     headers={"x-goog-api-key": self.api_key}, timeout=self.timeout)
+            except requests.RequestException as exc:
+                return ProviderResponse(False, "", f"Gemini request failed: {type(exc).__name__}",
+                                        response_time=time.time() - start,
+                                        provider_name=self.provider_name)
+            if resp.status_code not in (429, 500, 503):
+                break
+        assert resp is not None  # the loop always makes at least one request
         elapsed = time.time() - start
         try:
             data = resp.json()

@@ -27,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -90,9 +91,18 @@ def agent_command(agent: str, prompt: str, work: Path, model: str) -> List[str]:
         exe = ROOT / ".venv" / "Scripts" / "saleha.exe"
         return [str(exe), "agent", prompt, "--dir", str(work), "--write", "-m", model,
                 "--max-steps", "20", "--timeout", "600", "--json"]
-    if agent == "tourist":
+    if agent in ("tourist", "tourist-claude", "tourist-gemini"):
         exe = ROOT / ".venv" / "Scripts" / "saleha.exe"
         return [str(exe), "tourist", prompt, "--dir", str(work), "--json"]
+    if agent == "claude-code":
+        # Claude Code as a full agent: it edits files and runs the tests
+        # itself. Tools limited to reading, editing and running Python;
+        # user/project settings are not loaded so the task is all it sees.
+        exe = shutil.which("claude") or "claude"
+        return [exe, "-p", prompt, "--output-format", "json", "--model", model,
+                "--permission-mode", "acceptEdits",
+                "--allowedTools", "Read Edit Write Glob Grep Bash(python *) Bash(pytest *)",
+                "--setting-sources", "", "--no-session-persistence", "--strict-mcp-config"]
     if agent == "hermes":
         exe = shutil.which("hermes") or "hermes"
         return [exe, "-z", prompt, "--yolo", "--in", str(work), "-m", model]
@@ -105,12 +115,21 @@ def final_answer(agent: str, output: str) -> str:
     The prompt itself contains "DONE ... or FAILED", so searching the whole
     transcript counted a run that stopped with no answer as "FAILED".
     """
-    if agent in ("saleha", "tourist"):
+    if agent in ("saleha", "tourist", "tourist-claude", "tourist-gemini"):
         for line in reversed(output.splitlines()):
             line = line.strip()
             if line.startswith("{") and '"success"' in line:
                 try:
                     return str(json.loads(line).get("final_message") or "")
+                except ValueError:
+                    continue
+        return ""
+    if agent == "claude-code":
+        for line in reversed(output.splitlines()):
+            line = line.strip()
+            if line.startswith("{") and '"result"' in line:
+                try:
+                    return str(json.loads(line).get("result") or "")
                 except ValueError:
                     continue
         return ""
@@ -130,9 +149,22 @@ def run(agent: str, model: str, limit: int) -> None:
     if not tasks:
         raise SystemExit("no tasks: run `prepare` first")
     out_dir = RUNS_DIR / agent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Claude Code walks up from its working directory loading CLAUDE.md and
+    # rules; inside this repo it would read Saleha's own instructions. Its
+    # task folders live outside the repo instead.
+    work_root = (Path(tempfile.gettempdir()) / "saleha_agent_bench" / agent
+                 if agent == "claude-code" else out_dir)
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "SALEHA_APPROVAL": "off"}
+    if agent == "tourist-claude":
+        # Same harness as "tourist", but every model call goes to Claude --
+        # isolates what the harness adds from what the model knows.
+        env.update(SALEHA_TOURIST_FAST=f"claude-code:{model}", SALEHA_TOURIST_DEEP=f"claude-code:{model}")
+    if agent == "tourist-gemini":
+        env.update(SALEHA_TOURIST_FAST=f"gemini:{model}", SALEHA_TOURIST_DEEP=f"gemini:{model}")
     results: List[Dict[str, Any]] = []
     for i, src in enumerate(tasks, 1):
-        work = out_dir / src.name
+        work = work_root / src.name
         if work.exists():
             shutil.rmtree(work)
         shutil.copytree(src, work)
@@ -141,9 +173,7 @@ def run(agent: str, model: str, limit: int) -> None:
         t0 = time.time()
         try:
             proc = subprocess.run(cmd, cwd=work, capture_output=True, text=True, encoding="utf-8",
-                                  errors="replace", timeout=900,
-                                  env={**os.environ, "PYTHONIOENCODING": "utf-8",
-                                       "SALEHA_APPROVAL": "off"})
+                                  errors="replace", timeout=900, env=env)
             output, code = proc.stdout + "\n" + proc.stderr, proc.returncode
         except subprocess.TimeoutExpired as exc:
             output, code = f"{exc.stdout or ''}\nTIMEOUT", -1
@@ -184,7 +214,7 @@ def main() -> int:
     p = sub.add_parser("prepare")
     p.add_argument("--n", type=int, default=30)
     r = sub.add_parser("run")
-    r.add_argument("agent", choices=["saleha", "tourist", "hermes"])
+    r.add_argument("agent", choices=["saleha", "tourist", "tourist-claude", "tourist-gemini", "claude-code", "hermes"])
     r.add_argument("--model", default="qwen3:8b")
     r.add_argument("--limit", type=int, default=0)
     sub.add_parser("score")
