@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from typing import List, Optional
 
 from saleha.core.rag.repo_context_packer import (
     RepoContextPacker,
@@ -166,6 +167,115 @@ class RepoContextPackerPackingTests(unittest.TestCase):
         budget = 2000
         ctx = self.packer.pack("handle module requests", budget_chars=budget)
         self.assertLessEqual(len(ctx), budget + 200)
+
+
+class _FakeEmbedder:
+    """Maps text to a 2-d vector by which topic word it mentions.
+
+    "money" texts point one way, "network" texts the other, so a task can be
+    semantically close to a file it shares no keyword with.
+    """
+
+    model = "fake-embed"
+
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.embedded: List[str] = []
+
+    def embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
+        if self.fail:
+            return None
+        self.embedded.extend(texts)
+        out = []
+        for t in texts:
+            low = t.lower()
+            if any(w in low for w in ("invoice", "refund", "charge", "billing")):
+                out.append([1.0, 0.0])
+            else:
+                out.append([0.0, 1.0])
+        return out
+
+
+class _LoudRanker:
+    """A symbol ranker whose popularity boost favours one file hugely."""
+
+    def __init__(self, favourite: str) -> None:
+        self.favourite = favourite
+
+    def popularity_boost(self) -> dict:
+        return {self.favourite: 600.0}
+
+
+class RepoContextPackerRankingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = self._tmp.name
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_file(self, rel_path: str, content: str) -> None:
+        full = os.path.join(self.root, rel_path)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def test_build_output_and_extra_venvs_are_not_scanned(self) -> None:
+        self._write_file("src/auth.py", "def verify_token(): pass\n")
+        self._write_file("apps/web/.next/static/chunks/main.js", "function verify_token(){}\n")
+        self._write_file(".venv_laya/lib/auth.py", "def verify_token(): pass\n")
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=None, semantic=False)
+        paths = [sf.path for sf in packer.rank_files("verify token")]
+        self.assertEqual(paths, ["src/auth.py"])
+
+    def test_popularity_cannot_lift_an_unmatched_file_over_a_match(self) -> None:
+        self._write_file("src/auth.py", "def verify_token(): pass\n")
+        self._write_file("src/hub.py", "def unrelated_helper(): pass\n")
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=_LoudRanker("src/hub.py"),
+                                   semantic=False)
+        ranked = packer.rank_files("verify token")
+        self.assertEqual(ranked[0].path, "src/auth.py")
+        hub = next(sf for sf in ranked if sf.path == "src/hub.py")
+        self.assertEqual(hub.score, 0.0)
+
+    def test_semantic_ranking_finds_a_file_with_no_shared_keyword(self) -> None:
+        self._write_file("src/ledger.py", "def post_invoice(): pass\n")
+        self._write_file("src/sockets.py", "def open_customer_socket(): pass\n")
+        emb = _FakeEmbedder()
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=None, embedder=emb)
+        task = "we were billing twice, give the money back"
+        keyword_only = RepoContextPacker(root_dir=self.root, symbol_ranker=None, semantic=False)
+        # No shared word: the keyword scorer alone scores every file zero.
+        self.assertTrue(all(sf.score == 0 for sf in keyword_only.rank_files(task)))
+        ranked = packer.rank_files(task)
+        self.assertEqual(packer.last_ranking, "keyword+semantic")
+        self.assertEqual(ranked[0].path, "src/ledger.py")
+        self.assertGreater(ranked[0].score, 0)
+
+    def test_unchanged_files_are_not_embedded_twice(self) -> None:
+        self._write_file("src/ledger.py", "def post_invoice(): pass\n")
+        emb = _FakeEmbedder()
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=None, embedder=emb)
+        packer.rank_files("refund an invoice")
+        first = len(emb.embedded)
+        RepoContextPacker(root_dir=self.root, symbol_ranker=None,
+                          embedder=emb).rank_files("refund an invoice")
+        # Second packer: only the query is embedded; the file comes from the cache.
+        self.assertEqual(len(emb.embedded) - first, 1)
+
+    def test_unreachable_embedder_falls_back_and_says_so(self) -> None:
+        self._write_file("src/auth.py", "def verify_token(): pass\n")
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=None,
+                                   embedder=_FakeEmbedder(fail=True))
+        ranked = packer.rank_files("verify token")
+        self.assertEqual(packer.last_ranking, "keyword")
+        self.assertIn("unreachable", packer.last_ranking_note)
+        self.assertEqual(ranked[0].path, "src/auth.py")
+
+    def test_semantic_is_off_by_default(self) -> None:
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=None)
+        self.assertFalse(packer.semantic)
+        self.assertEqual(packer.last_ranking_note, "semantic ranking disabled")
 
 
 if __name__ == "__main__":

@@ -488,10 +488,13 @@ class SalehaOrchestrator:
             if context_dir:
                 try:
                     from saleha.core.rag.repo_context_packer import RepoContextPacker
-                    packed = RepoContextPacker(root_dir=context_dir).pack(user_goal)
+                    packer = RepoContextPacker(root_dir=context_dir)
+                    packed = packer.pack(user_goal)
                     if packed:
                         repo_note = f"\n\n[Repository Context]\n{packed}\n"
-                        log += "Repo context packed (task-relevant symbols + excerpt).\n"
+                        note = f"; {packer.last_ranking_note}" if packer.last_ranking_note else ""
+                        log += (f"Repo context packed (task-relevant symbols + excerpt; "
+                                f"ranking: {packer.last_ranking}{note}).\n")
                     else:
                         log += "Repo context: no relevant code file found.\n"
                 except Exception as pack_err:

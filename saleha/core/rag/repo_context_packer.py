@@ -11,6 +11,9 @@ to prepend into LLM coder and planner prompts:
    - Docstring relevance matching.
    - File-path architectural heuristics (core/lib/app prioritized over tests/mocks).
    - Entry-point boosting (main.py, app.py, index.js).
+   - Optional (SALEHA_SEMANTIC_CONTEXT=1): semantic similarity from a local
+     Ollama embedding model, fused with the keyword ranking by reciprocal
+     rank. When it cannot run, `last_ranking_note` says why.
 3. Packs a structured context block within model token boundaries:
    - Project directory layout.
    - Ranked symbol outlines.
@@ -19,8 +22,11 @@ to prepend into LLM coder and planner prompts:
 
 from __future__ import annotations
 
+import array
 import ast
+import base64
 import itertools
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -34,12 +40,29 @@ SKIP_DIRS: Set[str] = {
     ".git", ".hg", ".svn", "__pycache__", "node_modules", "venv", ".venv",
     "env", ".env", "dist", "build", ".idea", ".vscode", ".mypy_cache",
     ".pytest_cache", "site-packages", ".tox", "coverage", ".saleha",
+    # Framework build output: minified bundles that out-scored every real
+    # source file (apps/web/.next chunks took the top six ranks).
+    ".next", ".nuxt", ".astro", ".turbo", ".svelte-kit", "out", ".cache",
 }
+
+# The popularity boost is task-independent (it counts cross-file references),
+# so it only reorders files the task already matched, and never by more than
+# about one strong keyword hit.
+_POPULARITY_CAP = 3.0
 
 CODE_EXTENSIONS: Set[str] = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".java", ".rs", ".rb",
     ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".swift", ".kt",
 }
+
+# Semantic ranking: reciprocal-rank-fusion constant, how many semantic
+# neighbours may lift a file the keyword scorer gave nothing, and how much of
+# each file the embedding model sees (path + symbols + file head).
+_RRF_K = 60
+_SEMANTIC_TOP_N = 40
+_CARD_HEAD_CHARS = 800
+_CARD_MAX_CHARS = 2000
+_EMBED_CACHE_DIR = ".saleha"
 
 _SYMBOL_RE = re.compile(
     r"^(?:\s*)(?:def|class|func|function|fn|public|private)\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -109,11 +132,30 @@ class RepoContextPacker:
         max_files: int = 400,
         excerpt_lines: int = 40,
         symbol_ranker: Optional[Any] = None,
+        embedder: Optional[Any] = None,
+        semantic: Optional[bool] = None,
     ) -> None:
         self.root_dir = os.path.abspath(root_dir)
         self.max_files = max_files
         self.excerpt_lines = excerpt_lines
         self.ranker: Any = symbol_ranker if symbol_ranker is not None else self._default_ranker()
+        # `embedder` needs embed_batch(texts) -> normalized vectors or None, and
+        # a `model` name. None means "an OllamaEmbedder, created on first use".
+        # Opt-in: an explicit embedder, or SALEHA_SEMANTIC_CONTEXT=1. Measured
+        # on this repo's own history (commit subject -> files it changed), the
+        # fusion won on one sample and lost on a held-out one, so it is not
+        # the default until a better file card or weighting beats keywords.
+        if semantic is None:
+            semantic = embedder is not None or (
+                os.environ.get("SALEHA_TEST_MODE") != "1"
+                and os.environ.get("SALEHA_SEMANTIC_CONTEXT", "0") == "1"
+            )
+        self.semantic = semantic
+        self.embedder: Optional[Any] = embedder
+        # What the most recent rank_files()/pack() actually used, so callers
+        # can report it: "keyword" or "keyword+semantic".
+        self.last_ranking = "keyword"
+        self.last_ranking_note = "semantic ranking disabled" if not semantic else ""
 
     @staticmethod
     def _default_ranker() -> Optional[Any]:
@@ -131,7 +173,10 @@ class RepoContextPacker:
         """Walks the workspace directory and collects readable source code files."""
         found: List[str] = []
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in SKIP_DIRS and not d.startswith((".venv", "venv"))
+            ]
             for fname in filenames:
                 ext = os.path.splitext(fname)[1].lower()
                 if ext not in CODE_EXTENSIONS:
@@ -218,32 +263,116 @@ class RepoContextPacker:
         return round(score, 3), display_symbols
 
     # ------------------------------------------------------------------
-    # Packing
+    # Semantic ranking
     # ------------------------------------------------------------------
-    def pack(
-        self,
-        task: str,
-        budget_chars: Optional[int] = None,
-        model: str = "qwen2.5-coder:3b",
-        max_excerpts: int = 3,
-    ) -> str:
+    def _file_card(self, sf: ScoredFile) -> str:
+        """Text the embedding model sees for one file: path, symbols, file head."""
+        try:
+            with open(os.path.join(self.root_dir, sf.path), "r",
+                      encoding="utf-8", errors="replace") as f:
+                head = f.read(_CARD_HEAD_CHARS)
+        except OSError:
+            head = ""
+        names = ", ".join(s.split(" (L")[0] for s in sf.symbols[:40])
+        return f"{sf.path}\n{names}\n{head}"[:_CARD_MAX_CHARS]
+
+    def _cache_path(self, model: str) -> str:
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", model)
+        return os.path.join(self.root_dir, _EMBED_CACHE_DIR, f"embed_cache_{safe}.json")
+
+    @staticmethod
+    def _encode_vec(vec: List[float]) -> str:
+        return base64.b64encode(array.array("f", vec).tobytes()).decode("ascii")
+
+    @staticmethod
+    def _decode_vec(blob: str) -> List[float]:
+        arr = array.array("f")
+        arr.frombytes(base64.b64decode(blob))
+        return arr.tolist()
+
+    def _load_cache(self, path: str) -> Dict[str, str]:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _semantic_scores(self, task: str, scored: List[ScoredFile]) -> Optional[Dict[str, float]]:
+        """Cosine similarity of the task to every file, or None if it could not run.
+
+        File vectors are cached on disk under .saleha/, keyed by path, mtime and
+        size, so only new or edited files are embedded again.
         """
-        Packs a task-relevant repository context block bounded by character budget.
-        If budget_chars is None, automatically computes a safe character budget
-        scaled to the targeted model's context window.
+        if self.embedder is None:
+            try:
+                from saleha.core.rag.embedding_backends import OllamaEmbedder
+                self.embedder = OllamaEmbedder()
+            except Exception as exc:  # pragma: no cover - import failure only
+                self.last_ranking_note = f"semantic ranking skipped: {exc}"
+                return None
+
+        query = self.embedder.embed_batch([task])
+        if not query or not query[0]:
+            self.last_ranking_note = (
+                "semantic ranking skipped: embedding model "
+                f"{getattr(self.embedder, 'model', '?')!r} unreachable"
+            )
+            return None
+        qvec = query[0]
+
+        model = str(getattr(self.embedder, "model", "embedder"))
+        cache_file = self._cache_path(model)
+        cache = self._load_cache(cache_file)
+        keys: Dict[str, str] = {}
+        missing: List[ScoredFile] = []
+        for sf in scored:
+            try:
+                st = os.stat(os.path.join(self.root_dir, sf.path))
+            except OSError:
+                continue
+            key = f"{sf.path}|{st.st_mtime_ns}|{st.st_size}"
+            keys[sf.path] = key
+            if key not in cache:
+                missing.append(sf)
+
+        if missing:
+            vecs = self.embedder.embed_batch([self._file_card(sf) for sf in missing])
+            if vecs is None or len(vecs) != len(missing):
+                self.last_ranking_note = (
+                    f"semantic ranking skipped: embedding {len(missing)} files failed"
+                )
+                return None
+            for sf, vec in zip(missing, vecs, strict=True):
+                cache[keys[sf.path]] = self._encode_vec(vec)
+            live = set(keys.values())
+            cache = {k: v for k, v in cache.items() if k in live}
+            try:
+                os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(cache, f)
+            except OSError as exc:
+                # Ranking still ran; only the next call pays the embedding again.
+                self.last_ranking_note = f"embedding cache not saved: {exc}"
+
+        sims: Dict[str, float] = {}
+        for path, key in keys.items():
+            vec = self._decode_vec(cache[key])
+            if len(vec) == len(qvec):
+                sims[path] = sum(a * b for a, b in zip(qvec, vec, strict=True))
+        return sims
+
+    def rank_files(self, task: str) -> List[ScoredFile]:
+        """Scores every scanned file against `task`, best first.
+
+        Keyword scoring always runs. When semantic ranking is enabled and the
+        embedding model answers, the two rankings are fused by reciprocal
+        rank; `last_ranking` / `last_ranking_note` record which one happened.
         """
+        self.last_ranking = "keyword"
+        if self.semantic:
+            self.last_ranking_note = ""
         files = self._iter_code_files()
-        if not files:
-            return ""
-
-        effective_budget: int
-        if budget_chars is not None:
-            effective_budget = max(1000, budget_chars)
-        else:
-            effective_budget = chars_budget_for(model, fraction=0.20)
-            # Bound dynamic budget between 4,000 and 32,000 characters
-            effective_budget = max(4000, min(32000, effective_budget))
-
         task_tokens = _tokenize(task or "")
         scored: List[ScoredFile] = []
         for path in files[: self.max_files * 4]:
@@ -262,10 +391,62 @@ class RepoContextPacker:
             try:
                 boosts = self.ranker.popularity_boost()
                 for sf in scored:
-                    sf.score += boosts.get(sf.path, 0.0)
+                    if sf.score > 0:
+                        sf.score += min(boosts.get(sf.path, 0.0), _POPULARITY_CAP)
                 scored.sort(key=lambda sf: sf.score, reverse=True)
             except Exception:
                 pass
+
+        if not self.semantic or not scored or not (task or "").strip():
+            return scored
+
+        sims = self._semantic_scores(task, scored)
+        if sims is None:
+            return scored
+
+        # Reciprocal rank fusion. Keyword rank counts only for files the
+        # keyword scorer matched; semantic rank only for the nearest
+        # _SEMANTIC_TOP_N, so an unrelated file never gets a positive score.
+        kw_rank = {sf.path: i for i, sf in enumerate(s for s in scored if s.score > 0)}
+        by_sim = sorted(sims, key=lambda p: sims[p], reverse=True)[:_SEMANTIC_TOP_N]
+        sem_rank = {p: i for i, p in enumerate(by_sim)}
+        for sf in scored:
+            fused = 0.0
+            if sf.path in kw_rank:
+                fused += 1.0 / (_RRF_K + kw_rank[sf.path])
+            if sf.path in sem_rank:
+                fused += 1.0 / (_RRF_K + sem_rank[sf.path])
+            sf.score = round(fused * 1000, 3)
+        scored.sort(key=lambda sf: sf.score, reverse=True)
+        self.last_ranking = "keyword+semantic"
+        return scored
+
+    # ------------------------------------------------------------------
+    # Packing
+    # ------------------------------------------------------------------
+    def pack(
+        self,
+        task: str,
+        budget_chars: Optional[int] = None,
+        model: str = "qwen2.5-coder:3b",
+        max_excerpts: int = 3,
+    ) -> str:
+        """
+        Packs a task-relevant repository context block bounded by character budget.
+        If budget_chars is None, automatically computes a safe character budget
+        scaled to the targeted model's context window.
+        """
+        scored = self.rank_files(task)
+        if not scored:
+            return ""
+
+        effective_budget: int
+        if budget_chars is not None:
+            effective_budget = max(1000, budget_chars)
+        else:
+            effective_budget = chars_budget_for(model, fraction=0.20)
+            # Bound dynamic budget between 4,000 and 32,000 characters
+            effective_budget = max(4000, min(32000, effective_budget))
 
         lines: List[str] = ["## Repository Context (auto-packed by Saleha)", ""]
         used = sum(len(line) + 1 for line in lines)

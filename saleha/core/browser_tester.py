@@ -12,6 +12,8 @@ import time
 from dataclasses import dataclass, field
 from typing import List
 
+_ACTION_TYPES = frozenset({"goto", "click", "fill", "assert_text", "screenshot"})
+
 
 @dataclass
 class BrowserAction:
@@ -39,6 +41,9 @@ class BrowserTestReport:
     step_results: List[BrowserStepResult] = field(default_factory=list)
     success: bool = True
     error_summary: str = ""
+    # False when no browser ran at all (Playwright missing). Such a report is
+    # never a pass: "did not run" and "passed" must not look alike.
+    executed: bool = True
 
 
 class AutonomousBrowserTester:
@@ -56,107 +61,103 @@ class AutonomousBrowserTester:
         overall_success = True
         error_summary = ""
 
-        # Try importing Playwright if available in runtime environment
-        playwright_available = False
+        # A malformed flow fails before any browser is needed.
+        for idx, act in enumerate(actions, 1):
+            if act.action_type not in _ACTION_TYPES:
+                error = f"unknown action type {act.action_type!r}"
+            elif not act.target:
+                error = "Action target cannot be empty"
+            else:
+                continue
+            step_results.append(BrowserStepResult(action=act, success=False,
+                                                  duration_ms=0.0, error=error))
+            return self._report(actions, step_results, start_time, False,
+                                f"Step {idx}: {error}", executed=False)
+
+        if not actions:
+            return self._report(actions, step_results, start_time, False,
+                                "no browser actions given", executed=False)
+
         try:
             from playwright.sync_api import sync_playwright
-            playwright_available = True
         except ImportError:
-            playwright_available = False
+            # Without a browser nothing was checked. Report exactly that
+            # instead of marking every step passed.
+            return self._report(
+                actions, step_results, start_time, False,
+                "Playwright is not installed; no browser step was run "
+                "(pip install playwright && playwright install chromium)",
+                executed=False,
+            )
 
-        if playwright_available:
-            try:
-                from playwright.sync_api import sync_playwright
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=self.headless)
-                    page = browser.new_page()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=self.headless)
+                page = browser.new_page()
 
-                    for idx, act in enumerate(actions, 1):
-                        step_start = time.time()
-                        shot_path = ""
-                        try:
-                            if act.action_type == "goto":
-                                page.goto(act.target, timeout=act.timeout_ms)
-                            elif act.action_type == "click":
-                                page.click(act.target, timeout=act.timeout_ms)
-                            elif act.action_type == "fill":
-                                page.fill(act.target, act.value, timeout=act.timeout_ms)
-                            elif act.action_type == "assert_text":
-                                page.wait_for_selector(f"text={act.target}", timeout=act.timeout_ms)
-                            elif act.action_type == "screenshot":
-                                shot_path = os.path.join(self.screenshot_dir, f"{act.target or f'step_{idx}'}.png")
-                                page.screenshot(path=shot_path)
-
-                            elapsed = (time.time() - step_start) * 1000
-                            step_results.append(BrowserStepResult(
-                                action=act,
-                                success=True,
-                                duration_ms=round(elapsed, 2),
-                                screenshot_path=shot_path
-                            ))
-                        except Exception as e:
-                            elapsed = (time.time() - step_start) * 1000
-                            err_msg = str(e)
-                            step_results.append(BrowserStepResult(
-                                action=act,
-                                success=False,
-                                duration_ms=round(elapsed, 2),
-                                error=err_msg
-                            ))
-                            overall_success = False
-                            error_summary = f"Step {idx} ({act.action_type} '{act.target}') failed: {err_msg}"
-                            break
-
-                    browser.close()
-            except Exception as e:
-                overall_success = False
-                error_summary = f"Browser session error: {e}"
-        else:
-            # High-performance native synthetic simulation engine (when playwright is optional/stubbed)
-            for idx, act in enumerate(actions, 1):
-                step_start = time.time()
-                # Validate action parameters
-                if not act.target:
-                    step_results.append(BrowserStepResult(
-                        action=act,
-                        success=False,
-                        duration_ms=0.5,
-                        error="Action target cannot be empty"
-                    ))
-                    overall_success = False
-                    error_summary = f"Step {idx} target empty"
-                    break
-
-                shot_path = ""
-                if act.action_type == "screenshot":
-                    shot_path = os.path.join(self.screenshot_dir, f"{act.target or f'step_{idx}'}.png")
-                    # Create empty mock image for report
+                for idx, act in enumerate(actions, 1):
+                    step_start = time.time()
+                    shot_path = ""
                     try:
-                        with open(shot_path, "wb") as f:
-                            f.write(b"PNG_MOCK")
-                    except OSError:
-                        pass
+                        if act.action_type == "goto":
+                            page.goto(act.target, timeout=act.timeout_ms)
+                        elif act.action_type == "click":
+                            page.click(act.target, timeout=act.timeout_ms)
+                        elif act.action_type == "fill":
+                            page.fill(act.target, act.value, timeout=act.timeout_ms)
+                        elif act.action_type == "assert_text":
+                            page.wait_for_selector(f"text={act.target}", timeout=act.timeout_ms)
+                        elif act.action_type == "screenshot":
+                            shot_path = os.path.join(self.screenshot_dir, f"{act.target or f'step_{idx}'}.png")
+                            page.screenshot(path=shot_path)
 
-                elapsed = (time.time() - step_start) * 1000 + 1.2
-                step_results.append(BrowserStepResult(
-                    action=act,
-                    success=True,
-                    duration_ms=round(elapsed, 2),
-                    screenshot_path=shot_path
-                ))
+                        elapsed = (time.time() - step_start) * 1000
+                        step_results.append(BrowserStepResult(
+                            action=act,
+                            success=True,
+                            duration_ms=round(elapsed, 2),
+                            screenshot_path=shot_path
+                        ))
+                    except Exception as e:
+                        elapsed = (time.time() - step_start) * 1000
+                        err_msg = str(e)
+                        step_results.append(BrowserStepResult(
+                            action=act,
+                            success=False,
+                            duration_ms=round(elapsed, 2),
+                            error=err_msg
+                        ))
+                        overall_success = False
+                        error_summary = f"Step {idx} ({act.action_type} '{act.target}') failed: {err_msg}"
+                        break
 
-        total_dur = round(time.time() - start_time, 3)
-        passed = sum(1 for s in step_results if s.success)
-        failed = sum(1 for s in step_results if not s.success)
+                browser.close()
+        except Exception as e:
+            overall_success = False
+            error_summary = f"Browser session error: {e}"
 
+        if overall_success and len(step_results) != len(actions):
+            # A step that never ran is not a passed step.
+            overall_success = False
+            error_summary = error_summary or (
+                f"only {len(step_results)} of {len(actions)} steps ran")
+
+        return self._report(actions, step_results, start_time, overall_success,
+                            error_summary, executed=bool(step_results))
+
+    @staticmethod
+    def _report(actions: List[BrowserAction], step_results: List[BrowserStepResult],
+                start_time: float, success: bool, error_summary: str,
+                executed: bool) -> BrowserTestReport:
         return BrowserTestReport(
             total_steps=len(actions),
-            passed_steps=passed,
-            failed_steps=failed,
-            duration_sec=total_dur,
+            passed_steps=sum(1 for s in step_results if s.success),
+            failed_steps=sum(1 for s in step_results if not s.success),
+            duration_sec=round(time.time() - start_time, 3),
             step_results=step_results,
-            success=overall_success,
-            error_summary=error_summary
+            success=success,
+            error_summary=error_summary,
+            executed=executed,
         )
 
 

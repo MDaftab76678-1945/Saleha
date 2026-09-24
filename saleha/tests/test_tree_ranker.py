@@ -2,9 +2,9 @@
 import os
 import tempfile
 import unittest
+from typing import Any
 
 from saleha.core.rag.repo_context_packer import RepoContextPacker
-from typing import Any
 
 try:
     from saleha.core.rag.tree_context_ranker import TreeContextRanker
@@ -29,12 +29,12 @@ class FakeRanker:
     def reset(self) -> None:
         pass
 
-    def index_file(self, rel: Any, code: Any) -> Any:
+    def index_file(self, rel: Any, _code: Any) -> Any:
         self.indexed.append(rel)
         facts = type("F", (), {"defines": {"sharedThing"}, "references": set()})()
         return facts
 
-    def extract_symbols(self, rel: Any, code: Any) -> Any:
+    def extract_symbols(self, _rel: Any, _code: Any) -> Any:
         return [(1, "function sharedThing")]
 
     def popularity_boost(self) -> Any:
@@ -54,15 +54,23 @@ class PackerRankerIntegrationTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def test_fake_ranker_boost_changes_ranking(self) -> None:
-        # hub.js ka base score kam hoga (task 'plain' se match plain.py),
-        # par popularity boost use upar le aayega.
-        packer = RepoContextPacker(root_dir=self.root,
-                                   symbol_ranker=FakeRanker())
-        ctx = packer.pack("plain value", budget_chars=3000)
-        sym_lines = [l for l in ctx.splitlines() if l.startswith("- src/") and "::" in l]
+    def _first_listed(self, task: str) -> str:
+        packer = RepoContextPacker(root_dir=self.root, symbol_ranker=FakeRanker())
+        ctx = packer.pack(task, budget_chars=3000)
+        sym_lines = [ln for ln in ctx.splitlines() if ln.startswith("- src/") and "::" in ln]
         self.assertTrue(sym_lines, ctx)
-        self.assertIn("hub.js", sym_lines[0])
+        return sym_lines[0]
+
+    def test_fake_ranker_boost_reorders_matched_files(self) -> None:
+        # Both files match "plain thing"; plain.py scores higher on
+        # keywords, and hub.js's popularity boost lifts it above.
+        self.assertIn("hub.js", self._first_listed("plain thing"))
+
+    def test_boost_cannot_lift_a_file_the_task_does_not_match(self) -> None:
+        # hub.js shares no word with "plain value". The old uncapped boost put
+        # it first anyway -- which is how minified .next bundles out-ranked
+        # every real source file.
+        self.assertIn("plain.py", self._first_listed("plain value"))
 
     def test_ranker_receives_indexed_files(self) -> None:
         fake = FakeRanker()

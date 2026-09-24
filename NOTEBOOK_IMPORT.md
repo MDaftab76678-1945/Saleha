@@ -11212,3 +11212,23 @@ New `test_dataset_integrity.py` plus replacements for tests that required the
 padding (`count == 10` from 3 seeds, `>= 50` pairs, `total_dpo_pairs == 1000`):
 25 of them fail on the pre-fix code. Measured: full suite **2538 passed,
 13 skipped, 0 failures**. Gate `[SUCCESS]`.
+
+## Pass 153 (2026-09-24) -- repo context ranking, browser tester, env-dependent tests
+
+- `rag/repo_context_packer.py`: measured against git history (commit subject ->
+  the non-test `saleha/*.py` files it changed), the keyword ranker put a right
+  file in the top 10 for **0/60** queries: `apps/web/.next` minified bundles
+  were scanned, and the task-independent popularity boost (~600 for a bundle vs
+  ~45 for a real match) lifted them to the top six ranks. Build dirs and every
+  `.venv*` are now skipped; the boost is capped and applies only to files the
+  task matched. After: hit@3 32/60, and 59/100 on a held-out 100 commits.
+  Semantic (nomic-embed-text) fusion added: +5 hit@3 on the first sample, -2
+  on the held-out one, so it ships opt-in (`SALEHA_SEMANTIC_CONTEXT=1`) and
+  reports what it used in `last_ranking` / `last_ranking_note`.
+- `browser_tester.py`: without Playwright every step was marked passed and a
+  fake `PNG_MOCK` screenshot written; its test pinned that. Now `executed=False`,
+  `success=False`, nothing passed. The test runs a real local page instead.
+- `test_voice_real.py` asserted pyttsx3 was absent; installing it made the test
+  fail (and speak). Absence is now simulated.
+
+Measured: full suite 2548 passed, 14 skipped, 0 failures; gate `[SUCCESS]`.
