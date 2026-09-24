@@ -1,16 +1,20 @@
-use agent_common::cognitive_state::{SwarmTopology, AgentNode, SynapticEdge};
+use agent_common::cognitive_state::{AgentNode, SwarmTopology, SynapticEdge};
 use anyhow::Result;
 use rand::Rng;
 
-/// मॉर्फोजेनेटिक GNN स्वार्म इंजन
-/// डायनामिक टोपोलॉजी बनाता है
+/// Morphogenetic GNN swarm engine — builds dynamic agent topologies.
 pub struct GnnEngine;
 
 impl GnnEngine {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 
+    /// Derive a swarm topology from `input` complexity.
+    ///
+    /// Node count scales with input length; edge weights are the geometric
+    /// mean of the two endpoint capacities (GNN message-passing approximation).
     pub async fn form_dynamic_topology(&self, input: &[u8]) -> Result<SwarmTopology> {
-        // टास्क की जटिलता के आधार पर नोड्स की संख्या तय करना
         let complexity = input.len() as f32 / 1000.0;
         let num_nodes = ((complexity * 5.0).ceil() as usize).max(3).min(10);
 
@@ -23,7 +27,6 @@ impl GnnEngine {
             })
             .collect();
 
-        // GNN मैसेज पासिंग सिमुलेशन (एज वेट्स की गणना)
         let mut edges = Vec::new();
         for i in 0..nodes.len() {
             for j in (i + 1)..nodes.len() {

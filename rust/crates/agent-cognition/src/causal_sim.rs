@@ -1,25 +1,33 @@
-use agent_common::cognitive_state::{SwarmTopology, CausalOutcome};
+use agent_common::cognitive_state::{CausalOutcome, SwarmTopology};
 use anyhow::Result;
 
-/// कॉज़ल सिमुलेशन इंजन
-/// काउंटरफैक्चुअल (What-if) विश्लेषण करता है
+/// Causal simulation engine — counterfactual (what-if) analysis over swarm topologies.
 pub struct CausalEngine;
 
 impl CausalEngine {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 
+    /// Compute observational utility and worst-case counterfactual regret
+    /// for the given `topology`.
+    ///
+    /// Regret is defined as the utility loss if the highest-weight edge fails.
     pub async fn simulate_counterfactuals(&self, topology: &SwarmTopology) -> Result<CausalOutcome> {
-        // ऑब्जर्वेशनल यूटिलिटी की गणना
-        let observational_utility: f32 = topology.edges.iter()
+        let observational_utility: f32 = topology
+            .edges
+            .iter()
             .map(|e| e.weight)
-            .sum::<f32>() 
-            + topology.nodes.iter().map(|n| n.compute_capacity).sum::<f32>();
+            .sum::<f32>()
+            + topology
+                .nodes
+                .iter()
+                .map(|n| n.compute_capacity)
+                .sum::<f32>();
 
-        // काउंटरफैक्चुअल रेग्रेट (यदि कोई एज फेल हो जाए तो क्या होगा)
         let mut max_regret = 0.0f32;
         for edge in &topology.edges {
-            let counterfactual = observational_utility - edge.weight;
-            let regret = observational_utility - counterfactual;
+            let regret = edge.weight; // utility loss = removed edge weight
             if regret > max_regret {
                 max_regret = regret;
             }

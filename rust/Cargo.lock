@@ -17,6 +17,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-cognition"
+version = "0.1.0"
+dependencies = [
+ "agent-common",
+ "anyhow",
+ "rand",
+ "tokio",
+]
+
+[[package]]
+name = "agent-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "agent-crdt-core"
 version = "0.1.0"
 dependencies = [

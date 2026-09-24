@@ -394,7 +394,16 @@ def run_self_improvement_cycle(
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(test_source)
 
-        proc = _run([sys.executable, "-m", "pytest", tmp_path, "-q", "--no-header"], cwd=REPO_ROOT)
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", tmp_path, "-q", "--no-header"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
         if proc.returncode == 0:
             passed = True
             break
@@ -413,7 +422,16 @@ def run_self_improvement_cycle(
             if pruned:
                 with open(tmp_path, "w", encoding="utf-8") as f:
                     f.write(pruned)
-                proc = _run([sys.executable, "-m", "pytest", tmp_path, "-q", "--no-header"], cwd=REPO_ROOT)
+                env2 = os.environ.copy()
+                env2["PYTHONIOENCODING"] = "utf-8"
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pytest", tmp_path, "-q", "--no-header"],
+                    cwd=REPO_ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    env=env2,
+                )
                 if proc.returncode == 0:
                     passed = True
                     test_source = pruned

@@ -21,6 +21,8 @@ members = [
     "crates/agent-tee-core",
     "crates/agent-runtime",
     "crates/nexus-consensus",
+    "crates/agent-common",
+    "crates/agent-cognition",
 ]
 # candidates to promote once they build:
 #   "crates/nexus-consensus", "crates/nexus-core", "crates/nexus-safety",

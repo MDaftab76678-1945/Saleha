@@ -4,3 +4,6 @@ pub mod causal_sim;
 pub mod cognitive_pipeline;
 
 pub use cognitive_pipeline::CognitivePipeline;
+
+#[cfg(test)]
+mod tests;

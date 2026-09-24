@@ -1,8 +1,8 @@
-use crate::{snn_reflex::SnnEngine, gnn_swarm::GnnEngine, causal_sim::CausalEngine};
-use agent_common::cognitive_state::{ReflexState, SwarmTopology, CausalOutcome};
+use crate::{causal_sim::CausalEngine, gnn_swarm::GnnEngine, snn_reflex::SnnEngine};
+use agent_common::cognitive_state::{CausalOutcome, ReflexState, SwarmTopology};
 use anyhow::Result;
 
-/// 5-लेयर कॉग्निटिव पाइपलाइन का ऑर्केस्ट्रेटर
+/// Three-layer cognitive pipeline: SNN reflex -> GNN swarm -> causal simulation.
 pub struct CognitivePipeline {
     snn: SnnEngine,
     gnn: GnnEngine,
@@ -18,24 +18,32 @@ impl CognitivePipeline {
         }
     }
 
+    /// Execute the full pipeline over `raw_input`.
+    ///
+    /// Returns [`CausalOutcome`] on success, or an error if the SNN reflex
+    /// quarantines the input.
     pub async fn execute(&self, raw_input: &[u8]) -> Result<CausalOutcome> {
-        println!("🧠 [CognitivePipeline] Starting 3-layer cognition...");
-
-        // Layer 1: SNN Reflex
+        // Layer 1: SNN safety reflex
         let reflex: ReflexState = self.snn.check_safety_reflex(raw_input).await?;
-        println!("🛡️ [SNN] Safety check: is_safe={}, threat={:.2}", reflex.is_safe, reflex.threat_vector);
         if !reflex.is_safe {
-            anyhow::bail!("Security reflex triggered. Input quarantined.");
+            anyhow::bail!(
+                "SNN reflex triggered: threat_vector={:.3}. Input quarantined.",
+                reflex.threat_vector
+            );
         }
 
-        // Layer 2: GNN Swarm
+        // Layer 2: GNN swarm topology
         let topology: SwarmTopology = self.gnn.form_dynamic_topology(raw_input).await?;
-        println!("🕸️ [GNN] Formed swarm with {} nodes, {} edges", topology.nodes.len(), topology.edges.len());
 
-        // Layer 3: Causal Simulation
+        // Layer 3: Causal counterfactual simulation
         let outcome: CausalOutcome = self.causal.simulate_counterfactuals(&topology).await?;
-        println!("⚖️ [Causal] Expected utility: {:.2}", outcome.expected_utility);
 
         Ok(outcome)
+    }
+}
+
+impl Default for CognitivePipeline {
+    fn default() -> Self {
+        Self::new()
     }
 }
