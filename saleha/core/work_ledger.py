@@ -65,7 +65,7 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 LEDGER_VERSION = 1
 GENESIS = "genesis"
@@ -156,10 +156,18 @@ class WorkLedger:
     holding only the ledger file and the repo.
     """
 
-    def __init__(self, path: str, root_dir: str = "."):
+    def __init__(self, path: str, root_dir: str = ".",
+                 anchor_path: Optional[str] = None):
         self.path = os.path.abspath(path)
         self.root = os.path.abspath(root_dir)
         self._entries: List[Entry] = []
+        # Optional external anchor: a Rust intent-kernel proof ledger kept
+        # outside the repo. Each entry's (seq, hash) is appended there too,
+        # which is the "record of what should be there, held somewhere the
+        # editor does not control" that verify_anchors() says is missing.
+        self.anchor_path = os.path.abspath(anchor_path) if anchor_path else None
+        # Why the most recent entry could not be anchored ("" when it was).
+        self.anchor_note = ""
         if os.path.exists(self.path):
             self._load()
 
@@ -248,7 +256,66 @@ class WorkLedger:
         entry = Entry(seq=seq, actor=actor, goal=goal, claim=claim.to_dict(),
                       prev_hash=prev, hash=_sha256(_canonical(payload)))
         self._append(entry)
+        self._anchor(entry)
         return entry
+
+    def _anchor(self, entry: Entry) -> None:
+        """Mirror (seq, hash) into the external kernel ledger, if configured."""
+        self.anchor_note = ""
+        if not self.anchor_path:
+            return
+        from saleha.core.intent_kernel import append_event
+        res = append_event(self.anchor_path, mission=self.path, event="work_ledger.entry",
+                           input_data={"seq": entry.seq, "hash": entry.hash},
+                           output_data={"actor": entry.actor})
+        if not res.get("ok"):
+            # The entry is recorded; it is just not anchored. Say so -- a
+            # later verify() will report the gap rather than a pass.
+            self.anchor_note = f"not anchored: {res.get('detail', 'unknown error')}"
+
+    def verify_external_anchor(self) -> Tuple[Optional[bool], str]:
+        """
+        Compare this ledger with the external kernel ledger.
+
+        Returns (True, detail) when every entry is anchored with a matching
+        hash; (False, detail) when an anchored entry is missing or its hash
+        differs -- removed or rewritten; (None, detail) when no anchor is
+        configured, the kernel cannot run, or some entries were never
+        anchored (e.g. the kernel was not built when they were written).
+        "Not checked" is never a pass, and never an accusation either.
+        """
+        if not self.anchor_path:
+            return None, "no external anchor configured"
+        from saleha.core.intent_kernel import read_events, verify_ledger
+        kernel = verify_ledger(self.anchor_path)
+        if not kernel["available"]:
+            return None, kernel["detail"]
+        if not kernel["valid"]:
+            return False, f"external anchor ledger itself is broken: {kernel['detail']}"
+        # Paths compared case-insensitively on Windows: git reports C:\ where
+        # a shell's working directory may say c:\ for the same file.
+        me = os.path.normcase(self.path)
+        anchored: Dict[Any, Any] = {}
+        for e in read_events(self.anchor_path):
+            if (e.get("event") == "work_ledger.entry"
+                    and os.path.normcase(str(e.get("mission_id", ""))) == me):
+                data = e.get("input") or {}
+                anchored[data.get("seq")] = data.get("hash")
+        local = {e.seq: e.hash for e in self._entries}
+        if len(anchored) > len(local):
+            return False, (f"external anchor holds {len(anchored)} entries, ledger has "
+                           f"{len(local)} -- entries were removed")
+        for seq, h in sorted(anchored.items(), key=lambda kv: (kv[0] is None, kv[0])):
+            if seq not in local:
+                return False, f"anchored entry {seq} is missing from the ledger -- removed"
+            if local[seq] != h:
+                return False, f"entry {seq} differs from its anchored hash -- rewritten or renumbered"
+        unanchored = sorted(set(local) - set(anchored))
+        if unanchored:
+            return None, (f"{len(unanchored)} of {len(local)} entries were never anchored "
+                          f"(first: {unanchored[0]}) -- not checked; the kernel may have been "
+                          f"unavailable when they were written")
+        return True, f"{len(local)} entries match the external anchor"
 
     def _run(self, command: List[str], timeout: float) -> Tuple[int, str]:
         try:
@@ -524,6 +591,11 @@ class WorkLedger:
         if not anchors_ok:
             chain_msg = f"{chain_msg}; anchor check failed: {anchor_msg}"
 
+        external_ok, external_msg = self.verify_external_anchor()
+        if external_ok is False:
+            chain_ok = False
+            chain_msg = f"{chain_msg}; external anchor: {external_msg}"
+
         if expect_entries >= 0 and len(self._entries) != expect_entries:
             chain_ok = False
             chain_msg = (f"{chain_msg}; expected {expect_entries} entries but "
@@ -553,6 +625,10 @@ class WorkLedger:
             "chain_detail": chain_msg,
             "anchors_ok": anchors_ok,
             "anchor_detail": anchor_msg,
+            # None = not checked (no anchor, or kernel not built) -- distinct
+            # from both a match and a mismatch.
+            "external_anchor_ok": external_ok,
+            "external_anchor_detail": external_msg,
             "entries": len(self._entries),
             "checkable_claims": checkable,
             "independently_confirmed": proved,

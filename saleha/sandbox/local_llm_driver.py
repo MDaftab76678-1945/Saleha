@@ -80,32 +80,11 @@ class LocalLLMDriver:
 
             return await asyncio.to_thread(_call_vllm)
         except Exception as e:
-            # Deterministic fallback when daemon is offline
-            return self._fallback_deterministic_response(prompt, json_mode)
-
-    def _fallback_deterministic_response(self, prompt: str, json_mode: bool) -> Dict[str, Any]:
-        if "Agent Specification" in prompt or "agent_profile" in prompt:
-            return {
-                "id": "agent_packet_engineer",
-                "name": "Network Packet Engineer",
-                "goals": ["High throughput packet parsing", "Zero memory leak"],
-                "constraints": ["Defensive type asserts", "RFC standard compliance"],
-                "system_prompt": "You are a network systems engineer specialized in packet parsing."
-            }
-        return {
-            "code": (
-                "def parse_payload(data: bytes) -> dict:\n"
-                "    assert isinstance(data, bytes), 'data must be bytes'\n"
-                "    assert len(data) >= 4, 'header too short'\n"
-                "    magic = int.from_bytes(data[:4], 'big')\n"
-                "    assert magic == 0xDEADBEEF, f'Invalid magic: {hex(magic)}'\n"
-                "    return {'status': 'VALID', 'magic': hex(magic), 'length': len(data)}\n\n"
-                "res = parse_payload(b'\\xde\\xad\\xbe\\xef\\x01\\x02')\n"
-                "assert res['status'] == 'VALID'\n"
-                "print(f'SELF_TEST_PASSED: {res}')\n"
-            ),
-            "explanation": "Validates 4-byte network magic header with strict asserts."
-        }
+            # No model answered. This used to return a canned "parse_payload"
+            # script whose own self-test printed SELF_TEST_PASSED, so the
+            # healing loop "passed" tasks it never sent to a model. Say so.
+            return {"error": (f"no local model reachable at {self.ollama_url} or "
+                              f"{self.vllm_url}: {type(e).__name__}: {e}")}
 
     async def get_embedding(self, text: str, model: str = "nomic-embed-text") -> List[float]:
         payload = {"model": model, "prompt": text}
@@ -121,8 +100,8 @@ class LocalLLMDriver:
                     data = json.loads(resp.read().decode("utf-8"))
                     return data.get("embedding", [])
             except Exception:
-                import hashlib
-                h = hashlib.sha256(text.encode()).digest()
-                return [float(b) / 255.0 for b in h[:16]]
+                # Empty, not a hash of the text: a fake vector would rank
+                # "similar" documents by byte noise and look like it worked.
+                return []
 
         return await asyncio.to_thread(_call_embed)

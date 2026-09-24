@@ -7,26 +7,19 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+import os
+from typing import Any, Optional, Tuple
+
+import click
 from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.command()
 @click.argument('directory', default='.', type=click.Path(exists=True, file_okay=False))
@@ -414,6 +407,7 @@ def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
     """
     import json as json_mod
     from datetime import datetime, timezone
+
     from saleha.core.merkle_provenance import merkle_provenance_ledger
 
     leaves = merkle_provenance_ledger.leaves
@@ -441,14 +435,14 @@ def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
             'root_hash': root,
             'leaves': [
                 {
-                    'leaf_index': l.leaf_index,
-                    'action_type': l.action_type,
-                    'agent_id': l.agent_id,
-                    'timestamp': l.timestamp,
-                    'payload_hash': l.payload_hash,
-                    'leaf_hash': l.leaf_hash,
+                    'leaf_index': leaf.leaf_index,
+                    'action_type': leaf.action_type,
+                    'agent_id': leaf.agent_id,
+                    'timestamp': leaf.timestamp,
+                    'payload_hash': leaf.payload_hash,
+                    'leaf_hash': leaf.leaf_hash,
                 }
-                for l in shown
+                for leaf in shown
             ],
         }, ensure_ascii=True))
         return
@@ -460,9 +454,9 @@ def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
     table.add_column('Agent', style='bold cyan')
     table.add_column('Action', style='yellow')
     table.add_column('Leaf Hash', style='green')
-    for l in shown:
-        ts = datetime.fromtimestamp(l.timestamp, tz=timezone.utc).strftime('%H:%M:%S')
-        table.add_row(str(l.leaf_index), ts, l.agent_id, l.action_type, l.leaf_hash[:16] + '...')
+    for leaf in shown:
+        ts = datetime.fromtimestamp(leaf.timestamp, tz=timezone.utc).strftime('%H:%M:%S')
+        table.add_row(str(leaf.leaf_index), ts, leaf.agent_id, leaf.action_type, leaf.leaf_hash[:16] + '...')
     console.print(table)
     console.print(f'[dim]Root hash: {root[:32]}...[/dim]')
     if limit > 0 and len(leaves) > limit:
@@ -501,7 +495,7 @@ def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) 
             count = int(count_str)
         except ValueError:
             console.print(f"[bold red]Invalid vote count in '{raw}' -- '{count_str}' is not an integer[/bold red]")
-            raise click.exceptions.Exit(1)
+            raise click.exceptions.Exit(1) from None
         parsed.append((agent.strip(), count))
 
     engine = QuadraticVotingEngine(approval_threshold=threshold)
@@ -522,6 +516,93 @@ def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) 
 
 
 
+@cli.command(name='check-concurrency')
+@click.argument('paths', nargs=-1, required=True)
+@click.option('--json', 'as_json', is_flag=True, help='Machine-readable output')
+def check_concurrency_cmd(paths: Tuple[str, ...], as_json: bool) -> None:
+    """
+    Find race and deadlock patterns in Python code (unlocked shared writes,
+    check-then-act, lock-order inversion, blocking calls in async, ...).
+
+    Pattern matching, not proof: exit code 1 when anything is found.
+    Example: saleha check-concurrency saleha/core
+    """
+    from dataclasses import asdict
+
+    from rich.markup import escape
+
+    from saleha.core.verification.concurrency_checker import check_paths
+
+    report = check_paths(paths)
+    if as_json:
+        click.echo(json.dumps({'findings': [asdict(f) for f in report.findings],
+                               'analyzed': len(report.analyzed), 'skipped': report.skipped,
+                               'is_complete': report.is_complete}, indent=2))
+    else:
+        for f in report.findings:
+            console.print(f'[yellow]{f.rule}[/] {escape(f.path)}:{f.line}  {escape(f.message)}')
+        for path, why in report.skipped.items():
+            console.print(f'[red]not analyzed[/] {escape(path)}: {escape(why)}')
+        console.print(f'{len(report.findings)} finding(s) in {len(report.analyzed)} file(s)'
+                      + ('' if report.is_complete else f', {len(report.skipped)} skipped'))
+    if report.findings or not report.is_complete:
+        raise click.exceptions.Exit(1)
+
+
+def _split_command(cmd: str) -> list:
+    """Split a command line into argv on any OS.
+
+    shlex in POSIX mode eats Windows backslashes (C:\\a -> C:a); in non-POSIX
+    mode it keeps the quote characters in the argument ('"a b.py"'), which
+    pytest then cannot find. Split non-POSIX, then drop one pair of
+    surrounding quotes per argument.
+    """
+    import shlex
+    out = []
+    for tok in shlex.split(cmd, posix=False):
+        if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in ('"', "'"):
+            tok = tok[1:-1]
+        out.append(tok)
+    return out
+
+
+@cli.command(name='receipt')
+@click.option('--dir', 'root_dir', default='.', help='Repository to check')
+@click.option('--base', default='HEAD', help='Compare the working tree against this commit')
+@click.option('--test-cmd', default=None, help='Test command (default: discovered like saleha agent)')
+@click.option('--timeout', type=float, default=900.0, help='Seconds allowed per test run')
+@click.option('--json', 'as_json', is_flag=True, help='Machine-readable output')
+def receipt_cmd(root_dir: str, base: str, test_cmd: Optional[str], timeout: float,
+                as_json: bool) -> None:
+    """
+    Proof receipt: is the current change actually proven by its tests?
+
+    Runs the tests with the change, then the same tests against the code as
+    it was at --base (in a throwaway git worktree), checks the tests were not
+    weakened, and records the run in the anchored work ledger.
+    Exit code 0 only for PROVEN.
+
+    Example: saleha receipt --base HEAD~1
+    """
+
+    import saleha.core.proof_receipt as pr
+
+    argv = _split_command(test_cmd) if test_cmd else None
+    r = pr.make_receipt(root_dir, base=base, test_command=argv, timeout=timeout)
+    path = pr.save(r, root_dir) if r.changed_files else ''
+    if as_json:
+        click.echo(json.dumps({**r.to_dict(), 'receipt_file': path}, indent=2))
+    else:
+        colour = {'PROVEN': 'green', 'UNPROVEN': 'yellow', 'FAILING': 'red'}.get(r.verdict, 'white')
+        from rich.markup import escape
+        console.print(Panel(escape(pr.render_markdown(r)), title=f'[bold {colour}]{r.verdict}[/]',
+                            border_style=colour))
+        if path:
+            console.print(f'[dim]Saved: {path}[/]')
+    if r.verdict != 'PROVEN':
+        raise click.exceptions.Exit(1)
+
+
 @cli.command(name='verify-work')
 @click.argument('ledger', default='.saleha/work.jsonl')
 @click.option('--dir', 'root_dir', default='.', help='Repository the claims are about')
@@ -530,7 +611,10 @@ def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) 
 @click.option('--expect', type=int, default=-1,
               help='Entry count from outside the file; catches silent deletion')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable output')
-def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as_json: Any) -> None:
+@click.option('--anchor', default=None,
+              help='Intent-kernel anchor ledger (default: ~/.saleha/anchors.jsonl if present)')
+def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as_json: Any,
+                    anchor: Any = None) -> None:
     """
     Independently re-verify what an agent claimed it did.
 
@@ -542,7 +626,11 @@ def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as
 
     Example: saleha verify-work .saleha/work.jsonl --dir .
     """
+    from saleha.core.intent_kernel import default_anchor_path
     from saleha.core.work_ledger import WorkLedger
+
+    if anchor is None and os.path.exists(default_anchor_path()):
+        anchor = default_anchor_path()
 
     if not os.path.exists(ledger):
         msg = f'No ledger at {ledger}'
@@ -552,11 +640,15 @@ def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as
             console.print(f'[bold red]{msg}[/]')
         return
 
-    report = WorkLedger(ledger, root_dir=root_dir).verify(
+    report = WorkLedger(ledger, root_dir=root_dir, anchor_path=anchor).verify(
         recheck=not chain_only, expect_entries=expect)
 
     if as_json:
         click.echo(json.dumps(report, indent=2))
+        # A tampered record used to exit 0, so a CI step checking the exit
+        # code read tampering as success.
+        if not report['chain_intact']:
+            raise click.exceptions.Exit(1)
         return
 
     ok = report['chain_intact']
@@ -566,10 +658,19 @@ def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as
         f"{report['chain_detail']}",
         border_style='green' if ok else 'red'))
 
+    ext = report.get('external_anchor_ok')
+    if ext is True:
+        ext_label = '[green]matches[/]'
+    elif ext is False:
+        ext_label = '[red]MISMATCH[/]'
+    else:
+        ext_label = '[yellow]not checked[/]'
+    console.print(f"Intent-kernel anchor: {ext_label} -- {report.get('external_anchor_detail', '')}")
+
     if not ok:
         console.print('[bold red]The record was altered after it was written. '
                       'Nothing in it can be trusted.[/]')
-        return
+        raise click.exceptions.Exit(1)
 
     if chain_only:
         console.print('[dim]--chain-only: claims were not re-run.[/]')

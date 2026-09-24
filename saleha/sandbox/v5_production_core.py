@@ -1,17 +1,18 @@
-import os
-import sys
-import json
-import time
-import sqlite3
-import logging
 import asyncio
-from typing import Dict, Any, Optional
+import json
+import logging
+import os
+import sqlite3
+import time
+from typing import Any, Dict, Optional
+
+from saleha.sandbox.ast_security_verifier import ASTContractAuditor
+
 # These were flat imports (`from local_llm_driver import ...`), which only
 # resolve when this directory is the working directory. Imported as part of
 # the package -- which is how everything else in the repo reaches it -- they
 # raised ModuleNotFoundError, so this module could not be imported at all.
 from saleha.sandbox.local_llm_driver import LocalLLMDriver
-from saleha.sandbox.ast_security_verifier import ASTContractAuditor
 from saleha.sandbox.sandbox_jail import HardenedSandbox, SandboxUnavailableError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -56,10 +57,7 @@ class SwarmGenesisRegistry:
 
     def agent_exists(self, domain_key: str) -> bool:
         norm = domain_key.lower().replace(" ", "_")
-        for f in os.listdir(self.specs_dir):
-            if norm in f:
-                return True
-        return False
+        return any(norm in f for f in os.listdir(self.specs_dir))
 
     async def generate_agent_persona(self, domain: str, requirement: str, llm: LocalLLMDriver) -> str:
         logger.info(f"Capability Gap: Dynamically synthesizing persona for '{domain}'...")
@@ -89,6 +87,11 @@ Explain responsibilities and validation checklists.
             json_mode=False
         )
 
+        # No model answer means no persona. Writing an empty spec and logging
+        # "Persona registered" was a success report for work never done.
+        if response.get("error") or not str(response.get("raw_text", "")).strip():
+            raise RuntimeError(f"persona for '{domain}' not generated: "
+                               f"{response.get('error') or 'model returned no text'}")
         filename = f"agent_{domain.lower().replace(' ', '_')}.md"
         filepath = os.path.join(self.specs_dir, filename)
         with open(filepath, "w", encoding="utf-8") as f:
@@ -157,6 +160,8 @@ class SelfHealingEngine:
                 )
 
             structured_resp = await self.llm.generate_structured(prompt, system_prompt, json_mode=True)
+            if structured_resp.get("error"):
+                return {"status": "NOT_RUN", "attempts": attempt, "reason": structured_resp["error"]}
             code = structured_resp.get("code", "")
             previous_code = code
 

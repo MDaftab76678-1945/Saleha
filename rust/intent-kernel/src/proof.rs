@@ -90,6 +90,11 @@ impl ProofLedger {
         Ok(())
     }
 
+    /// Hash of the newest event, or "genesis" for an empty ledger.
+    pub fn last_hash(&self) -> &str {
+        &self.last_hash
+    }
+
     pub fn read_events(path: impl AsRef<Path>) -> anyhow::Result<Vec<ProofEvent>> {
         let path = path.as_ref();
         if !path.exists() {

@@ -7,26 +7,17 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+import os
+
+import click
 from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.command()
 @click.argument('code_file', type=click.Path(exists=True))
@@ -57,7 +48,12 @@ def test(code_file: str, as_json: bool) -> None:
         console.print(Panel('[bold green]✅ PASSED[/] - Code is syntactically correct and secure', border_style='green'))
     else:
         console.print(Panel(f'[bold red]❌ FAILED[/] - {result.error_type}', border_style='red'))
-        console.print(f'\n[yellow]Reason:[/] {result.error_message}')
+        # escape(): the reason can contain brackets ("[import-check]") that
+        # rich otherwise eats as markup, printing "(pattern: '')".
+        from rich.markup import escape
+        console.print(f'\n[yellow]Reason:[/] {escape(result.error_message)}')
+        # A failed check used to exit 0, so a script or CI step read it as a pass.
+        raise click.exceptions.Exit(1)
 
 # Renamed from 'benchmark'. That name is also declared by
 # saleha/cli/benchmark_cli.py (the micro-benchmark suite), and Click keeps
@@ -294,6 +290,7 @@ def resolve_issue_cmd(issue_ref: str, branch: str, auto_pr: bool, test_command: 
     Example: saleha resolve-issue 42 --test-command "pytest -q" --agent
     """
     import shlex
+
     from saleha.core.issue_resolver import issue_resolver
     console.print(f'[bold cyan]Preparing fix branch for:[/] [yellow]{issue_ref}[/]')
 
@@ -403,5 +400,5 @@ def solve_issue_cli_cmd(issue_description: str, repo: str) -> None:
         console.print('  [dim]This repository\'s own test suite was not run.[/]\n')
         console.print(Panel(plan.pr_body_markdown, title='[bold green]📦 Generated GitHub PR Markdown[/]', border_style='green'))
     else:
-        console.print(f'[bold red]❌ Failed to resolve issue automatically.[/]')
+        console.print('[bold red]❌ Failed to resolve issue automatically.[/]')
 

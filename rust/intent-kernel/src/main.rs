@@ -74,10 +74,25 @@ enum Commands {
         proof: PathBuf,
     },
 
-    /// Verify proof ledger integrity
+    /// Verify proof ledger integrity (exit code 1 when the chain is broken)
     VerifyProof {
         #[arg(long, default_value = ".ik/proof.jsonl")]
         proof: PathBuf,
+        /// Print {"valid": bool, "events": n} instead of prose
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Append one event to a proof ledger. Reads {"input": ..., "output": ...}
+    /// as JSON on stdin and prints {"hash": ..., "prev_hash": ...}. Refuses to
+    /// append to a ledger whose existing chain does not verify.
+    ProofAppend {
+        #[arg(long, default_value = ".ik/proof.jsonl")]
+        proof: PathBuf,
+        #[arg(long)]
+        mission: String,
+        #[arg(long)]
+        event: String,
     },
 
     /// Show memory summary
@@ -158,15 +173,50 @@ fn main() -> anyhow::Result<()> {
             run_coding_mission(&task, &language, &model, &proof)?;
         }
 
-        Commands::VerifyProof { proof } => {
+        Commands::VerifyProof { proof, json } => {
             let events = proof::ProofLedger::read_events(&proof)?;
             let valid = proof::ProofLedger::verify_events(&events)?;
-            println!("\nProof chain valid: {}", valid);
-            if valid {
-                println!("✓ All proof hashes verified. No tampering detected.");
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"valid": valid, "events": events.len()})
+                );
             } else {
-                println!("✗ Proof chain broken. Tampering detected!");
+                println!("\nProof chain valid: {} ({} events)", valid, events.len());
+                if valid {
+                    println!("All proof hashes verified. No tampering detected.");
+                } else {
+                    println!("Proof chain broken. Tampering detected!");
+                }
             }
+            // A broken chain used to exit 0, so a script checking the exit
+            // code read tampering as success.
+            if !valid {
+                std::process::exit(1);
+            }
+        }
+
+        Commands::ProofAppend {
+            proof,
+            mission,
+            event,
+        } => {
+            let mut raw = String::new();
+            std::io::Read::read_to_string(&mut std::io::stdin(), &mut raw)?;
+            let payload: serde_json::Value = serde_json::from_str(&raw)
+                .map_err(|err| anyhow::anyhow!("stdin is not JSON: {err}"))?;
+            let input = payload.get("input").cloned().unwrap_or(serde_json::Value::Null);
+            let output = payload.get("output").cloned().unwrap_or(serde_json::Value::Null);
+            let path = proof
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("proof path is not valid UTF-8"))?;
+            let mut ledger = proof::ProofLedger::new(path)?;
+            let prev_hash = ledger.last_hash().to_string();
+            ledger.append(&mission, &event, input, output)?;
+            println!(
+                "{}",
+                serde_json::json!({"hash": ledger.last_hash(), "prev_hash": prev_hash})
+            );
         }
 
         Commands::MemoryStatus => {
