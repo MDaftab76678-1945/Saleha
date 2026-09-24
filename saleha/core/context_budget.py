@@ -77,6 +77,14 @@ KNOWN_CONTEXT_WINDOWS = {
     "deepseek-coder:6.7b": 16384,
     "deepseek-r1:7b": 32768,
     "llama3.1:8b": 131072,
+    # Claude through the Claude Code CLI ("claude-code:<model>"). 200K is the
+    # smallest window among the Claude models the CLI offers (Haiku 4.5), so
+    # it is safe for every alias. Without this entry the 8192 default
+    # silently trimmed a 60K-char prompt to a quarter before sending it.
+    "claude-code": 200000,
+    # Gemini API models ("gemini", "gemini:<model>", "gemini-2.5-pro"):
+    # 1M-token windows; the family prefix lookup below matches all of them.
+    "gemini": 1000000,
 }
 DEFAULT_CONTEXT_WINDOW = 8192
 
@@ -126,6 +134,11 @@ def context_window_for(model: Optional[str]) -> int:
     base = name.split(":")[0]
     for known, window in KNOWN_CONTEXT_WINDOWS.items():
         if known.split(":")[0] == base:
+            return window
+    # Family keys with no tag ("gemini", "claude-code") also cover names
+    # like "gemini-2.5-pro" that have no ":" to split on.
+    for known, window in KNOWN_CONTEXT_WINDOWS.items():
+        if ":" not in known and name.startswith(known):
             return window
     return DEFAULT_CONTEXT_WINDOW
 

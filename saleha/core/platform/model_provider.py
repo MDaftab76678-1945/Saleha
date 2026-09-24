@@ -4,12 +4,24 @@ Saleha Core: Model Provider Abstraction (v4.0 - Universal Multi-Provider Engine)
 Provides pluggable model provider backends:
 1. OllamaProvider: Localhost Ollama inference ($0 local privacy).
 2. OpenAICompatibleProvider: Universal API for Groq, DeepSeek, OpenRouter, OpenAI, vLLM, LM Studio.
-3. FallbackChainProvider: Tries primary local provider, then gracefully falls back to cloud API or heuristic safe generator.
-4. MockProvider: Deterministic zero-latency provider for unit and integration testing.
+3. ClaudeCodeProvider: Claude through the local Claude Code CLI (`claude -p`),
+   using the user's own subscription login -- no API key. Selected by model
+   names starting with "claude-code" (e.g. "claude-code:sonnet").
+   GeminiProvider: Google Gemini API with a GEMINI_API_KEY (free AI Studio
+   key). Selected by model names starting with "gemini" (e.g. "gemini",
+   "gemini:gemini-3.5-flash", "gemini-2.5-pro").
+4. FallbackChainProvider: Tries primary local provider, then gracefully falls back to cloud API or heuristic safe generator.
+5. MockProvider: Deterministic zero-latency provider for unit and integration testing.
+
+Cloud is never used for a run with SALEHA_LOCAL_ONLY=1: the provider refuses
+and says so rather than falling back silently.
 """
 
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -26,6 +38,9 @@ class ProviderResponse:
     response_time: float = 0.0
     tokens_used: int = 0
     provider_name: str = "ollama"
+    # List-price cost the backend reported for this call (0.0 when unknown or
+    # free). For Claude Code on a subscription this is notional, not billed.
+    cost_usd: float = 0.0
 
 
 class ModelProvider(ABC):
@@ -425,6 +440,190 @@ class OpenAICompatibleProvider(ModelProvider):
         return bool(self.api_key) or ("localhost" in self.base_url or "127.0.0.1" in self.base_url)
 
 
+CLAUDE_CODE_PREFIX = "claude-code"
+
+
+def local_only() -> bool:
+    """True when this run must not send anything to a cloud model."""
+    return os.environ.get("SALEHA_LOCAL_ONLY") == "1"
+
+
+class ClaudeCodeProvider(ModelProvider):
+    """Claude via the Claude Code CLI in print mode, on the user's own login.
+
+    Runs `claude -p --output-format json --tools ""` with the prompt on stdin
+    (Windows command lines cap at ~32K chars), in an empty temp directory so
+    no project CLAUDE.md is pulled into the call, and with every tool
+    disabled: this is text generation only, never a second agent acting on
+    the machine.
+
+    Model names: "claude-code" (the CLI's default) or "claude-code:<model>",
+    e.g. "claude-code:sonnet", "claude-code:opus", "claude-code:haiku".
+    """
+
+    provider_name = "claude_code"
+
+    def __init__(self, timeout: int = DEFAULT_GENERATE_TIMEOUT, executable: Optional[str] = None):
+        self.timeout = timeout
+        # None means "find it"; "" means "treat as not installed" (tests).
+        self.executable = shutil.which("claude") if executable is None else executable
+
+    @staticmethod
+    def cli_model(model: str) -> str:
+        """"claude-code:sonnet" -> "sonnet"; "claude-code" -> "" (CLI default)."""
+        rest = (model or "")[len(CLAUDE_CODE_PREFIX):]
+        return rest[1:] if rest.startswith((":", "/")) else ""
+
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
+        if local_only():
+            return ProviderResponse(False, "", "cloud disabled: SALEHA_LOCAL_ONLY=1",
+                                    provider_name=self.provider_name)
+        if not self.executable:
+            return ProviderResponse(False, "", "Claude Code CLI (`claude`) not found on PATH",
+                                    provider_name=self.provider_name)
+        argv = [self.executable, "-p", "--output-format", "json", "--tools", "",
+                "--no-session-persistence", "--strict-mcp-config"]
+        name = self.cli_model(model)
+        if name:
+            argv += ["--model", name]
+        start = time.time()
+        try:
+            with tempfile.TemporaryDirectory(prefix="saleha-claude-") as empty:
+                proc = subprocess.run(argv, input=prompt, cwd=empty, capture_output=True,
+                                      text=True, encoding="utf-8", errors="replace",
+                                      timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            return ProviderResponse(False, "", f"claude -p timed out after {self.timeout}s",
+                                    response_time=time.time() - start,
+                                    provider_name=self.provider_name)
+        except OSError as exc:
+            return ProviderResponse(False, "", f"could not run claude: {exc}",
+                                    provider_name=self.provider_name)
+        elapsed = time.time() - start
+        try:
+            data = json.loads(proc.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            detail = (proc.stderr or proc.stdout).strip()[-300:]
+            return ProviderResponse(False, "", f"claude -p gave no JSON (exit {proc.returncode}): {detail}",
+                                    response_time=elapsed, provider_name=self.provider_name)
+        text = str(data.get("result") or "")
+        if data.get("is_error") or proc.returncode != 0 or not text.strip():
+            return ProviderResponse(False, "", f"claude -p error: {text[:300] or data.get('subtype', 'no result')}",
+                                    response_time=elapsed, provider_name=self.provider_name)
+        usage = data.get("usage") or {}
+        tokens = int(usage.get("input_tokens", 0) or 0) + int(usage.get("output_tokens", 0) or 0)
+        return ProviderResponse(True, text.strip(), response_time=elapsed, tokens_used=tokens,
+                                provider_name=self.provider_name,
+                                cost_usd=float(data.get("total_cost_usd", 0.0) or 0.0))
+
+    def is_available(self) -> bool:
+        return bool(self.executable) and not local_only()
+
+
+GEMINI_PREFIX = "gemini"
+GEMINI_DEFAULT_MODEL = os.environ.get("SALEHA_GEMINI_MODEL", "gemini-3.5-flash")
+_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+
+def user_env(name: str) -> str:
+    """An environment variable, falling back to the Windows user environment.
+
+    A key saved in the user's Windows settings is invisible to processes
+    that were already running when it was saved (the IDE, and everything it
+    starts) until they restart. Reading the HKCU "Environment" registry key
+    directly means the
+    user does not have to restart anything.
+    """
+    value = os.environ.get(name, "")
+    if value or os.name != "nt":
+        return value
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
+            return str(winreg.QueryValueEx(k, name)[0])
+    except OSError:
+        return ""
+
+
+class GeminiProvider(ModelProvider):
+    """Google Gemini through its REST API, with the user's GEMINI_API_KEY.
+
+    The key travels only in the x-goog-api-key header -- never in the URL,
+    so it cannot leak into an error message that echoes the request URL.
+    """
+
+    provider_name = "gemini"
+
+    def __init__(self, api_key: Optional[str] = None, timeout: int = DEFAULT_GENERATE_TIMEOUT):
+        self.api_key = user_env("GEMINI_API_KEY") if api_key is None else api_key
+        self.timeout = timeout
+
+    @staticmethod
+    def api_model(model: str) -> str:
+        """"gemini" -> default; "gemini:x" -> "x"; "gemini-2.5-pro" -> itself."""
+        name = (model or "").strip()
+        if name in (GEMINI_PREFIX, f"{GEMINI_PREFIX}:"):
+            return GEMINI_DEFAULT_MODEL
+        if name.startswith(f"{GEMINI_PREFIX}:"):
+            return name.split(":", 1)[1]
+        return name
+
+    def generate(self, model: str, prompt: str, options: Optional[dict] = None,
+                 response_format: Optional[dict] = None,
+                 disable_reasoning: bool = False) -> ProviderResponse:
+        if local_only():
+            return ProviderResponse(False, "", "cloud disabled: SALEHA_LOCAL_ONLY=1",
+                                    provider_name=self.provider_name)
+        if not self.api_key:
+            return ProviderResponse(False, "", "GEMINI_API_KEY is not set",
+                                    provider_name=self.provider_name)
+        body: dict = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+        if options and "temperature" in options:
+            body["generationConfig"] = {"temperature": options["temperature"]}
+        start = time.time()
+        try:
+            resp = requests.post(_GEMINI_URL.format(model=self.api_model(model)), json=body,
+                                 headers={"x-goog-api-key": self.api_key}, timeout=self.timeout)
+        except requests.RequestException as exc:
+            return ProviderResponse(False, "", f"Gemini request failed: {type(exc).__name__}",
+                                    response_time=time.time() - start,
+                                    provider_name=self.provider_name)
+        elapsed = time.time() - start
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if resp.status_code != 200:
+            msg = (data.get("error") or {}).get("message", "") if isinstance(data, dict) else ""
+            return ProviderResponse(False, "", f"Gemini HTTP {resp.status_code}: {msg[:300]}",
+                                    response_time=elapsed, provider_name=self.provider_name)
+        candidates = data.get("candidates") or []
+        parts = ((candidates[0].get("content") or {}).get("parts") or []) if candidates else []
+        text = "".join(str(part.get("text", "")) for part in parts if not part.get("thought"))
+        if not text.strip():
+            why = (data.get("promptFeedback") or {}).get("blockReason")                 or (candidates[0].get("finishReason") if candidates else "no candidates")
+            return ProviderResponse(False, "", f"Gemini returned no text ({why})",
+                                    response_time=elapsed, provider_name=self.provider_name)
+        tokens = int((data.get("usageMetadata") or {}).get("totalTokenCount", 0) or 0)
+        return ProviderResponse(True, text.strip(), response_time=elapsed, tokens_used=tokens,
+                                provider_name=self.provider_name)
+
+    def is_available(self) -> bool:
+        return bool(self.api_key) and not local_only()
+
+
+def cloud_provider_for(model: str) -> Optional[ModelProvider]:
+    """The provider a cloud model name belongs to, or None for local models."""
+    name = model or ""
+    if name.startswith(CLAUDE_CODE_PREFIX):
+        return ClaudeCodeProvider()
+    if name.startswith(GEMINI_PREFIX):
+        return GeminiProvider()
+    return None
+
+
 class FallbackChainProvider(ModelProvider):
     """
     Intelligent cascade provider:
@@ -448,7 +647,16 @@ class FallbackChainProvider(ModelProvider):
         previously dropped here, which meant the action-menu loop's
         constrained decoding never actually took effect. `disable_reasoning`
         is forwarded the same way.
+
+        A cloud model name ("claude-code:...", "gemini...") goes straight to its provider:
+        sending it down the local chain would only produce Ollama "model not
+        found" errors before reaching it.
         """
+        cloud = cloud_provider_for(model)
+        if cloud is not None:
+            return cloud.generate(model=model, prompt=prompt, options=options,
+                                  response_format=response_format,
+                                  disable_reasoning=disable_reasoning)
         errors = []
         for p in self.providers:
             if p.is_available():

@@ -11232,3 +11232,40 @@ padding (`count == 10` from 3 seeds, `>= 50` pairs, `total_dpo_pairs == 1000`):
   fail (and speak). Absence is now simulated.
 
 Measured: full suite 2548 passed, 14 skipped, 0 failures; gate `[SUCCESS]`.
+
+## Pass 154 (2026-09-24) -- agent honesty, fast solver, proof receipts, local + cloud
+
+Measured on 30 MBPP folder tasks (`scripts/agent_bench.py`; score = the
+original tests re-run by the harness, never the agent's word):
+
+- `saleha agent` (qwen3:8b) solved 5/30, said "DONE" over a failing suite
+  7 times, ~400 s per task. Causes, each fixed with a teeth-checked test:
+  test discovery ignored root-level `test_*.py`; the post-edit test run
+  fired only for goals matching a repair-verb regex; a finish with no tests
+  run showed the same green tick as a verified one (now `verification`);
+  `forge_tool` wrote tools into Saleha's own source while working on
+  another folder.
+- New `tourist_solver` (`saleha tourist`, and the first attempt inside
+  `saleha agent --write`): 16/30 solved, 0 false "DONE", 21 min for all 30.
+  Found on the way: the fast model pasted the task's asserts into its file
+  with an expected value edited to match its own output (now stripped),
+  qwen3:8b reasoning timed out on 4/4 repairs (reasoning off), default
+  temperature made results flip between runs (0.2).
+- `saleha receipt`: PROVEN / UNPROVEN / FAILING / NOT_CHECKED from running
+  the tests with and without the change in a throwaway worktree, test
+  weakening checks, concurrency warnings; recorded in the WorkLedger.
+- WorkLedger entries are anchored in the Rust intent kernel (`ik
+  proof-append`, outside the repo); the documented delete-and-rechain attack
+  now fails verification. `ik verify-proof` exited 0 on a broken chain.
+- `System1Scout`: rebuilt an unused dependency graph per call (6-15 s, doc
+  said "<50 ms"); now ~50 ms warm, and test-file ranking picks the module's
+  own test file. Indexer duplicated bare methods on every rescan.
+- Concurrency checker (`saleha check-concurrency`); sandbox LLM driver
+  returned canned code printing SELF_TEST_PASSED when no model answered.
+- Providers: Claude via the Claude Code CLI (`claude-code:<model>`), Gemini
+  via GEMINI_API_KEY (`gemini:<model>`); `SALEHA_LOCAL_ONLY=1` refuses both.
+- Laya decision model in `classify_task_tier`: 25/30 vs 21/30 (keyword).
+- MBPP LoRA of Qwen2.5-Coder-1.5B: 264/500 vs base 272/500 -- no gain, not
+  shipped; padded datasets removed.
+
+Measured: full suite 2604 passed, 15 skipped, 0 failures; gate `[SUCCESS]`.

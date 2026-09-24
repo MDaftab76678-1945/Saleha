@@ -5,8 +5,10 @@ this file. `CLAUDE.md` imports it; `GEMINI.md` and `.agents/rules/` point at
 it. A shared rule lives **only here** -- if another file disagrees, this file
 wins and the other file is the bug.
 
-**Saleha**: local-first multi-agent AI coding assistant in Python. Runs against local models
-via Ollama -- no cloud, no API keys. Ships a CLI, a TUI, and a REST/SSE server.
+**Saleha**: local-first multi-agent AI coding assistant in Python. Local models via Ollama
+by default. Cloud only when a command asks for it: Claude through the Claude Code CLI on the
+user's own subscription (model names `claude-code:<model>`, no API key). `SALEHA_LOCAL_ONLY=1`
+must make every cloud call refuse, never fall back silently. Ships a CLI, a TUI, and a REST/SSE server.
 
 ## The one thing to understand
 
