@@ -22,6 +22,9 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 
+# Shared with saleha.core.dpo_dataset_engine.MIN_DPO_PAIRS.
+MIN_TRAINING_SAMPLES = 20
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -95,6 +98,11 @@ def main():
             )
         )
     print(f"🧹 Usable samples: {len(pairs)} (dropped {dropped} with no output)")
+    if len(pairs) < MIN_TRAINING_SAMPLES:
+        raise SystemExit(
+            f"Refusing to train: {len(pairs)} usable samples, need >= {MIN_TRAINING_SAMPLES}. "
+            "An adapter fitted to this few is memorisation, not a model."
+        )
 
     truncated = {"n": 0}
 

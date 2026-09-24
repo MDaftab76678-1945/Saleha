@@ -30,6 +30,9 @@ from transformers import (
     TrainingArguments,
 )
 
+# Shared with saleha.core.dpo_dataset_engine.MIN_DPO_PAIRS.
+MIN_TRAINING_SAMPLES = 20
+
 
 def train_dsa_champion():
     console = Console()
@@ -87,6 +90,11 @@ def train_dsa_champion():
         tokens["labels"] = tokens["input_ids"].copy()
         return tokens
 
+    if len(raw_samples) < MIN_TRAINING_SAMPLES:
+        raise SystemExit(
+            f"Refusing to train: {len(raw_samples)} usable samples, need >= {MIN_TRAINING_SAMPLES}. "
+            "An adapter fitted to this few is memorisation, not a model."
+        )
     raw_dataset = Dataset.from_list(raw_samples)
     tokenized_dataset = raw_dataset.map(formatting_prompts_func, remove_columns=["instruction", "response"])
 

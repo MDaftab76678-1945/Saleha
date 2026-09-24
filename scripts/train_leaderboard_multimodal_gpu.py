@@ -35,6 +35,9 @@ from peft import (
     TaskType,
 )
 
+# Shared with saleha.core.dpo_dataset_engine.MIN_DPO_PAIRS.
+MIN_TRAINING_SAMPLES = 20
+
 
 def load_omni_dataset(dataset_path: str):
     with open(dataset_path, "r", encoding="utf-8") as f:
@@ -52,6 +55,11 @@ def load_omni_dataset(dataset_path: str):
         )
         formatted.append({"text": prompt})
 
+    if len(formatted) < MIN_TRAINING_SAMPLES:
+        raise SystemExit(
+            f"Refusing to train: {len(formatted)} usable samples, need >= {MIN_TRAINING_SAMPLES}. "
+            "An adapter fitted to this few is memorisation, not a model."
+        )
     return Dataset.from_list(formatted)
 
 

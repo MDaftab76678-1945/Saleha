@@ -52,6 +52,27 @@ class TrainingCollectorTests(unittest.TestCase):
         self.assertEqual(stats["total"], 2)
         self.assertEqual(stats["high_quality"], 1)
 
+    def test_identical_sample_is_stored_once(self) -> None:
+        tc = TrainingCollector(dataset_dir=self.tmp)
+        first = tc.add_sample("p", "c", quality_score=0.9)
+        again = tc.add_sample("p", "c", quality_score=0.9)
+        tc.add_sample("p", "different", quality_score=0.9)
+
+        self.assertEqual(first.sample_id, again.sample_id)
+        self.assertEqual(tc.stats()["total"], 2)
+
+    def test_export_drops_duplicates_already_on_disk(self) -> None:
+        tc = TrainingCollector(dataset_dir=self.tmp)
+        tc.add_sample("p", "c", quality_score=0.9)
+        with open(tc._path, "r", encoding="utf-8") as f:
+            line = f.readline()
+        with open(tc._path, "a", encoding="utf-8") as f:
+            f.write(line)  # the duplicate an older version would have written
+        out = os.path.join(self.tmp, "out.json")
+
+        self.assertEqual(tc.export_alpaca(out), 1)
+        self.assertEqual(tc.export_sharegpt(os.path.join(self.tmp, "out.jsonl")), 1)
+
     def test_export_alpaca_and_sharegpt_formats(self):
         tc = TrainingCollector(dataset_dir=self.dataset_dir)
         tc.add_sample("prompt1", "completion1", quality_score=0.95)

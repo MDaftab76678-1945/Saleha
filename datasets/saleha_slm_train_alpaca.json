@@ -10,16 +10,6 @@
     "output": "import ast\ndef validate(code):\n    return ast.parse(code)"
   },
   {
-    "instruction": "Implement AST validator in Python",
-    "input": "",
-    "output": "import ast\ndef validate(code):\n    return ast.parse(code)"
-  },
-  {
-    "instruction": "Implement AST validator in Python",
-    "input": "",
-    "output": "import ast\ndef validate(code):\n    return ast.parse(code)"
-  },
-  {
     "instruction": "Implement an LRU Cache in Python with O(1) get and put operations using OrderedDict.",
     "input": "",
     "output": "from collections import OrderedDict\nfrom typing import Any, Optional\n\nclass LRUCache:\n    \"\"\"Least Recently Used (LRU) Cache with O(1) time complexity.\"\"\"\n    def __init__(self, capacity: int):\n        self.capacity = max(1, capacity)\n        self.cache: OrderedDict[str, Any] = OrderedDict()\n\n    def get(self, key: str) -> Optional[Any]:\n        if key not in self.cache:\n            return None\n        self.cache.move_to_end(key)\n        return self.cache[key]\n\n    def put(self, key: str, value: Any) -> None:\n        if key in self.cache:\n            self.cache.move_to_end(key)\n        self.cache[key] = value\n        if len(self.cache) > self.capacity:\n            self.cache.popitem(last=False)\n"
@@ -60,56 +50,6 @@
     "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
   },
   {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
     "instruction": "Write a Rust function `fn merge_intervals(mut intervals: Vec<(i32, i32)>) -> Vec<(i32, i32)>` that merges all overlapping intervals and returns them sorted by start.",
     "input": "",
     "output": "fn merge_intervals(mut intervals: Vec<(i32, i32)>) -> Vec<(i32, i32)> {\n    intervals.sort_by_key(|iv| iv.0);\n    let mut merged: Vec<(i32, i32)> = Vec::new();\n    for (start, end) in intervals {\n        if let Some(last) = merged.last_mut() {\n            if start <= last.1 {\n                last.1 = last.1.max(end);\n                continue;\n            }\n        }\n        merged.push((start, end));\n    }\n    merged\n}"
@@ -138,15 +78,5 @@
     "instruction": "Write a C++ function `string minWindow(string s, string t)` that returns the smallest substring of s containing all characters of t (with multiplicity), or \"\" if none exists.",
     "input": "",
     "output": "string minWindow(string s, string t) {\n    if (s.empty() || t.empty()) return \"\";\n    unordered_map<char, int> need;\n    for (char c : t) need[c]++;\n    int missing = t.size(), left = 0, start = 0, end = 0;\n    for (int right = 1; right <= (int)s.size(); ++right) {\n        char c = s[right - 1];\n        if (need.count(c) && need[c]-- > 0) missing--;\n        while (missing == 0) {\n            if (end == 0 || right - left < end - start) { start = left; end = right; }\n            char lc = s[left];\n            if (need.count(lc) && ++need[lc] > 0) missing++;\n            left++;\n        }\n    }\n    return s.substr(start, end - start);\n}"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
-  },
-  {
-    "instruction": "Write a typed sum function",
-    "input": "",
-    "output": "def compute_sum(a: int, b: int) -> int:\n    \"\"\"Computes exact sum of two integers.\"\"\"\n    return a + b\n"
   }
 ]

@@ -62,15 +62,15 @@ class TestFrontierTrainer(unittest.TestCase):
             self.assertIn("backend", report.sft_result.error.lower())
             self.assertTrue(any("Phase 1" in p and "FAILED" in p for p in report.phases_skipped))
 
-        # Phase 2 (DPO): a real 1000-pair preference dataset now exists
-        # (datasets/saleha_dpo_pairs.jsonl, restored from main -- see git log),
-        # well above MIN_DPO_PAIRS, so a "0 pairs" skip would be a lie
-        # regardless of whether the training backend is present.
-        self.assertEqual(report.total_dpo_pairs, 1000)
+        # Phase 2 (DPO): the dataset holds only the curated pairs (994 of the
+        # old 1000 were padded stubs), below MIN_DPO_PAIRS, so DPO must skip
+        # and say why -- never train on too few pairs.
+        with open("datasets/saleha_dpo_pairs.jsonl", "r", encoding="utf-8") as f:
+            real_pairs = sum(1 for line in f if line.strip())
+        self.assertEqual(report.total_dpo_pairs, real_pairs)
         phase2_msgs = [p for p in report.phases_completed + report.phases_skipped if p.startswith("Phase 2")]
         self.assertEqual(len(phase2_msgs), 1)
-        self.assertFalse(phase2_msgs[0].startswith("Phase 2") and "SKIPPED" in phase2_msgs[0] and "0 pairs" in phase2_msgs[0],
-                          "must not claim missing data when 1000 real pairs exist")
+        self.assertIn("SKIPPED", phase2_msgs[0])
 
         # Phase 3 (RLIF) must always self-report as not implemented -- no fake benchmark table.
         self.assertTrue(any("Phase 3" in p and "NOT IMPLEMENTED" in p for p in report.phases_skipped))

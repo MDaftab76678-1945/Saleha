@@ -1,10 +1,10 @@
 """
-Saleha: Omni Grandmaster Dataset Consolidator (2,750 Master Samples)
-Merges all specialized domains into a single unified training corpus:
-1. DSA & LiveCodeBench (500 samples: LRU, LFU, Fenwick Trees, Skip Lists, O(1) algorithms)
-2. ASI & Olympiad Mathematics (1,000 samples: Quadratic Reciprocity, Tonelli-Shanks, Byzantine CoT)
-3. Hardcore Multi-Arena (500 samples: SWE-bench Git diffs, SSML audio tags, CUDA NVENC pipelines)
-4. Pro Systems Architecture (750 samples: Distributed engines, high-concurrency protocols)
+Saleha: merges the per-domain training files into
+datasets/saleha_omni_grandmaster_train.json.
+
+The output holds exactly what the inputs hold. Three of the four inputs are
+empty (their earlier contents were purged as fabricated), so the output is
+currently the DSA file's rows alone. Each input's row count is printed.
 """
 
 import json
@@ -27,7 +27,7 @@ def consolidate():
 
     for path, label in files:
         if not os.path.exists(path):
-            print(f"⚠️ Warning: {path} not found, skipping.")
+            print(f"Warning: {path} not found, skipping.")
             continue
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -41,7 +41,8 @@ def consolidate():
                         "response": resp.strip()
                     })
                     count += 1
-            print(f"✅ Ingested {count} samples from {label} ({path})")
+            note = "  <-- EMPTY" if count == 0 else ""
+            print(f"Ingested {count} samples from {label} ({path}){note}")
 
     random.seed(42)
     random.shuffle(master_samples)
@@ -50,7 +51,7 @@ def consolidate():
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(master_samples, f, indent=2)
 
-    print(f"\n🎉 Successfully consolidated {len(master_samples)} balanced master samples into '{out_file}'!")
+    print(f"\nWrote {len(master_samples)} samples to '{out_file}'.")
 
 if __name__ == "__main__":
     consolidate()

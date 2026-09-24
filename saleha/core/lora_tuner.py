@@ -276,21 +276,20 @@ class LoRATuner:
         cfg = config or TuningConfig(output_model_name="saleha-dpo-slm")
         start_t = time.time()
 
+        from saleha.core.dpo_dataset_engine import MIN_DPO_PAIRS
+
         dpo_count = 0
         if os.path.exists(dpo_dataset_path):
             with open(dpo_dataset_path, "r", encoding="utf-8") as f:
                 dpo_count = sum(1 for line in f if line.strip())
 
-        if dpo_count == 0:
-            from saleha.core.dpo_dataset_engine import dpo_dataset_engine
-            dpo_count, _ = dpo_dataset_engine.build_dataset(target_count=100)
-            dpo_dataset_path = dpo_dataset_engine.export_dpo_jsonl()
-
-        if dpo_count == 0:
+        # No synthesis fallback: pairs made up here would be trained on as if real.
+        if dpo_count < MIN_DPO_PAIRS:
             return TuningResult(
                 success=False, base_model=cfg.base_model, output_model=cfg.output_model_name,
-                samples_used=0, training_time_sec=round(time.time() - start_t, 2),
-                error="No DPO preference pairs available (dataset empty and synthesis produced none)."
+                samples_used=dpo_count, training_time_sec=round(time.time() - start_t, 2),
+                error=(f"Only {dpo_count} DPO pairs at {dpo_dataset_path}; need >= {MIN_DPO_PAIRS}. "
+                       "Write more real pairs; none were synthesized to fill the gap.")
             )
 
         backend = self._detect_backend()

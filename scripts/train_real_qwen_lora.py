@@ -35,6 +35,9 @@ from peft import (
     TaskType,
 )
 
+# Shared with saleha.core.dpo_dataset_engine.MIN_DPO_PAIRS.
+MIN_TRAINING_SAMPLES = 20
+
 
 def load_saleha_dataset(dataset_path: str, max_samples: int = 100):
     """Loads and formats real training data for causal LM fine-tuning."""
@@ -50,6 +53,11 @@ def load_saleha_dataset(dataset_path: str, max_samples: int = 100):
         prompt = f"<|im_start|>system\nYou are Saleha, an autonomous Neuro-Symbolic AI Coding Assistant.<|im_end|>\n<|im_start|>user\n{instr}\n{inp}<|im_end|>\n<|im_start|>assistant\n{out}<|im_end|>"
         formatted.append({"text": prompt})
 
+    if len(formatted) < MIN_TRAINING_SAMPLES:
+        raise SystemExit(
+            f"Refusing to train: {len(formatted)} usable samples, need >= {MIN_TRAINING_SAMPLES}. "
+            "An adapter fitted to this few is memorisation, not a model."
+        )
     return Dataset.from_list(formatted)
 
 

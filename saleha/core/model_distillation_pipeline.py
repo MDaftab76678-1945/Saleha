@@ -57,36 +57,35 @@ bf16: true
 
         script_content = """#!/usr/bin/env python3
 \"\"\"
-Saleha-Coder Custom SLM Fine-Tuning Execution Script.
-Runs locally on NVIDIA / Apple Silicon / CPU using HuggingFace TRL, PEFT, and Transformers.
+Saleha-Coder SLM Distillation Pipeline -- environment check.
+
+This script does not train anything. It checks that the fine-tuning stack is
+installed and exits non-zero when it is not. Real LoRA training is
+saleha.core.lora_tuner.LoRATuner.
 \"\"\"
 
-import os
 import sys
 
-def run_fine_tuning():
-    print("🚀 Initializing Saleha-Coder SLM Distillation Pipeline...")
-    print("📁 Dataset Target : datasets/saleha_train_dataset.jsonl")
-    print("🧠 Base Model     : Qwen/Qwen2.5-Coder-1.5B-Instruct")
-    print("⚡ LoRA Config    : Rank=16, Alpha=32, 4-bit NF4 Quantization")
 
-    try:
-        import torch  # type: ignore
-        from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments  # type: ignore
-        from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training  # type: ignore
-        from trl import SFTTrainer  # type: ignore
-        from datasets import load_dataset  # type: ignore
-        print("Required ML Dependencies (PyTorch, Transformers, PEFT, TRL) are Installed!")
-    except ImportError:
-        print("⚠️ Note: Run `pip install torch transformers peft trl datasets bitsandbytes accelerate` to execute training locally.")
-        print("🎯 Simulated Dry-Run Complete: Training Pipeline is 100% Configured & Validated.")
-        return True
+def run_fine_tuning() -> int:
+    print("Saleha-Coder SLM Distillation Pipeline: environment check (no training runs here)")
+    print("Dataset : datasets/saleha_train_dataset.jsonl")
+    print("Base    : Qwen/Qwen2.5-Coder-1.5B-Instruct, LoRA r=16 alpha=32")
+    missing = []
+    for mod in ("torch", "transformers", "peft", "trl", "datasets"):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    if missing:
+        print("Missing: " + ", ".join(missing) + ". Install them before training.")
+        return 1
+    print("All dependencies import. Train with saleha.core.lora_tuner.LoRATuner.")
+    return 0
 
-    print("🎉 Training pipeline ready for execution.")
-    return True
 
 if __name__ == "__main__":
-    run_fine_tuning()
+    sys.exit(run_fine_tuning())
 """
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(script_content)

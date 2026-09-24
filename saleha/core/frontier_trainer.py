@@ -26,10 +26,10 @@ import time
 from dataclasses import dataclass
 from typing import List, Optional
 
+from saleha.core.dpo_dataset_engine import MIN_DPO_PAIRS
 from saleha.core.lora_tuner import LoRATuner, TuningConfig, TuningResult
 
 DPO_PAIRS_PATH = os.path.join("datasets", "saleha_dpo_pairs.jsonl")
-MIN_DPO_PAIRS = 20  # below this, a DPO pass is more noise than signal
 
 
 @dataclass

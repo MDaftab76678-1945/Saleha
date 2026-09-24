@@ -1,21 +1,34 @@
 """
-Saleha Core: Polyglot DPO (Direct Preference Optimization) & 10k SFT Dataset Engine
+Saleha Core: Polyglot DPO (Direct Preference Optimization) & SFT Dataset Engine
 
-Synthesizes high-quality multi-language training datasets and (chosen, rejected) preference pairs
-across Python, TypeScript/React, Rust, Go, and SQL to train frontier-grade coding SLMs.
+Exports hand-written (chosen, rejected) preference pairs across Python,
+TypeScript/React, Go, Rust and SQL, plus the matching SFT samples.
+
+Only the curated pairs in POLYGLOT_DPO_TEMPLATES are emitted. An earlier
+version padded the output to `target_count` by pasting 17 topic names into one
+stub per language -- 994 of the 1000 shipped rows were a class whose
+"implementation" of, say, a zero-copy stream parser returned
+{"status": "SUCCESS", ...}, with a hardcoded 0.95 margin. That taught a model
+to write fake-success stubs. Growing this dataset means writing more real
+pairs, not repeating these.
 """
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 
+# Below this many pairs a DPO pass is more noise than signal.
+MIN_DPO_PAIRS = 20
+
+
 @dataclass
 class DPOPreferencePair:
+    """`margin_score` is a hand-assigned preference label for curated pairs,
+    not a measured reward difference."""
     pair_id: str
     prompt: str
     chosen: str
@@ -110,26 +123,37 @@ def get_active_users(db_path, username, role):
         "concurrency",
         # Chosen: Non-blocking asyncio, exponential backoff, semaphore
         """import asyncio
-from typing import Optional, Dict, Any
+import urllib.error
+import urllib.request
+from typing import Optional
+
 
 class ResilientAsyncFetcher:
-    \"\"\"Async HTTP Fetcher with exponential backoff retry and semaphore bounding.\"\"\"
-    def __init__(self, max_concurrency: int = 5, max_retries: int = 3):
-        self.semaphore = asyncio.Semaphore(max(1, max_concurrency))
-        self.max_retries = max_retries
+    \"\"\"Async HTTP fetcher: bounded concurrency, exponential backoff on transient errors.\"\"\"
 
-    async def fetch_with_retry(self, url: str, attempt: int = 1) -> Optional[Dict[str, Any]]:
+    def __init__(self, max_concurrency: int = 5, max_retries: int = 3, timeout: float = 10.0):
+        self.semaphore = asyncio.Semaphore(max(1, max_concurrency))
+        self.max_retries = max(0, max_retries)
+        self.timeout = timeout
+
+    def _get(self, url: str) -> bytes:
+        with urllib.request.urlopen(url, timeout=self.timeout) as resp:
+            return resp.read()
+
+    async def fetch(self, url: str) -> Optional[bytes]:
         async with self.semaphore:
-            try:
-                # Simulated async HTTP request
-                await asyncio.sleep(0.01)
-                return {"url": url, "status": 200, "data": "OK"}
-            except Exception as e:
-                if attempt <= self.max_retries:
-                    backoff = 0.05 * (2 ** (attempt - 1))
-                    await asyncio.sleep(backoff)
-                    return await self.fetch_with_retry(url, attempt + 1)
-                return None
+            for attempt in range(self.max_retries + 1):
+                try:
+                    # Blocking I/O runs in a worker thread so the event loop stays free.
+                    return await asyncio.to_thread(self._get, url)
+                except urllib.error.HTTPError as e:
+                    if e.code < 500 and e.code != 429:
+                        raise  # a client error will not improve on retry
+                except (urllib.error.URLError, TimeoutError):
+                    pass
+                if attempt < self.max_retries:
+                    await asyncio.sleep(0.5 * (2 ** attempt))
+            return None
 """,
         # Rejected: Blocking time.sleep in async loop, recursion without limit
         """import time
@@ -357,27 +381,6 @@ CREATE TABLE transactions (
 ]
 
 
-DOMAIN_POLYGLOT_TOPICS = [
-    ("Python", "Zero-Copy BytesIO Stream Parser", "systems"),
-    ("Python", "Merkle Tree Hash Chain Verification", "cryptography"),
-    ("Python", "Distributed Circuit Breaker with Sliding Window", "resilience"),
-    ("Python", "AST Code Rewriter with Type Preservation", "compilers"),
-    ("Python", "FastAPI WebSocket JSON-RPC 2.0 Dispatcher", "backend"),
-    ("TypeScript", "React 19 Server Actions with Optimistic UI", "frontend"),
-    ("TypeScript", "Zod Schema Validation with Custom Error Maps", "frontend"),
-    ("TypeScript", "Redux Toolkit Query Mutation with Cache Invalidation", "frontend"),
-    ("TypeScript", "WebWorker Offloading for Matrix Computations", "performance"),
-    ("Go", "Raft Consensus Heartbeat and Leader Election", "distributed"),
-    ("Go", "Token Bucket Rate Limiter with Atomic CAS", "concurrency"),
-    ("Go", "High-Performance Zero-Allocation HTTP Logger", "backend"),
-    ("Rust", "Lock-Free Ring Buffer with Atomic Head and Tail", "systems"),
-    ("Rust", "SIMD-Accelerated Vector Dot Product", "performance"),
-    ("Rust", "Zero-Allocation JSON Parser State Machine", "compilers"),
-    ("SQL", "Time-Series Partitioning with Retention Policies", "database"),
-    ("SQL", "Recursive CTE for Hierarchical Organization Tree", "database"),
-]
-
-
 class SalehaDPODatasetEngine:
     """Polyglot DPO Preference Pair & SFT Dataset Synthesizer."""
 
@@ -390,186 +393,36 @@ class SalehaDPODatasetEngine:
         self.dpo_pairs: List[DPOPreferencePair] = []
         self.sft_samples: List[SFTInstructionSample] = []
 
-    def build_dataset(self, target_count: int = 1000) -> Tuple[int, int]:
-        """Synthesizes high-quality DPO and SFT dataset pairs."""
+    def build_dataset(self, target_count: Optional[int] = None) -> Tuple[int, int]:
+        """Loads the curated pairs (and their SFT samples); returns their counts.
+
+        `target_count` caps the output; it never pads it. Asking for more
+        pairs than exist returns fewer, not repeats.
+        """
         self.dpo_pairs.clear()
         self.sft_samples.clear()
+        templates = POLYGLOT_DPO_TEMPLATES
+        if target_count is not None:
+            templates = templates[:max(0, target_count)]
 
-        # 1. Load Curated Polyglot DPO Seeds
-        for idx, (prompt, lang, cat, chosen, rejected) in enumerate(POLYGLOT_DPO_TEMPLATES):
-            pair_id = f"dpo_seed_{idx+1:04d}"
-            pair = DPOPreferencePair(
-                pair_id=pair_id,
+        for idx, (prompt, lang, cat, chosen, rejected) in enumerate(templates):
+            self.dpo_pairs.append(DPOPreferencePair(
+                pair_id=f"dpo_seed_{idx+1:04d}",
                 prompt=prompt,
                 chosen=chosen.strip(),
                 rejected=rejected.strip(),
                 language=lang,
                 category=cat,
                 margin_score=1.0,
-            )
-            self.dpo_pairs.append(pair)
-            
-            # SFT Sample from chosen
-            self.sft_samples.append(
-                SFTInstructionSample(
-                    sample_id=f"sft_seed_{idx+1:04d}",
-                    instruction=prompt,
-                    input="",
-                    output=chosen.strip(),
-                    language=lang,
-                    category=cat,
-                )
-            )
-
-        # 2. Synthesize High-Density Topic Variations
-        var_idx = len(self.dpo_pairs) + 1
-        while len(self.dpo_pairs) < target_count:
-            for lang, topic, cat in DOMAIN_POLYGLOT_TOPICS:
-                if len(self.dpo_pairs) >= target_count:
-                    break
-                pair_id = f"dpo_syn_{var_idx:05d}"
-                sft_id = f"sft_syn_{var_idx:05d}"
-                prompt = f"Implement a production-grade, type-safe {lang} solution for: {topic} (Task #{var_idx})."
-                
-                if lang == "Python":
-                    chosen_code = f'''"""Production implementation for: {topic}"""
-from typing import Dict, Any, Optional
-import time
-
-class {topic.replace(" ", "").replace("-", "")}Engine:
-    """Type-annotated, invariant-verified implementation of {topic}."""
-    def __init__(self, name: str = "{topic}"):
-        self.name = name
-        self.created_at = time.time()
-
-    def execute(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(payload, dict):
-            raise TypeError("Expected dict payload")
-        return {{"status": "SUCCESS", "topic": "{topic}", "timestamp": time.time(), "result": payload}}
-'''
-                    rejected_code = f'''# INSECURE / UNTYPED IMPLEMENTATION
-def execute_{var_idx}(data):
-    # No error handling, unvalidated inputs
-    return eval(str(data))
-'''
-                elif lang == "TypeScript":
-                    chosen_code = f'''export interface {topic.replace(" ", "").replace("-", "")}Result {{
-  status: 'SUCCESS' | 'ERROR';
-  topic: string;
-  timestamp: number;
-}}
-
-export async function handle{topic.replace(" ", "").replace("-", "")}(payload: Record<string, unknown>): Promise<{topic.replace(" ", "").replace("-", "")}Result> {{
-  if (!payload || typeof payload !== 'object') {{
-    throw new Error('Invalid payload object');
-  }}
-  return {{ status: 'SUCCESS', topic: '{topic}', timestamp: Date.now() }};
-}}
-'''
-                    rejected_code = f'''export function handle{topic.replace(" ", "").replace("-", "")}(payload: any) {{
-  return payload.result; // Potential null pointer crash
-}}
-'''
-                elif lang == "Go":
-                    chosen_code = f'''package main
-
-import (
-	"context"
-	"errors"
-	"time"
-)
-
-type {topic.replace(" ", "").replace("-", "")}Response struct {{
-	Status    string    `json:"status"`
-	Topic     string    `json:"topic"`
-	Timestamp time.Time `json:"timestamp"`
-}}
-
-func Execute{topic.replace(" ", "").replace("-", "")}(ctx context.Context, data map[string]interface{{}}) (*{topic.replace(" ", "").replace("-", "")}Response, error) {{
-	if data == nil {{
-		return nil, errors.New("nil data payload")
-	}}
-	return &{topic.replace(" ", "").replace("-", "")}Response{{
-		Status:    "SUCCESS",
-		Topic:     "{topic}",
-		Timestamp: time.Now(),
-	}}, nil
-}}
-'''
-                    rejected_code = f'''package main
-
-func Execute{topic.replace(" ", "").replace("-", "")}(data map[string]interface{{}}) interface{{}} {{
-	return data["key"] // Unsafe map access without check
-}}
-'''
-                elif lang == "Rust":
-                    chosen_code = f'''pub struct {topic.replace(" ", "").replace("-", "")}Engine {{
-    pub topic: String,
-}}
-
-impl {topic.replace(" ", "").replace("-", "")}Engine {{
-    pub fn new() -> Self {{
-        Self {{ topic: String::from("{topic}") }}
-    }}
-
-    pub fn process(&self, input: &str) -> Result<String, &'static str> {{
-        if input.is_empty() {{
-            return Err("Input cannot be empty");
-        }}
-        Ok(format!("PROCESSED: {{}} for {{}}", input, self.topic))
-    }}
-}}
-'''
-                    rejected_code = '''pub fn process_unsafe(input: &str) -> &str {
-    unsafe { input.get_unchecked(..5) } // Unsafe out-of-bounds slice
-}
-'''
-                else:  # SQL
-                    chosen_code = f'''-- Optimized Schema for {topic}
-CREATE TABLE IF NOT EXISTS {topic.lower().replace(" ", "_").replace("-", "_")[:25]}_tbl (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    payload JSONB NOT NULL DEFAULT '{{}}'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_{topic.lower().replace(" ", "_").replace("-", "_")[:20]}_created 
-ON {topic.lower().replace(" ", "_").replace("-", "_")[:25]}_tbl (created_at DESC);
-'''
-                    rejected_code = f'''-- BAD: No primary key, unindexed table
-CREATE TABLE {topic.lower().replace(" ", "_").replace("-", "_")[:25]}_tbl (
-    data TEXT
-);
-'''
-
-                # Validate Python AST if Python
-                if lang == "Python":
-                    try:
-                        ast.parse(chosen_code)
-                    except SyntaxError:
-                        continue
-
-                pair = DPOPreferencePair(
-                    pair_id=pair_id,
-                    prompt=prompt,
-                    chosen=chosen_code.strip(),
-                    rejected=rejected_code.strip(),
-                    language=lang,
-                    category=cat,
-                    margin_score=0.95,
-                )
-                self.dpo_pairs.append(pair)
-                
-                self.sft_samples.append(
-                    SFTInstructionSample(
-                        sample_id=sft_id,
-                        instruction=prompt,
-                        input="",
-                        output=chosen_code.strip(),
-                        language=lang,
-                        category=cat,
-                    )
-                )
-                var_idx += 1
-
+            ))
+            self.sft_samples.append(SFTInstructionSample(
+                sample_id=f"sft_seed_{idx+1:04d}",
+                instruction=prompt,
+                input="",
+                output=chosen.strip(),
+                language=lang,
+                category=cat,
+            ))
         return len(self.dpo_pairs), len(self.sft_samples)
 
     def export_dpo_jsonl(self, output_path: Optional[str] = None) -> str:

@@ -64,9 +64,14 @@ class TrainingCollector:
     def add_sample(self, prompt: str, completion: str,
                    quality_score: float = 1.0, source: str = "manual",
                    tags: Optional[List[str]] = None) -> TrainingSample:
-        """Add a new training sample to the dataset."""
+        """Add a training sample. An identical (prompt, completion) already in
+        the dataset is returned instead of being appended again: repeats were
+        inflating exports (one seed appeared 13 times in saleha_slm_train)."""
         import hashlib
         self._ensure_dir()
+        for existing in self.load_samples(min_quality=0.0):
+            if existing.prompt == prompt[:2000] and existing.completion == completion[:4000]:
+                return existing
         sample_id = hashlib.sha256(f"{prompt}{completion}{time.time()}".encode()).hexdigest()[:16]
         sample = TrainingSample(
             sample_id=sample_id,
@@ -105,12 +110,23 @@ class TrainingCollector:
                     continue
         return samples
 
+    @staticmethod
+    def _unique(samples: List[TrainingSample]) -> List[TrainingSample]:
+        seen = set()
+        unique = []
+        for s in samples:
+            key = (s.prompt, s.completion)
+            if key not in seen:
+                seen.add(key)
+                unique.append(s)
+        return unique
+
     def export_alpaca(self, output_path: str, min_quality: float = 0.7) -> int:
         """Export dataset in Alpaca JSON format for fine-tuning."""
         parent_dir = os.path.dirname(os.path.abspath(output_path))
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
-        samples = self.load_samples(min_quality=min_quality)
+        samples = self._unique(self.load_samples(min_quality=min_quality))
         data = [s.to_alpaca() for s in samples]
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -121,7 +137,7 @@ class TrainingCollector:
         parent_dir = os.path.dirname(os.path.abspath(output_path))
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
-        samples = self.load_samples(min_quality=min_quality)
+        samples = self._unique(self.load_samples(min_quality=min_quality))
         with open(output_path, "w", encoding="utf-8") as f:
             for s in samples:
                 f.write(json.dumps(s.to_sharegpt(), ensure_ascii=False) + "\n")

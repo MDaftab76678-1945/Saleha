@@ -109,20 +109,23 @@ class TestSalehaDatasetSynthesizer:
         synthesizer = SalehaDatasetSynthesizer()
         out_file = str(tmp_path / "test_chatml.jsonl")
         count = synthesizer.synthesize_dataset(output_path=out_file, sample_count=10, format_type="chatml")
-        assert count == 10
+        seeds = synthesizer.get_dataset_summary()["total_seed_templates"]
+        # Asking for 10 from 3 seeds writes 3, never repeats to reach 10.
+        assert count == seeds
         assert os.path.exists(out_file)
 
         with open(out_file, "r", encoding="utf-8") as f:
             lines = [json.loads(line) for line in f]
-        assert len(lines) == 10
+        assert len(lines) == seeds
+        assert len({json.dumps(line, sort_keys=True) for line in lines}) == seeds
         assert "messages" in lines[0]
         assert lines[0]["messages"][0]["role"] == "system"
 
     def test_synthesize_dataset_alpaca(self, tmp_path: Path) -> None:
         synthesizer = SalehaDatasetSynthesizer()
         out_file = str(tmp_path / "test_alpaca.jsonl")
-        count = synthesizer.synthesize_dataset(output_path=out_file, sample_count=5, format_type="alpaca")
-        assert count == 5
+        count = synthesizer.synthesize_dataset(output_path=out_file, sample_count=2, format_type="alpaca")
+        assert count == 2
         with open(out_file, "r", encoding="utf-8") as f:
             sample = json.loads(f.readline())
         assert "instruction" in sample
@@ -132,6 +135,22 @@ class TestSalehaDatasetSynthesizer:
         summary = dataset_synthesizer.get_dataset_summary()
         assert summary["total_seed_templates"] >= 3
         assert "chatml" in summary["supported_formats"]
+        assert "ast_validation" not in summary  # was a hardcoded "100%" claim
+        assert summary["code_seeds_that_parse"] == summary["code_seeds"]
+
+    def test_ring_buffer_seed_runs(self) -> None:
+        seed = next(t for t in SalehaDatasetSynthesizer()._seed_templates if "ring buffer" in t["instruction"])
+        ns: dict = {}
+        exec(seed["output"], ns)  # saleha: allow-exec
+        # Python 3.14 evaluates annotations lazily; resolving them here is what
+        # a 3.12/3.13 interpreter does at def time (the seed used Any/Optional
+        # without importing them).
+        import typing
+        typing.get_type_hints(ns["RingBuffer"].push)
+        buf = ns["RingBuffer"](2)
+        for item in (1, 2, 3):
+            buf.push(item)
+        assert [buf.pop(), buf.pop(), buf.pop()] == [2, 3, None]
 
 
 class TestModelDistillationPipeline:
@@ -149,10 +168,17 @@ class TestModelDistillationPipeline:
         content = pipeline.generate_training_script(script_path)
         assert "Saleha-Coder SLM Distillation Pipeline" in content
         assert os.path.exists(script_path)
+        # It used to print "Simulated Dry-Run Complete ... 100% Configured &
+        # Validated" and return success when nothing could run.
+        assert "100%" not in content and "Simulated" not in content
+        assert "return 1" in content
 
 
 class TestChatSessionNeuroSymbolicCommands:
-    def test_chat_session_commands(self, tmp_path: Path) -> None:
+    def test_chat_session_commands(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # /lora-config writes configs/ and scripts/ relative to the cwd; run it
+        # in tmp_path so the suite stops overwriting the repo's own files.
+        monkeypatch.chdir(tmp_path)
         mock_console = MagicMock()
         session = SwarmChatSession(console=mock_console)
         dataset_path = str(tmp_path / "chat_dataset.jsonl")
