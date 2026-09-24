@@ -1,20 +1,19 @@
 //! crates/nexus-consensus/src/hotstuff.rs
-//! 
+//!
 //! 3-Chain HotStuff Consensus Engine
 //! Reference: Yin et al., "HotStuff: BFT Consensus with Linearity and Responsiveness" (PODC 2019)
-//! 
+//!
 //! Key Improvements over PBFT:
 //! - Message Complexity: O(n) instead of O(n²)
 //! - Responsive View Change: No timeout waiting if valid QC exists
 //! - Pipelined Execution: 3-chain rule allows overlapping consensus rounds
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
-use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-use sha3::{Sha3_256, Digest};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use serde::{Deserialize, Serialize};
+use sha3::{Digest, Sha3_256};
+use std::collections::HashMap;
 use thiserror::Error;
-use serde::{Serialize, Deserialize};
+use tokio::sync::mpsc;
 
 // ── Types & Constants ────────────────────────────────────────────────────────
 
@@ -25,8 +24,8 @@ pub struct NodeId(pub u32);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AggregateSignature {
-    pub signers: Vec<u32>,      // List of signer IDs (or bitmap in prod)
-    pub combined_sig: Vec<u8>,  // Threshold signature bytes
+    pub signers: Vec<u32>,     // List of signer IDs (or bitmap in prod)
+    pub combined_sig: Vec<u8>, // Threshold signature bytes
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,7 +40,7 @@ pub struct Block {
     pub parent_hash: [u8; 32],
     pub view: u64,
     pub payload: Vec<u8>,
-    pub qc: QuorumCertificate,  // Justifies this block
+    pub qc: QuorumCertificate, // Justifies this block
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +80,7 @@ pub struct HotStuffNode {
     pub pipeline: [Option<Block>; MAX_CHAIN_LENGTH], // 3-chain commit buffer
     signing_key: SigningKey,
     verifying_keys: HashMap<u32, VerifyingKey>,
+    #[allow(dead_code)]
     tx: mpsc::Sender<HotStuffMessage>,
     total_nodes: usize,
 }
@@ -96,7 +96,10 @@ impl HotStuffNode {
         let genesis_qc = QuorumCertificate {
             block_hash: [0u8; 32],
             view: 0,
-            agg_sig: AggregateSignature { signers: vec![], combined_sig: vec![] },
+            agg_sig: AggregateSignature {
+                signers: vec![],
+                combined_sig: vec![],
+            },
         };
         Self {
             id,
@@ -126,7 +129,7 @@ impl HotStuffNode {
     /// who then aggregates votes into a QC.
     pub async fn propose(&mut self, payload: Vec<u8>) -> Result<Block, HotStuffError> {
         let parent = self.get_safe_parent();
-        
+
         let block = Block {
             parent_hash: parent.block_hash,
             view: self.view,
@@ -143,27 +146,35 @@ impl HotStuffNode {
     /// Liveness Rule: block.qc.view >= locked_qc.view
     /// Safety Rule: block extends locked block OR has newer QC
     pub fn vote(&self, block: &Block) -> Option<Vote> {
-        let safe = block.qc.view >= self.locked_qc.view
-                   || block.parent_hash == self.locked_qc.block_hash;
+        let safe =
+            block.qc.view >= self.locked_qc.view || block.parent_hash == self.locked_qc.block_hash;
 
         if safe {
-            let bytes = [&block.view.to_le_bytes()[..], &block.parent_hash].concat();
+            let block_hash = Self::hash_block(block);
+            let bytes = [&block.view.to_le_bytes()[..], &block_hash[..]].concat();
             let sig = self.signing_key.sign(&bytes);
             Some(Vote {
-                block_hash: Self::hash_block(block),
+                block_hash,
                 view: block.view,
                 replica_id: self.id,
                 signature: sig.to_bytes().to_vec(),
             })
         } else {
-            tracing::warn!("Node {} rejected block at view {}: Safety violation", self.id, block.view);
+            tracing::warn!(
+                "Node {} rejected block at view {}: Safety violation",
+                self.id,
+                block.view
+            );
             None
         }
     }
 
     /// Process incoming votes and try to form a Quorum Certificate (QC).
     /// Requires 2f + 1 votes.
-    pub async fn process_votes(&mut self, votes: Vec<Vote>) -> Result<Option<QuorumCertificate>, HotStuffError> {
+    pub async fn process_votes(
+        &mut self,
+        votes: Vec<Vote>,
+    ) -> Result<Option<QuorumCertificate>, HotStuffError> {
         let f = (self.total_nodes - 1) / 3;
         let quorum_size = 2 * f + 1;
 
@@ -173,13 +184,15 @@ impl HotStuffNode {
 
         // Verify all signatures
         for vote in &votes {
-            let vk = self.verifying_keys.get(&vote.replica_id)
+            let vk = self
+                .verifying_keys
+                .get(&vote.replica_id)
                 .ok_or(HotStuffError::UnknownNode(NodeId(vote.replica_id)))?;
-            
+
             let bytes = [&vote.view.to_le_bytes()[..], &vote.block_hash].concat();
-            let sig = Signature::from_slice(&vote.signature)
-                .map_err(|_| HotStuffError::InvalidQC)?;
-            
+            let sig =
+                Signature::from_slice(&vote.signature).map_err(|_| HotStuffError::InvalidQC)?;
+
             vk.verify(&bytes, &sig)
                 .map_err(|_| HotStuffError::InvalidQC)?;
         }
@@ -210,27 +223,32 @@ impl HotStuffNode {
     pub fn try_commit(&mut self, new_qc: &QuorumCertificate) -> Option<Vec<u8>> {
         // Shift pipeline: [b0, b1, b2] -> [b1, b2, new_block]
         // If b2 gets QC, b0 is committed.
-        
+
         // Simplified logic for demonstration:
         // In full impl, we track blocks by hash and view.
         // Here we assume the pipeline is filled sequentially.
-        
-        if let (Some(b0), Some(b1), Some(b2)) = (&self.pipeline[0], &self.pipeline[1], &self.pipeline[2]) {
-            // Check if new_qc justifies b2
-            if new_qc.block_hash == Self::hash_block(b2) {
-                // Verify 3-chain integrity
-                if b2.parent_hash == Self::hash_block(b1) && b1.parent_hash == Self::hash_block(b0) {
-                    // Commit b0
-                    self.locked_qc = b1.qc.clone(); // Lock on b1's QC for safety
-                    
-                    // Shift pipeline
-                    self.pipeline[0] = self.pipeline[1].clone();
-                    self.pipeline[1] = self.pipeline[2].clone();
-                    self.pipeline[2] = None; // Wait for next block
-                    
-                    return Some(b0.payload.clone());
-                }
+
+        let commit_data = if let (Some(b0), Some(b1), Some(b2)) =
+            (&self.pipeline[0], &self.pipeline[1], &self.pipeline[2])
+        {
+            if new_qc.block_hash == Self::hash_block(b2)
+                && b2.parent_hash == Self::hash_block(b1)
+                && b1.parent_hash == Self::hash_block(b0)
+            {
+                Some((b0.payload.clone(), b1.qc.clone()))
+            } else {
+                None
             }
+        } else {
+            None
+        };
+
+        if let Some((payload, b1_qc)) = commit_data {
+            self.locked_qc = b1_qc; // Lock on b1's QC for safety
+            self.pipeline[0] = self.pipeline[1].clone();
+            self.pipeline[1] = self.pipeline[2].clone();
+            self.pipeline[2] = None; // Wait for next block
+            return Some(payload);
         }
         None
     }
@@ -242,7 +260,11 @@ impl HotStuffNode {
         if qc.view > self.view {
             self.view = qc.view;
             self.high_qc = qc.clone();
-            tracing::info!("Node {} updated to view {} via responsive change", self.id, self.view);
+            tracing::info!(
+                "Node {} updated to view {} via responsive change",
+                self.id,
+                self.view
+            );
         }
     }
 
@@ -263,7 +285,7 @@ impl HotStuffNode {
         // Setup n nodes
         let mut nodes: Vec<HotStuffNode> = Vec::new();
         let (tx, _rx) = mpsc::channel(100);
-        
+
         // Generate keys (simplified)
         let sk = SigningKey::generate(&mut rand::rngs::OsRng);
         let vk = sk.verifying_key();
@@ -273,7 +295,13 @@ impl HotStuffNode {
         }
 
         for i in 0..n as u32 {
-            nodes.push(HotStuffNode::new(i, n, sk.clone(), verifying_keys.clone(), tx.clone()));
+            nodes.push(HotStuffNode::new(
+                i,
+                n,
+                sk.clone(),
+                verifying_keys.clone(),
+                tx.clone(),
+            ));
         }
 
         // Leader proposes
@@ -289,10 +317,21 @@ impl HotStuffNode {
         }
 
         // Leader aggregates votes into QC
-        let qc = nodes[leader_idx].process_votes(votes).await?.unwrap();
+        let _qc = nodes[leader_idx].process_votes(votes).await?.unwrap();
 
         // Try to commit (pipeline logic simplified for sim)
         // In real impl, this would span multiple rounds
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_hotstuff_simulate_round() {
+        let res = HotStuffNode::simulate_round(4).await;
+        assert!(res.is_ok(), "HotStuff 4-node consensus simulation failed: {:?}", res);
     }
 }

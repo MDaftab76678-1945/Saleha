@@ -20,6 +20,7 @@ members = [
     "crates/agent-crypto",
     "crates/agent-tee-core",
     "crates/agent-runtime",
+    "crates/nexus-consensus",
 ]
 # candidates to promote once they build:
 #   "crates/nexus-consensus", "crates/nexus-core", "crates/nexus-safety",

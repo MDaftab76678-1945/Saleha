@@ -12,7 +12,7 @@
 use blst::min_pk::{AggregateSignature, PublicKey, SecretKey, Signature};
 use blst::BLST_ERROR;
 use rand::rngs::OsRng;
-use sha3::{Sha3_256, Digest};
+use rand::RngCore;
 use thiserror::Error;
 use serde::{Serialize, Deserialize};
 
@@ -123,7 +123,7 @@ impl BlsThresholdSigner {
         let agg = AggregateSignature::aggregate(&sigs.iter().collect::<Vec<_>>(), true)
             .map_err(|_| BlsError::AggregationFailed)?;
 
-        Ok(BlsAggregateSignature(agg.to_bytes().to_vec()))
+        Ok(BlsAggregateSignature(agg.to_signature().to_bytes().to_vec()))
     }
 
     /// Verify an aggregate signature against ALL validator pubkeys in O(1).
@@ -141,7 +141,7 @@ impl BlsThresholdSigner {
             });
         }
 
-        let agg = AggregateSignature::from_bytes(&agg_sig.0)
+        let sig = Signature::from_bytes(&agg_sig.0)
             .map_err(|_| BlsError::InvalidAggregateSignature)?;
 
         // Collect public keys of actual signers
@@ -155,9 +155,7 @@ impl BlsThresholdSigner {
         let pks = pks?;
 
         // O(1) aggregate verification via pairing check
-        // Single e(σ, g2) == ∏ e(H(m), pk_i) check
-        let messages: Vec<&[u8]> = vec![message; pks.len()];
-        let result = agg.fast_aggregate_verify(true, &messages, DST, &pks);
+        let result = sig.fast_aggregate_verify(true, message, DST, &pks);
 
         if result != BLST_ERROR::BLST_SUCCESS {
             return Err(BlsError::AggregateVerificationFailed);
@@ -200,43 +198,30 @@ mod tests {
     use super::*;
 
     fn setup_signers(n: usize, threshold: usize) -> Vec<BlsThresholdSigner> {
-        // Generate n keypairs
-        let mut signers = Vec::new();
+        let mut keypairs = Vec::new();
         let mut pubkeys = Vec::new();
-
-        for _ in 0..n {
-            let ikm: [u8; 32] = {
-                let mut buf = [0u8; 32];
-                OsRng.fill_bytes(&mut buf);
-                buf
-            };
-            let sk = SecretKey::key_gen(&ikm, &[]).unwrap();
-            let pk = sk.sk_to_pk();
-            pubkeys.push(BlsPublicKey(pk.to_bytes().to_vec()));
-        }
 
         for i in 0..n {
             let ikm: [u8; 32] = {
                 let mut buf = [0u8; 32];
-                // Deterministic for test reproducibility
-                buf[0..4].copy_from_slice(&(i as u32).to_le_bytes());
+                buf[0..4].copy_from_slice(&((i + 1) as u32).to_le_bytes());
                 buf
             };
             let sk = SecretKey::key_gen(&ikm, &[]).unwrap();
             let pk = sk.sk_to_pk();
+            pubkeys.push(pk);
+            keypairs.push((sk, pk));
+        }
 
-            let parsed_pks: Vec<PublicKey> = pubkeys.iter()
-                .map(|p| PublicKey::from_bytes(&p.0).unwrap())
-                .collect();
-
-            signers.push(BlsThresholdSigner {
+        keypairs
+            .into_iter()
+            .map(|(sk, pk)| BlsThresholdSigner {
                 secret_key: sk,
                 public_key: pk,
-                validator_pubkeys: parsed_pks,
+                validator_pubkeys: pubkeys.clone(),
                 threshold,
-            });
-        }
-        signers
+            })
+            .collect()
     }
 
     #[test]

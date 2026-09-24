@@ -1,14 +1,15 @@
 //! PBFT Consensus Engine — Practical Byzantine Fault Tolerance
 //! Guarantee: Safety + Liveness when f < n/3 Byzantine nodes.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use std::collections::HashMap;
+use tokio::sync::mpsc;
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use sha3::{Sha3_256, Digest};
 use thiserror::Error;
 
+#[allow(dead_code)]
 const LEADER_TIMEOUT_MS: u64 = 5_000;
+#[allow(dead_code)]
 const MAX_VIEW_CHANGES: u32 = 10;
 
 // ── Message Types ────────────────────────────────────────────────────────────
