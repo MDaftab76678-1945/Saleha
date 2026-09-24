@@ -71,7 +71,10 @@ def test_no_stub_topic_rows_anywhere() -> None:
 
 
 def test_dpo_pairs_are_real_preferences() -> None:
-    rows = _load(os.path.join(REPO_ROOT, "datasets", "saleha_dpo_pairs.jsonl"))
+    path = os.path.join(REPO_ROOT, "datasets", "saleha_dpo_pairs.jsonl")
+    if not os.path.exists(path):
+        pytest.skip("no DPO pairs file (the padded datasets were removed on 2026-09-24)")
+    rows = _load(path)
     assert rows
     for r in rows:
         assert r["chosen"] != r["rejected"]
