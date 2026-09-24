@@ -37,13 +37,15 @@ from saleha.cli.commands import cli, console
 @click.option('--resume', '-r', is_flag=True, help='Resume the last interrupted session from its checkpoint')
 @click.option('--stream', is_flag=True, help='Stream coder tokens live in the terminal')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
+@click.option('--native', is_flag=True, help='Execute goal through the native Rust Intent Kernel')
 def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: int,
         verbose: bool, execute: bool, commit: bool, context_dir: Optional[str],
-        tests: bool, resume: bool, stream: bool, as_json: bool) -> None:
+        tests: bool, resume: bool, stream: bool, as_json: bool, native: bool = False) -> None:
     """
     Full self-healing pipeline: Plan -> Code -> Test -> Fix -> Execute
     
     Example: saleha run "Create a REST API"
+    Example with native Rust engine: saleha run "Refactor state machine" --native
     Example with profile: saleha run "Implement distributed lock" -p sde
     Example with execution: saleha run -x "Create a function that prints hello"
     Example with git commit: saleha run -c "Build rate limiter"
@@ -58,6 +60,21 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
         raise click.UsageError('GOAL zaroori hai (ya --resume use karein).')
     if not goal:
         goal = ''
+
+    if native:
+        from saleha.core import intent_kernel
+        if not intent_kernel.is_available():
+            raise click.ClickException(f"Native intent kernel binary not found. Build with: {intent_kernel.BUILD_HINT}")
+        console.print(f"[bold cyan]Dispatching to Rust Intent Kernel:[/] {goal}")
+        res = intent_kernel.run_mission(goal)
+        if res.get("returncode") == 0:
+            console.print(Panel(str(res.get("stdout", "")), title="Native Kernel Mission Output", border_style="green"))
+        else:
+            err_msg = str(res.get("stderr") or res.get("stdout") or "Unknown error")
+            console.print(Panel(err_msg, title="Native Kernel Error", border_style="red"))
+            raise click.ClickException("Native execution failed.")
+        return
+
     orchestrator = _cmds.SalehaOrchestrator(model=model, max_healing_attempts=max_attempts, profile=profile)
     if as_json:
         with contextlib.redirect_stdout(io.StringIO()):

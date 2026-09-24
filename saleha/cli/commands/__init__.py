@@ -470,6 +470,7 @@ from saleha.cli.commands import tool_forge_cmd  # noqa: F401
 from saleha.cli.commands import user  # noqa: F401
 from saleha.cli.commands import vault_group  # noqa: F401
 from saleha.cli.commands import voice_vision  # noqa: F401
+from saleha.cli.commands import native_kernel_cmd  # noqa: F401
 
 cli.add_command(monorepo_group)
 cli.add_command(dogfood_cmd)

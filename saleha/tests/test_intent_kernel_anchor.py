@@ -12,6 +12,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from click.testing import CliRunner
+
+from saleha.cli.commands import cli
 from saleha.core import intent_kernel
 from saleha.core.work_ledger import WorkLedger, _canonical, _sha256
 
@@ -128,6 +131,36 @@ class WorkLedgerWithoutKernelTests(unittest.TestCase):
             report = wl.verify(recheck=False)
         self.assertIsNone(report["external_anchor_ok"])
         self.assertIn("not built", report["external_anchor_detail"])
+
+
+@unittest.skipUnless(_HAS_IK, f"intent kernel not built ({intent_kernel.BUILD_HINT})")
+class NativeKernelCliTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runner = CliRunner()
+
+    def test_kernel_status_and_arch(self) -> None:
+        res = intent_kernel.get_status()
+        self.assertEqual(res.get("returncode"), 0)
+        self.assertTrue(intent_kernel.is_available())
+
+        arch = intent_kernel.get_architecture()
+        self.assertEqual(arch.get("returncode"), 0)
+
+    def test_cli_ik_status_and_arch(self) -> None:
+        res = self.runner.invoke(cli, ["ik", "status"])
+        self.assertEqual(res.exit_code, 0)
+
+        res_arch = self.runner.invoke(cli, ["ik", "arch"])
+        self.assertEqual(res_arch.exit_code, 0)
+
+    def test_cli_ik_run_dry_run(self) -> None:
+        res = self.runner.invoke(cli, ["ik", "run", "--dry-run", "Inspect memory ledger"])
+        self.assertEqual(res.exit_code, 0)
+
+    def test_cli_saleha_run_native(self) -> None:
+        res = self.runner.invoke(cli, ["run", "--native", "Inspect memory ledger"])
+        self.assertEqual(res.exit_code, 0)
+        self.assertIn("Rust Intent Kernel", res.output)
 
 
 if __name__ == "__main__":
