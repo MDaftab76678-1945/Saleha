@@ -1,13 +1,16 @@
+use crate::blockchain::{Blockchain, Transaction};
 use axum::{
-    extract::{State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    extract::{
+        ws::{Message, WebSocket},
+        State, WebSocketUpgrade,
+    },
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
-    response::IntoResponse,
 };
-use serde::{Serialize, Deserialize};
+use serde::Deserialize;
 use std::sync::{Arc, Mutex};
-use crate::blockchain::{Blockchain, Transaction};
-use crate::state::WorldState;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -97,7 +100,10 @@ async fn create_escrow(
     Json(req): Json<CreateEscrowRequest>,
 ) -> impl IntoResponse {
     let mut chain = state.blockchain.lock().unwrap();
-    match chain.state.create_escrow(&req.buyer, &req.seller, req.amount) {
+    match chain
+        .state
+        .create_escrow(&req.buyer, &req.seller, req.amount)
+    {
         Ok(escrow_id) => Json(serde_json::json!({ "success": true, "escrow_id": escrow_id })),
         Err(e) => Json(serde_json::json!({ "success": false, "error": e })),
     }
@@ -149,18 +155,24 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 
 async fn handle_ws(mut socket: WebSocket, state: AppState) {
     // Send initial state
-    let chain = state.blockchain.lock().unwrap();
-    let latest_block = chain.get_latest_block().cloned();
-    let msg = serde_json::to_string(&latest_block).unwrap();
+    let msg = {
+        let chain = state.blockchain.lock().unwrap();
+        let latest_block = chain.get_latest_block().cloned();
+        serde_json::to_string(&latest_block).unwrap()
+    };
     let _ = socket.send(Message::Text(msg)).await;
 
     // Keep connection alive
     loop {
         tokio::time::sleep(Duration::from_secs(5)).await;
-        let chain = state.blockchain.lock().unwrap();
-        let latest = chain.get_latest_block().cloned();
-        if let Some(block) = latest {
-            let msg = serde_json::to_string(&block).unwrap();
+        let maybe_msg = {
+            let chain = state.blockchain.lock().unwrap();
+            chain
+                .get_latest_block()
+                .cloned()
+                .map(|block| serde_json::to_string(&block).unwrap())
+        };
+        if let Some(msg) = maybe_msg {
             if socket.send(Message::Text(msg)).await.is_err() {
                 break;
             }

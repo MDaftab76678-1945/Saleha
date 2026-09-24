@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod blockchain;
 mod state;
 mod consensus;

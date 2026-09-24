@@ -78,7 +78,7 @@ impl PoVCConsensus {
         }
 
         // Check block time
-        if let Some(prev_block_height = block.height.checked_sub(1)) {
+        if let Some(_prev_block_height) = block.height.checked_sub(1) {
             // Additional validation logic here
         }
 

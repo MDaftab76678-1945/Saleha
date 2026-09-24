@@ -1,6 +1,5 @@
 use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
-use std::collections::HashMap;
 use crate::state::WorldState;
 use crate::consensus::PoVCConsensus;
 

@@ -8,9 +8,10 @@
 resolver = "2"
 members = [
     "intent-kernel",
+    "nexus-l1",
+    "nexus-executor",
+    "nexus-l1-core",
 ]
 # candidates to promote once they build:
-#   "meridian-core/src"
-#   "nexus-l1", "nexus-l1-core", "nexus-executor"
 #   "crates/nexus-consensus", "crates/nexus-core", "crates/nexus-safety",
 #   "crates/agent-crypto", "crates/agent-tee-core", "crates/secure-node"
