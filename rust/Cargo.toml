@@ -11,6 +11,15 @@ members = [
     "nexus-l1",
     "nexus-executor",
     "nexus-l1-core",
+    "crates/nexus-safety",
+    "crates/agent-guardrails",
+    "crates/agent-memory-dag",
+    "crates/agent-snn-core",
+    "crates/agent-causal-core",
+    "crates/agent-crdt-core",
+    "crates/agent-crypto",
+    "crates/agent-tee-core",
+    "crates/agent-runtime",
 ]
 # candidates to promote once they build:
 #   "crates/nexus-consensus", "crates/nexus-core", "crates/nexus-safety",

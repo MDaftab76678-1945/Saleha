@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Represents a variable in a Causal Graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,40 +17,50 @@ pub struct CausalEngine {
 
 impl CausalEngine {
     pub fn new() -> Self {
-        Self { variables: HashMap::new() }
+        Self {
+            variables: HashMap::new(),
+        }
     }
 
     pub fn add_variable(&mut self, id: &str, parents: Vec<String>, initial_value: f64) {
-        self.variables.insert(id.to_string(), CausalVariable {
-            id: id.to_string(),
-            parents,
-            value: initial_value,
-        });
+        self.variables.insert(
+            id.to_string(),
+            CausalVariable {
+                id: id.to_string(),
+                parents,
+                value: initial_value,
+            },
+        );
     }
 
     /// Simulates an intervention: "What happens if we force Variable X to value V?"
     /// This is the core of Counterfactual Reasoning.
     pub fn do_intervention(&mut self, target_var: &str, new_value: f64) -> HashMap<String, f64> {
         let mut new_state = HashMap::new();
-        
+
         // 1. Break incoming causal links to the target variable (The "do" operator)
         if let Some(var) = self.variables.get_mut(target_var) {
-            var.parents.clear(); 
+            var.parents.clear();
             var.value = new_value;
         }
 
         // 2. Propagate the effect through the causal graph
         self.propagate_effects(&mut new_state);
-        
+
         new_state
     }
 
     /// Counterfactual Query: "Given what we observed, what would have happened if X was different?"
-    pub fn counterfactual_query(&self, observed_state: &HashMap<String, f64>, intervention_var: &str, intervention_value: f64) -> f64 {
+    pub fn counterfactual_query(
+        &self,
+        _observed_state: &HashMap<String, f64>,
+        intervention_var: &str,
+        intervention_value: f64,
+    ) -> f64 {
         // Simplified logic for architectural demo:
         // In production, this uses Abduction (update noise terms), Action (do-intervention), and Prediction.
-        println!("🔍 Running counterfactual simulation: What if {} was {}?", intervention_var, intervention_value);
-        
+        let _ = (intervention_var, intervention_value);
+
         // Return a simulated outcome based on causal weights
         42.0 // Placeholder for the counterfactual outcome
     }
@@ -61,5 +71,32 @@ impl CausalEngine {
         for (id, var) in &self.variables {
             state.insert(id.clone(), var.value);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_and_do_intervention() {
+        let mut engine = CausalEngine::new();
+        engine.add_variable("A", vec![], 1.0);
+        engine.add_variable("B", vec!["A".to_string()], 2.0);
+
+        let new_state = engine.do_intervention("B", 10.0);
+        assert_eq!(new_state.get("B"), Some(&10.0));
+        assert!(
+            engine.variables.get("B").unwrap().parents.is_empty(),
+            "Parents must be cleared by do-operator"
+        );
+    }
+
+    #[test]
+    fn test_counterfactual_query() {
+        let engine = CausalEngine::new();
+        let obs = HashMap::new();
+        let out = engine.counterfactual_query(&obs, "treatment", 1.0);
+        assert!((out - 42.0).abs() < 1e-6);
     }
 }

@@ -11,7 +11,7 @@ use tracing::debug;
 const CHANNEL_CAPACITY: usize = 10_000; // ~40MB buffer at 4096-dim f32
 const SAMPLE_RATE: f64 = 0.10;          // Sample 10% of retrievals for training
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ActivationSample {
     pub query_embedding: Vec<f32>,      // [768]
     pub archivist_activations: Vec<f32>, // [4096]

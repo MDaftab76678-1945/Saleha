@@ -55,7 +55,7 @@ impl DriftDetector {
 
         loop {
             tick.tick().await;
-            info!("🔍 Running constitutional drift check on {} edge cases", CANONICAL_EDGE_CASES.len());
+            info!("[DRIFT_CHECK] Running constitutional drift check on {} edge cases", CANONICAL_EDGE_CASES.len());
 
             for (edge_case, oracle_key) in CANONICAL_EDGE_CASES {
                 let oracle_emb = self.get_oracle_embedding(oracle_key).await;
@@ -75,7 +75,7 @@ impl DriftDetector {
 
                     if divergence > self.threshold {
                         warn!(
-                            "⚠️ CONSTITUTIONAL DRIFT | Agent {} | Case: '{}' | Divergence: {:.3}",
+                            "[DRIFT_ALERT] CONSTITUTIONAL DRIFT | Agent {} | Case: '{}' | Divergence: {:.3}",
                             entry.key(), edge_case, divergence
                         );
 
@@ -101,7 +101,7 @@ impl DriftDetector {
         }
     }
 
-    async fn get_oracle_embedding(&self, key: &str) -> Vec<f32> {
+    async fn get_oracle_embedding(&self, _key: &str) -> Vec<f32> {
         // Production: Load pre-computed oracle embeddings from disk
         // These are computed once from the frozen Oracle Model and never change
         vec![0.0; 768] // Stub
@@ -109,19 +109,19 @@ impl DriftDetector {
 
     async fn query_agent_interpretation(
         &self,
-        agent_id: u64,
-        edge_case: &str,
+        _agent_id: u64,
+        _edge_case: &str,
     ) -> Result<Vec<f32>, DriftError> {
         // Production: Query agent's internal reasoning trace embedding
         // Must use SAME tokenizer/embedder as oracle for comparable space
         Ok(vec![0.0; 768]) // Stub
     }
 
-    async fn trigger_review(&self, agent_id: u64, edge_case: &str, divergence: f32) {
+    async fn trigger_review(&self, agent_id: u64, _edge_case: &str, divergence: f32) {
         // Route to CriticSentinel debate with full drift report as context
         // If divergence > 2× threshold → immediate suspension
         if divergence > self.threshold * 2.0 {
-            error!("🚨 Agent {} suspended: extreme constitutional drift ({:.3})", agent_id, divergence);
+            error!("[SUSPENDED] Agent {} suspended: extreme constitutional drift ({:.3})", agent_id, divergence);
             // suspend_agent(agent_id).await;
         }
     }

@@ -1,7 +1,7 @@
 use sha3::{Sha3_256, Digest};
 
 /// Verkle Tree (Vector Commitments)
-/// स्टेट प्रूफ साइज़ 3KB से 150 Bytes तक कम करता है
+/// Reduces state proof size for lightweight verification.
 pub struct VerkleTree {
     pub root: [u8; 32],
 }
@@ -19,8 +19,28 @@ impl VerkleTree {
     }
 
     pub fn generate_witness(&self, _key: &str) -> Vec<u8> {
-        // प्रोडक्शन में: IPA (Inner Product Argument) विटनेस
-        // साइज़ ~150 बाइट्स
+        // IPA witness placeholder (~150 bytes)
         vec![0u8; 150]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_verkle_tree_root_determinism() {
+        let entries = [("account:1", b"balance:100".as_slice()), ("account:2", b"balance:200".as_slice())];
+        let tree1 = VerkleTree::compute_root(&entries);
+        let tree2 = VerkleTree::compute_root(&entries);
+        assert_eq!(tree1.root, tree2.root);
+        assert_ne!(tree1.root, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_verkle_tree_witness() {
+        let tree = VerkleTree::compute_root(&[]);
+        let witness = tree.generate_witness("key");
+        assert_eq!(witness.len(), 150);
     }
 }

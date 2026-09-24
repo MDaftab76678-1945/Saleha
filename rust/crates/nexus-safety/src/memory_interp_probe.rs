@@ -57,7 +57,7 @@ impl MemoryInterpProbe {
 
         // Encode into interpretable latent space via SAE
         let activations = Array1::from_vec(archivist_activations.to_vec());
-        let latent: Array1<f32> = self.encoder_weight.dot(&activations) + &self.encoder_bias;
+        let latent: Array1<f32> = self.encoder_weight.dot(&activations) + &*self.encoder_bias;
 
         // Check manipulation feature activations (ReLU)
         let mut activated_features: Vec<(usize, f32)> = Vec::new();

@@ -72,3 +72,41 @@ impl SNNLayer {
         output_spikes
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lif_neuron_subthreshold_no_spike() {
+        let mut neuron = LIFNeuron::new(1.0, 0.9);
+        assert!(!neuron.step(0.4));
+        assert!((neuron.membrane_potential - 0.4).abs() < 1e-6);
+        // Next tick with 0.1 current: potential = 0.4 * 0.9 + 0.1 = 0.46
+        assert!(!neuron.step(0.1));
+        assert!((neuron.membrane_potential - 0.46).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_lif_neuron_fires_and_refractory() {
+        let mut neuron = LIFNeuron::new(1.0, 0.9);
+        // Large current should trigger spike
+        assert!(neuron.step(1.5));
+        assert_eq!(neuron.membrane_potential, 0.0);
+        assert_eq!(neuron.current_refractory, 5);
+
+        // While in refractory, incoming current does not fire
+        assert!(!neuron.step(10.0));
+        assert_eq!(neuron.current_refractory, 4);
+    }
+
+    #[test]
+    fn test_snn_layer_forward() {
+        let mut layer = SNNLayer::new(3);
+        // Force high weights so step triggers spikes
+        layer.weights = vec![vec![2.0; 3]; 3];
+        let out = layer.forward(&[true, false, false]);
+        assert_eq!(out, vec![true, true, true]);
+    }
+}
+

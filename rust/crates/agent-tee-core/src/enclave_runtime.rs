@@ -21,28 +21,33 @@ impl EnclaveContext {
     /// Executes a highly sensitive task (e.g., signing a large transaction).
     /// The host OS can see the function call, but NOT the data inside.
     pub fn execute_sensitive_task(&self, task_data: &[u8]) -> Vec<u8> {
-        // 1. Decrypt task data (happens automatically in hardware)
-        
-        // 2. Perform computation
         let result = self.process_data(task_data);
-        
-        // 3. Sign the result with the private key (Key never leaves CPU)
         let signature = self.sign_with_private_key(&result);
-        
-        // 4. Return only the result and signature. Private key remains secure.
         let mut output = result;
         output.extend_from_slice(&signature);
         output
     }
 
     fn process_data(&self, data: &[u8]) -> Vec<u8> {
-        // Simulated processing
         data.to_vec()
     }
 
-    fn sign_with_private_key(&self, data: &[u8]) -> Vec<u8> {
-        // In production: Use Ed25519 or Dilithium inside the enclave
-        // let signature = ed25519_dalek::sign(data, &self.agent_private_key);
-        vec![0xDE, 0xAD, 0xBE, 0xEF] // Mock signature
+    fn sign_with_private_key(&self, _data: &[u8]) -> Vec<u8> {
+        // Mock signature for enclaves
+        vec![0xDE, 0xAD, 0xBE, 0xEF]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_execute_sensitive_task() {
+        let enclave = EnclaveContext::new(vec![1, 2, 3, 4]);
+        let input = b"secret_transaction_payload";
+        let output = enclave.execute_sensitive_task(input);
+        assert!(output.starts_with(input));
+        assert!(output.ends_with(&[0xDE, 0xAD, 0xBE, 0xEF]));
     }
 }

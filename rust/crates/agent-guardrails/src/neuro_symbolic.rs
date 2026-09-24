@@ -94,3 +94,69 @@ pub struct GuardrailResult {
     pub violated_rule: Option<String>,
     pub reason: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_safe_action_passes() {
+        let guard = SymbolicGuardrail::new();
+        let mut params = HashMap::new();
+        params.insert("amount".to_string(), "5.0".to_string());
+        params.insert("total_balance".to_string(), "100.0".to_string());
+        let action = AgentAction {
+            action_type: "transfer_funds".to_string(),
+            parameters: params,
+            estimated_risk_score: 0.1,
+        };
+        let res = guard.evaluate(&action);
+        assert!(res.is_safe);
+        assert!(res.violated_rule.is_none());
+    }
+
+    #[test]
+    fn test_excessive_transfer_blocked() {
+        let guard = SymbolicGuardrail::new();
+        let mut params = HashMap::new();
+        params.insert("amount".to_string(), "25.0".to_string());
+        params.insert("total_balance".to_string(), "100.0".to_string());
+        let action = AgentAction {
+            action_type: "transfer_funds".to_string(),
+            parameters: params,
+            estimated_risk_score: 0.1,
+        };
+        let res = guard.evaluate(&action);
+        assert!(!res.is_safe);
+        assert_eq!(res.violated_rule.as_deref(), Some("RULE_001"));
+    }
+
+    #[test]
+    fn test_malicious_code_blocked() {
+        let guard = SymbolicGuardrail::new();
+        let mut params = HashMap::new();
+        params.insert("code_snippet".to_string(), "rm -rf /tmp/data".to_string());
+        let action = AgentAction {
+            action_type: "execute_code".to_string(),
+            parameters: params,
+            estimated_risk_score: 0.2,
+        };
+        let res = guard.evaluate(&action);
+        assert!(!res.is_safe);
+        assert_eq!(res.violated_rule.as_deref(), Some("RULE_002"));
+    }
+
+    #[test]
+    fn test_high_neural_risk_blocked() {
+        let guard = SymbolicGuardrail::new();
+        let action = AgentAction {
+            action_type: "read_log".to_string(),
+            parameters: HashMap::new(),
+            estimated_risk_score: 0.95,
+        };
+        let res = guard.evaluate(&action);
+        assert!(!res.is_safe);
+        assert_eq!(res.violated_rule.as_deref(), Some("NEURAL_RISK_THRESHOLD"));
+    }
+}
+

@@ -95,7 +95,7 @@ impl CircuitBreaker {
 
     pub fn force_open_immediate(&self) {
         self.force_open.store(true, Ordering::SeqCst);
-        tracing::error!("⚡ CIRCUIT BREAKER FORCE-OPENED — EMERGENCY HALT");
+        tracing::error!("[!] CIRCUIT BREAKER FORCE-OPENED -- EMERGENCY HALT");
     }
 }
 
@@ -262,7 +262,7 @@ impl SafetyRail {
     }
 
     pub async fn emergency_halt(&self, reason: String) {
-        tracing::error!("⚡⚡⚡ EMERGENCY HALT: {}", reason);
+        tracing::error!("[EMERGENCY HALT] {}", reason);
         self.halt_flag.store(true, Ordering::SeqCst);
         self.circuit_breaker.force_open_immediate();
         self.audit_log.append(AuditEvent::EmergencyHalt { reason }).await;
@@ -278,10 +278,6 @@ impl SafetyRail {
 
     fn embed_watermark(&self, _output: &AgentOutput) -> Vec<u8> {
         vec![0u8; 32]
-    }
-
-    pub async fn evaluate_task(&self, _task: &super::orchestrator::Task<super::orchestrator::Pending>, _constitution: &super::orchestrator::Constitution) -> Result<super::orchestrator::SafetyVerdict, super::orchestrator::SafetyError> {
-        Ok(super::orchestrator::SafetyVerdict::Approved)
     }
 }
 
