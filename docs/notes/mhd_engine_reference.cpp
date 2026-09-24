@@ -1,11 +1,12 @@
 // ============================================================================
-// Multi-GPU MHD Solver - Refactored Core Physics & Numerical Engine
-// Fixes critical architectural faults:
-// 1. Unified Conserved State <-> Primitive State SoA models with positivity floors.
-// 2. Full 9-variable Dedner GLM divergence cleaning (F(Bx) = psi, F(psi) = ch^2 * Bx).
-// 3. Robust MUSCL-Minmod 2nd-order spatial reconstruction for all 9 primitive variables.
-// 4. Complete 2D MHD RHS operator (compute_mhd_rhs_2d) with HLLD Riemann fluxing.
-// 5. Boundary Condition Registry (Supersonic Inflow/Outflow, Wall, Axisymmetric r=0).
+// MHD solver sketch (CUDA; needs nvcc despite the .cpp extension). Reference
+// note only -- not built or used by Saleha.
+// Present: conserved <-> primitive conversion with positivity floors, Dedner
+// GLM flux terms, a cell-centred F(i) - F(i-1) difference.
+// NOT implemented, despite an earlier header claiming them: multi-GPU/MPI,
+// MUSCL-Minmod reconstruction (minmod is defined but never called), an HLLD
+// Riemann solver, supersonic inflow and the right/upper boundaries, and time
+// integration (dt is unused and U is never advanced).
 // ============================================================================
 
 #include <cuda_runtime.h>

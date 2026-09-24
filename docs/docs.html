@@ -157,49 +157,43 @@
   <!-- Sidebar Navigation -->
   <aside class="sidebar">
     <a href="index.html" class="brand">
-      <span>🧠</span> Saleha Docs <span class="tag-badge">v2.0</span>
+      <span></span> Saleha Docs
     </a>
     
     <div class="search-box">
-      <span class="search-icon">🔍</span>
+      <span class="search-icon"></span>
       <input type="text" class="search-input" id="docSearch" placeholder="Search commands, recipes..." onkeyup="filterDocs()">
     </div>
 
     <div class="nav-group">
       <div class="nav-header">Getting Started</div>
-      <a href="#quickstart" class="nav-item active">⚡ Quickstart in 60s</a>
-      <a href="#architecture" class="nav-item">🏛️ Architecture &amp; DAG</a>
-      <a href="#ollama" class="nav-item">🤖 Ollama Model Setup</a>
+      <a href="#quickstart" class="nav-item active">Quickstart in 60s</a>
     </div>
 
     <div class="nav-group">
       <div class="nav-header">Core Superpowers</div>
-      <a href="#council" class="nav-item">👥 Multi-Agent Council</a>
-      <a href="#conflicts" class="nav-item">🔀 Git Conflict Resolver</a>
-      <a href="#migrate" class="nav-item">🔄 Polyglot Migrator</a>
-      <a href="#issue-pr" class="nav-item">🐙 GitHub Issue-to-PR</a>
-      <a href="#voice" class="nav-item">🎙️ Voice Terminal</a>
-      <a href="#desktop" class="nav-item">🖥️ Native Desktop Studio</a>
-      <a href="#sandbox" class="nav-item">🛡️ Hardened Sandbox</a>
+      <a href="#council" class="nav-item">Multi-Agent Council</a>
+      <a href="#conflicts" class="nav-item">Git Conflict Resolver</a>
+      <a href="#migrate" class="nav-item">Polyglot Migrator</a>
+      <a href="#issue-pr" class="nav-item">GitHub Issue-to-PR</a>
+      <a href="#voice" class="nav-item">Voice Terminal</a>
+      <a href="#desktop" class="nav-item">Native Desktop Studio</a>
     </div>
 
     <div class="nav-group">
       <div class="nav-header">Ecosystem &amp; CI/CD</div>
-      <a href="#vscode" class="nav-item">🔌 VS Code Extension</a>
-      <a href="#github-action" class="nav-item">🤖 GitHub PR Action</a>
-      <a href="#swe-bench" class="nav-item">📊 SWE-bench Exporter</a>
     </div>
   </aside>
 
   <!-- Main Content Area -->
   <main class="content-wrapper">
     <h1>Saleha AI Developer Documentation &amp; Cookbook</h1>
-    <p>Comprehensive guide for the world's leading open-source, local-first autonomous AI software engineering framework.</p>
+    <p>Guide to Saleha, a local-first multi-agent coding assistant that runs on Ollama.</p>
 
     <!-- Quickstart -->
     <section id="quickstart" class="doc-section">
-      <h2>⚡ Quickstart</h2>
-      <p>Install Saleha in your Python 3.10+ environment in one step:</p>
+      <h2>Quickstart</h2>
+      <p>Install Saleha in a Python 3.12+ environment:</p>
       <div class="code-block">
         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
         <code>pip install -e .</code>
@@ -213,7 +207,7 @@
 
     <!-- Multi-Agent Council -->
     <section id="council" class="doc-section">
-      <h2>👥 Multi-Agent Architectural Council (`saleha council`)</h2>
+      <h2>Multi-Agent Architectural Council (`saleha council`)</h2>
       <p>When solving high-stakes architectural problems, assemble 3 specialized personas (<strong>Security Specialist</strong>, <strong>Performance Optimizer</strong>, and <strong>Senior Architect</strong>) to debate trade-offs and synthesize the mathematically optimal solution:</p>
       <div class="code-block">
         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -223,7 +217,7 @@
 
     <!-- Git Conflict Resolver -->
     <section id="conflicts" class="doc-section">
-      <h2>🔀 Autonomous Git Merge-Conflict Resolver (`saleha resolve-conflicts`)</h2>
+      <h2>Autonomous Git Merge-Conflict Resolver (`saleha resolve-conflicts`)</h2>
       <p>Parses Git conflict markers (<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code>, <code>=======</code>, <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>) and uses AST semantic intent analysis to merge imports and functions cleanly:</p>
       <div class="code-block">
         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -233,7 +227,7 @@
 
     <!-- Polyglot Migrator -->
     <section id="migrate" class="doc-section">
-      <h2>🔄 1-Click Polyglot Migrator (`saleha migrate`)</h2>
+      <h2>1-Click Polyglot Migrator (`saleha migrate`)</h2>
       <p>Migrate legacy codebases to modern type-safe standards:</p>
       <h3>JavaScript to TypeScript:</h3>
       <div class="code-block">
@@ -249,7 +243,7 @@
 
     <!-- Voice Live -->
     <section id="voice" class="doc-section">
-      <h2>🎙️ Voice Live Terminal Assistant (`saleha voice-live`)</h2>
+      <h2>Voice Live Terminal Assistant (`saleha voice-live`)</h2>
       <p>Start hands-free two-way conversational terminal assistant:</p>
       <div class="code-block">
         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -259,7 +253,7 @@
 
     <!-- Desktop App -->
     <section id="desktop" class="doc-section">
-      <h2>🖥️ Native Desktop Studio (`saleha desktop`)</h2>
+      <h2>Native Desktop Studio (`saleha desktop`)</h2>
       <p>Launch the native desktop window with 1-click Ollama manager and real-time DAG visualizer:</p>
       <div class="code-block">
         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -269,7 +263,7 @@
 
     <!-- GitHub Issue-to-PR -->
     <section id="issue-pr" class="doc-section">
-      <h2>🐙 Autonomous GitHub Issue-to-PR Resolver (`saleha resolve-issue`)</h2>
+      <h2>Autonomous GitHub Issue-to-PR Resolver (`saleha resolve-issue`)</h2>
       <p>Fetch an issue, branch, fix, verify with tests, and open PR:</p>
       <div class="code-block">
         <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -282,7 +276,7 @@
     function copyCode(btn) {
       const code = btn.nextElementSibling.innerText;
       navigator.clipboard.writeText(code);
-      btn.innerText = 'Copied! ✓';
+      btn.innerText = 'Copied! ';
       setTimeout(() => { btn.innerText = 'Copy'; }, 2000);
     }
 

@@ -5,6 +5,7 @@ Single file. No dependencies. Python 3.8+
 """
 
 import hashlib
+import hmac
 import json
 import re
 import time
@@ -67,6 +68,8 @@ class TrustDecision:
     weight: float
     reason: str
     receipt_hash: str = ""
+    rtl_hash: str = ""
+    signed_at: float = 0.0
 
 
 class TrustKernel:
@@ -83,6 +86,9 @@ class TrustKernel:
         })
 
     def evaluate_verilog(self, verilog_code: str, findings: list) -> TrustDecision:
+        """The signature covers the RTL hash and the timestamp, and the timestamp
+        is kept on the decision, so a certificate can be re-verified and cannot
+        be moved onto different RTL. It used to sign neither."""
         # Risk from CWE findings
         risk = 0.0
         for f in findings:
@@ -128,18 +134,28 @@ class TrustKernel:
         )
 
         # Proof Gate: sign decision
-        payload = json.dumps({
-            "agent": self.agent_id,
-            "allowed": allowed,
-            "risk": risk,
-            "care": care,
-            "timestamp": time.time(),
-        }, sort_keys=True)
-        decision.receipt_hash = hashlib.sha256(
-            (payload + self.secret_key).encode()
-        ).hexdigest()
-
+        decision.signed_at = time.time()
+        decision.rtl_hash = hashlib.sha256(verilog_code.encode()).hexdigest()
+        decision.receipt_hash = self.sign(decision)
         return decision
+
+    def _payload(self, decision: "TrustDecision") -> bytes:
+        return json.dumps({
+            "agent": self.agent_id,
+            "allowed": decision.allowed,
+            "risk": decision.risk_score,
+            "care": decision.care_score,
+            "rtl_hash": decision.rtl_hash,
+            "timestamp": decision.signed_at,
+        }, sort_keys=True).encode()
+
+    def sign(self, decision: "TrustDecision") -> str:
+        return hmac.new(self.secret_key.encode(), self._payload(decision), hashlib.sha256).hexdigest()
+
+    def verify(self, decision: "TrustDecision", verilog_code: str) -> bool:
+        if hashlib.sha256(verilog_code.encode()).hexdigest() != decision.rtl_hash:
+            return False
+        return hmac.compare_digest(self.sign(decision), decision.receipt_hash)
 
 
 # ============================================================
@@ -168,7 +184,9 @@ def generate_certificate(
         "decision": "ALLOWED" if decision.allowed else "BLOCKED",
         "reason": decision.reason,
         "signature": decision.receipt_hash,
-        "lint": "PASS" if not findings else "WARN",
+        # No linter runs here, only the CWE regexes above; "PASS" claimed a lint.
+        "lint": "NOT_RUN",
+        "cwe_pattern_scan": "NO_MATCH" if not findings else "MATCH",
         "simulation": "NOT_RUN",
         "synthesis": "NOT_RUN",
     }
@@ -203,6 +221,7 @@ def certificate_to_markdown(cert: dict) -> str:
         "",
         "## Verification Status",
         f"- Lint: {cert['lint']}",
+        f"- CWE pattern scan: {cert['cwe_pattern_scan']}",
         f"- Simulation: {cert['simulation']}",
         f"- Synthesis: {cert['synthesis']}",
         "",

@@ -45,10 +45,16 @@ class LandingPageTests(unittest.TestCase):
         self.assertIn("ollama run", self.content)
         self.assertIn("saleha run", self.content)
 
-    def test_states_verified_numbers_not_fabricated_ones(self) -> None:
-        # The numbers on the page must be the ones the repo can back.
-        self.assertIn("1,714", self.content)   # real passing-test count
-        self.assertIn("156", self.content)     # real registered command count
+    def test_no_frozen_counts_and_no_fabricated_claims(self) -> None:
+        # This test used to require "1,714" tests and "156" commands, so it
+        # stayed green while both went stale (166 commands by 2026-09-23).
+        # The stat strip now states no counts at all.
+        stats = re.findall(r'<div class="n">([^<]*)</div>', self.content)
+        self.assertTrue(stats)
+        for value in stats:
+            self.assertFalse(re.search(r"\d", value), f"frozen count in the stat strip: {value!r}")
+        self.assertNotIn("Thirty-five passes", self.content)
+        self.assertNotIn("do not invoke Lean or Z3", self.content)
         # And must NOT carry the claims the audit removed.
         for banned in ("785 passing", "1,004+", "SWE-Bench Verified Leaderboard",
                        "Devin ($500", "Cursor ($20", "CodeRabbit ($12"):
@@ -71,6 +77,13 @@ class LandingPageTests(unittest.TestCase):
         self.assertIn("bg-canvas", self.content)
         self.assertIn("three.js", self.content.lower())
         self.assertIn("IntersectionObserver", self.content)
+
+    def test_every_source_path_on_the_page_exists(self) -> None:
+        repo = os.path.dirname(os.path.dirname(self.landing_path))
+        paths = set(re.findall(r"saleha/[\w/]+\.py", self.content))
+        self.assertTrue(paths)
+        missing = sorted(p for p in paths if not os.path.isfile(os.path.join(repo, p)))
+        self.assertEqual(missing, [], f"page names files that do not exist: {missing}")
 
     def test_no_decorative_emoji_in_page(self) -> None:
         # Same cp1252 rule as the rest of the repo; the page is plain text.

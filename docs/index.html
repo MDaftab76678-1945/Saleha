@@ -237,12 +237,12 @@
   <section id="numbers">
     <div class="wrap reveal">
       <div class="stats">
-        <div class="stat"><div class="n">248</div><div class="l">modules under <span class="mono">saleha/core/</span></div></div>
-        <div class="stat"><div class="n">156</div><div class="l">registered CLI subcommands</div></div>
-        <div class="stat"><div class="n">1,714</div><div class="l">passing tests (7 opt-in skips)</div></div>
-        <div class="stat"><div class="n">10</div><div class="l">named agent personas</div></div>
-        <div class="stat"><div class="n">3.12+</div><div class="l">Python, all-local runtime</div></div>
-        <div class="stat"><div class="n">$0</div><div class="l">per month &mdash; no API keys</div></div>
+        <div class="stat"><div class="n">Local</div><div class="l">runs on Ollama, no API keys</div></div>
+        <div class="stat"><div class="n">CLI</div><div class="l">plus TUI and REST/SSE server; <span class="mono">saleha --help</span> lists every command</div></div>
+        <div class="stat"><div class="n">Tests</div><div class="l">run <span class="mono">pytest saleha/tests/</span> for the current count</div></div>
+        <div class="stat"><div class="n">Agents</div><div class="l">named personas in <span class="mono">saleha/skills/agent_*.md</span></div></div>
+        <div class="stat"><div class="n">Python</div><div class="l">3.12 or newer, all-local runtime</div></div>
+        <div class="stat"><div class="n">Free</div><div class="l">no monthly cost &mdash; no API keys</div></div>
       </div>
     </div>
   </section>
@@ -255,7 +255,7 @@
         <div class="cell">
           <h3>Agentic coding loop</h3>
           <p>Plans a task, edits files, runs the test command, and iterates on failures &mdash; a real ReAct-style loop, not a single prompt.</p>
-          <span class="path">saleha/core/agentic_loop.py &middot; saleha run</span>
+          <span class="path">saleha/core/loop/agentic_loop.py &middot; saleha run</span>
         </div>
         <div class="cell">
           <h3>Multi-agent roles</h3>
@@ -265,27 +265,27 @@
         <div class="cell">
           <h3>AST-aware indexing &amp; patching</h3>
           <p>Symbol scanning and unified-diff patch generation &mdash; edits parse-checked, not string-spliced.</p>
-          <span class="path">saleha/core/codebase_indexer.py &middot; saleha scan</span>
+          <span class="path">saleha/core/graph/codebase_indexer.py &middot; saleha scan</span>
         </div>
         <div class="cell">
           <h3>Sandboxed execution</h3>
           <p>Generated or untrusted code runs in a subprocess or Docker container with resource limits and an audit log.</p>
-          <span class="path">saleha/core/code_executor.py &middot; saleha exec</span>
+          <span class="path">saleha/core/harness/code_executor.py &middot; saleha exec</span>
         </div>
         <div class="cell">
           <h3>Static security scanning</h3>
           <p>AST-based SAST for <span class="mono">shell=True</span>, bare <span class="mono">except</span>, hardcoded secrets, SQL string formatting, and more.</p>
-          <span class="path">saleha/core/security_scanner.py &middot; saleha sast</span>
+          <span class="path">saleha/core/verification/security_scanner.py &middot; saleha sast</span>
         </div>
         <div class="cell">
           <h3>Retrieval &amp; memory</h3>
           <p>A persistent solution-memory store, a lightweight RAG / graph layer, and fast local code search.</p>
-          <span class="path">saleha/core/memory_store.py &middot; graph_rag.py</span>
+          <span class="path">saleha/core/memory/memory_store.py &middot; rag/graph_rag.py</span>
         </div>
         <div class="cell">
           <h3>Model routing</h3>
           <p>Routes requests across configured local (Ollama) and remote backends, with a runtime-probing smart router.</p>
-          <span class="path">saleha/core/model_provider.py &middot; smart_router.py</span>
+          <span class="path">saleha/core/platform/model_provider.py &middot; smart_router.py</span>
         </div>
         <div class="cell">
           <h3>Project scaffolder</h3>
@@ -295,7 +295,7 @@
         <div class="cell">
           <h3>Souls persona system</h3>
           <p>Ten JSON-configured personas (temperature, allowed tools) plus a prompt bundle. A real prompt layer &mdash; not a claim about model cognition.</p>
-          <span class="path">souls/ &middot; saleha/core/soul_engine.py</span>
+          <span class="path">souls/ &middot; saleha/core/cognitive/soul_engine.py</span>
         </div>
       </div>
       <div class="souls">
@@ -376,7 +376,7 @@
         <h3>Named but not what the name implies</h3>
         <ul>
           <li><code>swarm_consensus.py</code> is a three-phase (propose/prepare/commit) voting protocol among agent roles <em>inside one process</em>. It does not run across machines or tolerate partitions &mdash; read it as "structured agent voting," not distributed consensus.</li>
-          <li><code>formal_verifier.py</code> / <code>formal_smt_verifier.py</code> generate Lean4- and SMT-shaped text as templates. They do not invoke Lean or Z3 &mdash; scaffolding for a feature that is not implemented.</li>
+          <li><code>formal_smt_verifier.py</code> calls Z3 for real (division and index-bounds proofs). <code>formal_verifier.py</code> only generates Lean4-shaped text as a template and never invokes Lean &mdash; scaffolding for a feature that is not implemented.</li>
           <li><code>hyperbolic_engine.py</code> is real 16-dimensional Poincar&eacute;-ball vector math used as a deterministic task-routing heuristic &mdash; not emergent swarm cognition.</li>
           <li><code>design-vision</code> infers a layout family and calls the model for JSX/CSS; with no model reachable it returns a labelled template. It does <em>not</em> parse images or Figma files.</li>
         </ul>
@@ -392,7 +392,7 @@
         component claimed work it had not done &mdash; a hardcoded "tests passed", a
         benchmark scoreboard with invented numbers, an orchestrator that reported success
         without calling a model &mdash; and replacing the fabricated half with something
-        measured. Thirty-five passes of that are recorded in
+        measured. Every pass of that is recorded in
         <a href="https://github.com/MDaftab76678-1945/Saleha/blob/main/NOTEBOOK_IMPORT.md">NOTEBOOK_IMPORT.md</a>,
         each finding paired with the probe that proved it. A tool that cannot report what
         it actually did cannot be trusted or improved; that is the whole reason for the work.

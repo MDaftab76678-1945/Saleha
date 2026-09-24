@@ -171,6 +171,14 @@ class ArchitectureGraphVisualizer:
       node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
     }});
 
+    // Filter: fade nodes (and their links) whose label does not match.
+    document.getElementById("filterInput").addEventListener("input", (event) => {{
+      const q = event.target.value.trim().toLowerCase();
+      const hit = d => !q || String(d.label || d.id).toLowerCase().includes(q);
+      node.attr("opacity", d => hit(d) ? 1 : 0.1);
+      link.attr("opacity", d => (hit(d.source) || hit(d.target)) ? 0.6 : 0.03);
+    }});
+
     function dragstarted(event, d) {{
       if (!event.active) simulation.alphaTarget(0.3).restart();
       d.fx = d.x; d.fy = d.y;

@@ -1,5 +1,11 @@
 ---
-// Saleha AI - 100/100 Lighthouse Astro 5 Landing Page with 3D WebGL & Modern Agent UI Layout
+// Saleha AI landing page.
+//
+// Every number below comes from @saleha/core's constants, which is the one
+// place they are recorded. This page previously hardcoded "19-Agent Swarm"
+// while the Web Studio said 25 and its own node list held 27, and a footer
+// reading "850 Tests Passed" that was stale by roughly 1,500 tests.
+import { AGENT_COUNT } from "@saleha/core";
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -7,7 +13,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Saleha AI — Sovereign Autonomous AI Software Engineer ($0/mo Local)</title>
-  <meta name="description" content="Local-first autonomous multi-agent coding platform powered by Ollama. 19 Specialized Python Agents, Universal MCP Hub, and sub-100μs deterministic AST verification.">
+  <meta name="description" content={`Local-first autonomous multi-agent coding platform powered by Ollama. ${AGENT_COUNT} specialized Python agents, Universal MCP Hub, and deterministic AST verification.`}>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -350,7 +356,6 @@
 
     <nav>
       <a href="#features">Capabilities</a>
-      <a href="#benchmarks">Benchmarks</a>
       <a href="http://localhost:3000" class="btn-launch-nav">Launch Web Studio ↗</a>
     </nav>
   </header>
@@ -359,7 +364,7 @@
   <main class="hero">
     <h1 class="hero-title">SALEHA</h1>
     <p class="subtitle">
-      Sovereign Autonomous AI Software Engineer • 19-Agent Swarm • $0/mo Private Offline Subsystem
+      Sovereign Autonomous AI Software Engineer • {AGENT_COUNT}-Agent Swarm • $0/mo Private Offline Subsystem
     </p>
 
     <!-- Floating Omnibox Card (Kimi-Inspired) -->
@@ -387,7 +392,7 @@
 
     <!-- Capability Action Pills -->
     <div class="pills-row">
-      <a href="http://localhost:3000" class="pill-btn"><span>🌌</span> 19-Agent Swarm</a>
+      <a href="http://localhost:3000" class="pill-btn"><span>🌌</span> {AGENT_COUNT}-Agent Swarm</a>
       <a href="http://localhost:3000" class="pill-btn"><span>🎨</span> Vision Design</a>
       <a href="http://localhost:3000" class="pill-btn"><span>🔬</span> Deep Research</a>
       <a href="http://localhost:3000" class="pill-btn"><span>📚</span> Doc Generator</a>
@@ -400,8 +405,8 @@
   <section class="features-section" id="features">
     <div class="feature-card">
       <div class="feature-icon">🌌</div>
-      <div class="feature-title">19-Agent Swarm DAG</div>
-      <div class="feature-desc">Architect, Coder, Security, QA, and Reviewer coordinate autonomously with zero hallucination.</div>
+      <div class="feature-title">{AGENT_COUNT}-Agent Swarm DAG</div>
+      <div class="feature-desc">Architect, Coder, Security, QA, and Reviewer coordinate autonomously, each stage reporting its real result.</div>
     </div>
 
     <div class="feature-card">
@@ -420,7 +425,7 @@
   <!-- Footer -->
   <footer>
     <span>© 2026 Saleha AI Sovereign Platform. All rights reserved.</span>
-    <span>850 Tests Passed • 100% Pass Rate</span>
+    <span>full test suite passing • audit passes tracked in NOTEBOOK_IMPORT.md</span>
   </footer>
 
   <!-- Three.js 3D Neural Wave Script -->

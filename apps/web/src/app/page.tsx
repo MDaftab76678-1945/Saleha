@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { THEME_PRESETS, ThemeTokens, Modal, Switch, Slider } from "@saleha/ui";
+import { AGENT_COUNT } from "@saleha/core";
 import { DEFAULT_BASE_URL, getStoredToken } from "../lib/api";
 
 interface SwarmNode {
@@ -13,6 +14,15 @@ interface SwarmNode {
   timingMs?: number;
 }
 
+/** One stage as /api/v2/swarm/execute actually reports it. */
+interface SwarmStage {
+  stage_id: string;
+  agent_role: string;
+  status: string;
+  duration_ms: number;
+  output_summary: string;
+}
+
 interface WebNotebookCell {
   id: string;
   type: "code" | "markdown" | "sql" | "swarm";
@@ -22,7 +32,11 @@ interface WebNotebookCell {
   isExecuting?: boolean;
 }
 
-const ALL_27_NODES: SwarmNode[] = [
+// The number in AGENT_COUNT and the length of this list must agree; the
+// assertion below fails the build rather than letting the header claim one
+// number while the grid renders another (which is how "19"/"25"/"27" ended
+// up on three surfaces of the same page).
+const ALL_AGENT_NODES: SwarmNode[] = [
   { id: "arch", name: "ArchitectAgent", role: "ADR & Hexagonal Design", icon: "🏛️", status: "idle" },
   { id: "planner", name: "PlannerAgent", role: "Task Decomposition", icon: "🗺️", status: "idle" },
   { id: "designer", name: "DesignerAgent", role: "UI/UX & Tokens", icon: "🎨", status: "idle" },
@@ -52,6 +66,14 @@ const ALL_27_NODES: SwarmNode[] = [
   { id: "chaos", name: "ChaosResilienceAgent", role: "Chaos Engineering & Circuit Breaker", icon: "💥", status: "idle" },
 ];
 
+if (ALL_AGENT_NODES.length !== AGENT_COUNT) {
+  throw new Error(
+    `Agent count mismatch: AGENT_COUNT is ${AGENT_COUNT} but the node list has ` +
+      `${ALL_AGENT_NODES.length}. Re-measure with ` +
+      `grep -l "class.*BaseAgent" saleha/agents/*.py | wc -l and fix both.`
+  );
+}
+
 export default function WebStudioPage() {
   const [themeKey, setThemeKey] = useState<string>("obsidian");
   const theme: ThemeTokens = THEME_PRESETS[themeKey] || THEME_PRESETS.obsidian;
@@ -61,7 +83,7 @@ export default function WebStudioPage() {
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
-  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_27_NODES);
+  const [nodes, setNodes] = useState<SwarmNode[]>(ALL_AGENT_NODES);
 
   // Settings
   const [modelBackend, setModelBackend] = useState("ollama");
@@ -154,17 +176,16 @@ export default function WebStudioPage() {
   const [selectedSoul, setSelectedSoul] = useState<string>("sovereign");
   const [isListening, setIsListening] = useState<boolean>(false);
   const [isThinkingExpanded, setIsThinkingExpanded] = useState<boolean>(true);
-  const [thinkingSteps, setThinkingSteps] = useState<string[]>([
-    "Parsing AST invariants and code dependencies",
-    "Querying 16D Poincaré Hyperbolic manifold topology",
-    "Running Confidence-Weighted PBFT consensus (CP-WBFT)",
-    "Executing pre-commit Gamma AST static safety pass"
-  ]);
+  // Real per-stage results from /api/v2/swarm/execute, empty until a run
+  // actually produces them. This used to be four hardcoded strings shown
+  // on every page load, under a "4/4 Verified" badge, beside a fake
+  // "PBFT Quorum: 16/19 agents reached 97.4% consensus" -- none of it
+  // from the backend, all of it rendered before anything had run. The
+  // desktop app had the same panel and it was fixed there; this copy was
+  // missed.
+  const [stages, setStages] = useState<SwarmStage[]>([]);
   const [inspectMode, setInspectMode] = useState<boolean>(false);
-  const [eventLogs, setEventLogs] = useState<string[]>([
-    `[${new Date().toLocaleTimeString()}] SwarmBus Initialized: 19 Autonomous Agent Workers Online`,
-    `[${new Date().toLocaleTimeString()}] Memory Store: Poincaré Hyperbolic Graph Mounted`,
-  ]);
+  const [eventLogs, setEventLogs] = useState<string[]>([]);
 
   const toggleVoiceRecognition = () => {
     if (typeof window === "undefined") return;
@@ -293,6 +314,7 @@ export default function WebStudioPage() {
       setNodes((prev) => prev.map((n) => ({ ...n, status: "idle" })));
       setGeneratedCode(`// Swarm run did not start.\n// ${message}\n`);
       setEventLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
+      setStages([]);
       setIsExecuting(false);
     };
 
@@ -321,6 +343,7 @@ export default function WebStudioPage() {
       const data = await resp.json();
       setGeneratedCode(data.final_code || "// Run completed but returned no code.");
       setNodes((prev) => prev.map((n) => ({ ...n, status: "success" })));
+      setStages(Array.isArray(data.stages) ? data.stages : []);
       setEventLogs((prev) => [
         `[${new Date().toLocaleTimeString()}] Swarm pipeline completed: execution ID ${data.execution_id}`,
         `[${new Date().toLocaleTimeString()}] ADR generated: ${data.adr_title}`,
@@ -455,7 +478,7 @@ export default function WebStudioPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
             {[
               { id: "chat", label: "Studio Canvas", icon: "⚡" },
-              { id: "topology", label: "19-Agent Swarm", icon: "🌌" },
+              { id: "topology", label: `${AGENT_COUNT}-Agent Swarm`, icon: "🌌" },
               { id: "preview", label: "Live Sandbox", icon: "🌐" },
               { id: "diff", label: "AST Code Patch", icon: "📝" },
               { id: "terminal", label: "Sandbox Terminal", icon: "💻" },
@@ -546,7 +569,7 @@ export default function WebStudioPage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <span style={{ fontSize: "0.85rem", fontWeight: 700, color: theme.textBright }}>
-              {activeTab === "chat" ? "Studio Workspace" : activeTab === "topology" ? "25-Agent Swarm DAG" : activeTab === "diff" ? "AST Code Diff" : activeTab === "terminal" ? "Live Container Terminal" : "EventBus Stream"}
+              {activeTab === "chat" ? "Studio Workspace" : activeTab === "topology" ? `${AGENT_COUNT}-Agent Swarm DAG` : activeTab === "diff" ? "AST Code Diff" : activeTab === "terminal" ? "Live Container Terminal" : "EventBus Stream"}
             </span>
             <span style={{ fontSize: "0.68rem", color: theme.accentGreen, background: "rgba(16,185,129,0.12)", padding: "0.15rem 0.5rem", borderRadius: "999px", fontWeight: 700 }}>
               v3.0.0 Sovereign
@@ -612,7 +635,7 @@ export default function WebStudioPage() {
               SALEHA
             </h1>
             <p style={{ margin: "0.4rem 0 0", fontSize: "0.85rem", color: theme.textDim, fontWeight: 500 }}>
-              Sovereign Autonomous AI Software Engineer • 25-Agent Swarm • GGUF Local Kernel
+              Sovereign Autonomous AI Software Engineer • {AGENT_COUNT}-Agent Swarm • GGUF Local Kernel
             </p>
           </div>
 
@@ -939,7 +962,10 @@ export default function WebStudioPage() {
             </div>
           )}
 
-          {/* Collapsible Sovereign Thinking Accordion */}
+          {/* Per-stage results from the last real run. Hidden entirely until
+              one has produced stages -- there is nothing honest to show
+              before that. */}
+          {(isExecuting || stages.length > 0) && (
           <div
             style={{
               width: "100%",
@@ -968,24 +994,32 @@ export default function WebStudioPage() {
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                 <span style={{ fontSize: "1rem" }}>{isExecuting ? "🧠" : "✨"}</span>
                 <span style={{ fontSize: "0.82rem", fontWeight: 700, color: theme.textBright }}>
-                  Chain-of-Thought Reasoning {isExecuting ? "(Thinking...)" : "(Saleha Sovereign Engine)"}
+                  Pipeline Stages {isExecuting ? "(Running...)" : ""}
                 </span>
-                <span
-                  style={{
-                    fontSize: "0.68rem",
-                    padding: "0.15rem 0.5rem",
-                    borderRadius: "999px",
-                    background: isExecuting ? "rgba(56, 189, 248, 0.15)" : "rgba(16, 185, 129, 0.15)",
-                    color: isExecuting ? theme.accent : theme.accentGreen,
-                    fontWeight: 700,
-                  }}
-                >
-                  {isExecuting ? "⚡ CP-WBFT Active" : "✓ 4/4 Verified"}
-                </span>
+                {(() => {
+                  // Counted from the stages the backend actually reported,
+                  // not asserted. A stage the backend did not mark
+                  // "success" is not counted as one.
+                  const ok = stages.filter((s) => s.status === "success").length;
+                  return (
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "999px",
+                        background: isExecuting ? "rgba(56, 189, 248, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                        color: isExecuting ? theme.accent : theme.accentGreen,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {isExecuting ? "Running" : `${ok}/${stages.length} succeeded`}
+                    </span>
+                  );
+                })()}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontSize: "0.72rem", color: theme.textDim }}>
-                  {thinkingSteps.length} reasoning steps
+                  {stages.length} stages
                 </span>
                 <span style={{ fontSize: "0.75rem", color: theme.textDim, transform: isThinkingExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
                   ▼
@@ -1004,47 +1038,44 @@ export default function WebStudioPage() {
                   background: "rgba(0, 0, 0, 0.25)",
                 }}
               >
-                {/* Steps List */}
+                {/* Real stages, exactly as the backend reported them. */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  {thinkingSteps.map((step, idx) => (
-                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.78rem" }}>
-                      <span style={{ color: theme.accentGreen, fontSize: "0.75rem" }}>●</span>
-                      <span style={{ color: theme.textDim }}>[Step {idx + 1}]</span>
-                      <span style={{ color: theme.textBright, fontWeight: 500 }}>{step}</span>
+                  {isExecuting && stages.length === 0 && (
+                    <div style={{ fontSize: "0.78rem", color: theme.textDim }}>
+                      Waiting for the backend to report stages...
+                    </div>
+                  )}
+                  {stages.map((stage) => (
+                    <div
+                      key={stage.stage_id}
+                      style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.78rem" }}
+                    >
+                      <span
+                        style={{
+                          color: stage.status === "success" ? theme.accentGreen : theme.textDim,
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        ●
+                      </span>
+                      <span style={{ color: theme.textDim }}>[{stage.agent_role}]</span>
+                      <span style={{ color: theme.textBright, fontWeight: 500, flex: 1 }}>
+                        {stage.output_summary}
+                      </span>
+                      <span style={{ color: theme.textDim, fontSize: "0.7rem" }}>
+                        {stage.duration_ms}ms
+                      </span>
                     </div>
                   ))}
-                </div>
-
-                {/* Sovereign Cognitive XML Scratchpad Snippet */}
-                <div
-                  style={{
-                    marginTop: "0.5rem",
-                    background: theme.bgBase,
-                    border: `1px solid ${theme.borderSubtle}`,
-                    borderRadius: "8px",
-                    padding: "0.6rem 0.8rem",
-                    fontFamily: "monospace",
-                    fontSize: "0.72rem",
-                    color: theme.accent,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <div style={{ color: theme.textDim, marginBottom: "0.2rem" }}>// Live Cognitive &lt;THINKING&gt; stream tokens:</div>
-                  <div>&lt;THINKING&gt;</div>
-                  <div style={{ paddingLeft: "0.8rem", color: theme.textMain }}>
-                    • Invariant verification: zero-cost abstraction verified.<br />
-                    • PBFT Quorum: 16/19 agents reached 97.4% consensus.<br />
-                    • AST Critic: Passed 0 CWE / AST safety invariants.
-                  </div>
-                  <div>&lt;/THINKING&gt;</div>
                 </div>
               </div>
             )}
           </div>
+          )}
 
           {/* Interactive Workspace Views */}
           <div style={{ width: "100%", maxWidth: "980px", marginTop: "2rem" }}>
-            {/* View 1: 19-Agent Topology Grid with Visual Swarm DAG Edge Animations */}
+            {/* View 1: Agent topology grid with swarm DAG edge animations */}
             {activeTab === "topology" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <div style={{ background: theme.bgSurface, border: `1px solid ${theme.borderSubtle}`, borderRadius: "12px", padding: "1rem" }}>

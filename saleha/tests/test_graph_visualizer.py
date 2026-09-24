@@ -37,6 +37,8 @@ class GraphVisualizerTests(unittest.TestCase):
         self.assertIn("<!DOCTYPE html>", content)
         self.assertIn("Saleha Architecture Graph", content)
         self.assertIn("d3.forceSimulation", content)
+        # The filter box used to be rendered with nothing listening to it.
+        self.assertIn('getElementById("filterInput").addEventListener("input"', content)
 
 
 if __name__ == "__main__":

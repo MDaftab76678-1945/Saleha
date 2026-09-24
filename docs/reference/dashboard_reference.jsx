@@ -1,3 +1,6 @@
+// Design mock only. Every result shown (PROVEN, 30/30 sims, Yosys cell counts,
+// timings) is a hardcoded literal and the pipeline animation is setTimeout +
+// Math.random. No EDA tool runs behind it; see silicon_circuit_orchestrator.py.
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─── Design Tokens ──────────────────────────────────────────────────────────
@@ -443,8 +446,8 @@ export default function SalehaApp() {
         fontSize: 9, color: T.mutedDim, letterSpacing: "0.5px",
       }}>
         <span>Saleha v2.0 — Built by Aftab</span>
-        <span>All results from real EDA tools · Yosys 0.33 · Verilator 5.020 · Icarus Verilog 12.0</span>
-        <span>saleha-foundation/saleha</span>
+        <span>Design mock: all results are placeholder literals, no EDA tool was run</span>
+        <span>Saleha design mock</span>
       </div>
 
       <style>{`
