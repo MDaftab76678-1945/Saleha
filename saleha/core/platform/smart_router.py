@@ -46,6 +46,66 @@ _OLLAMA_TAGS_URL = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434") + "/
 _probe_cache_at: float = 0.0
 _probe_cache_models: Set[str] = set()
 
+# Laya "choice" question for classify_task_tier's hybrid step. Verbatim --
+# criteria wording is part of what was measured (25/30 on the 30-task
+# hand-labelled set vs. 21/30 keyword-only, 23/30 Laya-only).
+_LAYA_TIER_QUESTION: Dict[str, Any] = {
+    "tier": {
+        "type": "choice",
+        "instructions": "How much reasoning does this coding task need?",
+        "criteria": {
+            "fast": "trivial one-line or cosmetic edit: typo, rename, comment, format",
+            "standard": "normal feature or bug fix in one area of the code",
+            "reasoning": "architecture, concurrency, security, cross-service debugging or algorithm design",
+        },
+    }
+}
+
+# Module-level cache so the (421M parameter) model loads at most once per
+# process, and only on first actual use -- never at import time.
+_laya_agent_cache: Any = None
+_laya_load_failed: Optional[str] = None
+
+
+def _laya_enabled() -> bool:
+    """Whether classify_task_tier should even attempt to consult Laya.
+
+    Off in the test suite (SALEHA_TEST_MODE=1, set repo-wide by
+    saleha/tests/conftest.py) so the ~421M model never loads under pytest,
+    and off when the operator explicitly opts out with SALEHA_LAYA=0.
+    """
+    if os.getenv("SALEHA_TEST_MODE") == "1":
+        return False
+    return os.getenv("SALEHA_LAYA") != "0"
+
+
+def _get_laya_agent() -> Tuple[Any, Optional[str]]:
+    """Lazily load and cache the Laya decision-model agent.
+
+    Returns (agent, None) on success, or (None, reason) when Laya cannot be
+    used -- import failed or load raised. Never raises: a broken Laya
+    install must degrade to the keyword answer, not crash routing.
+    """
+    global _laya_agent_cache, _laya_load_failed
+    if _laya_agent_cache is not None:
+        return _laya_agent_cache, None
+    if _laya_load_failed is not None:
+        return None, _laya_load_failed
+
+    try:
+        import laya
+    except ImportError as err:
+        _laya_load_failed = f"laya import failed: {err}"
+        return None, _laya_load_failed
+
+    try:
+        _laya_agent_cache = laya.load("convaiinnovations/laya")
+    except Exception as err:  # model load can fail in many ways; never crash routing
+        _laya_load_failed = f"laya load failed: {err}"
+        return None, _laya_load_failed
+
+    return _laya_agent_cache, None
+
 
 def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
     """Installed model names from Ollama's /api/tags, TTL-cached.
@@ -123,10 +183,20 @@ class SmartRouter:
     # buying more advantage.
     _MAX_SPEED_SCORE = 10.0
 
-    def __init__(self, history_file: Optional[str] = None, probe_runtime: bool = False):
+    def __init__(
+        self,
+        history_file: Optional[str] = None,
+        probe_runtime: bool = False,
+        laya_agent: Any = None,
+    ):
         self.history_file = history_file or get_default_history_path()
         self.probe_runtime = probe_runtime
         self.models = self._init_models()
+        # Test injection point: setting this to a fake object (with a
+        # .predict(task, questions) method) bypasses the real lazy-loaded
+        # Laya agent. Leave None for production, where classify_task_tier
+        # lazily loads and caches the real agent at module level.
+        self.laya_agent = laya_agent
         self.task_history: List[TaskResult] = []
         self.model_performance: Dict[str, Dict] = defaultdict(lambda: {
             "success_count": 0,
@@ -431,7 +501,65 @@ class SmartRouter:
         }
 
     def classify_task_tier(self, task: str) -> Dict[str, Any]:
-        """Classifies task intent into fast, standard, or reasoning tier."""
+        """Classifies task intent into fast, standard, or reasoning tier.
+
+        Hybrid with Laya (an open 421M local decision model): the keyword
+        classifier below runs first and its answer is the default. Laya is
+        then asked a single "how much reasoning does this need" question
+        and consulted only for an upgrade -- if it answers "reasoning", the
+        result becomes the reasoning tier regardless of what the keywords
+        said; any other Laya answer, or no usable Laya at all, leaves the
+        keyword answer untouched.
+
+        This asymmetric combination is what was actually measured on 30
+        hand-labelled tasks: keyword alone 21/30 (reasoning recall only
+        4/10), Laya alone 23/30 (9/10 on reasoning, but worse on fast and
+        standard), "Laya upgrades to reasoning, else keep keyword" 25/30.
+        Replacing the keyword answer outright with Laya's, instead of only
+        upgrading, was the worse of the two combinations on the same data.
+        """
+        result = self._classify_task_tier_keyword(task)
+        result["decided_by"] = "keyword"
+
+        # An explicitly injected agent (tests) is used regardless of the
+        # test-mode gate below -- that gate exists to stop the real 421M
+        # model from being lazily loaded under pytest, not to block a fake
+        # agent a test deliberately wired in.
+        agent = self.laya_agent
+        if agent is None:
+            if not _laya_enabled():
+                return result
+            agent, load_reason = _get_laya_agent()
+            if agent is None:
+                result["laya_note"] = load_reason
+                return result
+
+        try:
+            answer = agent.predict(task, _LAYA_TIER_QUESTION)["answers"]["tier"]["choice"]
+        except Exception as err:
+            result["laya_note"] = f"laya predict raised: {err}"
+            return result
+
+        if answer == "reasoning" and result["tier"] != "reasoning":
+            result = {
+                "tier": "reasoning",
+                "estimated_complexity": 8.5,
+                "recommended_model": self.select_model(task, complexity_score=8.5),
+                "rationale": "Laya decision model judged this task to need architectural reasoning.",
+                "decided_by": "laya+keyword",
+            }
+        else:
+            result["decided_by"] = "laya+keyword"
+
+        return result
+
+    def _classify_task_tier_keyword(self, task: str) -> Dict[str, Any]:
+        """The original keyword-only tier classifier, unchanged.
+
+        Kept as its own method so classify_task_tier can compute the
+        keyword answer once and use it both as the default result and as
+        the thing Laya's answer is measured against.
+        """
         task_lower = task.lower()
 
         # 1. Reasoning / Architecture Tier

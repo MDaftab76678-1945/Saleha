@@ -1,7 +1,7 @@
 """
 Saleha Core: System-1 AST Scout & Call-Chain Localizer (Zero-Token Navigation).
 
-Provides deterministic, sub-50ms static symbol localization, multi-hop BFS
+Provides deterministic, model-free static symbol localization, multi-hop BFS
 call-chain extraction (caller -> callee levels), and test file association
 before invoking LLM reasoning.
 
@@ -25,7 +25,6 @@ from saleha.core.graph.codebase_indexer import (
     FileIndex,
     FunctionSymbol,
 )
-from saleha.core.graph.dependency_graph import CodebaseDependencyGraph
 
 _STOP_WORDS: Set[str] = {
     "def", "class", "import", "from", "return", "pass", "raise", "try", "except",
@@ -138,13 +137,15 @@ class ScoutDossier:
 class System1Scout:
     """
     Fast, deterministic AST-based symbol locator and call-chain scout.
-    Runs locally in under 50ms without invoking LLM tokens.
+    Uses no model tokens. Measured on this repo (~900 Python files): the
+    first scout parses every file (~3 s); later scouts reuse unchanged files
+    from the indexer's parse cache. (It used to claim "under 50ms" while
+    taking 6-15 s, most of it building a dependency graph it never read.)
     """
 
     def __init__(self, root_dir: str = ".") -> None:
         self.root_dir = os.path.abspath(root_dir)
         self._indexer = CodebaseIndexer(root_dir=self.root_dir)
-        self._dep_graph = CodebaseDependencyGraph(root_dir=self.root_dir)
 
     def extract_candidates(self, text: str) -> List[str]:
         """Extracts candidate symbol identifiers from a goal string or traceback."""
@@ -335,6 +336,12 @@ class System1Scout:
 
         return resolved_callees
 
+    @staticmethod
+    def _module_of(rel_path: str) -> str:
+        """saleha/core/work_ledger.py -> saleha.core.work_ledger"""
+        norm = rel_path.replace("\\", "/")
+        return norm[:-3].replace("/", ".") if norm.endswith(".py") else norm
+
     def _match_test_files(
         self,
         files_indexed: Dict[str, FileIndex],
@@ -342,50 +349,65 @@ class System1Scout:
         dossier: ScoutDossier,
         candidates: Optional[List[str]] = None,
     ) -> None:
-        """Associates workspace test files via AST symbols, called functions, and imports."""
-        target_names_lower = {t.lower() for t in target_names}
-        candidate_tokens_lower = {c.lower() for c in (candidates or []) if len(c) >= 3}
-        search_tokens = target_names_lower | candidate_tokens_lower
+        """Associates test files with the located code, strongest evidence first.
 
+        The old matcher accepted any test function whose name contained any
+        goal word, so "record_tests in WorkLedger" returned test_runner.py and
+        test_action_menu.py and missed test_work_ledger.py. Evidence now
+        ranks: named after the target module > imports it or its symbols >
+        calls a target symbol > test name mentions a target symbol. Goal
+        words are used only when no symbol was located at all.
+        """
+        # Primary symbols carry the goal; callees are supporting context, so
+        # evidence tied to a callee's module counts for less.
+        primary_files = {s.file_path for s in dossier.primary_symbols}
+        callee_files = {s.file_path for s in dossier.callee_symbols} - primary_files
+        target_files = primary_files | callee_files
+        primary_modules = {self._module_of(f) for f in primary_files}
+        callee_modules = {self._module_of(f) for f in callee_files}
+        primary_stems = {m.rsplit(".", 1)[-1].lower() for m in primary_modules}
+        callee_stems = {m.rsplit(".", 1)[-1].lower() for m in callee_modules}
+        names = {t for t in target_names if len(t) >= 3}
+        names_lower = {t.lower() for t in names}
+        if not names:
+            names_lower = {c.lower() for c in (candidates or []) if len(c) >= 4}
+
+        scored: List[Tuple[int, str]] = []
         for rel_path, file_idx in files_indexed.items():
-            if not _is_test_path(rel_path):
+            if not _is_test_path(rel_path) or rel_path in target_files:
                 continue
-
             all_fns: List[FunctionSymbol] = list(file_idx.functions.values())
             for cls_sym in file_idx.classes.values():
                 all_fns.extend(cls_sym.methods.values())
+            test_fns = [fn for fn in all_fns if fn.name.startswith("test")]
+            if not test_fns:
+                # A source module that merely starts with "test_" (e.g.
+                # saleha/core/test_arbiter.py) is not a test file.
+                continue
 
-            # 1. Match on test function or class method names
-            matched = any(
-                any(t_name in fn.name.lower() for t_name in search_tokens)
-                for fn in all_fns
-            )
+            stem = rel_path.replace("\\", "/").rsplit("/", 1)[-1][:-3].lower()
+            score = 0
+            if any(stem in (f"test_{t}", f"{t}_test") for t in primary_stems):
+                score += 8
+            elif any(stem in (f"test_{t}", f"{t}_test") for t in callee_stems):
+                score += 3
+            imported = set(file_idx.imports) | set(file_idx.from_imports)
+            if imported & primary_modules:
+                score += 4
+            elif imported & callee_modules:
+                score += 1
+            if any(n in names for mod_names in file_idx.from_imports.values() for n in mod_names):
+                score += 4
+            if any(c.lower() in names_lower for fn in test_fns for c in fn.calls):
+                score += 2
+            if any(n in fn.name.lower() for fn in test_fns for n in names_lower):
+                score += 1
+            if score:
+                scored.append((score, rel_path))
 
-            # 2. Match on calls made inside test functions (e.g. test calls iter_content)
-            if not matched:
-                matched = any(
-                    any(t_name in c.lower() for t_name in target_names_lower)
-                    for fn in all_fns
-                    for c in fn.calls
-                )
-
-            # 3. Match on imports in test file
-            if not matched:
-                matched = any(
-                    any(t_name in imp for t_name in target_names)
-                    for imp in file_idx.imports
-                )
-
-            # 4. Match on from_imports in test file
-            if not matched:
-                matched = any(
-                    any(t_name in from_mod or t_name in from_names for t_name in target_names)
-                    for from_mod, from_names in file_idx.from_imports.items()
-                )
-
-            if matched:
-                dossier.test_files.append(rel_path)
-                dossier.relevant_files.add(rel_path)
+        for _score, rel_path in sorted(scored, key=lambda x: (-x[0], x[1])):
+            dossier.test_files.append(rel_path)
+            dossier.relevant_files.add(rel_path)
 
     def scout(self, goal: str, max_depth: int = 2) -> ScoutDossier:
         """Performs static reconnaissance to locate symbols, callees, and test files."""
@@ -396,7 +418,6 @@ class System1Scout:
             return dossier
 
         files_indexed = self._indexer.scan()
-        self._dep_graph.build_graph()
 
         resolved_primaries = self._resolve_primary_symbols(candidates, files_indexed, dossier)
         resolved_callees = self._resolve_callees_bfs(max_depth, files_indexed, dossier, resolved_primaries)

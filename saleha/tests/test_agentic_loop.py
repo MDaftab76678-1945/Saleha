@@ -6,7 +6,7 @@ import tempfile
 import time
 import unittest
 from typing import Any, Optional
-from unittest.mock import MagicMock
+from unittest.mock import patch
 
 from saleha.agents.base_agent import AgentResponse
 from saleha.core.loop.agentic_loop import (
@@ -944,7 +944,10 @@ class AgentLoopTests(unittest.TestCase):
         agent = ScriptedAgent([
             _tool_call("patch_file", path="tests/test_charge.py",
                        search="assert True", replace="assert charge(1) == 2"),
-            _finish("extended the test"),
+            # The new assertion fails (charge is undefined), so every change
+            # now gets its tests run and finish is refused; the guard under
+            # test is the test-file one, which must still never fire here.
+            *[_finish("extended the test")] * 3,
         ])
         res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
                         max_steps=4).run("write a better assertion in the charge test")
@@ -1307,6 +1310,40 @@ class RunTestsToolTests(unittest.TestCase):
     def test_discovery_ignores_package_json_without_a_test_script(self) -> None:
         """A marker's presence is not the same as it configuring tests."""
         self._write("package.json", '{"name": "x", "scripts": {"build": "tsc"}}')
+        argv, why = self._loop()._discover_test_command()
+        self.assertIsNone(argv)
+        self.assertIn("none found", why)
+
+    def test_discovery_finds_root_level_test_files(self) -> None:
+        """solution.py + test_solution.py in a bare folder: the agent used to
+        report "no test command found" and could never verify its own fix."""
+        self._write("solution.py", "")
+        self._write("test_solution.py", "def test_ok():\n    assert True\n")
+        argv, why = self._loop()._discover_test_command()
+        assert argv is not None
+        self.assertIn("pytest", argv)
+        self.assertIn("test_solution.py", why)
+
+    def test_build_goal_that_breaks_tests_is_not_finished(self) -> None:
+        """A goal with no repair verb ("write ... so the tests pass") used to
+        skip the test run entirely and finish "DONE" over a failing suite."""
+        self._write("solution.py", "")
+        self._write("test_solution.py",
+                    "from solution import add\n\ndef test_add():\n    assert add(2, 3) == 5\n")
+        agent = ScriptedAgent([
+            _tool_call("write_file", path="solution.py",
+                       content="def add(a, b):\n    return a - b\n"),
+            *[_finish("DONE")] * 3,
+        ])
+        result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
+                           max_steps=4).run(
+            "Write Python code in solution.py so that the tests in test_solution.py pass")
+        self.assertFalse(result.success, result.final_message)
+        self.assertTrue(any(s.action == "auto-verify-tests" for s in result.steps))
+
+    def test_discovery_ignores_non_test_python_files(self) -> None:
+        self._write("solution.py", "")
+        self._write("contest.py", "")
         argv, why = self._loop()._discover_test_command()
         self.assertIsNone(argv)
         self.assertIn("none found", why)
@@ -1695,6 +1732,10 @@ class RunTestsToolTests(unittest.TestCase):
         self.assertTrue(result.success, msg=result.error)
         rejected = [s for s in result.steps if "REJECTED" in s.observation]
         self.assertFalse(rejected, msg=[s.observation for s in rejected])
+        # Admitted, but it must say nothing verified it: the CLI printed this
+        # under the same green tick as a tested fix.
+        self.assertTrue(result.verification.startswith("NOT verified"), result.verification)
+        self.assertIn("no test command found", result.verification)
 
     # ---- revert-check: the suite must fail without the patch --------
     # A green suite that stays green with the fix removed proves nothing
@@ -1743,6 +1784,7 @@ class RunTestsToolTests(unittest.TestCase):
         result = AgentLoop(agent=agent, root_dir=self.root, allow_write=True,
                            max_steps=3).run("fix the bug in double()")
         self.assertTrue(result.success, msg=result.error)
+        self.assertEqual(result.verification, "tests passed")
         with open(os.path.join(self.root, "calc.py"), encoding="utf-8") as f:
             self.assertIn("return x * 2", f.read(),
                           msg="the proven patch must survive the revert run")
@@ -1842,8 +1884,8 @@ class patch_gate:
         self._cm = None
 
     def __enter__(self) -> "patch_gate":
-        from unittest.mock import patch
         import sys
+        from unittest.mock import patch
 
         # saleha.core.harness's own __init__.py re-exports the ApprovalGate
         # singleton under the name `approval_gate`, shadowing the submodule
@@ -1910,12 +1952,28 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
         self.assertEqual(res.steps[0].action, "forge_tool")
         self.assertIn("BLOCKED: forge_tool disabled", res.steps[0].observation)
 
+    def test_forge_tool_blocked_when_working_on_another_folder(self) -> None:
+        """--write on a scratch folder must not write tools into Saleha's
+        own source tree -- the benchmark run that did exactly that."""
+        agent = ScriptedAgent([
+            _tool_call("forge_tool", name="dummy_calc", description="Performs calculations"),
+            _finish("done"),
+        ])
+        with patch_gate(approve_result=True), \
+                patch.dict(os.environ, {"SALEHA_FORGE_OUTSIDE": ""}), \
+                patch("saleha.core.tool_forge.ToolForge.forge_tool") as forged:
+            res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True).run(
+                "forge dummy tool")
+        self.assertIn("works on another folder", res.steps[0].observation)
+        forged.assert_not_called()
+
     def test_forge_tool_blocked_when_approval_denied(self) -> None:
         agent = ScriptedAgent([
             _tool_call("forge_tool", name="dummy_calc", description="Performs calculations"),
             _finish("done"),
         ])
-        with patch_gate(approve_result=False):
+        with patch_gate(approve_result=False), \
+                patch.dict(os.environ, {"SALEHA_FORGE_OUTSIDE": "1"}):
             loop = AgentLoop(agent=agent, root_dir=self.root, allow_write=True)
             res = loop.run("forge dummy tool")
             self.assertEqual(res.steps[0].action, "forge_tool")
@@ -1923,6 +1981,7 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
 
     def test_forge_tool_success_and_immediate_invocation_turn(self) -> None:
         from unittest.mock import patch
+
         from saleha.core.tool_forge import ToolForgeResult
         from saleha.tools.base import BaseTool, ToolResult, tool_registry
 
@@ -1944,6 +2003,7 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
         )
 
         with patch_gate(approve_result=True), \
+             patch.dict(os.environ, {"SALEHA_FORGE_OUTSIDE": "1"}), \
              patch("saleha.core.tool_forge.ToolForge.forge_tool", return_value=mock_forge_res):
             tool_registry.register(MockForgedTool())
 

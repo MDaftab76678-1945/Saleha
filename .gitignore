@@ -143,3 +143,6 @@ datasets/_pre_cleanup_backup_*/
 
 # graphify AST cache / generated graph output (regenerated on demand)
 graphify-out/
+
+# Agent benchmark tasks and runs (regenerate with scripts/agent_bench.py)
+bench/agent_bench/

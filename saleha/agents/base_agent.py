@@ -58,6 +58,9 @@ class BaseAgent:
         else:
             self.router = None
         self.total_tokens_used = 0  # v1.2: agent-lifetime token accounting
+        # Sampling temperature for think(); None keeps the provider default.
+        # Was only ever set ad hoc via setattr/getattr.
+        self.temperature: Optional[float] = kwargs.get("temperature")
 
         # Agent Personal Computer (AgentPC): Dedicated workspace, hardware sandbox & blackbox
         from saleha.core.agent_pc import get_agent_pc

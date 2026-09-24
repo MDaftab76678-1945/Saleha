@@ -7,26 +7,22 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
-import json
-import io
-import subprocess
 import contextlib
-from pathlib import Path
+import io
+import json
+import os
+import time
+from typing import Any, Dict, Optional
+
+import click
 from rich.panel import Panel
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
 from rich.syntax import Syntax
-from saleha import __version__
+from rich.table import Table
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.command()
 @click.argument('goal', required=False)
@@ -111,7 +107,7 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
                     console.print('\n[bold cyan]📤 Output:[/]')
                     console.print(exec_result.output)
             else:
-                console.print(Panel(f'[bold red]❌ Execution Failed[/]', border_style='red'))
+                console.print(Panel('[bold red]❌ Execution Failed[/]', border_style='red'))
                 if exec_result.error:
                     console.print(f'\n[red]Error:[/] {exec_result.error}')
     else:
@@ -144,8 +140,38 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
 
     Example: saleha agent "find all API endpoints missing auth checks" --dir ./src
     """
-    from saleha.core.loop.agentic_loop import AgentLoop
-    from saleha.agents.base_agent import BaseAgent
+    # The calls go through _cmds (so tests can patch them), but the dependency
+    # is real: these imports keep it visible to static import graphs
+    # (repo_graph's importer lookup relies on them).
+    from saleha.agents.base_agent import BaseAgent  # noqa: F401
+    from saleha.core.loop.agentic_loop import AgentLoop  # noqa: F401
+    # Fast path first. A folder whose tests import a local module is what the
+    # tourist solver handles in 1-3 model calls instead of up to --max-steps
+    # loop turns (measured on 30 such tasks: the loop averaged ~400 s each).
+    # On failure it restores the file and the full agent below takes over.
+    # SALEHA_TOURIST_FIRST=0 turns it off.
+    if write and os.environ.get('SALEHA_TOURIST_FIRST', '1') != '0':
+        import saleha.core.tourist_solver as _ts
+        if _ts.understand(root_dir)[0] is not None:
+            # An explicit --model is used for every call; --timeout bounds
+            # the fast path too, instead of it running on its own clock.
+            explicit = None if model == 'auto' else model
+            fast = _ts.solve(goal, root_dir, restore_on_failure=True,
+                             fast_model=explicit, deep_model=explicit, time_budget=float(timeout),
+                             on_event=None if as_json else (lambda m: console.print(f'[dim]fast path: {m}[/]')))
+            if fast.success:
+                message = f'DONE (fast path: {fast.model_calls} model call(s), {fast.seconds}s, tests pass)'
+                if as_json:
+                    click.echo(json.dumps({'success': True, 'verification': 'tests passed',
+                                           'final_message': message, 'error': '', 'steps': []},
+                                          ensure_ascii=True))
+                else:
+                    console.print(Panel(message, title='[green]Agent Finished - tests passed[/]',
+                                        border_style='green'))
+                return
+            if not as_json:
+                console.print(f'[yellow]fast path did not pass the tests ({fast.reason}); '
+                              f'running the full agent[/]')
     # The tool list here was hardcoded and stale: it omitted get_file_outline,
     # find_symbols and -- most misleadingly -- patch_file, the tool a user has
     # to know about to ask for an actual fix. The loop's own dispatch table
@@ -164,12 +190,57 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
     loop = _cmds.AgentLoop(agent=_cmds.BaseAgent(role='Agent', model=model), root_dir=root_dir, max_steps=max_steps, allow_write=write, timeout_sec=float(timeout))
     result = loop.run(goal, on_event=lambda ev: None if as_json else console.print(f"[dim]step {ev.get('step')}[/] [cyan]{ev.get('action')}[/] -> {_cmds._one_line(ev.get('observation', ''))}"))
     if as_json:
-        click.echo(json.dumps({'success': result.success, 'final_message': result.final_message, 'error': result.error, 'steps': [{'step': s.step, 'action': s.action, 'args': s.args_preview, 'observation': s.observation[:500]} for s in result.steps]}, ensure_ascii=True))
+        click.echo(json.dumps({'success': result.success, 'verification': result.verification, 'final_message': result.final_message, 'error': result.error, 'steps': [{'step': s.step, 'action': s.action, 'args': s.args_preview, 'observation': s.observation[:500]} for s in result.steps]}, ensure_ascii=True))
     else:
-        console.print(Panel(result.final_message or result.error, title='[green]✅ Agent Summary[/]' if result.success else '[red]❌ Agent Stopped[/]', border_style='green' if result.success else 'red'))
+        # A success that changed files without passing tests is shown in
+        # yellow with the reason, never under the same green as a verified one.
+        if not result.success:
+            title, style = '[red]Agent Stopped[/]', 'red'
+        elif result.verification.startswith('NOT verified'):
+            title, style = f'[yellow]Agent Finished - {result.verification}[/]', 'yellow'
+        elif result.verification:
+            title, style = f'[green]Agent Finished - {result.verification}[/]', 'green'
+        else:
+            title, style = '[green]Agent Finished - no files changed[/]', 'green'
+        # Model text is data, not markup: "[x]" in an answer must print as-is.
+        from rich.markup import escape
+        console.print(Panel(escape(result.final_message or result.error), title=title, border_style=style))
         console.print(f'[dim]{len(result.steps)} step(s) used[/]')
     if not result.success:
         raise click.exceptions.Exit(1)
+
+@cli.command(name='tourist')
+@click.argument('goal')
+@click.option('--dir', 'root_dir', default='.', type=click.Path(exists=True, file_okay=False),
+              help='Folder whose tests must pass')
+@click.option('--stress', is_flag=True, help='After the tests pass, stress-test against a brute force')
+@click.option('--cloud', is_flag=True, help='Escalate hard cases to Claude (Claude Code CLI) instead of the local deep model')
+@click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
+def tourist_cmd(goal: str, root_dir: str, stress: bool, cloud: bool, as_json: bool) -> None:
+    """
+    Fast solver: read the tests, write once, run, repair -- few model calls.
+
+    Everything that needs no model (finding the tests, the target file, the
+    asserts; running the tests) is done by code. Succeeds only when the real
+    tests pass. Example: saleha tourist "reverse a string" --dir ./task
+    """
+    from dataclasses import asdict
+
+    import saleha.core.tourist_solver as ts
+
+    r = ts.solve(goal, root_dir, stress=stress, deep_model=ts.CLOUD_MODEL if cloud else None,
+                 on_event=None if as_json else (lambda m: console.print(f'[dim]{m}[/]')))
+    if as_json:
+        click.echo(json.dumps({'success': r.success, 'final_message': 'DONE' if r.success else 'FAILED',
+                               **asdict(r)}, ensure_ascii=True))
+    else:
+        colour = 'green' if r.success else ('yellow' if r.verdict == 'NOT_RUN' else 'red')
+        from rich.markup import escape
+        console.print(Panel(escape(r.reason) + f' -- {r.model_calls} model call(s), {r.seconds}s',
+                            title=f'[{colour}]{r.verdict}[/]', border_style=colour))
+    if not r.success:
+        raise click.exceptions.Exit(1)
+
 
 @cli.command()
 @click.argument('goal')
@@ -202,7 +273,7 @@ def plan(goal: str, model: str, as_json: bool) -> None:
         for i, step in enumerate(result.steps, 1):
             console.print(f'  [yellow]{i}.[/] {step}')
     else:
-        console.print(Panel(f'[bold red]❌ Planning Failed[/]', border_style='red'))
+        console.print(Panel('[bold red]❌ Planning Failed[/]', border_style='red'))
         console.print(result.raw_response)
 
 @cli.command()
@@ -255,7 +326,7 @@ def code(task: str, model: str, as_json: bool, output: Optional[str]) -> None:
             else:
                 console.print(Panel(f'[bold red]❌ Save cancelled[/] - generated code failed validation\n{validation.error_type}: {validation.error_message}', border_style='red'))
     else:
-        console.print(Panel(f'[bold red]❌ Code Generation Failed[/]', border_style='red'))
+        console.print(Panel('[bold red]❌ Code Generation Failed[/]', border_style='red'))
         console.print(result.error)
 
 @cli.command()
@@ -380,7 +451,7 @@ def profile_cmd(code_snippet: str) -> None:
         exec(code_snippet, {})  # saleha: allow-exec -- profiling a user snippet IS this command's job
     _, m = performance_profiler.profile_callable(target_exec)
     if m.success:
-        console.print(f'\n[bold green]✅ Execution Profile Completed:[/]')
+        console.print('\n[bold green]✅ Execution Profile Completed:[/]')
         console.print(f'  • Duration: [cyan]{m.duration_ms} ms[/]')
         console.print(f'  • Peak Memory: [yellow]{m.peak_memory_mb} MB[/]')
         console.print(f'  • Current Memory: {m.current_memory_mb} MB')
@@ -580,8 +651,8 @@ def tui_cmd(model: str) -> None:
 @click.argument('execution_id')
 def resume_cli_cmd(execution_id: str) -> None:
     """Resume an interrupted swarm execution from its last saved checkpoint."""
-    from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
     from saleha.cli.swarm_visualizer import visualizer
+    from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
     console.print(f'[bold cyan]🔄 Resuming Swarm Execution:[/] [yellow]{execution_id}[/]')
     try:
         res = swarm_engine.resume_swarm(execution_id)
@@ -599,10 +670,8 @@ def dev_cli_cmd(all_apps: bool, port: int) -> None:
         console.print('  • Backend Web Studio : http://127.0.0.1:8000')
         console.print('  • Next.js App Studio : http://localhost:3000')
         console.print('  • Astro Landing Page : http://localhost:4321')
-        from saleha.server.web_server import run_web_studio
         _cmds.run_web_studio(port=port, open_browser=True)
     else:
-        from saleha.server.web_server import run_web_studio
         _cmds.run_web_studio(port=port, open_browser=True)
 
 @cli.command('chat')
@@ -623,7 +692,7 @@ def play_cli_cmd() -> None:
 def run_container_cli_cmd(code_or_file: str, timeout: float) -> None:
     """Execute code inside isolated ephemeral Docker container with cgroup bounds."""
     from saleha.core.ephemeral_container_runner import container_runner
-    console.print(f'\n[bold cyan]🐳 Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
+    console.print('\n[bold cyan]🐳 Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
     res = container_runner.run_code(code_or_file, timeout_sec=timeout)
     status_color = 'green' if res.success else 'red'
     console.print(f"[{status_color}]● Execution {('SUCCESS' if res.success else 'FAILED')} ({res.duration_ms}ms)[/{status_color}]")
@@ -653,6 +722,7 @@ def solve_cmd(goal_or_issue: str, root_dir: str, model: str, max_steps: int,
         saleha solve "Fix division by zero in calc.py" --test-command "pytest tests/test_calc.py"
     """
     import shlex
+
     from saleha.core.issue_resolver import IssueResolver
 
     test_argv = shlex.split(test_command) if test_command else None

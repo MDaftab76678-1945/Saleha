@@ -288,6 +288,10 @@ class LoopResult:
     steps: List[LoopStep] = field(default_factory=list)
     final_message: str = ""
     error: str = ""             # max_steps / infra failure reason
+    # What backs a success, stated separately from it. A finished run that
+    # changed files but ran no tests is "finished", not "verified", and the
+    # CLI must not print the two alike. "" means nothing was changed.
+    verification: str = ""
 
     @property
     def transcript(self) -> str:
@@ -553,7 +557,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
             content = f.read(cap + 1)
         if len(content) <= cap:
             return content, ""
-        total = sum(1 for _ in open(abs_p, "r", encoding="utf-8", errors="replace"))
+        with open(abs_p, "r", encoding="utf-8", errors="replace") as fh:
+            total = sum(1 for _ in fh)
         content = content[:cap]
         # Trusted framing, deliberately kept OUTSIDE the untrusted wrapper
         # below. A first attempt appended this notice to `content`, so wrap()
@@ -763,10 +768,27 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 return ([python, "-m", "pytest", candidate, "-q"],
                         f"{candidate}/ directory present, no test config found")
 
+        # Pytest-named files at the root of an unconfigured folder: a script
+        # plus its test_*.py is the most common shape of a small task, and
+        # pytest collects exactly these by default.
+        try:
+            root_tests = sorted(
+                name for name in os.listdir(root)
+                if name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
+                and os.path.isfile(os.path.join(root, name))
+            )
+        except OSError:
+            root_tests = []
+        if root_tests:
+            return ([python, "-m", "pytest", "-q"],
+                    f"pytest-named files at the root ({', '.join(root_tests[:3])}), "
+                    "no test config found")
+
         return (None,
                 "looked for pyproject.toml [tool.pytest.ini_options], pytest.ini, "
                 "tox.ini, setup.cfg [tool:pytest], Cargo.toml, package.json "
-                '"test" script, and a tests/ directory -- none found')
+                '"test" script, a tests/ directory, and test_*.py files at the '
+                "root -- none found")
 
     def _tool_run_tests(self, target: str = "") -> str:
         """Run the project's real test suite and report what actually happened.
@@ -1315,6 +1337,18 @@ Never invent tool outputs. One block per reply. Be efficient."""
         """
         if not self.allow_write:
             return "BLOCKED: forge_tool disabled (enable allow_write=True)"
+        # A forged tool is written into Saleha's OWN source tree, not into
+        # root_dir. --write grants edits to the repo being worked on, so it
+        # cannot also authorise edits to Saleha: measured on a benchmark run
+        # whose --dir was a scratch folder, the agent forged a one-off
+        # "inspect test_solution.py" tool into saleha/tools/ plus a test.
+        from saleha.core.tool_forge import REPO_ROOT as SALEHA_ROOT
+        working_on_saleha = (os.path.normcase(os.path.abspath(self.root_dir))
+                             == os.path.normcase(os.path.abspath(SALEHA_ROOT)))
+        if not working_on_saleha and os.environ.get("SALEHA_FORGE_OUTSIDE") != "1":
+            return ("BLOCKED: forge_tool writes into Saleha's own source, but this run "
+                    "works on another folder. Use the existing tools (read_file, run_tests, "
+                    "...) instead; set SALEHA_FORGE_OUTSIDE=1 to allow it deliberately.")
         from saleha.core.harness.approval_gate import approve
         if not approve("forge_tool", f"{name}: {description}"):
             return "BLOCKED: human approval denied/required."
@@ -1814,10 +1848,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 # swe_bench_runner) turns it on, so this check had never once
                 # executed on a live repair run. Rather than depend on the
                 # model remembering to call run_tests, the loop runs it
-                # itself once a repair goal has a successful mutation to
-                # verify -- verification cannot be skipped by omission.
-                if (self.allow_write and mutations_succeeded > 0
-                        and _looks_like_a_repair_goal(goal)):
+                # itself once a run has a successful mutation to verify --
+                # verification cannot be skipped by omission. It used to fire
+                # only for goals the repair-verb regex matched, so "Write code
+                # in solution.py so the tests pass" skipped it: measured on 30
+                # MBPP folder tasks, 7 runs wrote a file, never ran a test, and
+                # finished "DONE" over a failing suite. Any change on disk is
+                # checked; only the depth gates below stay repair-specific.
+                if self.allow_write and mutations_succeeded > 0:
                     if auto_test_verdict is None:
                         test_observation = self._tool_run_tests()
                         passed = test_observation.startswith("PASSED ")
@@ -2022,6 +2060,13 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     # history always shows verification preceded acceptance.
                     self.ledger.accept()
 
+                if auto_test_verdict is not None and auto_test_verdict[0]:
+                    result.verification = "tests passed"
+                elif auto_test_verdict is not None:
+                    result.verification = ("NOT verified: "
+                                           + _truncate(auto_test_verdict[1], 200))
+                elif mutations_succeeded > 0:
+                    result.verification = "NOT verified: files changed, no tests were run"
                 result.success = True
                 result.final_message = summary or "done"
                 result.steps.append(LoopStep(step_no, "finish", "", result.final_message))
@@ -2563,3 +2608,15 @@ Never invent tool outputs. One block per reply. Be efficient."""
             if name and isinstance(args, dict):
                 return str(name), args
         return None
+
+
+def discover_test_command(root_dir: str) -> Tuple[Optional[List[str]], str]:
+    """The test command AgentLoop would use for `root_dir`, without a loop.
+
+    Discovery depends only on the directory (and the venv inside it), so it
+    is shared here with callers that have no agent -- the proof receipt runs
+    exactly the tests the agent would have run.
+    """
+    probe = AgentLoop.__new__(AgentLoop)
+    probe.root_dir = os.path.abspath(root_dir)
+    return probe._discover_test_command()

@@ -53,6 +53,13 @@ class FileIndex:
     syntax_error: Optional[str] = None
 
 
+# Parsed files, reused across scans (and across indexer instances) while a
+# file's mtime and size are unchanged. Re-parsing ~900 files took ~3 s per
+# scan, and the agent loop builds a fresh scout -- hence a fresh indexer --
+# for every lookup. Key: (root_dir, full_path).
+_PARSE_CACHE: Dict[Tuple[str, str], Tuple[int, int, "FileIndex"]] = {}
+
+
 class CodebaseIndexer:
     """Scans and indexes a codebase using Python AST parsing."""
 
@@ -67,25 +74,46 @@ class CodebaseIndexer:
         self.ignored_dirs = {
             ".git", ".venv", "venv", "env", "__pycache__", ".pytest_cache",
             "build", "dist", ".egg-info", ".idea", ".vscode", "node_modules",
-            ".gemini", "brain", ".system_generated", ".history", "scratch", "site-packages"
+            ".gemini", "brain", ".system_generated", ".history", "scratch", "site-packages",
+            ".saleha", "target",
         }
 
     def scan(self) -> Dict[str, FileIndex]:
         """Scans the root directory and indexes all Python files."""
         self.files.clear()
         self.symbol_map.clear()
+        # Cleared too: it used to survive rescans, so every scan appended
+        # each method again and find_symbol returned growing duplicates.
+        self.bare_method_map.clear()
 
         for root, dirs, filenames in os.walk(self.root_dir):
-            dirs[:] = [d for d in dirs if d not in self.ignored_dirs]
+            # Every virtualenv flavour (.venv_train, .venv_laya, ...), not
+            # just the exact names in ignored_dirs.
+            dirs[:] = [d for d in dirs if d not in self.ignored_dirs
+                       and not d.startswith((".venv", "venv"))]
             for f in filenames:
                 if f.endswith(".py"):
                     full_path = os.path.join(root, f)
                     rel_path = safe_relpath(full_path, self.root_dir)
-                    file_index = self._parse_file(full_path, rel_path)
+                    file_index = self._parse_cached(full_path, rel_path)
                     self.files[rel_path] = file_index
                     self._register_symbols(rel_path, file_index)
 
         return self.files
+
+    def _parse_cached(self, full_path: str, rel_path: str) -> FileIndex:
+        """_parse_file, skipped when the file is unchanged since its last parse."""
+        try:
+            st = os.stat(full_path)
+        except OSError:
+            return self._parse_file(full_path, rel_path)
+        key = (self.root_dir, full_path)
+        hit = _PARSE_CACHE.get(key)
+        if hit and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+            return hit[2]
+        parsed = self._parse_file(full_path, rel_path)
+        _PARSE_CACHE[key] = (st.st_mtime_ns, st.st_size, parsed)
+        return parsed
 
     def _parse_file(self, full_path: str, rel_path: str) -> FileIndex:
         try:
