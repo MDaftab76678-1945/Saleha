@@ -14,7 +14,7 @@ Pulled the useful, not-yet-integrated code out of `Notebook/` into the repo.
 | `saleha/specs/agent_specs/` | v5 `01_agent_specs/` | 34 files | Agent role definitions (YAML frontmatter): ai_engineer, cloud_architect, firmware_engineer, ml_engineer, qa_engineer, sre, security_engineer, … Reference for `saleha/agents/`. |
 | `saleha/experimental/aionx/extensions_v10.py` | `Notebook/aionx-v10-backend_1/` | ~800 | Claude-API agent extensions: self-consistency voting, Critic-A/B/Judge debate, multi-lang codegen, GitHub PR gen, cron missions, plugin system, WS token streaming, cost routing. Uses `anthropic` SDK (cloud, not local). |
 | `saleha/server/dashboard_reference.jsx` | `Notebook/saleha_dashboard.jsx` | ~460 | React dashboard — reference for `saleha/server/web_server.py`'s UI. |
-| `docs/notes/hyperbolic_geometry.txt` | `Notebook/geometry.txt` | ~600 | Hyperbolic / Poincaré math notes — background for `saleha/core/hyperbolic_engine.py`. |
+| `docs/notes/hyperbolic_geometry.txt` | `Notebook/geometry.txt` | ~600 | Hinglish design chat about an "SSM + 1000-model fabric" (no Poincaré math, despite this row's earlier label; unrelated to `saleha/core/hyperbolic_engine.py`). |
 | `docs/notes/mhd_engine_reference.cpp` | Notebook root | ~350 | C++ magnetohydrodynamics solver (Dedner GLM). Out of scope for the coding agent — parked. |
 | `docs/notes/*.txt` | `Architecture Vision.txt`, `MUKTI Sovereign AI Summary.txt`, `Mukti Agents SDK Implementation.txt` | — | Design notes / ASCII architecture diagrams. Reference only. |
 | `saleha/specs/project_zip_generator.py`, `saleha/specs/README.md` | v5 root | — | v5 skeleton generator + its README. |
@@ -11129,3 +11129,86 @@ against the pre-fix state.
 
 Measured: full suite **2392 passed, 13 skipped, 175 subtests, 0 failures**
 (2390 -> 2392). Gate `[SUCCESS]`, 36 docs checked clean.
+
+## Pass 152 (2026-09-23) -- audit of the subsystems written in parallel (commits `2adac38`, `8a1f2f8`)
+
+AgentPC, alignment rewards, PRM-MCTS, self-correction, SalehaFlow, the
+polyglot/visual/db/git arms and the octopus swarm were read in full and probed.
+Each fabrication below was reproduced before it was fixed:
+
+- the reward verifier ran candidate and tests in one script, so `sys.exit(0)` in
+  the candidate scored `passed_tests=True`, composite `0.895`; tests now count
+  only if a completion marker prints after them;
+- self-correction "repaired" a crash by wrapping it in `except: return None`
+  (`success=True`); removed, and each strategy is named in the result;
+- AgentPC's memory limit was never applied (300 MB allocated under a 50 MB
+  limit: `passed=True`); the export gate approved content changed after its
+  green run; `role="../.."` pointed a PC workspace (and `/api/pc/clean`) at the repo;
+- `MultiFilePRM.import_coherence` was always 1.0; migration "reversibility" only
+  checked that `down()` ran (`SELECT 1` passed); the swarm's BFT vote ran on a
+  hardcoded snippet; LoRA `hot_swap` reported success without Ollama; the daemon's
+  idle check returned True; workflow `from_dict` turned unknown nodes into
+  pass-throughs; `/api/workflow/heal` healed a failure it created itself.
+
+Every fix has a test that fails on the pre-fix code.
+
+## Pass 153 (2026-09-23) -- one agent contract (commits `0726300`, `9e14f59`, `c81e904`)
+
+Claude, Gemini and Cursor read three drifting copies of the rules. `AGENTS.md` is
+now the only place shared rules live; `CLAUDE.md` imports it and the other entry
+points only point to it. The rest of the docs were read and false claims removed:
+frozen counts, "formal_smt_verifier does not call Z3", a 3.10 Python floor,
+`qwen2.5-coder:7b` install steps, an MCP spec whose tools mostly did not exist,
+six `.agents` skills claiming model calls or patch generation their scripts
+never make, and `docs/threat_model.md`, which was the old threat modeller's
+fabricated empty-directory report. Two Nexus/MUKTI manifestos were removed. Correction (2026-09-23, from the
+user): MUKTI is the user's own unfinished project, not a foreign one; its notes
+live in the gitignored Notebook/ folder and the removed files are in git history.
+
+## Pass 154 (2026-09-23) -- `saleha run` graded code against its own wrong asserts (commit `86f0349`)
+
+Live runs on `qwen2.5-coder:3b` and `deepseek-coder:6.7b`: both wrote a correct
+`is_palindrome` and a wrong assert for it (`'race car'` expected False) and spent
+every retry on the wrong side. On an assertion failure the orchestrator now runs
+the implementation for that call and asks the model separately, without the
+code or the test, what it should return; the debugger is told which side is
+wrong. On the real failed code both models answered True, so the test is blamed.
+`saleha benchmark-local`: preflight 12/12 tests fail on wrong code;
+`qwen2.5-coder:3b` passed 10/12.
+
+## Pass 155 (2026-09-23) -- the training data was padded
+
+Measured in `datasets/`:
+
+- `saleha_sft_10k.jsonl`, `saleha_sft_10k_alpaca.json`, `saleha_dpo_pairs.jsonl`:
+  1000 rows each, 22 distinct answers. 994 rows were one stub per language with a
+  topic name pasted in; the Python one "implements" a zero-copy stream parser as
+  `return {"status": "SUCCESS", ...}`. DPO margin hardcoded `0.95`. Source:
+  `SalehaDPODatasetEngine.build_dataset` padding to `target_count`. One of the six
+  real seeds only simulated its HTTP request.
+- `saleha_train_dataset.jsonl`: 50 rows, 3 distinct -- `dataset_synthesizer`
+  cycled 3 seeds and reported 50; its summary hardcoded "100% Deterministic".
+- `saleha_slm_train*`: 30 rows, 16 distinct (`TrainingCollector.add_sample`
+  never deduplicated, so every seed run re-appended).
+- The generated `scripts/train_lora_slm.py` trained nothing and printed
+  "Simulated Dry-Run Complete ... 100% Configured & Validated" with exit 0.
+- All six LoRA adapters in `models/` have real (non-zero) weights but were
+  trained on the stub rows or on files later emptied as fabricated.
+
+Fixed: the engine emits only the curated pairs (6) and never pads; the fetcher
+seed makes a real request with retries; `MIN_DPO_PAIRS = 20` is shared and
+`tune_dpo` refuses below it instead of synthesizing pairs into `datasets/`; the
+synthesizer writes each seed once and measures its summary; the collector
+stores and exports each sample once; the generated script is an honest
+environment check that exits 1 when the stack is missing; every GPU training
+script refuses fewer than 20 samples. Data regenerated or deduplicated
+(1000 -> 6, 50 -> 3, 30 -> 16, 10 -> 3). Every remaining Python completion was
+executed (4 needed a plain subprocess because the sandbox blocks `import sys`;
+all exit 0). Adapters moved to `models/_quarantined_2026-09-23/` with a README
+(gitignored). A chat-command test that wrote `configs/` and `scripts/` into the
+checkout on every run now works in `tmp_path`.
+
+New `test_dataset_integrity.py` plus replacements for tests that required the
+padding (`count == 10` from 3 seeds, `>= 50` pairs, `total_dpo_pairs == 1000`):
+25 of them fail on the pre-fix code. Measured: full suite **2538 passed,
+13 skipped, 0 failures**. Gate `[SUCCESS]`.
