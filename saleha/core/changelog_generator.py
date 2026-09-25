@@ -44,7 +44,7 @@ class ChangelogGenerator:
                 capture_output=True,
                 text=True,
                 check=False
-            , encoding="utf-8", errors="replace")
+            , encoding="utf-8", errors="replace", timeout=600)
             if res.returncode == 0 and res.stdout.strip():
                 return [line.strip() for line in res.stdout.splitlines() if line.strip()]
         except Exception:
