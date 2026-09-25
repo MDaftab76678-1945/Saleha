@@ -238,6 +238,7 @@ class DoomWorkspaceEngine:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
             if res.returncode == 0:
                 # Extract short commit hash
