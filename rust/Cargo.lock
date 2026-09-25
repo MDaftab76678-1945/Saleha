@@ -935,6 +935,7 @@ dependencies = [
 name = "ik"
 version = "0.3.0"
 dependencies = [
+ "agent-cognition",
  "anyhow",
  "chrono",
  "clap",
@@ -943,6 +944,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2",
+ "tokio",
  "ureq",
 ]
 
