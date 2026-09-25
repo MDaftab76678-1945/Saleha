@@ -18,6 +18,45 @@ from typing import List
 from saleha.core.path_utils import safe_relpath
 
 
+@dataclass(frozen=True)
+class RuleInfo:
+    severity: str
+    language: str
+    title: str
+    remediation: str
+
+
+# Every rule this module can emit, and nothing else. The governance control
+# GOV-SAST-CATALOG parses this file and fails if a rule_id/severity used in a
+# finding below disagrees with this table, and docs/SECURITY_MODEL.md renders
+# its rule table from it -- so the docs cannot drift from the code again.
+# Verilog rules come from silicon_scanner and are catalogued there.
+RULE_CATALOG = {
+    "SEC001": RuleInfo("HIGH", "Python", "SQL built with f-strings, `+` or `%` inside execute()",
+                       "Use parameterized queries."),
+    "SEC002": RuleInfo("HIGH", "Python", "Dynamic execution (`eval`, `exec`) or unsafe deserialization (`pickle`, `marshal`, `yaml.unsafe_load`)",
+                       "Use `ast.literal_eval`, JSON, or safe loaders."),
+    "SEC003": RuleInfo("HIGH", "Python, JS/TS, Rust", "Hardcoded credential or secret",
+                       "Read secrets from the environment or `saleha vault`."),
+    "SEC004": RuleInfo("MEDIUM", "Python", "`subprocess` call with `shell=True`",
+                       "Pass an argument list with `shell=False`."),
+    "SEC005": RuleInfo("LOW", "Python", "Weak hash (`md5`, `sha1`)",
+                       "Use SHA-256, bcrypt or argon2."),
+    "SEC101": RuleInfo("HIGH", "JS/TS", "Dynamic execution (`eval`, `new Function`)",
+                       "Use `JSON.parse` or a safe expression parser."),
+    "SEC102": RuleInfo("HIGH", "JS/TS", "Unescaped HTML (`dangerouslySetInnerHTML`, `document.write`)",
+                       "Sanitize with DOMPurify or render text."),
+    "SEC103": RuleInfo("MEDIUM", "JS/TS", "`child_process.exec` / `execSync`",
+                       "Use `execFile` or `spawn` with an argument array."),
+    "SEC201": RuleInfo("HIGH", "Go", "SQL built with `fmt.Sprintf` or `+` in `db.Query/Exec`",
+                       "Use placeholder arguments."),
+    "SEC202": RuleInfo("HIGH", "Java", "`ObjectInputStream` / `readObject` deserialization",
+                       "Use JSON or Protocol Buffers."),
+    "SEC301": RuleInfo("MEDIUM", "Rust", "`unsafe { ... }` block",
+                       "Keep unsafe blocks minimal behind safe abstractions."),
+}
+
+
 @dataclass
 class SecurityVulnerability:
     rule_id: str

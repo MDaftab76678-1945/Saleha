@@ -33,9 +33,14 @@ class ChangelogGenerator:
         self.repo_dir = os.path.abspath(repo_dir)
 
     def extract_recent_commits(self, limit: int = 50) -> List[str]:
-        """Fetches commit messages from git log."""
-        if not os.path.isdir(os.path.join(self.repo_dir, ".git")):
-            return ["feat: Initialized Saleha AI Framework"]
+        """Fetches commit messages from git log.
+
+        Returns [] when there is no history to read. It used to return a
+        made-up "feat: Initialized Saleha AI Framework" commit, which then
+        appeared in release notes as if it had happened.
+        """
+        if not os.path.exists(os.path.join(self.repo_dir, ".git")):
+            return []
 
         try:
             res = subprocess.run(
@@ -43,13 +48,16 @@ class ChangelogGenerator:
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
                 check=False
             )
-            if res.returncode == 0 and res.stdout.strip():
-                return [line.strip() for line in res.stdout.splitlines() if line.strip()]
-        except Exception:
-            pass
-        return ["feat: Initialized Saleha AI Framework"]
+        except (OSError, subprocess.SubprocessError):
+            return []
+        if res.returncode != 0:
+            return []
+        return [line.strip() for line in res.stdout.splitlines() if line.strip()]
 
     def categorize_commits(self, commit_messages: List[str]) -> ReleaseSection:
         """Sorts commit messages into conventional commit categories."""

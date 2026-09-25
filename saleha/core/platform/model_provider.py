@@ -392,7 +392,13 @@ class OpenAICompatibleProvider(ModelProvider):
         # No known OpenAI-compatible endpoint exposes a "disable
         # chain-of-thought" switch through this API shape, so the flag is
         # accepted for interface parity and otherwise has no effect here.
-        if not self.api_key and not ("localhost" in self.base_url or "127.0.0.1" in self.base_url):
+        if local_only() and not self._is_local():
+            # This provider sits in the default fallback chain: without this
+            # check a failed local call fell through to api.openai.com
+            # whenever OPENAI_API_KEY/GROQ_API_KEY was set.
+            return ProviderResponse(False, "", "cloud disabled: SALEHA_LOCAL_ONLY=1",
+                                    provider_name=self.provider_name)
+        if not self.api_key and not self._is_local():
             return ProviderResponse(
                 success=False,
                 content="",
@@ -436,8 +442,16 @@ class OpenAICompatibleProvider(ModelProvider):
                 provider_name=self.provider_name,
             )
 
+    def _is_local(self) -> bool:
+        """True for an endpoint on this machine (LM Studio, vLLM, llama.cpp server)."""
+        from urllib.parse import urlparse
+        host = (urlparse(self.base_url).hostname or "").lower()
+        return host in ("localhost", "127.0.0.1", "::1")
+
     def is_available(self) -> bool:
-        return bool(self.api_key) or ("localhost" in self.base_url or "127.0.0.1" in self.base_url)
+        if self._is_local():
+            return True
+        return bool(self.api_key) and not local_only()
 
 
 CLAUDE_CODE_PREFIX = "claude-code"

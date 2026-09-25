@@ -28,6 +28,7 @@
 | `saleha changelog` | Generate SemVer changelog and GitHub release notes from conventional commits. | `--version `VERSION`` `--write` |
 | `saleha chaos` | Run autonomous Chaos Engineering fault injection probes to test resilience. | `--iterations `ITERATIONS`` |
 | `saleha chat` | Start interactive pair-programming chat playground. | - |
+| `saleha check-concurrency` | Find race and deadlock patterns in Python code (unlocked shared writes, | `<PATHS>` `--json` |
 | `saleha cloud-plan` | Autonomously synthesize Terraform, Kubernetes manifests, Helm values & IAM security policies. | `<GOAL>` `--provider/-p `PROVIDER`` `--ha` `--output-dir/-o `OUTPUT_DIR`` |
 | `saleha code` | Generate code for a specific task | `<TASK>` `--model/-m `MODEL`` `--json` `--output `OUTPUT`` |
 | `saleha cognitive` | 4D Cognitive State & Ethics Analysis (Temporal, Spatial, Ethical, Reasoning). | `<PATH>` |
@@ -96,6 +97,7 @@
 | `saleha quadratic-vote` | Quadratic Voting & VCG consensus on a real proposal you supply. | `<TITLE>` `--proposer `PROPOSER`` `--threshold `THRESHOLD`` `--vote `VOTES`` |
 | `saleha quantum-sim` | Simulate a single-qubit circuit: apply gates to |0>, measure under the | `--gates `GATES`` |
 | `saleha rag` | Natural language architectural Q&A fused with AST Dependency Graph. | `<QUESTION>` `--path/-p `PATH`` `--json` |
+| `saleha receipt` | Proof receipt: is the current change actually proven by its tests? | `--dir `ROOT_DIR`` `--base `BASE`` `--test-cmd `TEST_CMD`` `--timeout `TIMEOUT`` `--json` |
 | `saleha recursive` | 7-Node Recursive Intelligence Network & Multi-Path Problem Solver. | `<GOAL>` `--model `MODEL`` |
 | `saleha redteam` | Autonomous Adversarial Red-Team Fuzzer & Exploit Simulation (AgentShield). | `<PATH>` `--model `MODEL`` |
 | `saleha release` | Generate a release manifest recording real test results and a content fingerprint. | `--channel/-c `CHANNEL`` `--skip-tests` |
@@ -107,7 +109,7 @@
 | `saleha review` | Run automated code review with optional Multi-Model Ensemble Consensus. | `<TARGET_FILE_OR_DIR>` `--ensemble` `--min-confidence `MIN_CONFIDENCE`` |
 | `saleha review-ai` | Run AI-Powered Deep Code Review (OWASP Top-10, Code Smells, Security). | `<PATH>` `--html` `--out `OUT`` |
 | `saleha rollback` | Instant 1-click rollback to a previous workspace snapshot. | `--snapshot-id `SNAPSHOT_ID`` |
-| `saleha run` | Full self-healing pipeline: Plan -> Code -> Test -> Fix -> Execute | `<GOAL>` `--model/-m `MODEL`` `--profile/-p `PROFILE`` `--max-attempts `MAX_ATTEMPTS`` `--verbose/-v` `--execute/-x` `--commit/-c` `--context-dir/-cd `CONTEXT_DIR`` `--tests/-t` `--resume/-r` `--stream` `--json` |
+| `saleha run` | Full self-healing pipeline: Plan -> Code -> Test -> Fix -> Execute | `<GOAL>` `--model/-m `MODEL`` `--profile/-p `PROFILE`` `--max-attempts `MAX_ATTEMPTS`` `--verbose/-v` `--execute/-x` `--commit/-c` `--context-dir/-cd `CONTEXT_DIR`` `--tests/-t` `--resume/-r` `--stream` `--json` `--native` |
 | `saleha run-container` | Execute code inside isolated ephemeral Docker container with cgroup bounds. | `<CODE_OR_FILE>` `--timeout `TIMEOUT`` |
 | `saleha sandbox` | Execute code inside a hardened isolated security sandbox (Docker / process sandbox). | `<SCRIPT_PATH>` `--timeout/-t `TIMEOUT`` `--memory/-m `MEMORY`` `--json` |
 | `saleha sandbox-run` | Execute Python code in an isolated containment sandbox. | `<CODE>` |
@@ -138,11 +140,12 @@
 | `saleha test-ui` | Autonomous Headless Browser DOM & UI Health Inspector. | `<PATH>` |
 | `saleha threat` | Check the codebase for the mitigation each STRIDE category needs. | `--output `OUTPUT`` `--dir `TARGET_DIR`` |
 | `saleha tot-solve` | Solve tricky coding bugs with Tree-of-Thoughts (ToT) state-space search and backtracking. | `<GOAL>` `--code/-c `CODE`` `--tests/-t `TESTS`` |
+| `saleha tourist` | Fast solver: read the tests, write once, run, repair -- few model calls. | `<GOAL>` `--dir `ROOT_DIR`` `--stress` `--cloud` `--json` |
 | `saleha tui` | Launch the full-screen interactive Terminal UI (Aider-style workspace). | `--model `MODEL`` |
 | `saleha tune` | Run Local LoRA Fine-Tuning Pipeline on collected codebase data. | `--model `MODEL`` `--epochs `EPOCHS`` `--name `NAME`` |
 | `saleha ui` | Launch terminal dashboard (alias). | - |
 | `saleha undo` | Safely undo/rollback the last Saleha Git commit (Aider-style). | `--hard` `--json` |
-| `saleha verify-work` | Independently re-verify what an agent claimed it did. | `<LEDGER>` `--dir `ROOT_DIR`` `--chain-only` `--expect `EXPECT`` `--json` |
+| `saleha verify-work` | Independently re-verify what an agent claimed it did. | `<LEDGER>` `--dir `ROOT_DIR`` `--chain-only` `--expect `EXPECT`` `--json` `--anchor `ANCHOR`` |
 | `saleha vision` | Synthesize UI code from specs OR from a real screenshot via local vision models. | `<SPEC>` `--framework/-f `FRAMEWORK`` `--name/-n `NAME`` `--image/-i `IMAGE`` `--output-file/-o `OUTPUT_FILE`` `--json` |
 | `saleha voice` | Jarvis-style Hands-Free Voice Assistant for Saleha. | `<PROMPT>` `--audio `AUDIO`` `--wake-word `WAKE_WORD`` `--simulate `SIMULATE`` |
 | `saleha voice-live` | Start Full-Duplex Real-Time Voice Terminal Assistant. | `--speak` |
@@ -222,6 +225,16 @@
 | `saleha git hook` | Manage Git pre-commit AST SAST security gates. | `<ACTION>` `--json` |
 | `saleha git status` | View current Git repository status and branch. | `--json` |
 
+#### `saleha governance` group
+
+| Sub-command | Description | Options |
+|---|---|---|
+| `saleha governance check` | Run every security control. Exits 1 if any control FAILs. | `--update-baseline` `--only `ONLY`` `--verbose/-v` `--json` |
+| `saleha governance docs` | Regenerate marked doc regions, version each doc, and list stale claims. | `--apply` `--json` |
+| `saleha governance improve` | Fix one finding per cycle, verified, on branch auto/governance. | `--metric `METRIC`` `--model/-m `MODEL`` `--cycles/-c `CYCLES`` `--max-candidates `MAX_CANDIDATES`` |
+| `saleha governance log` | Recent autonomous hardening cycles. | `--limit/-n `LIMIT`` |
+| `saleha governance version` | Compute the next SemVer from conventional commits since the last bump. | `--apply` |
+
 #### `saleha harness` group
 
 | Sub-command | Description | Options |
@@ -244,6 +257,16 @@
 |---|---|---|
 | `saleha hub install` | Install a community plugin from the Hub. | `<PLUGIN_NAME>` |
 | `saleha hub list` | List available plugins in the Saleha Hub registry. | - |
+
+#### `saleha ik` group
+
+| Sub-command | Description | Options |
+|---|---|---|
+| `saleha ik arch` | Print the native sovereign architecture map. | - |
+| `saleha ik run` | Run an autonomous goal through the native Rust plan compiler and executor. | `<GOAL>` `--dry-run` `--proof `PROOF`` `--timeout `TIMEOUT`` |
+| `saleha ik solve` | Reflexion self-healing problem solving via Rust native loop. | `<TASK>` `--language/-l `LANGUAGE`` `--model/-m `MODEL`` `--max-attempts `MAX_ATTEMPTS`` `--timeout `TIMEOUT`` |
+| `saleha ik status` | Check Rust intent kernel status and ledger integrity. | - |
+| `saleha ik verify` | Verify SHA-256 hash-chain cryptographic ledger integrity. | `--proof `PROOF`` |
 
 #### `saleha mcp` group
 

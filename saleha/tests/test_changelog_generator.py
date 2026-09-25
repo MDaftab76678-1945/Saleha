@@ -6,7 +6,8 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.changelog_generator import ChangelogGenerator, ReleaseSection
+
+from saleha.core.changelog_generator import ChangelogGenerator
 
 
 class ChangelogGeneratorTests(unittest.TestCase):
@@ -47,6 +48,14 @@ class ChangelogGeneratorTests(unittest.TestCase):
             content = f.read()
         self.assertIn("# Changelog", content)
         self.assertIn("## [1.5.0]", content)
+
+    def test_no_history_yields_no_invented_commits(self) -> None:
+        # temp_dir is not a git repo: there is nothing to report. It used to
+        # return a made-up "feat: Initialized Saleha AI Framework" commit.
+        self.assertEqual(self.generator.extract_recent_commits(), [])
+        notes = self.generator.generate_release_notes(version="1.5.0")
+        self.assertNotIn("Initialized Saleha AI Framework", notes)
+        self.assertNotIn("### Features", notes)
 
 
 if __name__ == "__main__":

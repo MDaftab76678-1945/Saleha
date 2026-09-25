@@ -11269,3 +11269,74 @@ original tests re-run by the harness, never the agent's word):
   shipped; padded datasets removed.
 
 Measured: full suite 2604 passed, 15 skipped, 0 failures; gate `[SUCCESS]`.
+
+## Pass 156 (2026-09-25) -- native intent kernel bridge (`ik`, `saleha run --native`)
+
+Uncommitted. Examined the Rust kernel bridge commits (43d7fe2..5c6b621) by
+running every `ik` path the CLI exposes.
+
+- `ik run` / `saleha run --native`: a plan needing approval printed
+  "Aborted for safety" and exited 0; the CLI showed a green result and
+  `test_cli_saleha_run_native` asserted exit 0. Every abort/failure in
+  `run_mission` now exits 1; test replaced.
+- `llm.rs` template fallback: when Ollama failed it returned
+  `success: true` with a TODO stub printing "Executing: <task>". Probe:
+  `ik autocode --model no-such-model:1b` -> "APPROVED", exit 0. Now a failed
+  generation is a failure; autocode -> "Mission rejected", exit 1.
+- Unknown language: reflexion and negotiation both reported success with
+  "No verifier". Now fail.
+- "Solved" meant exit 0 only; a program with no asserts counted. Now needs
+  at least one assertion (`verify::has_assertions`).
+- `ik solve`/`generate`/`autocode`/`code` exited 0 on failure; now 1.
+- `ollama run` hard-wraps output even into a pipe, splitting comments and
+  breaking indentation: 0/3 generated files compiled; with `--nowordwrap`
+  2/3. No timeouts on model calls or generated code: one call hung 300 s.
+  New `proc_util::run_with_timeout` (IK_LLM_TIMEOUT_SECS 120,
+  IK_RUN_TIMEOUT_SECS 30). Reflexion now generates and verifies one
+  solution at a time and stops at the first pass.
+- Byte slicing `[..100]` / `[..200]` of error text could panic on UTF-8.
+- Python: `ik status`/`ik arch` exited 0 with no binary; failed calls lost
+  their `detail` ("Unknown error"); `ik solve` gained `--timeout`.
+
+Measured: real `ik solve` (qwen2.5-coder:3b, is_palindrome) SOLVED in 172 s
+with its asserts run; the run before the one-at-a-time change hit the 300 s
+hang and took 340 s.
+New tests fail on pre-fix code (5 + 2) and pass after; intent kernel tests
+17 passed; `cargo test --workspace` 0 failures; gate `[SUCCESS]`. Full
+Python suite not run.
+
+## Pass 157 (2026-09-25) -- self-governance: controls, ratchet, autonomous hardening, doc versions
+
+Uncommitted on main; autonomous fixes on branch `auto/governance`.
+New `saleha/core/governance/` and `saleha governance` (check, improve, docs,
+version, log). Design in `docs/GOVERNANCE.md`.
+
+- Controls run against the repo and return PASS / FAIL / NOT_CHECKED;
+  counted ones ratchet against `baseline.json` (tooling only lowers).
+- First run found: `OpenAICompatibleProvider` ignored `SALEHA_LOCAL_ONLY`;
+  with OPENAI_API_KEY/GROQ_API_KEY set, a failed local call fell through to
+  api.openai.com. Probe: control FAIL ("attempted requests.post") before,
+  PASS after. `docs/SECURITY_MODEL.md` listed SEC004 as HIGH (code: MEDIUM)
+  and omitted SEC103; its table is now rendered from `RULE_CATALOG`.
+  SEC005 and SEC103 had no test; added. `changelog_generator` invented a
+  "feat: Initialized Saleha AI Framework" commit when there was no git.
+- Improver: first model-written timeout fix (qwen2.5-coder:3b) passed every
+  gate yet turned `except Exception: pass` into `raise` and dropped a
+  return; the module's tests still passed. Reverted on the branch
+  (2cff653); a structural AST gate now rejects anything beyond the allowed
+  keyword and a plain TimeoutExpired handler. deepseek-coder:6.7b then
+  failed that gate 3/3. Fix: when an enclosing try already catches the
+  timeout, add `timeout=` deterministically; the model is used only where
+  nothing catches it. Result: 4 timeout + 2 encoding fixes committed on
+  `auto/governance`, each with tests passing before and after.
+- Own bugs found while running it: control import hit the
+  platform-package rebinding trap (reported NOT_CHECKED, not PASS); commit
+  hook used system python in a worktree; model output at column 0 was
+  mis-dedented; failed-item memory would have blocked retries forever
+  (now per improver version and method).
+
+Measured: `saleha governance check` 10/10 PASS; baseline
+untested_scanner_rules 2 -> 0, stale_doc_claims 1 -> 0; new tests fail on
+the pre-fix code (3) and pass after; governance tests 28 passed.
+Not done: 12 HIGH SAST findings in saleha/ held by the ratchet, not triaged;
+version bump computed (2.6.0 -> 2.7.0, 400 commits) but not applied.

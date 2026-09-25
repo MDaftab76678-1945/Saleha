@@ -1,0 +1,23 @@
+{
+  "_comment": "Written by `saleha governance docs --apply`.",
+  "documents": {
+    "docs/CLI_REFERENCE.md": {
+      "version": "1.0.0",
+      "sha256": "a28dc7d14f021f3d8d46abb9800b332befd1911a26b8c0b1b4194507c50e1102",
+      "saleha_version": "2.6.0",
+      "updated": "2026-09-25"
+    },
+    "docs/GOVERNANCE.md": {
+      "version": "1.0.0",
+      "sha256": "dd7d2958f0c959cdf9969a1c296af42a861a7ab5c941837fc8bc7ad1310f63a2",
+      "saleha_version": "2.6.0",
+      "updated": "2026-09-25"
+    },
+    "docs/SECURITY_MODEL.md": {
+      "version": "1.0.0",
+      "sha256": "16a1aeec2a6a17f0555bb87eb3be7e4105614a7a152302cb4ce521d528ad62b8",
+      "saleha_version": "2.6.0",
+      "updated": "2026-09-25"
+    }
+  }
+}

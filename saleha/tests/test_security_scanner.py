@@ -1,11 +1,12 @@
-import unittest
+import json
 import os
 import tempfile
-import json
+import unittest
+
 from click.testing import CliRunner
 
-from saleha.core.verification.security_scanner import ASTSecurityScanner, SecurityVulnerability
 from saleha.cli.commands import cli
+from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
 class SecurityScannerTests(unittest.TestCase):
@@ -106,6 +107,35 @@ def run_cmd(user_cmd):
             payload = json.loads(res.output)
             self.assertEqual(payload["high"], 1)
             self.assertEqual(payload["vulnerabilities"][0]["rule_id"], "SEC002")
+
+
+    def test_detect_weak_hash_sec005(self) -> None:
+        code = "import hashlib\ndigest = hashlib.md5(b'data').hexdigest()\n"
+        vulns = self.scanner.scan_code(code)
+        weak = [v for v in vulns if v.rule_id == "SEC005"]
+        self.assertEqual(len(weak), 1)
+        self.assertEqual(weak[0].severity, "LOW")
+        self.assertEqual(weak[0].line_number, 2)
+        self.assertEqual(self.scanner.scan_code("import hashlib\nhashlib.sha256(b'x')\n"), [])
+
+    def test_detect_child_process_exec_sec103(self) -> None:
+        code = "const cp = require('child_process');\nchild_process.exec(userCmd);\n"
+        vulns = self.scanner.scan_code(code, filename="tool.js")
+        hits = [v for v in vulns if v.rule_id == "SEC103"]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].severity, "MEDIUM")
+        self.assertEqual(hits[0].line_number, 2)
+        safe = "child_process.execFile('ls', ['-l']);\n"
+        self.assertEqual([v for v in self.scanner.scan_code(safe, filename="tool.js")
+                          if v.rule_id == "SEC103"], [])
+
+    def test_every_emitted_rule_is_catalogued(self) -> None:
+        from pathlib import Path
+
+        from saleha.core.governance.controls import ControlContext, _catalog_control
+        root = Path(__file__).resolve().parents[2]
+        res = _catalog_control(ControlContext(root=root, baseline={}))
+        self.assertEqual(res.status, "PASS", res.items)
 
 
 if __name__ == "__main__":
