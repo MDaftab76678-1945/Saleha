@@ -267,10 +267,17 @@ Unlike most of section 8, these were traced end to end, not just listed.
   `CLAUDE.md`, the other 249 files are not enumerated.
 - `saleha/tools/` — generated/generatable tools (`forge-tool` output lands
   here, e.g. `word_counter` from pass 37).
-- `saleha/sandbox/` — `sandbox_jail.py` named in `CLAUDE.md`; siblings not
-  enumerated.
-- `saleha/harness/` — `saleha harness leaderboard` / `reporter.py` named in
-  passing (pass 30); rest of the directory not enumerated.
+- `saleha/sandbox/` — **read in full and fixed (pass 158).** The auditor now
+  uses the shared `safety_patterns` screen; `sandbox_jail` is resource
+  ceilings only (no filesystem/network isolation), stated in its docstring.
+- `saleha/harness/` — **fixed (pass 158).** The fabricated
+  `swe_bench_harness.py` was deleted; the real one is
+  `saleha/core/swe_bench_harness.py`.
+- Open, found in pass 158, not fixed: `swarm_pipeline_engine` substitutes
+  `def execute(): return True` when the Coder fails, grades with its own QA
+  tests, and `resume_swarm` returns `success=True` for any completed
+  checkpoint; `CodeExecutor` runs `subprocess.run(text=True)` without
+  `encoding="utf-8"`.
 - `saleha/ci/` (`bot.py`) — CI bot, not mentioned anywhere in `CLAUDE.md`.
   Unclear what triggers it or what it posts — read before trusting output.
 - `saleha/desktop/` — Python-side desktop integration (distinct from

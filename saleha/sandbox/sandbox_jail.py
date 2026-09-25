@@ -20,6 +20,17 @@ The jail itself is real and unchanged. What is new is that the module imports
 everywhere and says plainly where it can run, so a caller can check
 `HardenedSandbox.is_available()` instead of discovering the platform limit
 through a traceback. On Windows, use `saleha.core.windows_job_sandbox`.
+
+## What the jail enforces, and what it does not
+
+Enforced: memory (RLIMIT_AS), CPU seconds, process count, open files, a 1 MB
+cap per written file, no core dumps, a wall-clock timeout, an empty
+environment, and a throwaway working directory.
+
+Not enforced: filesystem and network isolation. The jailed process runs as
+the calling user, so it can read any file that user can and open network
+connections. "Jail" here means resource ceilings, not containment; screen
+the code first (`ast_security_verifier`) and do not run hostile code in it.
 """
 
 from __future__ import annotations
@@ -109,6 +120,7 @@ class HardenedSandbox:
             clean_env = {
                 "PATH": "/usr/bin:/bin",
                 "PYTHONUNBUFFERED": "1",
+                "PYTHONIOENCODING": "utf-8",
                 "LANG": "C.UTF-8"
             }
 
@@ -118,6 +130,8 @@ class HardenedSandbox:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=self.max_cpu_sec + 1,
                     preexec_fn=self._set_security_rlimits,
                     cwd=jail_dir,

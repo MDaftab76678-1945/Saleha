@@ -18,16 +18,14 @@ from unittest.mock import patch, MagicMock
 from saleha.core.platform.smart_router import (
     SmartRouter,
     get_default_history_path,
-    get_installed_ollama_models,
 )
 from saleha.core.hybrid_gateway import HybridModelGateway
 from saleha.core.safety_patterns import _check_blocked_imports as sp_check_imports
-from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult, _check_blocked_imports
+from saleha.core.harness.code_executor import CodeExecutor, _check_blocked_imports
 from saleha.core.execution_policy import (
     build_docker_command,
     get_sandbox_mode,
     resolve_backend,
-    docker_available,
     _reset_probe_cache,
 )
 
@@ -136,10 +134,13 @@ class DynamicImportDetectionTests(unittest.TestCase):
     def test_importlib_kwarg_form_blocked(self) -> None:
         self.assertIsNotNone(sp_check_imports("from importlib import import_module\nimport_module(name='sqlite3')"))
 
-    def test_non_literal_dynamic_import_not_false_positives(self) -> None:
-        # Non-literal argument, statically unknown -> not flagged here
-        # (that is the runtime sandbox layer's responsibility).
-        self.assertIsNone(sp_check_imports("mod = 'os'\n__import__(mod)"))
+    def test_non_literal_dynamic_import_is_blocked(self) -> None:
+        # This test used to assert the opposite, calling it "the runtime
+        # sandbox layer's responsibility". On the host-subprocess backend
+        # there is no runtime layer: `__import__('o' + 's')` got `os` and ran.
+        self.assertIsNotNone(sp_check_imports("mod = 'os'\n__import__(mod)"))
+        self.assertIsNotNone(sp_check_imports("m = __import__('o' + 's')"))
+        self.assertIsNone(sp_check_imports("m = __import__('math')"))
 
     def test_plain_code_still_allowed(self) -> None:
         self.assertIsNone(_check_blocked_imports("import math\nprint(math.sqrt(4))"))
@@ -311,12 +312,14 @@ class ProfileRoleRoutingTests(unittest.TestCase):
     def test_role_complexity_floors(self) -> None:
         from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 
-        sec = ProfileAgent(profile=profile_registry.get("agent_security_engineer"), model="m")
-        self.assertGreaterEqual(sec.complexity_floor, 8.0)
-        sde = ProfileAgent(profile=profile_registry.get("agent_sde"), model="m")
-        self.assertGreaterEqual(sde.complexity_floor, 6.0)
-        qa = ProfileAgent(profile=profile_registry.get("agent_test_automation_engineer"), model="m")
-        self.assertLessEqual(qa.complexity_floor, 3.0)
+        def load(profile_id: str) -> ProfileAgent:
+            profile = profile_registry.get(profile_id)
+            assert profile is not None, f"profile {profile_id} missing"
+            return ProfileAgent(profile=profile, model="m")
+
+        self.assertGreaterEqual(load("agent_security_engineer").complexity_floor, 8.0)
+        self.assertGreaterEqual(load("agent_sde").complexity_floor, 6.0)
+        self.assertLessEqual(load("agent_test_automation_engineer").complexity_floor, 3.0)
 
     def test_temperature_from_llm_routing_flows_to_provider(self) -> None:
         from saleha.agents.base_agent import BaseAgent
@@ -339,7 +342,9 @@ class ProfileRoleRoutingTests(unittest.TestCase):
         from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 
         sde = profile_registry.get("agent_sde")
-        if not (sde.llm_routing and sde.llm_routing.get("temperature")):
+        assert sde is not None, "profile agent_sde missing"
+        routing = sde.llm_routing if isinstance(sde.llm_routing, dict) else {}
+        if not routing.get("temperature"):
             self.skipTest("profile file lacks temperature metadata")
         agent = ProfileAgent(profile=sde, model="m")
         self.assertIsNotNone(agent.temperature)

@@ -11340,3 +11340,72 @@ untested_scanner_rules 2 -> 0, stale_doc_claims 1 -> 0; new tests fail on
 the pre-fix code (3) and pass after; governance tests 28 passed.
 Not done: 12 HIGH SAST findings in saleha/ held by the ratchet, not triaged;
 version bump computed (2.6.0 -> 2.7.0, 400 commits) but not applied.
+## Pass 158 (2026-09-25) -- `saleha/harness/`: the leaderboard held no real run
+
+Read in full: all of `saleha/harness/` and `saleha/sandbox/`. Both fixed.
+
+- `~/.saleha/harness_history.json` (served by `saleha harness leaderboard`
+  and `/api/harness/leaderboard`) had 947 records, all 100%, all with the
+  dry-run signature (500 tok/s, 0.01s). Not one real evaluation.
+  `evaluate(dry_run=True)` returned `passed=True` per task and saved it;
+  `test_saleha_harness.py` asserted that 100% and wrote two rows through the
+  global reporter on every suite run. Now a dry run lists tasks only (no
+  score, never saved), and the tests patch the reporter. Suite run
+  verified not to touch the history file. Old file kept as
+  `harness_history.dryrun-backup-2026-09-25.json`.
+- "Pass@5" fed the task count to the per-task estimator: 9 tasks/5 pass
+  gave 100%, 9/1 gave 55.6%. The harness draws one sample per task, so only
+  Pass@1 is reported. Tok/s (`len(code)//4` over wall time incl. tests)
+  and convergence rate (always equal to pass rate) removed.
+- Forgeable pass marker: candidate `print('HARNESS_TEST_PASSED'); raise
+  SystemExit(0)` passed with no function defined. Marker now carries a
+  per-run nonce.
+- The reverse: the orchestrator's code ends with `if __name__ ==
+  "__main__": unittest.main()`, which exited before the task's tests, so
+  every task FAILED -- a correct `is_valid_parentheses` scored FAIL. The
+  guard is stripped (AST, rest byte-for-byte).
+- Re-runs replayed answers from the memory store. New
+  `execute_task(use_memory=False)`; the harness uses it. Replay, sandbox
+  block, no code and harness errors are now "not executed", never
+  pass/fail; Pass@1 is over executed tasks and None when there are none.
+- Also: corrupt history was read as [] and overwritten (now moved aside);
+  unknown benchmark / `--limit 0` produced a saved 0-task record (now an
+  error); `task.timeout_sec` was ignored; emoji crashed the leaderboard on
+  cp1252.
+
+Measured: first real run, `saleha harness run -m qwen2.5-coder:3b -w 1`:
+8/9 executed passed (88.89%); the fail is real (`KeyError: 'toolName'`,
+MCP uses `name`). New tests fail on the pre-fix code (forged marker, dry
+run saved, main guard, memory replay, nothing-executed saved, bad benchmark,
+use_memory); suite 2655 passed, 17 skipped; preflight passes.
+
+Second half (sandbox + shared screen):
+
+- The executor's own static screen (`safety_patterns`) let
+  `__import__("o" + "s")` obtain `os` and run on the host-subprocess
+  backend -- the default here, with no runtime containment. A test pinned it
+  (`test_non_literal_dynamic_import_not_false_positives`, "the runtime
+  sandbox layer's responsibility"). Now literals are folded, non-literal
+  dynamic imports, `f = eval`, dunder/frame escapes, zero-arg
+  globals()/locals()/vars() and asyncio process/network calls are refused;
+  BLOCKED_IMPORTS gained builtins, code, runpy, pydoc, pkgutil, gc, pty and
+  network modules. Measured: 5/5 escape probes ran before, 5/5 blocked after.
+- `ASTContractAuditor` (gate for verifiable_rewards, prm_mcts,
+  local_supremacy, agent_pc) had its own 5-module list: `import os`,
+  `from os import system`, `import ctypes.util`, `subprocess.run`,
+  `shutil.rmtree` all audited clean. It now uses the shared screen.
+- `LocalLLMDriver`: non-JSON output raised JSONDecodeError, a missing
+  `response` became `{}`, an Ollama 404 was reported as a vLLM error,
+  OLLAMA_HOST ignored, default model not installed. New
+  `saleha/core/ollama_endpoint.py` replaces three normalisers (the old
+  one turned `0.0.0.0` into `http://0.0.0.0`).
+- `v5_production_core`: cache keyed on salted `hash()` (never hit across
+  runs), failing_code saved the passing code, basicConfig at import, emoji
+  in logs, cwd-relative paths incl. `../`, unsanitised filenames. Results
+  now say `SELF_TESTS_PASSED` / `verified_by`: the model's own asserts.
+- `saleha/harness/swe_bench_harness.py` deleted (assert-True tasks, never
+  run, open since pass 29) with the test pinning `resolved == True`.
+
+Measured: new tests in `test_sandbox_pass158.py` fail on the pre-fix code
+and pass after (5 consecutive runs); suite 2668 passed, 17 skipped;
+preflight passes. Open items: ORCHESTRATOR.md section 8.

@@ -8,10 +8,15 @@ disjoint pattern lists.
 Capabilities:
 1. Static regex screening for execution-risk builtins and destructive filesystem operations.
 2. AST analysis for prohibited static imports (network, subprocess, unsafe deserialization).
-3. AST inspection for dynamic import tricks (__import__ and importlib.import_module).
+3. AST inspection for dynamic imports, eval/exec references and introspection
+   escapes (see `find_blocked_constructs`). Module and attribute names built
+   from string literals ("o" + "s") are folded before they are checked.
 
-Note: This is a static syntactic screen, not an execution sandbox. It serves as a
-fast pre-execution defense-in-depth barrier.
+Note: This is a static syntactic screen, not an execution sandbox. On the
+Docker backend it is defense in depth; on the host-subprocess backend (the
+default without Docker) it is the only barrier, because the code then runs as
+a plain `python file.py` with the user's rights. Before this screen folded
+literals, `__import__("o" + "s")` obtained `os` and ran there.
 """
 
 from __future__ import annotations
@@ -59,21 +64,45 @@ _COMPILED: List[Tuple[re.Pattern[str], DangerPattern]] = [
     (re.compile(p.pattern, re.IGNORECASE), p) for p in DANGEROUS_PATTERNS
 ]
 
-# Standard library modules prohibited from untrusted generated code:
-# Network access, process spawning, system inspection, and unsafe deserialization.
+# Modules prohibited in untrusted generated code: network access, process
+# spawning, host inspection, unsafe deserialization, and the machinery that
+# resolves or runs code by name (each of those can reach a blocked module
+# without an import statement, e.g. pydoc.locate("os.system") or walking
+# gc.get_objects() for a module object).
 BLOCKED_IMPORTS: Set[str] = {
     # Network access
-    "socket", "requests", "urllib", "http", "ftplib", "telnetlib",
+    "socket", "socketserver", "ssl", "requests", "urllib", "http", "ftplib", "telnetlib",
+    "smtplib", "poplib", "imaplib", "xmlrpc", "wsgiref", "webbrowser",
     # Process spawning / system-level access
-    "subprocess", "multiprocessing", "ctypes", "signal",
+    "subprocess", "multiprocessing", "ctypes", "signal", "pty",
     # Filesystem mutation and host inspection
     "os", "sys", "shutil", "glob",
     # Unsafe deserialization / persistence
     "pickle", "marshal", "shelve",
     # Database access on host
     "sqlite3",
-    # Dynamic import machinery abuse
-    "importlib",
+    # Dynamic import / execution machinery
+    "importlib", "builtins", "code", "codeop", "runpy", "pydoc", "pkgutil", "gc",
+}
+
+# Builtins that execute a string as code.
+DYNAMIC_EXEC_NAMES: Set[str] = {"eval", "exec", "compile", "breakpoint"}
+
+# Names and attributes that lead from any object back to the builtins or a
+# module's globals -- the classic way around an import screen, e.g.
+# `().__class__.__base__.__subclasses__()` or `f.__globals__["__builtins__"]`.
+ESCAPE_NAMES: Set[str] = {"__builtins__", "__import__", "__loader__", "__spec__"}
+ESCAPE_ATTRS: Set[str] = {
+    "__subclasses__", "__globals__", "__builtins__", "__import__", "__code__", "__loader__",
+    "f_globals", "f_builtins", "f_locals", "f_back", "gi_frame", "cr_frame", "ag_frame", "tb_frame",
+}
+
+# Process and network entry points on modules that are otherwise allowed
+# (asyncio and event loops).
+PROCESS_NETWORK_ATTRS: Set[str] = {
+    "create_subprocess_shell", "create_subprocess_exec", "subprocess_shell", "subprocess_exec",
+    "open_connection", "start_server", "open_unix_connection", "start_unix_server",
+    "create_connection", "create_server",
 }
 
 
@@ -82,71 +111,186 @@ def get_blocked_import_list() -> List[str]:
     return sorted(list(BLOCKED_IMPORTS))
 
 
-def _first_constant_str(call: ast.Call) -> Optional[str]:
-    """Extracts a string literal from the first positional arg or name= keyword arg.
-    Returns None for non-literals (variables/f-strings) which cannot be resolved statically."""
-    if call.args:
-        arg = call.args[0]
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            return arg.value
-    for kw in call.keywords:
-        if kw.arg == "name" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
-            return kw.value.value
+@dataclass(frozen=True)
+class BlockedConstruct:
+    """One construct the static screen refuses.
+
+    kind: "import" | "dynamic-import" | "dynamic-exec" | "escape" |
+          "introspection" | "process-network"
+    """
+    kind: str
+    name: str
+    lineno: int
+
+    def describe(self) -> str:
+        if self.kind in ("import", "dynamic-import", "introspection"):
+            return self.name
+        if self.kind == "dynamic-exec":
+            return f"{self.name}() (runs a string as code)"
+        if self.kind == "process-network":
+            return f".{self.name}() (process or network access)"
+        return f"{self.name} (reaches builtins or module globals)"
+
+
+def _fold_str(node: ast.AST) -> Optional[str]:
+    """The string an expression always evaluates to, when that is decidable
+    from literals alone: "os", "o" + "s", f"o{'s'}". None otherwise."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _fold_str(node.left)
+        right = _fold_str(node.right) if left is not None else None
+        return left + right if left is not None and right is not None else None
+    if isinstance(node, ast.JoinedStr):
+        parts: List[str] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            elif isinstance(value, ast.FormattedValue) and value.conversion == -1 and value.format_spec is None:
+                inner = _fold_str(value.value)
+                if inner is None:
+                    return None
+                parts.append(inner)
+            else:
+                return None
+        return "".join(parts)
     return None
 
 
-def _check_dynamic_imports(tree: ast.AST) -> List[str]:
-    """Walks the AST to detect dynamic import techniques not visible in static import statements:
-      - __import__("os") / getattr(__import__("shutil"), "rmtree")
-      - importlib.import_module("os") / importlib.import_module(name="os")
-    Flags instances where the root module is present in BLOCKED_IMPORTS."""
-    blocked: List[str] = []
+def _first_arg_node(call: ast.Call, keyword: str = "name") -> Optional[ast.AST]:
+    if call.args:
+        return call.args[0]
+    for kw in call.keywords:
+        if kw.arg == keyword:
+            return kw.value
+    return None
+
+
+def _dynamic_import_label(call: ast.Call) -> Optional[str]:
+    """"__import__" / "importlib.import_module" when `call` is a dynamic import, else None."""
+    func = call.func
+    if isinstance(func, (ast.Name, ast.Attribute)) and getattr(func, "id", getattr(func, "attr", "")) == "__import__":
+        return "__import__"
+    if isinstance(func, ast.Attribute) and func.attr == "import_module" and (
+        (isinstance(func.value, ast.Name) and func.value.id.startswith("importlib"))
+        or (isinstance(func.value, ast.Attribute) and isinstance(func.value.value, ast.Name)
+            and func.value.value.id == "importlib")
+    ):
+        return "importlib.import_module"
+    return None
+
+
+def find_blocked_constructs(tree: ast.AST) -> List[BlockedConstruct]:
+    """
+    Everything in `tree` the screen refuses, in source order, without duplicates.
+
+    Covers static imports of BLOCKED_IMPORTS; dynamic imports (`__import__`,
+    `importlib.import_module`) whose module is blocked *or cannot be resolved
+    from literals* -- `__import__("o" + "s")` used to pass, and
+    `__import__(name)` was waved through as "the runtime sandbox's job" on a
+    backend that has no runtime sandbox; references to eval/exec/compile, not
+    just calls (`f = eval` used to pass); escapes through dunder attributes,
+    frames and `__builtins__`; zero-argument globals()/locals()/vars(); and
+    asyncio's process/network entry points.
+
+    It is a static screen and cannot be complete: a name assembled at runtime
+    from non-literals (`"".join(parts)`, a variable) is not resolved.
+    """
+    found: List[BlockedConstruct] = []
+    seen: Set[Tuple[str, str, int]] = set()
+
+    def add(kind: str, name: str, lineno: int) -> None:
+        key = (kind, name, lineno)
+        if key not in seen:
+            seen.add(key)
+            found.append(BlockedConstruct(kind, name, lineno))
+
+    # Names a `from x import name` rebinds, e.g. `from re import compile`:
+    # those are not the builtin.
+    rebound: Set[str] = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if isinstance(func, ast.Name) and func.id == "__import__":
-            module_name = _first_constant_str(node)
-            root = module_name.split(".")[0] if module_name else ""
-            if root in BLOCKED_IMPORTS:
-                blocked.append(f'__import__("{root}")')
-        elif isinstance(func, ast.Attribute) and func.attr == "import_module":
-            base_ok = (
-                isinstance(func.value, ast.Name) and func.value.id.startswith("importlib")
-            ) or (
-                isinstance(func.value, ast.Attribute)
-                and isinstance(func.value.value, ast.Name)
-                and func.value.value.id == "importlib"
-            )
-            if base_ok:
-                module_name = _first_constant_str(node)
-                root = module_name.split(".")[0] if module_name else ""
+        if isinstance(node, ast.ImportFrom):
+            rebound.update(alias.asname or alias.name for alias in node.names)
+
+    # Callees of dynamic-import calls already judged above: a literal
+    # __import__("math") is harmless, a blocked one is already reported.
+    # Neither should be reported again as a bare __import__ reference.
+    judged_import_callees: Set[int] = set()
+
+    for node in ast.walk(tree):
+        line = getattr(node, "lineno", 0)
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
                 if root in BLOCKED_IMPORTS:
-                    blocked.append(f'importlib.import_module("{root}")')
-    return blocked
+                    add("import", root, line)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                root = node.module.split(".")[0]
+                if root in BLOCKED_IMPORTS:
+                    add("import", root, line)
+        elif isinstance(node, ast.Call):
+            label = _dynamic_import_label(node)
+            if label is not None:
+                arg = _first_arg_node(node)
+                module = _fold_str(arg) if arg is not None else None
+                root = module.split(".")[0] if module else ""
+                if module is None:
+                    add("dynamic-import", f"{label}(<non-literal>)", line)
+                elif root in BLOCKED_IMPORTS:
+                    add("dynamic-import", f'{label}("{root}")', line)
+                judged_import_callees.add(id(node.func))
+            elif isinstance(node.func, ast.Name) and node.func.id in ("getattr", "setattr", "delattr", "hasattr"):
+                if len(node.args) >= 2:
+                    attr = _fold_str(node.args[1])
+                    if attr is not None and (attr in ESCAPE_ATTRS or attr in ESCAPE_NAMES):
+                        add("escape", attr, line)
+                    elif attr is not None and attr in DYNAMIC_EXEC_NAMES:
+                        add("dynamic-exec", attr, line)
+                    elif attr is not None and attr in PROCESS_NETWORK_ATTRS:
+                        add("process-network", attr, line)
+            elif (isinstance(node.func, ast.Name) and node.func.id in ("globals", "locals", "vars")
+                  and not node.args and not node.keywords and node.func.id not in rebound):
+                add("introspection", f"{node.func.id}()", line)
+        elif isinstance(node, ast.Attribute):
+            # ast.walk visits a Call before its callee, so a judged
+            # `x.__import__(...)` callee is already in the set here.
+            if node.attr in ESCAPE_ATTRS and id(node) not in judged_import_callees:
+                add("escape", node.attr, line)
+            elif node.attr in PROCESS_NETWORK_ATTRS:
+                add("process-network", node.attr, line)
+        elif isinstance(node, (ast.BinOp, ast.JoinedStr, ast.Constant)):
+            value = _fold_str(node)
+            if value is not None and (value in ESCAPE_ATTRS or value in ESCAPE_NAMES):
+                add("escape", value, line)
+
+    # Bare name references, after the calls above have marked the harmless ones.
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Name) or not isinstance(node.ctx, ast.Load):
+            continue
+        if node.id in ESCAPE_NAMES and id(node) not in judged_import_callees:
+            add("escape", node.id, node.lineno)
+        elif node.id in DYNAMIC_EXEC_NAMES and node.id not in rebound:
+            add("dynamic-exec", node.id, node.lineno)
+
+    found.sort(key=lambda f: f.lineno)
+    return found
 
 
 def _check_blocked_imports(code: str) -> Optional[str]:
-    """Parses code to AST and identifies prohibited static and dynamic imports.
-    Immune to string concatenation and trivial escaping tricks."""
+    """Parses code and reports prohibited imports and screen escapes (see
+    find_blocked_constructs). Unparseable code returns None: it fails on its
+    own before it can do anything."""
     try:
         tree = ast.parse(code)
-    except SyntaxError:
+    except (SyntaxError, ValueError):
         return None
-
-    imported_modules: List[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imported_modules.extend(alias.name.split(".")[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imported_modules.append(node.module.split(".")[0])
-
-    findings: List[str] = [m for m in imported_modules if m in BLOCKED_IMPORTS]
-    findings.extend(_check_dynamic_imports(tree))
-
+    try:
+        findings = find_blocked_constructs(tree)
+    except RecursionError:
+        return "Blocked: code is nested too deeply to screen"
     if findings:
-        return f"Blocked import(s) detected: {', '.join(sorted(set(findings)))}"
+        return f"Blocked construct(s) detected: {', '.join(sorted({f.describe() for f in findings}))}"
     return None
 
 
@@ -174,4 +318,4 @@ def check_all_dangerous(code: str) -> List[DangerPattern]:
     if import_reason:
         results.append(DangerPattern(pattern="[import-check]", description=import_reason))
 
-    return results
+    return results

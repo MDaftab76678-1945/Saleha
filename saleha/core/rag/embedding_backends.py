@@ -19,21 +19,16 @@ import urllib.error
 import urllib.request
 from typing import List, Optional
 
+from saleha.core.ollama_endpoint import normalize_ollama_url, ollama_base_url
+
 
 def _normalize_ollama_url(raw_url: str) -> str:
-    """Normalizes Ollama endpoint URL to prevent 0.0.0.0 or localhost DNS latency issues."""
-    url = (raw_url or "").strip()
-    if not url:
-        return "http://127.0.0.1:11434"
-    if not url.startswith("http://") and not url.startswith("https://"):
-        url = f"http://{url}"
-    url = url.replace("0.0.0.0:11434", "127.0.0.1:11434").replace("localhost:11434", "127.0.0.1:11434")
-    return url.rstrip("/")
+    """Normalizes an Ollama endpoint URL (shared rules: saleha.core.ollama_endpoint)."""
+    return normalize_ollama_url(raw_url)
 
 
 DEFAULT_EMBED_MODEL = os.getenv("SALEHA_EMBED_MODEL", "nomic-embed-text")
-_raw_ollama_host = os.getenv("SALEHA_OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
-DEFAULT_OLLAMA_BASE = _normalize_ollama_url(_raw_ollama_host)
+DEFAULT_OLLAMA_BASE = ollama_base_url()
 _EMBED_BATCH_SIZE = 32
 
 

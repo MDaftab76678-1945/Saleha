@@ -251,15 +251,13 @@ class BenchRunReport:
 
 
 def ollama_host() -> str:
-    """Normalise OLLAMA_HOST.
+    """Normalised Ollama base URL (shared rules: saleha.core.ollama_endpoint).
 
-    On this machine it is set scheme-less to `0.0.0.0:11434`; urllib cannot
-    open that, and 0.0.0.0 is a bind address, not a client address.
+    On this machine OLLAMA_HOST is set scheme-less to `0.0.0.0:11434`; urllib
+    cannot open that, and 0.0.0.0 is a bind address, not a client address.
     """
-    raw = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434").strip()
-    raw = re.sub(r"^https?://", "", raw)
-    raw = raw.replace("0.0.0.0", "127.0.0.1")
-    return f"http://{raw}"
+    from saleha.core.ollama_endpoint import ollama_base_url
+    return ollama_base_url()
 
 
 def generate(prompt: str, model: str, timeout: int = 180) -> str:
