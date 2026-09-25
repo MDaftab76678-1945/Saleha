@@ -1,6 +1,10 @@
 use crate::llm::LLMClient;
 use crate::security::SecurityGateway;
-use crate::verify::{Verifier, VerifyResult};
+use crate::verify::{has_assertions, Verifier, VerifyResult};
+
+fn language_has_no_verifier(language: &str) -> bool {
+    !matches!(language, "rust" | "python")
+}
 
 pub enum AgentRole {
     Planner,
@@ -101,7 +105,17 @@ impl Negotiator {
         let coder_result = self.coder_agent(task, language);
         let mut generated_code = coder_result.content.clone();
         println!("[CODER] {}", coder_result.decision.feedback);
+        let coder_approved = coder_result.decision.approved;
         decisions.push(coder_result.decision);
+        if !coder_approved {
+            return NegotiationResult {
+                approved: false,
+                decisions,
+                generated_code: String::new(),
+                verify_result: None,
+                final_output: "Mission failed: no code was generated".to_string(),
+            };
+        }
 
         // === AGENT 4: QA (Auto-Verification) ===
         println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -120,20 +134,27 @@ impl Negotiator {
             attempts += 1;
             println!("\n[QA] Attempt {}/{}", attempts, max_retries);
 
-            let result = match language {
+            let mut result = match language {
                 "rust" => self.verifier.verify_rust_code(output_path),
                 "python" => self.verifier.verify_python_code(output_path),
                 _ => {
+                    // Code that nothing checked is not verified code.
                     println!("[QA] No verifier for language: {}", language);
                     VerifyResult {
-                        success: true,
-                        compiled: true,
-                        output: "No verification available".to_string(),
-                        compile_errors: String::new(),
+                        success: false,
+                        compiled: false,
+                        output: String::new(),
+                        compile_errors: format!("no verifier for language '{}'", language),
                         attempts: 1,
                     }
                 }
             };
+            if result.success && !has_assertions(&current_code, language) {
+                result.success = false;
+                result.compile_errors =
+                    "program ran but contains no assertions, so nothing was checked; add asserts that test the task"
+                        .to_string();
+            }
 
             if result.success {
                 println!("[QA] ✓ Code verified successfully!");
@@ -151,10 +172,10 @@ impl Negotiator {
                 println!("[QA] ✗ Verification failed");
                 println!(
                     "[QA] Errors: {}",
-                    &result.compile_errors[..result.compile_errors.len().min(200)]
+                    result.compile_errors.chars().take(200).collect::<String>()
                 );
 
-                if attempts >= max_retries {
+                if attempts >= max_retries || language_has_no_verifier(language) {
                     println!("[QA] Max retries reached. Mission failed.");
                     let qa_decision = AgentDecision {
                         agent: AgentRole::QA,
@@ -174,6 +195,16 @@ impl Negotiator {
                 );
 
                 let fix_response = self.llm.generate_code(&fix_prompt, language);
+                if !fix_response.success {
+                    println!("[QA] ✗ LLM produced no fix. Mission failed.");
+                    decisions.push(AgentDecision {
+                        agent: AgentRole::QA,
+                        approved: false,
+                        feedback: format!("No fix generated on attempt {}", attempts),
+                    });
+                    verify_result = Some(result);
+                    break;
+                }
                 current_code = fix_response.content.clone();
                 std::fs::write(output_path, &current_code).ok();
                 generated_code = current_code.clone();
@@ -259,10 +290,11 @@ impl Negotiator {
             decision: AgentDecision {
                 agent: AgentRole::Coder,
                 approved: success,
-                feedback: format!(
-                    "Code generated ({} bytes, model: {})",
-                    content_len, model_name
-                ),
+                feedback: if success {
+                    format!("Code generated ({} bytes, model: {})", content_len, model_name)
+                } else {
+                    format!("No code generated (model: {})", model_name)
+                },
             },
         }
     }

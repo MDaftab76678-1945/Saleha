@@ -2,7 +2,12 @@ use crate::intelligence::error_analysis::ErrorAnalyzer;
 use crate::intelligence::knowledge_base::KnowledgeBase;
 use crate::intelligence::self_review::SelfReviewer;
 use crate::intelligence::solution_gen::SolutionGenerator;
+use crate::proc_util::run_with_timeout;
+use crate::verify::{has_assertions, run_timeout};
 use std::process::Command;
+use std::time::Duration;
+
+const SOLUTIONS_PER_ATTEMPT: usize = 3;
 
 pub struct ReflexionResult {
     pub success: bool,
@@ -57,31 +62,37 @@ impl ReflexionEngine {
                 println!("[KNOWLEDGE] Retrieved relevant context from past experience");
             }
 
-            // Step 2: Generate multiple solutions
-            println!("[GENERATE] Creating multiple solution approaches...");
+            // Steps 2-4, one approach at a time: generate, self-review, run.
+            // Stopping at the first verified solution avoids paying for
+            // model calls whose output would never be used.
             let generator = SolutionGenerator::new(&self.model);
-            let solutions = generator.generate_solutions(task, language, &context, 3);
-
-            if solutions.is_empty() {
-                println!("[GENERATE] ✗ No solutions generated");
-                final_error = Some("No solutions generated".to_string());
-                continue;
-            }
-            println!("[GENERATE] ✓ Generated {} solutions", solutions.len());
-
-            // Step 3: Self-review each solution
-            println!("[SELF-REVIEW] LLM reviewing its own code...");
             let reviewer = SelfReviewer::new(&self.model);
-            let reviewed: Vec<String> = solutions
-                .iter()
-                .map(|code| reviewer.review_and_fix(code, language))
-                .collect();
+            let per_attempt = SOLUTIONS_PER_ATTEMPT.min(SolutionGenerator::approach_count());
+            let mut generated_any = false;
 
-            // Step 4: Try to compile each, pick first that works
-            for (i, code) in reviewed.iter().enumerate() {
-                std::fs::write(output_path, code).ok();
+            for i in 0..per_attempt {
+                // Rotate approaches across attempts so a retry is not a repeat.
+                let approach = (attempt - 1) * per_attempt + i;
+                println!("[GENERATE] Solution {}/{}...", i + 1, per_attempt);
+                let Some(raw) = generator.generate_solution(task, language, &context, approach)
+                else {
+                    println!("[GENERATE] ✗ Solution {} not generated", i + 1);
+                    continue;
+                };
+                generated_any = true;
 
-                let compile_result = self.compile_and_run(output_path, language);
+                println!("[SELF-REVIEW] LLM reviewing its own code...");
+                let code = &reviewer.review_and_fix(&raw, language);
+                if let Err(e) = std::fs::write(output_path, code) {
+                    final_error = Some(format!("could not write {}: {}", output_path, e));
+                    continue;
+                }
+
+                let mut compile_result = self.compile_and_run(output_path, language);
+                if compile_result.success && !has_assertions(code, language) {
+                    compile_result.success = false;
+                    compile_result.stderr = "program ran but contains no assertions, so nothing about the task was checked".to_string();
+                }
 
                 if compile_result.success {
                     println!("[VERIFY] ✓ Solution {} compiles and runs!", i + 1);
@@ -135,8 +146,15 @@ impl ReflexionEngine {
                             .record_reflection(task, &parsed.message, &lesson);
 
                         final_error = Some(parsed.message.clone());
+                    } else {
+                        final_error = Some(compile_result.error_summary());
                     }
                 }
+            }
+
+            if !generated_any {
+                println!("[GENERATE] ✗ No solutions generated");
+                final_error = Some("No solutions generated".to_string());
             }
 
             if attempt < self.max_attempts {
@@ -170,11 +188,13 @@ impl ReflexionEngine {
                     format!("./{}", exe)
                 };
 
-                let compile = Command::new("rustc").args(&[path, "-o", exe]).output();
+                let mut compile_cmd = Command::new("rustc");
+                compile_cmd.args([path, "-o", exe]);
+                let compile = run_with_timeout(compile_cmd, None, Duration::from_secs(120));
 
                 match compile {
                     Ok(output) if output.status.success() => {
-                        let run = Command::new(&exe_run_path).output();
+                        let run = run_with_timeout(Command::new(&exe_run_path), None, run_timeout());
                         let _ = std::fs::remove_file(exe);
 
                         match run {
@@ -208,7 +228,9 @@ impl ReflexionEngine {
                 }
             }
             "python" => {
-                let run = Command::new("python").args(&[path]).output();
+                let mut run_cmd = Command::new("python");
+                run_cmd.arg(path);
+                let run = run_with_timeout(run_cmd, None, run_timeout());
                 match run {
                     Ok(output) if output.status.success() => CompileResult {
                         success: true,
@@ -227,10 +249,11 @@ impl ReflexionEngine {
                     },
                 }
             }
+            // Code that nothing ran is not a solution.
             _ => CompileResult {
-                success: true,
-                output: "No verifier for this language".to_string(),
-                stderr: String::new(),
+                success: false,
+                output: String::new(),
+                stderr: format!("no verifier for language '{}'; cannot confirm a solution", language),
             },
         }
     }
@@ -245,8 +268,9 @@ struct CompileResult {
 impl CompileResult {
     fn error_summary(&self) -> String {
         let first_line = self.stderr.lines().next().unwrap_or("Unknown error");
-        if first_line.len() > 100 {
-            format!("{}...", &first_line[..100])
+        // Cut on a char boundary: a byte slice panics inside multi-byte text.
+        if first_line.chars().count() > 100 {
+            format!("{}...", first_line.chars().take(100).collect::<String>())
         } else {
             first_line.to_string()
         }

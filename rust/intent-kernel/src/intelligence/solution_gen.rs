@@ -1,5 +1,13 @@
 use crate::llm::LLMClient;
 
+const APPROACHES: [&str; 5] = [
+    "simple and direct, easy to understand",
+    "with comprehensive error handling using Result",
+    "optimized and efficient",
+    "using standard library functions where possible",
+    "with detailed edge case handling",
+];
+
 pub struct SolutionGenerator {
     llm: LLMClient,
 }
@@ -11,6 +19,26 @@ impl SolutionGenerator {
         }
     }
 
+    /// Number of distinct approaches `generate_solution` can take.
+    pub fn approach_count() -> usize {
+        APPROACHES.len()
+    }
+
+    /// Generate one solution using approach `index` (wraps around).
+    /// None when the model produced nothing.
+    pub fn generate_solution(
+        &self,
+        task: &str,
+        language: &str,
+        context: &str,
+        index: usize,
+    ) -> Option<String> {
+        let approach = APPROACHES[index % APPROACHES.len()];
+        let prompt = self.build_prompt(task, language, context, approach);
+        let response = self.llm.generate_code(&prompt, language);
+        (response.success && !response.content.is_empty()).then_some(response.content)
+    }
+
     /// Generate multiple solutions with different approaches
     pub fn generate_solutions(
         &self,
@@ -19,26 +47,9 @@ impl SolutionGenerator {
         context: &str,
         count: usize,
     ) -> Vec<String> {
-        let approaches = vec![
-            "simple and direct, easy to understand",
-            "with comprehensive error handling using Result",
-            "optimized and efficient",
-            "using standard library functions where possible",
-            "with detailed edge case handling",
-        ];
-
-        let mut solutions = Vec::new();
-
-        for approach in approaches.iter().take(count) {
-            let prompt = self.build_prompt(task, language, context, approach);
-            let response = self.llm.generate_code(&prompt, language);
-
-            if response.success && !response.content.is_empty() {
-                solutions.push(response.content);
-            }
-        }
-
-        solutions
+        (0..count.min(APPROACHES.len()))
+            .filter_map(|i| self.generate_solution(task, language, context, i))
+            .collect()
     }
 
     fn build_prompt(&self, task: &str, language: &str, context: &str, approach: &str) -> String {

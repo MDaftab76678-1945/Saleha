@@ -353,7 +353,7 @@ fn run_mission(goal: &str, proof_path: &PathBuf, dry_run: bool) -> anyhow::Resul
     if !security.allowed {
         println!("[SECURITY] ✗ {}", security.reason);
         println!("[MISSION] Aborted due to security threat.\n");
-        return Ok(());
+        anyhow::bail!("mission aborted: security threat ({})", security.reason);
     }
     println!("[SECURITY] ✓ Input is safe");
 
@@ -391,13 +391,13 @@ fn run_mission(goal: &str, proof_path: &PathBuf, dry_run: bool) -> anyhow::Resul
     );
 
     if !validate_plan_or_abort(&plan, &registry, &intent.forbidden_capabilities) {
-        return Ok(());
+        anyhow::bail!("mission aborted: plan failed validation");
     }
 
     if plan.risk_report.requires_approval {
         println!("\n[SECURITY] ⚠ This plan requires human approval.");
         println!("[MISSION] Aborted for safety.\n");
-        return Ok(());
+        anyhow::bail!("mission aborted: plan requires human approval, nothing was executed");
     }
 
     // Step 6: Evaluate plan
@@ -417,7 +417,8 @@ fn run_mission(goal: &str, proof_path: &PathBuf, dry_run: bool) -> anyhow::Resul
     println!("\n[EXECUTION]");
     let mut executor = executor::Executor::new(&mut proof_ledger, dry_run);
 
-    match executor.execute(&plan) {
+    let outcome = executor.execute(&plan);
+    match &outcome {
         Ok(_) => {
             println!("\n[RESULT] ✓ Mission completed successfully");
             memory.record_mission(goal, true);
@@ -432,6 +433,9 @@ fn run_mission(goal: &str, proof_path: &PathBuf, dry_run: bool) -> anyhow::Resul
 
     // Step 8: Save memory
     memory.save(".ik/memory.json")?;
+    if let Err(e) = outcome {
+        anyhow::bail!("mission failed: {}", e);
+    }
 
     println!("\n═══════════════════════════════════════════════════════");
     println!("  Mission complete. Proof ledger updated.");
@@ -656,7 +660,7 @@ fn run_generate(
     let security = security::SecurityGateway::scan_injection(task);
     if !security.allowed {
         println!("[SECURITY] ✗ {}", security.reason);
-        return Ok(());
+        anyhow::bail!("generation refused: {}", security.reason);
     }
     println!("[SECURITY] ✓ Task is safe\n");
 
@@ -674,6 +678,7 @@ fn run_generate(
         }
     } else {
         println!("[ERROR] Code generation failed");
+        anyhow::bail!("code generation failed");
     }
 
     println!("\n═══════════════════════════════════════════════════════\n");
@@ -694,7 +699,7 @@ fn run_coding_mission(
     let security = security::SecurityGateway::scan_injection(task);
     if !security.allowed {
         println!("[SECURITY] ✗ {}", security.reason);
-        return Ok(());
+        anyhow::bail!("coding mission refused: {}", security.reason);
     }
     println!("[SECURITY] ✓ Task is safe");
 
@@ -705,7 +710,7 @@ fn run_coding_mission(
 
     if !response.success {
         println!("[LLM] ✗ Code generation failed");
-        return Ok(());
+        anyhow::bail!("code generation failed");
     }
     println!("[LLM] ✓ Code generated ({} bytes)", response.content.len());
 
@@ -761,7 +766,7 @@ fn run_coding_mission(
 
     let registry = capability::CapabilityRegistry::new();
     if !validate_plan_or_abort(&plan, &registry, &intent.forbidden_capabilities) {
-        return Ok(());
+        anyhow::bail!("coding mission aborted: plan failed validation");
     }
 
     // Step 6: Execute
@@ -779,6 +784,7 @@ fn run_coding_mission(
         }
         Err(e) => {
             println!("\n[RESULT] ✗ Mission failed: {}", e);
+            anyhow::bail!("coding mission failed: {}", e);
         }
     }
 
@@ -869,6 +875,9 @@ fn run_autocode(task: &str, language: &str, model: &str) -> anyhow::Result<()> {
     }
 
     println!();
+    if !result.approved {
+        anyhow::bail!("autocode mission rejected");
+    }
     Ok(())
 }
 
@@ -913,5 +922,8 @@ fn run_solve(task: &str, language: &str, model: &str, max_attempts: usize) -> an
     }
 
     println!();
+    if !result.success {
+        anyhow::bail!("task not solved after {} attempts", result.attempts);
+    }
     Ok(())
 }

@@ -70,7 +70,7 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
         if res.get("returncode") == 0:
             console.print(Panel(str(res.get("stdout", "")), title="Native Kernel Mission Output", border_style="green"))
         else:
-            err_msg = str(res.get("stderr") or res.get("stdout") or "Unknown error")
+            err_msg = "\n".join(str(res.get(k)) for k in ("stdout", "stderr", "detail") if res.get(k)) or "kernel returned no output"
             console.print(Panel(err_msg, title="Native Kernel Error", border_style="red"))
             raise click.ClickException("Native execution failed.")
         return

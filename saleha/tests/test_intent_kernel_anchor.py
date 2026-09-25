@@ -153,14 +153,72 @@ class NativeKernelCliTests(unittest.TestCase):
         res_arch = self.runner.invoke(cli, ["ik", "arch"])
         self.assertEqual(res_arch.exit_code, 0)
 
-    def test_cli_ik_run_dry_run(self) -> None:
-        res = self.runner.invoke(cli, ["ik", "run", "--dry-run", "Inspect memory ledger"])
-        self.assertEqual(res.exit_code, 0)
+    def test_aborted_mission_is_not_reported_as_success(self) -> None:
+        # The kernel refuses plans that need human approval; that refusal
+        # used to exit 0 and render as a green "result".
+        res = intent_kernel.run_mission("Inspect memory ledger", dry_run=True)
+        self.assertNotEqual(res.get("returncode"), 0)
+        self.assertIn("nothing was executed", res.get("stderr", ""))
 
-    def test_cli_saleha_run_native(self) -> None:
+    def test_cli_ik_run_aborted_exits_nonzero(self) -> None:
+        res = self.runner.invoke(cli, ["ik", "run", "--dry-run", "Inspect memory ledger"])
+        self.assertNotEqual(res.exit_code, 0)
+        self.assertIn("Kernel Mission Error", res.output)
+        self.assertIn("Aborted for safety", res.output)
+
+    def test_cli_saleha_run_native_aborted_exits_nonzero(self) -> None:
         res = self.runner.invoke(cli, ["run", "--native", "Inspect memory ledger"])
-        self.assertEqual(res.exit_code, 0)
-        self.assertIn("Rust Intent Kernel", res.output)
+        self.assertNotEqual(res.exit_code, 0)
+        self.assertIn("Native Kernel Error", res.output)
+
+
+@unittest.skipUnless(_HAS_IK, f"intent kernel not built ({intent_kernel.BUILD_HINT})")
+class NativeKernelNoModelTests(unittest.TestCase):
+    """A model that cannot answer must never yield a "solved"/"approved" result.
+
+    The kernel used to substitute a TODO stub that printed "Executing: <task>",
+    run it, and report it as verified.
+    """
+
+    _MODEL = "no-such-model-for-saleha-tests:1b"
+
+    def setUp(self) -> None:
+        self._cwd = os.getcwd()
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        os.chdir(self._tmp.name)  # the kernel writes .ik/ and generated_code.* into cwd
+
+    def tearDown(self) -> None:
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def test_solve_without_model_fails(self) -> None:
+        res = intent_kernel.solve_task("reverse a string", model=self._MODEL,
+                                       max_attempts=1, timeout=120)
+        self.assertNotEqual(res.get("returncode"), 0, res)
+        self.assertNotIn("SOLVED", res.get("stdout", "").replace("not solved", ""))
+        self.assertFalse(Path("generated_code.py").exists())
+
+    def test_autocode_without_model_is_rejected(self) -> None:
+        res = intent_kernel.autocode_task("reverse a string", model=self._MODEL, timeout=120)
+        self.assertNotEqual(res.get("returncode"), 0, res)
+        self.assertIn("Mission rejected", res.get("stdout", ""))
+        self.assertNotIn("Executing: reverse a string", res.get("stdout", ""))
+
+
+class NativeKernelMissingTests(unittest.TestCase):
+    def test_cli_ik_status_without_kernel_exits_nonzero(self) -> None:
+        with patch.object(intent_kernel, "find_ik", return_value=None):
+            for cmd in (["ik", "status"], ["ik", "arch"]):
+                res = CliRunner().invoke(cli, cmd)
+                self.assertNotEqual(res.exit_code, 0, cmd)
+
+    def test_cli_ik_run_timeout_shows_detail(self) -> None:
+        fake = {"available": False, "detail": "timed out after 1 seconds"}
+        with patch.object(intent_kernel, "find_ik", return_value="ik"), \
+                patch.object(intent_kernel, "run_mission", return_value=fake):
+            res = CliRunner().invoke(cli, ["ik", "run", "x"])
+        self.assertEqual(res.exit_code, 1)
+        self.assertIn("timed out", res.output)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ pub mod llm;
 pub mod memory;
 pub mod negotiation;
 pub mod plan;
+pub mod proc_util;
 pub mod proof;
 pub mod runtime;
 pub mod security;

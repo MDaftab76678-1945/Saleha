@@ -1,6 +1,6 @@
+use crate::proc_util::{run_with_timeout, timeout_from_env};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LLMResponse {
@@ -21,7 +21,7 @@ impl LLMClient {
         if available {
             println!("[LLM] ✓ Ollama detected. Model: {}", model);
         } else {
-            println!("[LLM] ⚠ Ollama not found. Using template fallback.");
+            println!("[LLM] ✗ Ollama not found. Code generation will fail.");
         }
 
         Self {
@@ -85,8 +85,44 @@ impl LLMClient {
         if self.available {
             self.generate_with_ollama(task, language)
         } else {
-            self.generate_with_template(task, language)
+            self.failed("Ollama is not installed or not on PATH")
         }
+    }
+
+    /// A generation that did not happen. Never substitute placeholder code:
+    /// a stub that compiles would be verified and reported as a solution.
+    fn failed(&self, reason: &str) -> LLMResponse {
+        println!("[LLM] ✗ No code generated: {}", reason);
+        LLMResponse {
+            content: String::new(),
+            model: self.model.clone(),
+            success: false,
+        }
+    }
+
+    /// Last non-empty stderr line, without ANSI spinner noise.
+    fn last_error_line(stderr: &[u8]) -> String {
+        let raw = String::from_utf8_lossy(stderr);
+        let mut text = String::new();
+        let mut chars = raw.chars();
+        while let Some(c) = chars.next() {
+            if c == '\x1b' {
+                // Skip the escape sequence up to its final letter.
+                for next in chars.by_ref() {
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            } else {
+                text.push(c);
+            }
+        }
+        text.lines()
+            .rev()
+            .map(str::trim)
+            .find(|l| !l.is_empty())
+            .unwrap_or("no error output")
+            .to_string()
     }
 
     fn generate_with_ollama(&self, task: &str, language: &str) -> LLMResponse {
@@ -136,36 +172,20 @@ Now write the code for the task. Output ONLY the code:"#,
 
         println!("[LLM] Sending prompt to Ollama...");
 
-        let mut child = match Command::new("ollama")
-            .arg("run")
-            .arg(&self.model)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-        {
-            Ok(child) => child,
-            Err(error) => {
-                println!("[LLM] Failed to spawn Ollama: {}", error);
-                return self.generate_with_template(task, language);
-            }
-        };
+        let mut cmd = Command::new("ollama");
+        // Without --nowordwrap the CLI hard-wraps long lines even into a
+        // pipe, splitting comments and strings and breaking the code.
+        // --hidethinking keeps reasoning models' thoughts out of the source.
+        cmd.args(["run", "--nowordwrap", "--hidethinking"]).arg(&self.model);
+        let timeout = timeout_from_env("IK_LLM_TIMEOUT_SECS", 120);
 
-        if let Some(mut stdin) = child.stdin.take() {
-            if let Err(error) = stdin.write_all(prompt.as_bytes()) {
-                println!("[LLM] Failed to write prompt: {}", error);
-                return self.generate_with_template(task, language);
-            }
-        }
-
-        match child.wait_with_output() {
+        match run_with_timeout(cmd, Some(prompt.into_bytes()), timeout) {
             Ok(output) if output.status.success() => {
                 let content = String::from_utf8_lossy(&output.stdout).to_string();
                 let cleaned = Self::clean_code(&content);
 
                 if cleaned.is_empty() {
-                    println!("[LLM] Empty response from Ollama");
-                    return self.generate_with_template(task, language);
+                    return self.failed("Ollama returned an empty response");
                 }
 
                 println!("[LLM] ✓ Code generated successfully");
@@ -177,65 +197,12 @@ Now write the code for the task. Output ONLY the code:"#,
                 }
             }
 
-            Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                println!("[LLM] Ollama failed: {}", stderr);
-                self.generate_with_template(task, language)
-            }
+            Ok(output) => self.failed(&format!(
+                "Ollama failed: {}",
+                Self::last_error_line(&output.stderr)
+            )),
 
-            Err(error) => {
-                println!("[LLM] Failed to wait for Ollama: {}", error);
-                self.generate_with_template(task, language)
-            }
-        }
-    }
-
-    fn generate_with_template(&self, task: &str, language: &str) -> LLMResponse {
-        let code = match language {
-            "rust" => format!(
-                "// Auto-generated by Intent Kernel LLM\n\
-                 // Task: {}\n\n\
-                 fn main() {{\n\
-                 \x20   println!(\"Executing: {}\");\n\
-                 \x20   // TODO: Implement task logic\n\
-                 }}\n",
-                task, task
-            ),
-
-            "python" => format!(
-                "# Auto-generated by Intent Kernel LLM\n\
-                 # Task: {}\n\n\
-                 def main():\n\
-                 \x20   print(\"Executing: {}\")\n\
-                 \x20   # TODO: Implement task logic\n\n\
-                 if __name__ == \"__main__\":\n\
-                 \x20   main()\n",
-                task, task
-            ),
-
-            "javascript" => format!(
-                "// Auto-generated by Intent Kernel LLM\n\
-                 // Task: {}\n\n\
-                 function main() {{\n\
-                 \x20   console.log(\"Executing: {}\");\n\
-                 \x20   // TODO: Implement task logic\n\
-                 }}\n\n\
-                 main();\n",
-                task, task
-            ),
-
-            _ => format!(
-                "// Auto-generated by Intent Kernel LLM\n\
-                 // Task: {}\n\
-                 // Language: {}\n",
-                task, language
-            ),
-        };
-
-        LLMResponse {
-            content: code,
-            model: "template-fallback".to_string(),
-            success: true,
+            Err(error) => self.failed(&format!("Ollama call {}", error)),
         }
     }
 
