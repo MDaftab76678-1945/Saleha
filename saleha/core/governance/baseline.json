@@ -3,8 +3,8 @@
   "metrics": {
     "high_sast_findings": 12,
     "stale_doc_claims": 0,
-    "subprocess_text_without_encoding": 48,
-    "subprocess_without_timeout": 27,
+    "subprocess_text_without_encoding": 47,
+    "subprocess_without_timeout": 24,
     "untested_scanner_rules": 0
   }
 }

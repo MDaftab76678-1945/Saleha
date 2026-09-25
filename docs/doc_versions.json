@@ -8,14 +8,14 @@
       "updated": "2026-09-25"
     },
     "docs/GOVERNANCE.md": {
-      "version": "1.0.0",
-      "sha256": "dd7d2958f0c959cdf9969a1c296af42a861a7ab5c941837fc8bc7ad1310f63a2",
+      "version": "1.0.1",
+      "sha256": "6564431aa399274ef7ba6ea59d09b19a5a4cb59175464d0e810486305247e12a",
       "saleha_version": "2.6.0",
       "updated": "2026-09-25"
     },
     "docs/SECURITY_MODEL.md": {
-      "version": "1.0.0",
-      "sha256": "16a1aeec2a6a17f0555bb87eb3be7e4105614a7a152302cb4ce521d528ad62b8",
+      "version": "1.0.1",
+      "sha256": "90b5517133ffc9e0674474d723267254b10bb3db2efd63f195be416e30c35835",
       "saleha_version": "2.6.0",
       "updated": "2026-09-25"
     }

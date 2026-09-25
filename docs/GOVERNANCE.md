@@ -1,7 +1,7 @@
 # Saleha Self-Governance
 
 <!-- saleha:generated:doc-version -->
-Document version 1.0.0 -- describes Saleha 2.6.0 -- updated 2026-09-25
+Document version 1.0.1 -- describes Saleha 2.6.0 -- updated 2026-09-25
 <!-- /saleha:generated:doc-version -->
 
 <!-- saleha:generated:project-version -->
@@ -45,8 +45,8 @@ saleha governance version      next SemVer from conventional commits
 | `GOV-DOCS-RULES` | The generated rule table must equal a fresh render of RULE_CATALOG. | - |
 | `GOV-LOCAL-ONLY` | Runs each cloud provider with local-only set and intercepts network/CLI calls. | - |
 | `GOV-COMMIT-GATE` | Checks .git/hooks/pre-commit exists and invokes preflight_lint.py. | - |
-| `GOV-SUBPROCESS-TIMEOUT` | Counts run/call/check_call/check_output without timeout= (ratchet). | `subprocess_without_timeout` <= 27 |
-| `GOV-SUBPROCESS-ENCODING` | Counts text=True calls without encoding= (ratchet). | `subprocess_text_without_encoding` <= 48 |
+| `GOV-SUBPROCESS-TIMEOUT` | Counts run/call/check_call/check_output without timeout= (ratchet). | `subprocess_without_timeout` <= 24 |
+| `GOV-SUBPROCESS-ENCODING` | Counts text=True calls without encoding= (ratchet). | `subprocess_text_without_encoding` <= 47 |
 | `GOV-SAST-SELF` | Runs the SAST scanner over saleha/ excluding tests (ratchet). | `high_sast_findings` <= 12 |
 | `GOV-DOCS-STALE` | Checks backticked `saleha ...` commands and repo paths in docs (ratchet). | `stale_doc_claims` <= 0 |
 | `GOV-VERSION` | pyproject.toml and saleha/__init__.py must declare the same version. | - |

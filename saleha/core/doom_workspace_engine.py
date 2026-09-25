@@ -229,6 +229,7 @@ class DoomWorkspaceEngine:
                 cwd=str(self.workspace_dir),
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
             # Commit
             res = subprocess.run(
@@ -237,6 +238,7 @@ class DoomWorkspaceEngine:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=600,
             )
             if res.returncode == 0:
                 # Extract short commit hash
@@ -246,6 +248,7 @@ class DoomWorkspaceEngine:
                     capture_output=True,
                     text=True,
                     check=False,
+                    timeout=600,
                 )
                 return True, log_res.stdout.strip()
         except Exception:

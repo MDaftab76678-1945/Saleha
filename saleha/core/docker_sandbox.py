@@ -28,7 +28,8 @@ def is_docker_available() -> bool:
             ["docker", "info"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
+            encoding="utf-8", errors="replace",
         )
         return res.returncode == 0
     except Exception:
