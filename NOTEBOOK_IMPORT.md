@@ -11480,3 +11480,20 @@ Found by the same run: TestRunner put the solution and the tests in one
 namespace, so a test's `import heapq` made a solution that never imported
 heapq pass (probe: passed=True before). The solution now runs in its own
 module.
+
+## Pass 162 (2026-09-25) -- brute-force oracle check on held-out tasks
+
+`saleha/core/verification/oracle_check.py`: a candidate counts only if it
+matches a brute-force oracle on every generated small input. 11 held-out
+function tasks, 3 candidates from qwen2.5-coder:3b, graded by hidden tests:
+
+- oracle + generator by qwen2.5-coder:3b: accepted 0, false 0 (3B oracle
+  right on 4/11; generators crashed or made invalid inputs).
+- oracle + generator by qwen3:8b (think=False): accepted 3, all 3 correct,
+  **false 0**; oracle right on 7/11. One pick (min_window) was correct
+  where single-shot was wrong.
+
+Compare pass 161: 3-candidate agreement accepted 8 with 2 false. The oracle
+is stricter (3 vs 8 accepted) but has not produced a false success yet.
+Found by the run: an early mismatch was reported as "too few inputs"; fixed.
+Coverage is the weak point: 6 of 11 tasks got no verdict (generator issues).

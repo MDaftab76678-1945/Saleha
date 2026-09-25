@@ -141,11 +141,13 @@ def differential_check(candidate: str, oracle: str, generator: str, entry: str,
     data = json.loads(line[len(marker):])
     verdict = OracleVerdict(False, checked=data["checked"], oracle_ok=data["oracle_ok"],
                             mismatch=data["mismatch"])
-    if verdict.checked < MIN_VALID_FRACTION * n:
+    # Mismatch first: it stops the loop early, so a low `checked` count then
+    # means "found a difference", not "too few inputs".
+    if verdict.mismatch:
+        verdict.reason = "differs from the brute-force oracle"
+    elif verdict.checked < MIN_VALID_FRACTION * n:
         verdict.reason = (f"generator failed on {data.get('gen_failed', 0)}/{n} draws; "
                           f"too few inputs to vouch for anything")
-    elif verdict.mismatch:
-        verdict.reason = "differs from the brute-force oracle"
     elif verdict.oracle_ok < MIN_VALID_FRACTION * verdict.checked:
         verdict.reason = (f"oracle raised on {verdict.checked - verdict.oracle_ok}/{verdict.checked} "
                           f"inputs; the generator is not producing valid inputs")

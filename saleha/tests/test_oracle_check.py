@@ -28,6 +28,8 @@ class OracleCheckTests(unittest.TestCase):
         v = differential_check(BUGGY, ORACLE, GEN, "lis_length", n=150)
         self.assertFalse(v.supported)
         self.assertIn("args=", v.mismatch)
+        # An early mismatch must be reported as one, not as "too few inputs".
+        self.assertEqual(v.reason, "differs from the brute-force oracle")
 
     def test_degenerate_generator_is_not_evidence(self) -> None:
         bad_gen = "def gen(rng):\n    return (None,)\n"
