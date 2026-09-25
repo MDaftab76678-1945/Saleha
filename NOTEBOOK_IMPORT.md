@@ -11463,3 +11463,20 @@ task's hidden test (never shown to the swarm; verify_tests_can_fail clean):
 Code quality did not change (11/12 both); what improved is the verdict:
 correct code accepted 5/11 -> 10/11, with no false success in either run.
 One run each, ~5 min vs ~9 min wall time.
+
+## Pass 161 (2026-09-25) -- hard benchmark: cross-check does not hold up on hard tasks
+
+`saleha/core/hard_task_bench.py`: 24 tasks, train/held-out 12/12; each test
+fails on a wrong implementation and passes on a hand-written reference.
+Baseline qwen2.5-coder:3b single-shot: 16/24 (train 10/12, held-out 6/12).
+
+Swarm with 3 candidates on held-out, graded by hidden tests: 6/12 correct
+(no gain over single-shot), swarm claimed success on 8, **2 false successes**
+(eval_expr, trie_prefix). On hard tasks the 3B solutions share mistakes, so
+agreement is weak evidence. The pass-160 result (0 false successes) held
+only on easy tasks.
+
+Found by the same run: TestRunner put the solution and the tests in one
+namespace, so a test's `import heapq` made a solution that never imported
+heapq pass (probe: passed=True before). The solution now runs in its own
+module.

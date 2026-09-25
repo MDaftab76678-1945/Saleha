@@ -133,6 +133,16 @@ class RunnerHonestyTests(unittest.TestCase):
         self.assertEqual(res.ran, 1)
         self.assertFalse(res.passed)
 
+    def test_test_imports_do_not_cover_for_a_missing_solution_import(self) -> None:
+        # Real run (hard bench, dijkstra): the tests' `import heapq` made a
+        # solution that never imported heapq pass.
+        code = "def top(xs):\n    return heapq.nlargest(1, xs)[0]\n"
+        tests = ("import heapq\nimport unittest\nclass T(unittest.TestCase):\n"
+                 "    def test_top(self):\n        self.assertEqual(top([3, 9, 2]), 9)\n")
+        res = self.runner.run_suite(code, test_code=tests, timeout=15)
+        self.assertFalse(res.passed)
+        self.assertIn("heapq", res.failure_report())
+
     def test_crashing_embedded_testcase_does_not_fail_a_correct_solution(self) -> None:
         # Real run: the solution's own test class used `unittest` unimported.
         code = PASSING_CODE + "\nclass OwnTests(unittest.TestCase):\n    pass\n"

@@ -162,9 +162,17 @@ def build_runner_script(code: str, test_code: str, marker: Optional[str] = None)
         .replace("__MAX_TB__", str(_MAX_TRACEBACK_CHARS))
         .replace("__MARKER__", repr(marker))
     )
+    # The solution runs in its own module, and only its names are copied in.
+    # Pasted into the same namespace as the tests, a test's `import heapq`
+    # satisfied a solution that never imported heapq -- the solution passed
+    # here and crashed with NameError anywhere else (seen on dijkstra).
     return (
-        "# ===== Saleha Under-Test (solution) =====\n"
-        f"{safe_code}\n\n"
+        "# ===== Saleha Under-Test (solution, own module) =====\n"
+        "import sys as _sol_sys, types as _sol_types\n"
+        "_solution = _sol_types.ModuleType('solution')\n"
+        "_sol_sys.modules['solution'] = _solution\n"
+        f"exec(compile({safe_code!r}, 'solution.py', 'exec'), _solution.__dict__)\n"
+        "globals().update({k: v for k, v in vars(_solution).items() if not k.startswith('__')})\n\n"
         "# ===== Saleha Test Suite =====\n"
         f"{safe_tests}\n\n"
         "# ===== Saleha Structured Runner (auto-generated) =====\n"
