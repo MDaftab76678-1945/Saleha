@@ -43,17 +43,13 @@ class ChangelogGenerator:
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
-                check=False,
-                timeout=10  # Set a sensible timeout value
+                check=False
             , encoding="utf-8", errors="replace")
             if res.returncode == 0 and res.stdout.strip():
                 return [line.strip() for line in res.stdout.splitlines() if line.strip()]
-        except subprocess.TimeoutExpired:
-            print("Git log command timed out. Returning default commit message.")
-            return ["feat: Initialized Saleha AI Framework"]
-        except Exception as e:
-            print(f"An error occurred while fetching recent commits: {e}")
-            raise
+        except Exception:
+            pass
+        return ["feat: Initialized Saleha AI Framework"]
 
     def categorize_commits(self, commit_messages: List[str]) -> ReleaseSection:
         """Sorts commit messages into conventional commit categories."""
