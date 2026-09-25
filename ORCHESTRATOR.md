@@ -273,11 +273,13 @@ Unlike most of section 8, these were traced end to end, not just listed.
 - `saleha/harness/` — **fixed (pass 158).** The fabricated
   `swe_bench_harness.py` was deleted; the real one is
   `saleha/core/swe_bench_harness.py`.
-- Open, found in pass 158, not fixed: `swarm_pipeline_engine` substitutes
-  `def execute(): return True` when the Coder fails, grades with its own QA
-  tests, and `resume_swarm` returns `success=True` for any completed
-  checkpoint; `CodeExecutor` runs `subprocess.run(text=True)` without
-  `encoding="utf-8"`.
+- Fixed in pass 159: swarm/octopus placeholder code, never-called QA tests,
+  True-by-default verdicts, `resume_swarm` success=True, the hardcoded
+  chaos score, and four TestRunner holes. Open: model-written tests are
+  the only check in swarm/octopus and a 3B model writes wrong ones (real
+  run: `assertFalse(is_palindrome("A"))` for a case-insensitive task);
+  needs cross-checking (CodeT-style). `CodeExecutor` runs
+  `subprocess.run(text=True)` without `encoding="utf-8"`.
 - `saleha/ci/` (`bot.py`) — CI bot, not mentioned anywhere in `CLAUDE.md`.
   Unclear what triggers it or what it posts — read before trusting output.
 - `saleha/desktop/` — Python-side desktop integration (distinct from

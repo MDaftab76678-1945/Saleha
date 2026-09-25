@@ -79,7 +79,10 @@ def octopus_cmd(goal: str, model: str, workers: int, timeout: float, supremacy: 
             "goal": result.goal,
             "success": result.success,
             "adr_title": result.adr_title,
+            "code_generated": result.code_generated,
+            "security_checked": result.security_checked,
             "security_clean": result.security_clean,
+            "tests_ran": result.tests_ran,
             "tests_passed": result.tests_passed,
             "resilience_score": result.resilience_score,
             "review_approved": result.review_approved,
@@ -102,18 +105,25 @@ def octopus_cmd(goal: str, model: str, workers: int, timeout: float, supremacy: 
     console.print(dispatched_table)
 
     summary_color = "bold green" if result.success else "bold red"
-    tests_badge = "[green]PASSED[/]" if result.tests_passed else "[red]FAILED[/]"
-    sec_badge = "[green]CLEAN (0 CVEs)[/]" if result.security_clean else "[yellow]HARDENED[/]"
-    rev_badge = "[green]APPROVED[/]" if result.review_approved else "[yellow]REJECTED[/]"
+    # "NOT RUN" must never render like a pass (or a fail).
+    critic = result.brain_outputs.get("critic")
+    review_ran = critic is not None and critic.status == "success"
+    tests_badge = ("[yellow]NOT RUN[/]" if not result.tests_ran
+                   else "[green]PASSED[/]" if result.tests_passed else "[red]FAILED[/]")
+    sec_badge = ("[yellow]NOT RUN[/]" if not result.security_checked
+                 else "[green]CLEAN[/]" if result.security_clean else "[red]ISSUES FOUND[/]")
+    rev_badge = ("[yellow]NOT RUN[/]" if not review_ran
+                 else "[green]APPROVED[/]" if result.review_approved else "[red]REJECTED[/]")
+    resilience = "not measured" if result.resilience_score is None else f"{result.resilience_score}%"
 
     console.print(
         Panel(
             f"[{summary_color}]Execution Status: {'SUCCESS' if result.success else 'FAILED'}[/]\n\n"
-            f"[bold cyan]Architecture ADR:[/] {result.adr_title or 'Standard Design'}\n"
-            f"[bold cyan]Sandbox Verification:[/] {tests_badge}\n"
-            f"[bold cyan]Security AST Audit:[/] {sec_badge}\n"
-            f"[bold cyan]Resilience Score:[/] [green]{result.resilience_score}%[/]\n"
-            f"[bold cyan]Constitutional Review:[/] {rev_badge}\n"
+            f"[bold cyan]Architecture ADR:[/] {result.adr_title or 'none'}\n"
+            f"[bold cyan]Tests (model-written):[/] {tests_badge}\n"
+            f"[bold cyan]Security Scan:[/] {sec_badge}\n"
+            f"[bold cyan]Resilience:[/] {resilience}\n"
+            f"[bold cyan]Review:[/] {rev_badge}\n"
             f"[bold cyan]Total Runtime:[/] {result.total_duration_ms}ms\n\n"
             f"[dim]Synthesized Code ({len(result.final_code)} chars):[/]\n"
             f"```python\n{result.final_code[:400] + ('...' if len(result.final_code) > 400 else '')}\n```",

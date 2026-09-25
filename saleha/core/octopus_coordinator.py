@@ -47,7 +47,6 @@ from saleha.core.swarm.agent_worker_pool import (
 from saleha.core.swarm.agent_worker_pool import (
     worker_pool as global_worker_pool,
 )
-from saleha.core.harness.code_executor import CodeExecutor
 
 
 class ArmBrainRole(str, enum.Enum):
@@ -85,16 +84,24 @@ class SynapticBlackboard:
         self.architecture_components: List[str] = []
         self.system_design_md: str = ""
         self.source_code: str = ""
+        self.code_generated: bool = False
         self.forged_tools: List[str] = []
-        self.security_clean: bool = True
+        # Every verdict starts as "not done". These used to start True (and
+        # resilience at 100.0), so an arm that crashed or timed out left
+        # "clean / passed / approved / 100%" behind and the run succeeded.
+        self.security_checked: bool = False
+        self.security_clean: bool = False
+        self.hardened_code_suggestion: str = ""
         self.vulnerabilities: List[str] = []
         self.test_code: str = ""
-        self.tests_passed: bool = True
+        self.tests_ran: bool = False
+        self.tests_passed: bool = False
         self.test_count: int = 0
         self.test_error: str = ""
-        self.resilience_score: float = 100.0
+        self.resilience_score: Optional[float] = None  # None: not measured
         self.circuit_breaker_patch: str = ""
-        self.review_approved: bool = True
+        self.review_ran: bool = False
+        self.review_approved: bool = False
         self.review_feedback: str = ""
         self.conflicts: List[str] = []
         self.brain_outputs: Dict[str, ArmBrainOutput] = {}
@@ -114,11 +121,14 @@ class OctopusExecutionResult:
     adr_title: str
     security_clean: bool
     tests_passed: bool
-    resilience_score: float
+    resilience_score: Optional[float]  # None: not measured (no fault injection exists)
     review_approved: bool
     total_duration_ms: float
     brain_outputs: Dict[str, ArmBrainOutput]
     summary_report: str
+    code_generated: bool = False
+    tests_ran: bool = False
+    security_checked: bool = False
 
 
 class OctopusCoordinator:
@@ -234,10 +244,15 @@ class OctopusCoordinator:
         def _run_planner() -> Tuple[str, Dict[str, Any]]:
             planner = PlannerAgent(model=self._resolve_model("planner"))
             plan_res = planner.create_plan(goal)
-            steps = plan_res.steps if plan_res.success else [f"Execute: {goal}"]
+            if not plan_res.success:
+                # No plan is not a failure of the run (the coder can work from
+                # the goal), but it must not be reported as a structured plan.
+                with blackboard.lock:
+                    blackboard.plan_steps = []
+                return "No plan generated; coding from the goal alone", {"steps": [], "planned": False}
             with blackboard.lock:
-                blackboard.plan_steps = steps
-            return f"Structured {len(steps)} plan step(s)", {"steps": steps}
+                blackboard.plan_steps = plan_res.steps
+            return f"Structured {len(plan_res.steps)} plan step(s)", {"steps": plan_res.steps, "planned": True}
 
         def _run_architect() -> Tuple[str, Dict[str, Any]]:
             architect = ArchitectAgent(model=self._resolve_model("architect"))
@@ -315,9 +330,12 @@ class OctopusCoordinator:
                     problem=f"{goal}\nContext: Plan: {blackboard.plan_steps}\nComponents: {blackboard.architecture_components}",
                     test_suite="",
                 )
-                code = sup_res.winner_code
+                code = sup_res.winner_code or ""
+                if not code.strip():
+                    raise RuntimeError("Local Supremacy produced no code")
                 with blackboard.lock:
                     blackboard.source_code = code
+                    blackboard.code_generated = True
                 strat = sup_res.winner_strategy or "supremacy"
                 return (
                     f"Synthesized via Local Supremacy [{strat}] (amp: {sup_res.amplification_factor}x, {len(code)} chars)",
@@ -333,14 +351,14 @@ class OctopusCoordinator:
             coder = CoderAgent(model=self._resolve_model("coder"))
             context_hint = f"Plan: {blackboard.plan_steps}\nComponents: {blackboard.architecture_components}"
             res = coder.generate_code(f"{goal}\nContext: {context_hint}")
-            code = (
-                res.code
-                if res.success
-                else f"# Implementation for: {goal}\ndef execute():\n    return True\n"
-            )
+            if not res.success or not res.code.strip():
+                # This used to substitute `def execute(): return True`, which
+                # every later arm then "verified".
+                raise RuntimeError(f"no code generated: {res.error or 'empty model output'}")
             with blackboard.lock:
-                blackboard.source_code = code
-            return f"Synthesized AST valid code ({len(code)} chars)", {"code": code}
+                blackboard.source_code = res.code
+                blackboard.code_generated = True
+            return f"Generated code ({len(res.code)} chars)", {"code": res.code}
 
         def _run_toolforge() -> Tuple[str, Dict[str, Any]]:
             from saleha.tools.base import tool_registry
@@ -359,42 +377,59 @@ class OctopusCoordinator:
         # =====================================================================
         # PHASE 3: CONCURRENT TRI-DIMENSIONAL VERIFICATION (Arms 4, 5, 6)
         # =====================================================================
-        current_code = blackboard.source_code or "def f():\n    return True\n"
+        # Security and QA check this exact text, and it stays the final code:
+        # the Security arm used to swap in its regex patch while QA ran on
+        # the unpatched code in parallel, so the returned code was not the
+        # code that was tested. The patch is now only a suggestion.
+        current_code = blackboard.source_code
+
+        def _require_code() -> None:
+            if not current_code.strip():
+                raise RuntimeError("skipped: no generated code to check")
 
         def _run_security() -> Tuple[str, Dict[str, Any]]:
+            _require_code()
             sec_agent = SecurityGuardAgent(model=self._resolve_model("security"))
             audit = sec_agent.audit_and_harden(goal, current_code)
             with blackboard.lock:
+                blackboard.security_checked = True
                 blackboard.security_clean = audit.is_secure
                 blackboard.vulnerabilities = audit.vulnerabilities_found
-                if not audit.is_secure and audit.hardened_code:
-                    blackboard.source_code = audit.hardened_code
-                    blackboard.conflicts.append("Security arm patched potential vulnerability")
-            status_text = "PASS (0 CVEs)" if audit.is_secure else f"Hardened ({len(audit.vulnerabilities_found)} CVEs)"
-            return f"Security AST Audit: {status_text}", {
+                if not audit.is_secure and audit.hardened_code != current_code:
+                    blackboard.hardened_code_suggestion = audit.hardened_code
+                    blackboard.conflicts.append("Security arm suggested an untested auto-patch")
+            status_text = "clean" if audit.is_secure else f"{len(audit.vulnerabilities_found)} issue(s) found"
+            return f"Security scan: {status_text}", {
                 "is_secure": audit.is_secure,
                 "vulnerabilities": audit.vulnerabilities_found,
             }
 
         def _run_qa() -> Tuple[str, Dict[str, Any]]:
+            _require_code()
+            from saleha.core.harness.test_runner import TestRunner
             qa_agent = QALeadAgent(model=self._resolve_model("qa"))
-            suite = qa_agent.generate_test_suite(goal, current_code, framework="pytest")
-            combined_run = f"{current_code}\n\n{suite.test_code}"
-            executor = CodeExecutor(timeout=15)
-            exec_res = executor.execute(combined_run)
-            tests_ok = exec_res.success
-            err_msg = "" if tests_ok else (exec_res.error or "Test assertions failed")[:300]
+            suite = qa_agent.generate_test_suite(goal, current_code)
+            if not suite.generated:
+                with blackboard.lock:
+                    blackboard.test_error = f"no tests generated: {suite.error}"
+                return f"QA skipped: no tests generated ({suite.error})", {"passed": False, "ran": 0}
+            # The old arm ran code + tests as a plain script, which only
+            # defines `def test_...` functions: "tests passed" meant "the
+            # module imported". The runner calls each test and counts them.
+            run = TestRunner().run_suite(current_code, test_code=suite.test_code, timeout=15)
+            err_msg = "" if run.passed else run.failure_report(300)
             with blackboard.lock:
                 blackboard.test_code = suite.test_code
-                blackboard.tests_passed = tests_ok
-                blackboard.test_count = suite.test_case_count
+                blackboard.tests_ran = run.ran > 0
+                blackboard.tests_passed = run.passed
+                blackboard.test_count = run.ran
                 blackboard.test_error = err_msg
-            summary_msg = f"Ran {suite.test_case_count} assertion(s): {'PASSED' if tests_ok else f'FAILED ({err_msg})'}"
+            summary_msg = f"Ran {run.ran} model-written test(s): {'PASSED' if run.passed else f'FAILED ({err_msg})'}"
             return summary_msg, {
-                "passed": tests_ok,
-                "test_count": suite.test_case_count,
-                "exit_code": exec_res.exit_code,
+                "passed": run.passed,
+                "test_count": run.ran,
                 "error": err_msg,
+                "verified_by": "model-written tests",
             }
 
         def _run_sre() -> Tuple[str, Dict[str, Any]]:
@@ -404,11 +439,8 @@ class OctopusCoordinator:
                 blackboard.resilience_score = chaos_res.resilience_score_pct
                 blackboard.circuit_breaker_patch = chaos_res.circuit_breaker_patch
             return (
-                f"Resilience Score: {chaos_res.resilience_score_pct}% ({chaos_res.injected_fault_scenario})",
-                {
-                    "score": chaos_res.resilience_score_pct,
-                    "scenario": chaos_res.injected_fault_scenario,
-                },
+                "Resilience not measured (no fault injection); circuit-breaker template attached",
+                {"score": None, "measured": False},
             )
 
         parallel_phase3 = [
@@ -459,9 +491,11 @@ class OctopusCoordinator:
         # PHASE 4: CRITIQUE & CONSTITUTIONAL REVIEW (Arm 7)
         # =====================================================================
         def _run_critic() -> Tuple[str, Dict[str, Any]]:
+            _require_code()
             rev_agent = ReviewerAgent(model=self._resolve_model("reviewer"))
             review = rev_agent.review_code(goal, blackboard.source_code)
             with blackboard.lock:
+                blackboard.review_ran = True
                 blackboard.review_approved = review.approved
                 blackboard.review_feedback = review.feedback
             verdict = "APPROVED" if review.approved else "REVISION_REQUESTED"
@@ -485,25 +519,34 @@ class OctopusCoordinator:
                     )
                 )
 
-        # Honest determination of overall success
+        # Success needs code, and every check to have run and come back
+        # positive. With the old True defaults a crashed arm counted as a pass.
         overall_success = (
-            bool(blackboard.source_code)
-            and blackboard.tests_passed
-            and blackboard.security_clean
-            and blackboard.review_approved
+            blackboard.code_generated
+            and blackboard.tests_ran and blackboard.tests_passed
+            and blackboard.security_checked and blackboard.security_clean
+            and blackboard.review_ran and blackboard.review_approved
         )
 
         total_dur_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
+        def _verdict(ran: bool, ok: bool, good: str, bad: str) -> str:
+            return "NOT RUN" if not ran else (good if ok else bad)
+
+        tests_line = _verdict(blackboard.tests_ran, blackboard.tests_passed, "PASSED",
+                              f"FAILED ({blackboard.test_error})")
+        if not blackboard.tests_ran and blackboard.test_error:
+            tests_line = f"NOT RUN ({blackboard.test_error})"
         summary_lines = [
             f"Octopus Multi-Brain Run Completed in {total_dur_ms}ms",
             f"Mission: {goal}",
             f"Result: {'SUCCESS' if overall_success else 'FAILED'}",
-            f"ADR: {blackboard.adr_title or 'Standard Design'}",
-            f"Sandbox Tests: {'PASSED' if blackboard.tests_passed else f'FAILED ({blackboard.test_error})'}",
-            f"Security Audit: {'CLEAN' if blackboard.security_clean else 'VULNERABILITIES_FOUND'}",
-            f"Resilience Score: {blackboard.resilience_score}%",
-            f"Peer Review: {'APPROVED' if blackboard.review_approved else 'REJECTED'}",
+            f"ADR: {blackboard.adr_title or 'none'}",
+            f"Code: {'generated' if blackboard.code_generated else 'NOT GENERATED'}",
+            f"Tests (model-written): {tests_line}",
+            f"Security Audit: {_verdict(blackboard.security_checked, blackboard.security_clean, 'CLEAN', 'ISSUES_FOUND')}",
+            "Resilience: not measured",
+            f"Peer Review: {_verdict(blackboard.review_ran, blackboard.review_approved, 'APPROVED', 'REJECTED')}",
         ]
         summary_report = "\n".join(summary_lines)
 
@@ -529,6 +572,9 @@ class OctopusCoordinator:
             total_duration_ms=total_dur_ms,
             brain_outputs=blackboard.brain_outputs,
             summary_report=summary_report,
+            code_generated=blackboard.code_generated,
+            tests_ran=blackboard.tests_ran,
+            security_checked=blackboard.security_checked,
         )
 
 

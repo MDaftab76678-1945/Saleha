@@ -17,9 +17,6 @@ from saleha.core.agent_contracts import (
     QAOutputContract,
     ReviewerOutputContract,
     FinOpsOutputContract,
-    DesignerOutputContract,
-    DataEngineerOutputContract,
-    DevOpsOutputContract,
 )
 from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.core.plugin_manifest import PluginManifestEngine, SalehaPluginManifest, PluginAgentSpec
@@ -66,17 +63,32 @@ class SwarmCheckpointStoreTests(unittest.TestCase):
 
 class SessionResumeIntegrationTests(unittest.TestCase):
     def test_execute_and_resume_swarm(self) -> None:
+        from saleha.tests.swarm_stubs import stub_agents
         engine = SwarmPipelineEngine()
-        res = engine.execute_swarm("Synthesize resilient task runner in Python")
+        with stub_agents():
+            res = engine.execute_swarm("Synthesize resilient task runner in Python")
         self.assertTrue(res.success)
         self.assertTrue(res.execution_id)
 
-        # Resume using existing checkpoint
+        # Resume using existing checkpoint: verdict recomputed from saved flags
         resumed = engine.resume_swarm(res.execution_id)
         self.assertTrue(resumed.success)
         self.assertTrue(resumed.resumed_from_checkpoint)
         self.assertEqual(resumed.goal, res.goal)
         self.assertEqual(resumed.final_code, res.final_code)
+        self.assertEqual([s.status for s in resumed.stages], [s.status for s in res.stages])
+
+    def test_resume_of_failed_run_is_not_success(self) -> None:
+        # resume_swarm used to return success=True for any completed checkpoint.
+        from saleha.tests.swarm_stubs import stub_agents
+        engine = SwarmPipelineEngine()
+        with stub_agents(code=None):
+            res = engine.execute_swarm("Synthesize resilient task runner in Python")
+        self.assertFalse(res.success)
+        resumed = engine.resume_swarm(res.execution_id)
+        self.assertFalse(resumed.success)
+        self.assertFalse(resumed.tests_passed)
+        self.assertFalse(resumed.security_clean)
 
 
 class AgentContractsTests(unittest.TestCase):
@@ -135,7 +147,7 @@ class AgentWorkerPoolTests(unittest.TestCase):
 
         res = self.pool.execute_task("slow_task", slow_fn, timeout_sec=0.1)
         self.assertFalse(res.success)
-        self.assertIn("timed out", res.error_message.lower())
+        self.assertIn("timed out", (res.error_message or "").lower())
 
 
 class PluginManifestEngineTests(unittest.TestCase):

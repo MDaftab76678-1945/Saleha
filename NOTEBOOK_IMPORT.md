@@ -11409,3 +11409,43 @@ Second half (sandbox + shared screen):
 Measured: new tests in `test_sandbox_pass158.py` fail on the pre-fix code
 and pass after (5 consecutive runs); suite 2668 passed, 17 skipped;
 preflight passes. Open items: ORCHESTRATOR.md section 8.
+
+## Pass 159 (2026-09-25) -- the swarm, octopus and test runner verified nothing
+
+Read in full: `swarm_pipeline_engine.py`, `octopus_coordinator.py`,
+`test_runner.py`, `qa_lead.py`, `chaos_resilience.py`, and the QA /
+security / reviewer fallbacks.
+
+- Swarm and octopus: a failed Coder became `def execute(): return True`;
+  QALead offline became `assert True` tests; and even real tests were run as
+  a plain script, which only *defines* `def test_...` -- "tests passed" meant
+  "the module imported". Verdicts started True, so a crashed or skipped arm
+  counted as passed/clean/approved. `resume_swarm` returned success=True for
+  any completed checkpoint; unimplemented roles reported "completed". The
+  octopus Security arm swapped in regex-patched code while QA tested the
+  unpatched code in parallel. Now: no placeholders, checks go through
+  TestRunner, "not run" is its own verdict, success needs every check to
+  have run and passed.
+- ChaosResilienceAgent: fixed `resilience_score_pct=99.98` and a fixed
+  "1.2s cascade" analysis for any target, no fault ever injected, pinned by
+  `test_frontier_suite` (`>= 99.0`). Now a labelled template, score None.
+- TestRunner (`saleha run --tests`, ttc_solver, tester): probes before the
+  fix -- a correct add() with a `__main__` guard FAILED; a wrong add()
+  printing a fake SALEHA_TEST_JSON line PASSED; pytest-style tests ran 0.
+  A real swarm run on qwen2.5-coder:3b then showed three more: pytest-style
+  test classes ran 0; the QA model pasted `is_palindrome` into its tests (so
+  they tested their own copy); the Coder's own embedded TestCase ran as part
+  of the suite and one crashed at import. All fixed: nonce marker, guard
+  stripped from the solution, only the test segment's tests collected,
+  pasted copies removed so tests hit the real code, embedded TestCases
+  dropped. QA now gets the API (signatures + docstrings), not the source,
+  and is told to test only behaviour the task states.
+
+Measured: three real swarm runs went from 0 tests executed to 4, 9 and 4.
+All three still FAIL, and that verdict is honest but wrong about who is at
+fault: the code is correct, the model-written test is not
+(`assertFalse(is_palindrome("A"))` for a case-insensitive task). Model-written
+tests are the only check in these pipelines; next step is cross-checking.
+New tests fail on the pre-fix code (14 + runner cases); suite 2688 passed,
+17 skipped.
+

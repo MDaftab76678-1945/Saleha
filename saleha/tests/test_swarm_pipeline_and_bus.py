@@ -18,6 +18,7 @@ from saleha.core.swarm.swarm_pipeline_engine import (
     SwarmPipelineEngine,
     SwarmPipelineStage,
 )
+from saleha.tests.swarm_stubs import FAILING_TESTS, GOOD_CODE, stub_agents
 
 
 class AgentMessageBusTests(unittest.TestCase):
@@ -119,23 +120,57 @@ class SwarmPipelineRouterTests(unittest.TestCase):
 
 class SwarmPipelineEngineTests(unittest.TestCase):
     def test_end_to_end_swarm_execution(self) -> None:
-        # tests_passed and success are no longer hardcoded True by the
-        # engine -- this now asserts a QALead stage that actually executed
-        # the generated test code in a subprocess (CodeExecutor) against the
-        # generated source, and a task string with a hyphen ("thread-safe")
-        # deliberately kept in the goal since that once produced an invalid
-        # Python identifier in the fallback test template and silently never
-        # ran, because nothing ran the tests before this fix.
+        # This used to pass with no model at all: a placeholder
+        # `def execute(): return True` plus `assert True` tests that were
+        # never called. Now the agents are stubbed with real code and real
+        # tests, and the QA stage must actually run them.
         engine = SwarmPipelineEngine()
-        res = engine.execute_swarm("Synthesize thread-safe token bucket rate limiter in Python")
+        with stub_agents():
+            res = engine.execute_swarm("Synthesize thread-safe token bucket rate limiter in Python")
 
-        self.assertTrue(res.success)
-        self.assertTrue(res.execution_id)
-        self.assertIn("ADR", res.adr_title)
-        self.assertTrue(res.security_clean)
+        self.assertTrue(res.success, [s.output_summary for s in res.stages])
+        self.assertTrue(res.code_generated)
+        self.assertTrue(res.tests_ran)
+        self.assertTrue(res.security_checked and res.security_clean)
         self.assertTrue(res.tests_passed)
-        self.assertTrue(res.final_code)
-        self.assertTrue(len(res.stages) >= 6)
+        self.assertEqual(res.final_code, GOOD_CODE)
+        qa = next(s for s in res.stages if s.agent_role == "QALead")
+        self.assertEqual(qa.payload["test_count"], 1)
+
+    def test_no_model_means_no_success(self) -> None:
+        engine = SwarmPipelineEngine()
+        with stub_agents(code=None):
+            res = engine.execute_swarm("Synthesize token bucket")
+        self.assertFalse(res.success)
+        self.assertFalse(res.code_generated)
+        self.assertFalse(res.tests_ran)
+        self.assertEqual(res.final_code, "")
+        statuses = {s.agent_role: s.status for s in res.stages}
+        self.assertEqual(statuses["Coder"], "failed")
+        self.assertEqual(statuses["QALead"], "skipped")
+        self.assertEqual(statuses["SecurityGuard"], "skipped")
+
+    def test_failing_tests_fail_the_run(self) -> None:
+        engine = SwarmPipelineEngine()
+        with stub_agents(tests=FAILING_TESTS):
+            res = engine.execute_swarm("Synthesize token bucket")
+        self.assertTrue(res.tests_ran)
+        self.assertFalse(res.tests_passed)
+        self.assertFalse(res.success)
+
+    def test_no_tests_generated_is_not_a_pass(self) -> None:
+        engine = SwarmPipelineEngine()
+        with stub_agents(tests=None):
+            res = engine.execute_swarm("Synthesize token bucket")
+        self.assertFalse(res.tests_ran)
+        self.assertFalse(res.success)
+
+    def test_unimplemented_roles_are_skipped_not_success(self) -> None:
+        engine = SwarmPipelineEngine()
+        with stub_agents():
+            res = engine.execute_swarm("Deploy with docker the token bucket")
+        devops = next(s for s in res.stages if s.agent_role == "DevOps")
+        self.assertEqual(devops.status, "skipped")
 
 
 class SwarmVisualizerTests(unittest.TestCase):

@@ -18,60 +18,30 @@ with numbers nothing had measured:
 - A task whose tests never ran (memory replay, sandbox block, no code, harness
   error) is reported as not executed rather than folded into pass or fail.
 
-And one that failed everything instead: see `strip_main_guard`.
+And one that failed everything instead: the candidate's `__main__` guard
+(see `saleha.core.harness.test_runner.strip_main_guard`).
 """
 
-import ast
 import secrets
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional
 
 from saleha.core.harness.code_executor import CodeExecutor
+
+# Shared with the orchestrator's test runner. The orchestrator's output ends
+# with its own `unittest.main()` under a __main__ guard; run as a script it
+# exited before the task's tests, so a correct `is_valid_parentheses` scored
+# FAIL. Re-exported here for callers that use `saleha.harness.core.strip_main_guard`.
+from saleha.core.harness.test_runner import strip_main_guard
 from saleha.harness.benchmarks import BenchmarkCatalog, BenchmarkTaskSpec
 from saleha.harness.metrics import HarnessTaskResult, compute_benchmark_summary, pass_rate
 from saleha.harness.reporter import HarnessReport, reporter
 from saleha.orchestrator import SalehaOrchestrator
 
+__all__ = ["PASS_MARKER", "SalehaHarness", "harness", "strip_main_guard"]
+
 PASS_MARKER = "HARNESS_TEST_PASSED"
-
-
-def _is_main_guard(node: ast.stmt) -> bool:
-    if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
-        return False
-    cmp = node.test
-    if len(cmp.ops) != 1 or not isinstance(cmp.ops[0], ast.Eq):
-        return False
-    sides = [cmp.left, cmp.comparators[0]]
-    return (any(isinstance(s, ast.Name) and s.id == "__name__" for s in sides)
-            and any(isinstance(s, ast.Constant) and s.value == "__main__" for s in sides))
-
-
-def strip_main_guard(code: str) -> str:
-    """
-    Remove top-level `if __name__ == "__main__":` blocks from candidate code.
-
-    The orchestrator's output ends with its own `unittest.main()` under that
-    guard. Run as a script, it exits before the task's tests are reached, so
-    every task failed whatever the function did -- a correct
-    `is_valid_parentheses` was scored FAIL. The harness grades the code the
-    way an importer would use it, which never runs the guard. Everything else
-    is left byte-for-byte; unparseable code is returned unchanged and fails on
-    its own.
-    """
-    try:
-        tree = ast.parse(code)
-    except SyntaxError:
-        return code
-    guards = [n for n in tree.body if _is_main_guard(n)]
-    if not guards:
-        return code
-    lines = code.splitlines()
-    for node in guards:
-        end = node.end_lineno or node.lineno
-        for i in range(node.lineno - 1, end):
-            lines[i] = ""
-    return "\n".join(lines) + "\n"
 
 
 class SalehaHarness:

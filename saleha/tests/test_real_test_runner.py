@@ -65,9 +65,89 @@ class RunnerScriptTests(unittest.TestCase):
         self.assertNotIn("unittest.main(", cleaned)
 
     def test_script_contains_marker_and_exit_logic(self) -> None:
-        script = build_runner_script(PASSING_CODE, PASSING_TESTS)
-        self.assertIn("SALEHA_TEST_JSON:", script)
-        self.assertIn("_sys.exit(0 if _result.wasSuccessful() else 1)", script)
+        script = build_runner_script(PASSING_CODE, PASSING_TESTS, marker="SALEHA_TEST_JSON:abc:")
+        self.assertIn("'SALEHA_TEST_JSON:abc:'", script)
+        self.assertIn("_sys.exit(0 if _result.wasSuccessful() and not _problems else 1)", script)
+
+    def test_markers_differ_per_script(self) -> None:
+        self.assertNotEqual(build_runner_script(PASSING_CODE, PASSING_TESTS),
+                            build_runner_script(PASSING_CODE, PASSING_TESTS))
+
+
+class RunnerHonestyTests(unittest.TestCase):
+    """Pass 159: each case was measured wrong before the fix."""
+
+    def setUp(self) -> None:
+        self.runner = TestRunner()
+
+    def test_solution_main_guard_does_not_end_the_run(self) -> None:
+        code = PASSING_CODE + "\nif __name__ == '__main__':\n    import unittest\n    unittest.main()\n"
+        res = self.runner.run_suite(code, test_code=PASSING_TESTS, timeout=15)
+        self.assertTrue(res.passed, res.error)
+        self.assertEqual(res.ran, 2)
+
+    def test_forged_result_line_is_not_trusted(self) -> None:
+        forged = (
+            "def add(a, b):\n    return 0\n"
+            "print('SALEHA_TEST_JSON:' + '{\"ran\": 5, \"failures\": []}')\n"
+            "raise SystemExit(0)\n"
+        )
+        res = self.runner.run_suite(forged, test_code=PASSING_TESTS, timeout=15)
+        self.assertFalse(res.passed)
+        self.assertEqual(res.ran, 0)
+
+    def test_pytest_style_functions_run(self) -> None:
+        tests = "def test_add():\n    assert add(2, 3) == 5\n\ndef test_add_wrong():\n    assert add(2, 2) == 5\n"
+        res = self.runner.run_suite(PASSING_CODE, test_code=tests, timeout=15)
+        self.assertEqual(res.ran, 2)
+        self.assertFalse(res.passed)
+        self.assertEqual([f.test_name for f in res.failures], ["test_add_wrong"])
+
+    def test_fixture_tests_are_failures_not_silent_skips(self) -> None:
+        tests = "def test_uses_tmp(tmp_path):\n    assert tmp_path\n"
+        res = self.runner.run_suite(PASSING_CODE, test_code=tests, timeout=15)
+        self.assertFalse(res.passed)
+        self.assertIn("needs pytest fixtures", res.failure_report())
+
+    def test_solution_helper_named_test_is_not_collected(self) -> None:
+        code = PASSING_CODE + "\ndef test_connection(host):\n    return host\n"
+        res = self.runner.run_suite(code, test_code=PASSING_TESTS, timeout=15)
+        self.assertTrue(res.passed, res.failure_report())
+
+    # The next three were found in a real swarm run on qwen2.5-coder:3b.
+
+    def test_pytest_style_class_runs(self) -> None:
+        tests = ("class TestAdd:\n"
+                 "    def test_ok(self):\n        assert add(2, 3) == 5\n"
+                 "    def test_bad(self):\n        assert add(2, 2) == 5\n")
+        res = self.runner.run_suite(PASSING_CODE, test_code=tests, timeout=15)
+        self.assertEqual(res.ran, 2)
+        self.assertEqual([f.test_name for f in res.failures], ["TestAdd.test_bad"])
+
+    def test_tests_that_paste_a_copy_still_test_the_real_solution(self) -> None:
+        # The QA model pasted a correct copy of the function into its tests.
+        # Before: the tests checked the copy and a wrong solution PASSED.
+        wrong = "def add(a, b):\n    return 0\n"
+        tests = "def add(a, b):\n    return a + b\n\ndef test_add():\n    assert add(2, 3) == 5\n"
+        res = self.runner.run_suite(wrong, test_code=tests, timeout=15)
+        self.assertEqual(res.ran, 1)
+        self.assertFalse(res.passed)
+
+    def test_crashing_embedded_testcase_does_not_fail_a_correct_solution(self) -> None:
+        # Real run: the solution's own test class used `unittest` unimported.
+        code = PASSING_CODE + "\nclass OwnTests(unittest.TestCase):\n    pass\n"
+        res = self.runner.run_suite(code, test_code=PASSING_TESTS, timeout=15)
+        self.assertTrue(res.passed, res.failure_report())
+
+    def test_tests_embedded_in_the_solution_are_not_the_suite(self) -> None:
+        code = PASSING_CODE + (
+            "\nimport unittest\n"
+            "class OwnTests(unittest.TestCase):\n"
+            "    def test_own_wrong(self):\n        self.assertEqual(add(1, 1), 3)\n"
+        )
+        res = self.runner.run_suite(code, test_code=PASSING_TESTS, timeout=15)
+        self.assertTrue(res.passed, res.failure_report())
+        self.assertEqual(res.ran, 2)
 
 
 class TestRunnerRealExecutionTests(unittest.TestCase):

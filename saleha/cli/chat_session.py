@@ -417,12 +417,11 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_chaos_command(self, target: str) -> None:
-        self.console.print(f"\n[bold cyan]💥 Chaos Resilience Fault Injection Running on:[/] [yellow]\"{target}\"[/]")
         result = chaos_resilience.run_chaos_test(target)
-        self.console.print(f"[bold green]✨ Chaos Experiment Complete in {result.experiment_duration_ms}ms (Resilience Score: {result.resilience_score_pct}%)![/bold green]\n")
-        self.console.print(f"- Fault Injected: [red]{result.injected_fault_scenario}[/red]")
-        self.console.print(f"- Impact RCA    : [white]{result.system_impact_analysis}[/white]\n")
-        self.console.print(Panel(result.circuit_breaker_patch, title="[bold cyan]Synthesized Autonomous Circuit Breaker[/]", border_style="cyan"))
+        self.console.print(f"\n[bold cyan]Circuit-breaker template for:[/] [yellow]\"{target}\"[/]")
+        self.console.print(f"- Fault injection : {result.injected_fault_scenario}")
+        self.console.print(f"- Resilience score: {result.system_impact_analysis}\n")
+        self.console.print(Panel(result.circuit_breaker_patch, title="[bold cyan]Circuit breaker template (untested)[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_autopr_command(self, task: str) -> None:

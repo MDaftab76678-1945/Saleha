@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from saleha.core.swarm.agent_message_bus import AgentMessageBus
 from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.core.harness.code_executor import ExecutionResult
+from saleha.tests.swarm_stubs import GOOD_CODE, stub_agents
 from saleha.core.octopus_coordinator import (
     ArmBrainOutput,
     ArmBrainRole,
@@ -27,6 +28,12 @@ class OctopusCoordinatorTests(unittest.TestCase):
             bus=self.bus,
             timeout_sec=30.0,
         )
+        # Real code and tests for every run: model="mock" reaches no model,
+        # and these tests used to pass only because the coordinator hid the
+        # Coder's failure behind a `def execute(): return True` placeholder.
+        stubs = stub_agents()
+        stubs.__enter__()
+        self.addCleanup(stubs.__exit__, None, None, None)
 
     def tearDown(self) -> None:
         self.worker_pool.shutdown(wait=False)
@@ -85,7 +92,10 @@ class OctopusCoordinatorTests(unittest.TestCase):
         self.assertIsInstance(result, OctopusExecutionResult)
         self.assertTrue(result.execution_id)
         self.assertEqual(result.goal, "Build a thread-safe token bucket rate limiter")
-        self.assertTrue(len(result.final_code) > 0)
+        self.assertEqual(result.final_code, GOOD_CODE)
+        self.assertTrue(result.success, result.summary_report)
+        self.assertTrue(result.tests_ran and result.tests_passed)
+        self.assertIsNone(result.resilience_score)
         self.assertTrue(result.total_duration_ms >= 0.0)
 
         # All 8 peripheral arm brains must be present in brain_outputs
@@ -138,8 +148,34 @@ class OctopusCoordinatorTests(unittest.TestCase):
                 goal="Sanitize dangerous input",
             )
             self.assertFalse(result.security_clean)
+            self.assertFalse(result.success)
             self.assertEqual(len(events_captured), 1)
             self.assertEqual(events_captured[0].event_type, "octopus_conflict_resolved")
+            # The untested regex patch is a suggestion; the returned code is
+            # the code QA actually tested.
+            self.assertEqual(result.final_code, GOOD_CODE)
+
+    def test_no_code_means_no_success_and_checks_not_run(self) -> None:
+        with stub_agents(code=None):
+            result = self.coordinator.coordinate(goal="Build a rate limiter")
+        self.assertFalse(result.success)
+        self.assertFalse(result.code_generated)
+        self.assertFalse(result.tests_ran)
+        self.assertFalse(result.security_checked)
+        self.assertEqual(result.final_code, "")
+        self.assertIn("Code: NOT GENERATED", result.summary_report)
+        self.assertEqual(result.brain_outputs["coder"].status, "failed")
+        self.assertEqual(result.brain_outputs["qa"].status, "failed")
+        self.assertIn("no generated code", result.brain_outputs["qa"].summary)
+
+    def test_crashed_arm_is_not_a_pass(self) -> None:
+        # The blackboard used to start tests_passed=True, so a QA arm that
+        # raised left "passed" behind.
+        with patch("saleha.agents.qa_lead.QALeadAgent.generate_test_suite",
+                   side_effect=RuntimeError("qa crashed")):
+            result = self.coordinator.coordinate(goal="Build a rate limiter")
+        self.assertFalse(result.tests_passed)
+        self.assertFalse(result.success)
 
 
 if __name__ == "__main__":

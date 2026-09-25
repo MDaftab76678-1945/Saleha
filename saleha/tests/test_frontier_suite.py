@@ -1,25 +1,15 @@
 """Unit and Integration Test Suite for Saleha v3.2.0 Frontier Suite."""
 
-import pytest
 from unittest.mock import MagicMock
 
-from saleha.core.mcp_server import (
-    SalehaMCPServer,
-    saleha_mcp_server,
-)
+from saleha.core.mcp_server import SalehaMCPServer
 from saleha.agents.screen_copilot import (
     ScreenCopilotAgent,
-    ScreenInspectionResult,
     screen_copilot,
 )
-from saleha.core.swarm.swarm_cluster_node import (
-    SwarmClusterNode,
-    ClusterPeer,
-    swarm_cluster,
-)
+from saleha.core.swarm.swarm_cluster_node import SwarmClusterNode
 from saleha.agents.chaos_resilience import (
     ChaosResilienceAgent,
-    ChaosExperimentResult,
     chaos_resilience,
 )
 from saleha.cli.chat_session import SwarmChatSession
@@ -99,12 +89,39 @@ class TestChaosResilienceAgent:
         res = agent.execute("Auth Token Verification Service")
         assert res.success is True
         assert "ChaosResilienceAgent" in res.content
-        assert "Synthesized Self-Healing Circuit Breaker" in res.content
+        assert "not measured" in res.content
 
-    def test_run_chaos_test(self) -> None:
+    def test_run_chaos_test_claims_no_measurement(self) -> None:
+        # This used to assert `resilience_score_pct >= 99.0` -- pinning a
+        # hardcoded 99.98 that no experiment produced.
         result = chaos_resilience.run_chaos_test("Redis Cache Backend")
         assert "CircuitBreakerOpenException" in result.circuit_breaker_patch
-        assert result.resilience_score_pct >= 99.0
+        assert result.resilience_score_pct is None
+        assert result.measured is False
+
+    def test_circuit_breaker_template_actually_works(self) -> None:
+        # Run the template for real, in the sandboxed test runner.
+        from saleha.core.harness.test_runner import TestRunner
+        template = chaos_resilience.run_chaos_test("svc").circuit_breaker_patch
+        tests = (
+            "import unittest\n"
+            "class TestBreaker(unittest.TestCase):\n"
+            "    def test_opens_after_max_failures(self):\n"
+            "        calls = []\n"
+            "        @resilient_circuit_breaker(max_failures=2, reset_timeout_sec=60)\n"
+            "        def flaky():\n"
+            "            calls.append(1)\n"
+            "            raise ValueError('down')\n"
+            "        for _ in range(2):\n"
+            "            with self.assertRaises(ValueError):\n"
+            "                flaky()\n"
+            "        with self.assertRaises(CircuitBreakerOpenException):\n"
+            "            flaky()\n"
+            "        self.assertEqual(len(calls), 2)\n"
+        )
+        run = TestRunner().run_suite(template, test_code=tests, timeout=15)
+        assert run.passed, run.failure_report()
+        assert run.ran == 1
 
 
 class TestSwarmChatSessionFrontierCommands:

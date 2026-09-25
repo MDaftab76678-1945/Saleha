@@ -22,6 +22,8 @@ from saleha.core.agent_contracts import (
     ReviewerOutputContract,
     SecurityOutputContract,
 )
+from saleha.core.memory.semantic_memory_cache import semantic_memory
+from saleha.core.merkle_provenance import merkle_provenance_ledger
 from saleha.core.swarm.agent_message_bus import (
     ADRGeneratedEvent,
     CodeSynthesizedEvent,
@@ -32,8 +34,6 @@ from saleha.core.swarm.agent_message_bus import (
     TokenCompressedEvent,
     message_bus,
 )
-from saleha.core.merkle_provenance import merkle_provenance_ledger
-from saleha.core.memory.semantic_memory_cache import semantic_memory
 from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpoint, checkpoint_store
 
 
@@ -61,6 +61,11 @@ class SwarmExecutionResult:
     total_duration_ms: float
     memory_recalled_count: int
     resumed_from_checkpoint: bool = False
+    # What actually happened, so "did not run" never reads as "passed":
+    # success requires code_generated, tests_ran and security_checked.
+    code_generated: bool = False
+    tests_ran: bool = False
+    security_checked: bool = False
 
 
 class AutonomousSwarmRouter:
@@ -145,11 +150,16 @@ class SwarmPipelineEngine:
             assigned_to=",".join(role_sequence)
         ))
 
-        # Pipeline state accumulators
+        # Pipeline state accumulators. Every verdict starts as "not done":
+        # these used to start True, so a stage that never ran counted as
+        # secure / passed.
         adr_title = f"ADR: {goal}"
         source_code = ""
-        is_secure = True
-        tests_passed = True
+        code_generated = False
+        is_secure = False
+        security_checked = False
+        tests_passed = False
+        tests_ran = False
         savings_pct = 0.0
 
         for idx, role in enumerate(role_sequence, start=1):
@@ -186,29 +196,52 @@ class SwarmPipelineEngine:
                 from saleha.agents.coder import CoderAgent
                 agent = CoderAgent(model=self._resolve_model("coder"))
                 resp = agent.generate_code(goal)
-                source_code = resp.code if resp.success else f"# Synthesized Code for: {goal}\ndef execute():\n    return True\n"
-                contract = CoderOutputContract(source_code=source_code)
-                contract.validate()
-                stage.output_summary = f"Synthesized AST valid code ({len(source_code)} chars)"
-                stage.payload = {"code": source_code}
-                message_bus.publish(CodeSynthesizedEvent(
-                    sender_agent="CoderAgent",
-                    source_code=source_code
-                ))
+                if resp.success and resp.code.strip():
+                    source_code = resp.code
+                    code_generated = True
+                    contract = CoderOutputContract(source_code=source_code)
+                    contract.validate()
+                    stage.output_summary = f"Generated code ({len(source_code)} chars)"
+                    stage.payload = {"code": source_code}
+                    message_bus.publish(CodeSynthesizedEvent(
+                        sender_agent="CoderAgent",
+                        source_code=source_code
+                    ))
+                else:
+                    # This used to substitute `def execute(): return True`
+                    # and carry on, so security, QA and review all ran
+                    # against a placeholder and the swarm could report
+                    # success with no model reachable.
+                    stage.status = "failed"
+                    stage.output_summary = f"No code generated: {resp.error or 'empty model output'}"
+                    stage.payload = {"error": resp.error}
+
+            elif role in ("SecurityGuard", "QALead", "Reviewer") and not code_generated:
+                stage.status = "skipped"
+                stage.output_summary = f"{role} skipped: no generated code to check"
 
             elif role == "SecurityGuard":
                 from saleha.agents.security_guard import SecurityGuardAgent
                 agent = SecurityGuardAgent(model=self._resolve_model("security"))
-                audit = agent.audit_and_harden(goal, source_code or "def f(): pass")
+                audit = agent.audit_and_harden(goal, source_code)
+                security_checked = True
+                # is_secure is the verdict on the code as generated. The regex
+                # auto-patch below is not re-audited, so it does not flip it.
                 is_secure = audit.is_secure
-                source_code = audit.hardened_code
+                source_code = audit.hardened_code or source_code
                 contract = SecurityOutputContract(
                     is_secure=is_secure,
                     vulnerabilities_found=audit.vulnerabilities_found,
                     hardened_code=source_code
                 )
                 contract.validate()
-                stage.output_summary = f"Security SAST: {'PASS (Clean)' if is_secure else f'Hardened ({len(audit.vulnerabilities_found)} CVEs resolved)'}"
+                if not is_secure:
+                    stage.status = "failed"
+                stage.output_summary = (
+                    "Security scan: clean" if is_secure else
+                    f"Security scan: {len(audit.vulnerabilities_found)} issue(s) found; "
+                    f"auto-patch attempted, not re-verified"
+                )
                 stage.payload = {"is_secure": is_secure, "vulnerabilities": audit.vulnerabilities_found}
                 message_bus.publish(SecurityVulnerabilityEvent(
                     sender_agent="SecurityGuardAgent",
@@ -218,46 +251,54 @@ class SwarmPipelineEngine:
 
             elif role == "QALead":
                 from saleha.agents.qa_lead import QALeadAgent
-                from saleha.core.harness.code_executor import CodeExecutor
+                from saleha.core.harness.test_runner import TestRunner
                 agent = QALeadAgent(model=self._resolve_model("qa"))
-                suite = agent.generate_test_suite(goal, source_code or "def f(): pass", framework="pytest")
-                # Actually run the generated tests against the generated code --
-                # this used to set tests_passed = True unconditionally, meaning
-                # no test ever ran before the pipeline reported success. Concat
-                # source + test code and execute it for real; a plain "assert"
-                # failure raises AssertionError, which CodeExecutor sees as a
-                # non-zero exit code, exactly like running pytest would.
-                combined = f"{source_code or 'def f(): pass'}\n\n{suite.test_code}"
-                exec_result = CodeExecutor(timeout=15).execute(combined)
-                tests_passed = exec_result.success
-                run_note = "blocked by sandbox" if exec_result.blocked else exec_result.error[:200]
-                contract = QAOutputContract(
-                    framework="pytest",
-                    test_code=suite.test_code,
-                    test_case_count=suite.test_case_count,
-                    passed=tests_passed
-                )
-                contract.validate()
-                stage.output_summary = (
-                    f"Ran {suite.test_case_count} generated test assertion(s): "
-                    f"{'PASSED' if tests_passed else f'FAILED ({run_note})' if run_note else 'FAILED'}"
-                )
-                stage.payload = {
-                    "test_code": suite.test_code,
-                    "test_count": suite.test_case_count,
-                    "exit_code": exec_result.exit_code,
-                    "stderr": exec_result.error[:500],
-                }
-                message_bus.publish(TestExecutionEvent(
-                    sender_agent="QALeadAgent",
-                    passed=tests_passed,
-                    tests_count=suite.test_case_count
-                ))
+                suite = agent.generate_test_suite(goal, source_code)
+                if not suite.generated:
+                    stage.status = "skipped"
+                    stage.output_summary = f"QA skipped: no tests generated ({suite.error})"
+                    stage.payload = {"error": suite.error}
+                else:
+                    # Run through the structured runner. The old stage ran
+                    # code + tests as a plain script, which only *defines*
+                    # `def test_...` functions -- "tests passed" meant "the
+                    # module imported". The runner calls every test, counts
+                    # them, and refuses a suite that ran none.
+                    run = TestRunner().run_suite(source_code, test_code=suite.test_code, timeout=15)
+                    tests_ran = run.ran > 0
+                    tests_passed = run.passed
+                    contract = QAOutputContract(
+                        framework=suite.framework,
+                        test_code=suite.test_code,
+                        test_case_count=run.ran,
+                        passed=tests_passed
+                    )
+                    contract.validate()
+                    if not tests_passed:
+                        stage.status = "failed"
+                    stage.output_summary = (
+                        f"Ran {run.ran} model-written test(s) against the generated code: "
+                        f"{'PASSED' if tests_passed else 'FAILED (' + run.failure_report(200) + ')'}"
+                    )
+                    stage.payload = {
+                        "test_code": suite.test_code,
+                        "test_count": run.ran,
+                        "failures": [f.test_name for f in run.failures],
+                        "error": run.error[:500],
+                        # The tests come from a model too; this is not an
+                        # independent check of the task.
+                        "verified_by": "model-written tests",
+                    }
+                    message_bus.publish(TestExecutionEvent(
+                        sender_agent="QALeadAgent",
+                        passed=tests_passed,
+                        tests_count=run.ran
+                    ))
 
             elif role == "Reviewer":
                 from saleha.agents.reviewer import ReviewerAgent
                 agent = ReviewerAgent(model=self._resolve_model("reviewer"))
-                rev = agent.review_code(goal, source_code or "def f(): pass")
+                rev = agent.review_code(goal, source_code)
                 contract = ReviewerOutputContract(
                     approved=rev.approved,
                     score=9.5 if rev.approved else 5.0,
@@ -307,10 +348,14 @@ class SwarmPipelineEngine:
                 ))
 
             else:
-                stage.output_summary = f"Specialist Agent {role} completed stage execution"
+                # No agent is wired for this role. It used to report
+                # "completed stage execution" with status success.
+                stage.status = "skipped"
+                stage.output_summary = f"{role}: no agent implemented for this role; nothing ran"
 
             stage.duration_ms = round((time.time() - stage_start) * 1000, 2)
-            stage.status = "success"
+            if stage.status == "running":
+                stage.status = "success"
             stages.append(stage)
 
             # Record this stage in the cryptographic Merkle provenance chain.
@@ -332,14 +377,18 @@ class SwarmPipelineEngine:
             cp.completed_stages.append({
                 "stage_id": stage.stage_id,
                 "role": stage.agent_role,
+                "status": stage.status,
                 "duration_ms": stage.duration_ms,
                 "summary": stage.output_summary,
             })
             cp.state_payload = {
                 "adr_title": adr_title,
                 "source_code": source_code,
+                "code_generated": code_generated,
                 "is_secure": is_secure,
+                "security_checked": security_checked,
                 "tests_passed": tests_passed,
+                "tests_ran": tests_ran,
                 "savings_pct": savings_pct,
             }
             checkpoint_store.save_checkpoint(cp)
@@ -351,22 +400,24 @@ class SwarmPipelineEngine:
         cp.status = "completed"
         checkpoint_store.save_checkpoint(cp)
 
-        semantic_memory.store_memory(
-            category="pattern",
-            title=f"Swarm Pattern: {goal}",
-            content=f"ADR: {adr_title}\nImplementation Details: {source_code[:200]}...",
-            tags=[role.lower() for role in role_sequence]
-        )
-
         total_duration = round((time.time() - start_time) * 1000, 2)
 
-        # Overall success used to be hardcoded True regardless of whether
-        # QALead's tests actually passed or SecurityGuard found the code
-        # unsafe -- both flags were computed and stored, then ignored here.
-        # A pipeline that ran a SecurityGuard or QALead stage and got a
-        # negative result is not a success just because every stage
-        # completed without raising.
-        overall_success = is_secure and tests_passed
+        # Success needs every check to have actually run and come back
+        # positive. It was once hardcoded True, then `is_secure and
+        # tests_passed` with both flags starting True -- so a pipeline whose
+        # checks never ran still succeeded.
+        overall_success = _overall_success(code_generated, security_checked, is_secure,
+                                           tests_ran, tests_passed)
+
+        # Only a verified result becomes a reusable pattern; recalling a
+        # failed or unchecked one would seed the next run with it.
+        if overall_success:
+            semantic_memory.store_memory(
+                category="pattern",
+                title=f"Swarm Pattern: {goal}",
+                content=f"ADR: {adr_title}\nImplementation Details: {source_code[:200]}...",
+                tags=[role.lower() for role in role_sequence]
+            )
 
         return SwarmExecutionResult(
             execution_id=exec_id,
@@ -381,6 +432,9 @@ class SwarmPipelineEngine:
             total_duration_ms=total_duration,
             memory_recalled_count=len(relevant_memories),
             resumed_from_checkpoint=False,
+            code_generated=code_generated,
+            tests_ran=tests_ran,
+            security_checked=security_checked,
         )
 
     def resume_swarm(
@@ -388,7 +442,15 @@ class SwarmPipelineEngine:
         execution_id: str,
         callback: Optional[Callable[[SwarmPipelineStage], None]] = None
     ) -> SwarmExecutionResult:
-        """Resumes an interrupted swarm pipeline from the exact last saved stage."""
+        """
+        Return a completed run from its checkpoint, or re-run an unfinished one.
+
+        An unfinished run is re-executed from the first stage, not resumed
+        mid-pipeline (the old docstring claimed "from the exact last saved
+        stage"; the code never did that). A completed run's verdict is
+        recomputed from the saved flags. It used to be `success=True` for any
+        completed checkpoint, with missing flags defaulting to True.
+        """
         cp = checkpoint_store.get_checkpoint(execution_id)
         if not cp:
             raise ValueError(f"No checkpoint found for execution ID '{execution_id}'")
@@ -398,30 +460,47 @@ class SwarmPipelineEngine:
                 SwarmPipelineStage(
                     stage_id=s.get("stage_id", ""),
                     agent_role=s.get("role", ""),
-                    status="success",
+                    # Checkpoints written before stage status was saved do
+                    # not say how a stage ended; do not claim "success".
+                    status=s.get("status", "unknown"),
                     duration_ms=s.get("duration_ms", 0.0),
                     output_summary=s.get("summary", ""),
                 )
                 for s in cp.completed_stages
             ]
-            state = cp.state_payload
+            state = cp.state_payload or {}
+            code_generated = bool(state.get("code_generated", False))
+            security_checked = bool(state.get("security_checked", False))
+            is_secure = bool(state.get("is_secure", False))
+            tests_ran = bool(state.get("tests_ran", False))
+            tests_passed = bool(state.get("tests_passed", False))
             return SwarmExecutionResult(
                 execution_id=cp.execution_id,
                 goal=cp.goal,
-                success=True,
+                success=_overall_success(code_generated, security_checked, is_secure,
+                                         tests_ran, tests_passed),
                 stages=stages,
                 final_code=state.get("source_code", ""),
                 adr_title=state.get("adr_title", ""),
-                security_clean=state.get("is_secure", True),
-                tests_passed=state.get("tests_passed", True),
+                security_clean=security_checked and is_secure,
+                tests_passed=tests_ran and tests_passed,
                 token_savings_pct=state.get("savings_pct", 0.0),
                 total_duration_ms=sum(s.duration_ms for s in stages),
                 memory_recalled_count=0,
                 resumed_from_checkpoint=True,
+                code_generated=code_generated,
+                tests_ran=tests_ran,
+                security_checked=security_checked,
             )
 
-        # Resume remaining stages
+        # Unfinished: run the whole pipeline again under the same id.
         return self.execute_swarm(goal=cp.goal, execution_id=cp.execution_id, callback=callback)
+
+
+def _overall_success(code_generated: bool, security_checked: bool, is_secure: bool,
+                     tests_ran: bool, tests_passed: bool) -> bool:
+    """A run succeeds only if code exists and both checks ran and passed."""
+    return code_generated and security_checked and is_secure and tests_ran and tests_passed
 
 
 # Global Singleton Instance
