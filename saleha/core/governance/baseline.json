@@ -2,6 +2,6 @@
   "_comment": "Ratchet: tooling only lowers these. Raising one is a reviewed human edit.",
   "metrics": {
     "subprocess_text_without_encoding": 47,
-    "subprocess_without_timeout": 27
+    "subprocess_without_timeout": 26
   }
 }

@@ -229,6 +229,7 @@ class DoomWorkspaceEngine:
                 cwd=str(self.workspace_dir),
                 capture_output=True,
                 check=False,
+                timeout=600,
             )
             # Commit
             res = subprocess.run(
