@@ -27,7 +27,8 @@ class CrossCheckTests(unittest.TestCase):
         self.assertIn("at least 2", res.reason)
 
     def test_no_passing_test_means_no_winner(self) -> None:
-        res = cross_check(["def is_pal(s):\n    return None\n"] * 2, [GOOD_TESTS])
+        broken = "def is_pal(s):\n    raise NotImplementedError\n"
+        res = cross_check([broken, broken], [GOOD_TESTS])
         self.assertIsNone(res.winner_index)
 
 
