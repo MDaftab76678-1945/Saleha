@@ -11449,3 +11449,17 @@ tests are the only check in these pipelines; next step is cross-checking.
 New tests fail on the pre-fix code (14 + runner cases); suite 2688 passed,
 17 skipped.
 
+
+## Pass 160 (2026-09-25) -- cross-check measured on real_task_bench
+
+Swarm (qwen2.5-coder:3b) on the 12 real_task_bench tasks, graded by each
+task's hidden test (never shown to the swarm; verify_tests_can_fail clean):
+
+- candidates=1: hidden 11/12; swarm claimed success 5; false success 0;
+  correct but rejected 6 (wrong model-written tests).
+- candidates=3: hidden 11/12; swarm claimed success 10; false success 0;
+  correct but rejected 1 (roman_to_int).
+
+Code quality did not change (11/12 both); what improved is the verdict:
+correct code accepted 5/11 -> 10/11, with no false success in either run.
+One run each, ~5 min vs ~9 min wall time.
