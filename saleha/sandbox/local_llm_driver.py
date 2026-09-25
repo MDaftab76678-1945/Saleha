@@ -83,7 +83,8 @@ class LocalLLMDriver:
         system_prompt: str = "",
         model: Optional[str] = None,
         json_mode: bool = True,
-        temperature: float = 0.1
+        temperature: float = 0.1,
+        think: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Returns the parsed JSON object (json_mode) or `{"raw_text": ...}`,
@@ -106,6 +107,11 @@ class LocalLLMDriver:
         }
         if json_mode:
             payload["format"] = "json"
+        if think is not None:
+            # Reasoning models (qwen3) think by default: measured 38s for a
+            # two-line function vs 3s with think=False, and past the 90s
+            # timeout on real tasks -- every call then came back empty.
+            payload["think"] = think
         try:
             body = await asyncio.to_thread(self._post_json, f"{self.ollama_url}/api/generate", payload, 90)
         except Exception as e:
