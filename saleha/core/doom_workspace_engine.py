@@ -248,6 +248,7 @@ class DoomWorkspaceEngine:
                     capture_output=True,
                     text=True,
                     check=False,
+                    timeout=600,
                 )
                 return True, log_res.stdout.strip()
         except Exception:
