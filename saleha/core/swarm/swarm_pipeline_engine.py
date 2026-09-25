@@ -100,9 +100,66 @@ class AutonomousSwarmRouter:
 class SwarmPipelineEngine:
     """Executes Dynamic Multi-Agent DAG Pipelines with Checkpointing & Session Resumption."""
 
-    def __init__(self, router: Optional[AutonomousSwarmRouter] = None, model: str = "auto"):
+    def __init__(self, router: Optional[AutonomousSwarmRouter] = None, model: str = "auto",
+                 candidates: int = 1):
         self.router = router or AutonomousSwarmRouter()
         self.model = model
+        # >1 turns on cross-checking in the QA stage: that many solutions and
+        # two test suites, winner chosen by agreement (see verification/cross_check).
+        self.candidates = max(1, candidates)
+
+    def _cross_check_stage(self, goal: str, first_code: str, first_suite: Any,
+                           qa_agent: Any, stage: SwarmPipelineStage) -> bool:
+        """
+        Pick the solution by agreement instead of trusting one model-written
+        suite (a 3B model wrote `assertFalse(is_palindrome("A"))` for a
+        case-insensitive task). Returns False when there is not enough to
+        cross-check (under 2 distinct solutions), so the caller falls back to
+        the single-suite run.
+        """
+        from saleha.agents.coder import CoderAgent
+        from saleha.agents.security_guard import SecurityGuardAgent
+        from saleha.core.verification.cross_check import cross_check
+
+        coder = CoderAgent(model=self._resolve_model("coder"))
+        pool = [first_code]
+        for _ in range(self.candidates - 1):
+            extra = coder.generate_code(goal)
+            if extra.success and extra.code.strip():
+                pool.append(extra.code)
+        suites = [first_suite.test_code]
+        second = qa_agent.generate_test_suite(goal, first_code)
+        if second.generated:
+            suites.append(second.test_code)
+
+        result = cross_check(pool, suites)
+        if result.reason.startswith("needs"):
+            return False
+
+        # Agreement between independent solutions is the evidence; a lone
+        # winner has none.
+        agreed = result.winner_index is not None and len(result.group) >= 2
+        code = result.winner_code if result.winner_index is not None else first_code
+        payload: Dict[str, Any] = {
+            "code": code,
+            "agreed": agreed,
+            "agreement": result.agreement,
+            "candidates": result.candidates,
+            "suites": len(suites),
+            "verified_by": "agreement between model-written solutions and tests",
+        }
+        if code != first_code:
+            # The security stage scanned the first solution, not this one.
+            audit = SecurityGuardAgent(model=self._resolve_model("security")).audit_and_harden(goal, code)
+            payload.update(rescanned=True, is_secure=audit.is_secure)
+        stage.payload = payload
+        if not agreed:
+            stage.status = "failed"
+        stage.output_summary = (
+            f"Cross-checked {result.candidates} distinct solution(s) x {len(suites)} test suite(s): "
+            f"{result.agreement}" + ("" if agreed else " -- no agreement, not verified")
+        )
+        return True
 
     def _resolve_model(self, task_role: str) -> str:
         """Dynamically resolves model: uses test mock when in test mode or explicitly requested,
@@ -258,6 +315,13 @@ class SwarmPipelineEngine:
                     stage.status = "skipped"
                     stage.output_summary = f"QA skipped: no tests generated ({suite.error})"
                     stage.payload = {"error": suite.error}
+                elif self.candidates > 1 and self._cross_check_stage(goal, source_code, suite, agent, stage):
+                    # Cross-check decided the stage; take its verdict and code.
+                    source_code = stage.payload["code"]
+                    tests_ran = True
+                    tests_passed = stage.payload["agreed"]
+                    if stage.payload.get("rescanned"):
+                        is_secure = stage.payload["is_secure"]
                 else:
                     # Run through the structured runner. The old stage ran
                     # code + tests as a plain script, which only *defines*

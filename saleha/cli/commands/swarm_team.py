@@ -274,9 +274,12 @@ def tot_solve_cmd(goal: str, code: str, tests: str) -> None:
 
 @cli.command('swarm')
 @click.argument('goal', default='Build a robust distributed worker pool')
-def swarm_cli_cmd(goal: str) -> None:
+@click.option('--candidates', '-n', default=1, type=int,
+              help='Solutions to cross-check in QA (>1: winner by agreement, not one model-written suite)')
+def swarm_cli_cmd(goal: str, candidates: int) -> None:
     """Execute dynamic multi-agent DAG swarm pipeline with real-time ASCII visualization."""
-    from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
+    from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine, swarm_engine
+    engine = swarm_engine if candidates <= 1 else SwarmPipelineEngine(candidates=candidates)
     from saleha.cli.swarm_visualizer import visualizer
     visualizer.render_header(goal)
     stage_counter = [0]
@@ -286,6 +289,6 @@ def swarm_cli_cmd(goal: str) -> None:
         if stage.status == 'success':
             stage_counter[0] += 1
             visualizer.render_stage_update(stage, stage_counter[0], total_stages)
-    res = swarm_engine.execute_swarm(goal, callback=on_stage)
+    res = engine.execute_swarm(goal, callback=on_stage)
     visualizer.render_execution_summary(res)
 

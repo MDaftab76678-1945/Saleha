@@ -132,7 +132,7 @@
 | `saleha status` | Show Saleha system status | - |
 | `saleha stream` | Stream generated tokens in real-time with typewriter syntax highlighting. | `<PROMPT>` `--model/-m `MODEL`` |
 | `saleha supremacy` | Amplify local small models to beat large single-shot models via Test-Time Compute. | `<PROBLEM>` `--tests/-t `TESTS`` `--model/-m `MODEL`` `--trajectories/-k `TRAJECTORIES`` `--refinements/-r `REFINEMENTS`` `--json` |
-| `saleha swarm` | Execute dynamic multi-agent DAG swarm pipeline with real-time ASCII visualization. | `<GOAL>` |
+| `saleha swarm` | Execute dynamic multi-agent DAG swarm pipeline with real-time ASCII visualization. | `<GOAL>` `--candidates/-n `CANDIDATES`` |
 | `saleha swe-export` | Run the local benchmark and export predictions plus a scorecard. | `--output/-o `OUTPUT`` `--scorecard/-s `SCORECARD`` `--model/-m `MODEL`` |
 | `saleha swebench-eval` | Run standardized SWE-Bench real-world software engineering benchmarks. | - |
 | `saleha team` | Run multi-agent collaborative swarm pipeline: | `<GOAL>` `--model/-m `MODEL`` `--output-dir/-o `OUTPUT_DIR`` `--debate` `--max-attempts `MAX_ATTEMPTS`` `--json` |

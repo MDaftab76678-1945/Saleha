@@ -33,16 +33,26 @@ class CrossCheckResult:
     agreement: str                       # e.g. "3/5 candidates agree, pass 7 tests"
     reason: str = ""
     passes: Dict[int, int] = field(default_factory=dict)
+    candidates: int = 0                  # distinct candidates actually compared
 
 
 def cross_check(candidates: List[str], suites: List[str],
                 runner: Optional[TestRunner] = None, timeout: int = 15) -> CrossCheckResult:
     runner = runner or TestRunner()
-    live = [(i, c) for i, c in enumerate(candidates) if c and c.strip()]
+    # Identical copies are not independent evidence: a model sampled twice
+    # can return the same text, and two copies would "agree" by definition.
+    seen: set = set()
+    live = []
+    for i, c in enumerate(candidates):
+        key = (c or "").strip()
+        if key and key not in seen:
+            seen.add(key)
+            live.append((i, c))
     suites = [s for s in suites if s and s.strip()]
     if len(live) < 2 or not suites:
         return CrossCheckResult(None, "", [], 0, "not cross-checked",
-                                reason="needs at least 2 candidates and 1 test suite")
+                                reason="needs at least 2 distinct candidates and 1 test suite",
+                                candidates=len(live))
 
     signatures: Dict[int, Signature] = {}
     passes: Dict[int, int] = {}
@@ -66,7 +76,8 @@ def cross_check(candidates: List[str], suites: List[str],
     best = max(groups.values(), key=lambda g: (len(g) * passes[g[0]], len(g), -g[0]))
     if passes[best[0]] == 0:
         return CrossCheckResult(None, "", [], 0, "no candidate passes any test",
-                                reason="no support for any candidate", passes=passes)
+                                reason="no support for any candidate", passes=passes,
+                                candidates=len(live))
     winner = best[0]
     return CrossCheckResult(
         winner_index=winner,
@@ -75,4 +86,5 @@ def cross_check(candidates: List[str], suites: List[str],
         tests_passed_by_winner=passes[winner],
         agreement=f"{len(best)}/{len(live)} candidates agree, pass {passes[winner]} tests",
         passes=passes,
+        candidates=len(live),
     )
