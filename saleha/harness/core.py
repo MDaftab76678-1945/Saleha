@@ -1,77 +1,139 @@
 """
 Saleha Harness: Main Orchestration Engine
 
-Dispatches multi-domain benchmark tasks to parallel execution workers, runs code in
-sandboxes, verifies execution output against assertions, and aggregates Pass@k metrics.
+Dispatches benchmark tasks to parallel workers, has the orchestrator generate
+code for each, runs the task's own tests against that code, and aggregates
+Pass@1.
+
+Three things this module once got wrong, each of which filled the leaderboard
+with numbers nothing had measured:
+
+- `dry_run` returned `passed=True` for every task and the report was saved to
+  the persistent history -- 947 records, every one a 100% dry run, were the
+  entire leaderboard. A dry run now only lists the tasks it would run; it has
+  no score and is never saved.
+- The pass marker was a fixed string, so candidate code that printed it and
+  raised SystemExit(0) passed without a single assertion running. The marker
+  now carries a per-run nonce the candidate never sees.
+- A task whose tests never ran (memory replay, sandbox block, no code, harness
+  error) is reported as not executed rather than folded into pass or fail.
+
+And one that failed everything instead: see `strip_main_guard`.
 """
 
+import ast
+import secrets
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Optional, Any
+from typing import Dict, List, Optional
 
-from saleha.harness.benchmarks import BenchmarkCatalog, BenchmarkTaskSpec
-from saleha.harness.metrics import HarnessTaskResult, compute_benchmark_summary, estimate_pass_at_k
-from saleha.harness.reporter import HarnessReport, reporter
 from saleha.core.harness.code_executor import CodeExecutor
+from saleha.harness.benchmarks import BenchmarkCatalog, BenchmarkTaskSpec
+from saleha.harness.metrics import HarnessTaskResult, compute_benchmark_summary, pass_rate
+from saleha.harness.reporter import HarnessReport, reporter
 from saleha.orchestrator import SalehaOrchestrator
+
+PASS_MARKER = "HARNESS_TEST_PASSED"
+
+
+def _is_main_guard(node: ast.stmt) -> bool:
+    if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+        return False
+    cmp = node.test
+    if len(cmp.ops) != 1 or not isinstance(cmp.ops[0], ast.Eq):
+        return False
+    sides = [cmp.left, cmp.comparators[0]]
+    return (any(isinstance(s, ast.Name) and s.id == "__name__" for s in sides)
+            and any(isinstance(s, ast.Constant) and s.value == "__main__" for s in sides))
+
+
+def strip_main_guard(code: str) -> str:
+    """
+    Remove top-level `if __name__ == "__main__":` blocks from candidate code.
+
+    The orchestrator's output ends with its own `unittest.main()` under that
+    guard. Run as a script, it exits before the task's tests are reached, so
+    every task failed whatever the function did -- a correct
+    `is_valid_parentheses` was scored FAIL. The harness grades the code the
+    way an importer would use it, which never runs the guard. Everything else
+    is left byte-for-byte; unparseable code is returned unchanged and fails on
+    its own.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code
+    guards = [n for n in tree.body if _is_main_guard(n)]
+    if not guards:
+        return code
+    lines = code.splitlines()
+    for node in guards:
+        end = node.end_lineno or node.lineno
+        for i in range(node.lineno - 1, end):
+            lines[i] = ""
+    return "\n".join(lines) + "\n"
 
 
 class SalehaHarness:
-    """Industrial-strength benchmark evaluation harness."""
+    """Benchmark evaluation harness: one generated sample per task, scored by the task's tests."""
 
     def __init__(self):
         self.executor = CodeExecutor()
 
-    def _evaluate_single_task(self, task: BenchmarkTaskSpec, model: str, dry_run: bool = False) -> HarnessTaskResult:
+    def _evaluate_single_task(self, task: BenchmarkTaskSpec, model: str) -> HarnessTaskResult:
         start_t = time.time()
 
-        if dry_run:
-            return HarnessTaskResult(
-                task_id=task.id,
-                benchmark=task.benchmark,
-                prompt=task.prompt,
-                passed=True,
-                attempts_used=1,
-                latency_sec=0.01,
-                tokens_generated=50,
-                tokens_per_sec=500.0
-            )
-
-        try:
-            orchestrator = SalehaOrchestrator(model=model, max_healing_attempts=2)
-            orch_res = orchestrator.execute_task(task.prompt)
-            code = orch_res.final_code
-
-            test_payload = f"{code}\n\n{task.test_code}"
-            exec_res = self.executor.execute(test_payload)
-            elapsed = round(time.time() - start_t, 2)
-
-            passed = exec_res.success and "HARNESS_TEST_PASSED" in exec_res.output
-            tokens = max(1, len(code) // 4)
-            tok_sec = round(tokens / max(0.01, elapsed), 1)
-
-            return HarnessTaskResult(
-                task_id=task.id,
-                benchmark=task.benchmark,
-                prompt=task.prompt,
-                passed=passed,
-                attempts_used=orch_res.attempts,
-                latency_sec=elapsed,
-                tokens_generated=tokens,
-                tokens_per_sec=tok_sec,
-                error_detail=None if passed else exec_res.output
-            )
-        except Exception as e:
-            elapsed = round(time.time() - start_t, 2)
+        def _not_run(reason: str, attempts: int = 0) -> HarnessTaskResult:
             return HarnessTaskResult(
                 task_id=task.id,
                 benchmark=task.benchmark,
                 prompt=task.prompt,
                 passed=False,
-                attempts_used=1,
-                latency_sec=elapsed,
-                error_detail=str(e)
+                attempts_used=attempts,
+                latency_sec=round(time.time() - start_t, 2),
+                error_detail=reason,
+                executed=False,
             )
+
+        try:
+            orchestrator = SalehaOrchestrator(model=model, max_healing_attempts=2)
+            orch_res = orchestrator.execute_task(task.prompt, use_memory=False)
+        except Exception as e:
+            return _not_run(f"harness error before tests ran: {type(e).__name__}: {e}")
+
+        code = orch_res.final_code or ""
+        # use_memory=False should prevent a replay; if one still comes back it
+        # was not generated by `model` in this run and measures nothing about it.
+        if getattr(orch_res, "profile_used", "") == "memory_store":
+            return _not_run("replayed from memory store; the model was not called")
+        if not code.strip():
+            last_line = (orch_res.log or "").strip().splitlines()[-1:] or ["no log"]
+            return _not_run(f"no code generated: {last_line[0][:200]}", orch_res.attempts)
+
+        # The candidate code runs first in the same process, so it could print
+        # a fixed marker and exit before any assertion ran. It never sees this
+        # nonce, so only the task's own test code can print it.
+        marker = f"{PASS_MARKER}_{secrets.token_hex(8)}"
+        test_code = task.test_code.replace(PASS_MARKER, marker)
+        if marker not in test_code:
+            return _not_run(f"task {task.id} test code has no {PASS_MARKER} line")
+
+        exec_res = self.executor.execute(f"{strip_main_guard(code)}\n\n{test_code}", timeout=task.timeout_sec)
+        elapsed = round(time.time() - start_t, 2)
+        if exec_res.blocked:
+            return _not_run(f"blocked by sandbox before tests ran: {exec_res.block_reason or exec_res.error}",
+                            orch_res.attempts)
+
+        passed = exec_res.success and marker in exec_res.output
+        return HarnessTaskResult(
+            task_id=task.id,
+            benchmark=task.benchmark,
+            prompt=task.prompt,
+            passed=passed,
+            attempts_used=orch_res.attempts,
+            latency_sec=elapsed,
+            error_detail=None if passed else (exec_res.error or exec_res.output or "tests did not print the pass marker")[:500],
+        )
 
     def evaluate(
         self,
@@ -81,59 +143,78 @@ class SalehaHarness:
         workers: int = 4,
         dry_run: bool = False
     ) -> HarnessReport:
-        """Executes multi-domain benchmarks in parallel and returns aggregated report."""
+        """
+        Run the selected benchmarks and return the report.
+
+        `dry_run` lists the selected tasks without generating or running
+        anything; its report has no score and is not saved to history.
+        Raises ValueError for an unknown benchmark or a limit below 1.
+        """
         tasks = BenchmarkCatalog.get_benchmarks(benchmark)
-        if limit:
+        if not tasks:
+            available = ", ".join(["all", *BenchmarkCatalog.list_available_benchmarks()])
+            raise ValueError(f"unknown benchmark '{benchmark}' (available: {available})")
+        if limit is not None:
+            if limit < 1:
+                raise ValueError(f"limit must be at least 1, got {limit}")
             tasks = tasks[:limit]
+
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        if dry_run:
+            planned: Dict[str, List[str]] = {}
+            for t in tasks:
+                planned.setdefault(t.benchmark, []).append(t.id)
+            return HarnessReport(
+                model_name=model,
+                timestamp=timestamp,
+                total_tasks=len(tasks),
+                executed_tasks=0,
+                passed_tasks=0,
+                overall_pass_at_1=None,
+                avg_latency_sec=0.0,
+                dry_run=True,
+                planned_tasks=planned,
+            )
 
         results_by_suite: Dict[str, List[HarnessTaskResult]] = {}
         all_results: List[HarnessTaskResult] = []
 
-        if dry_run or workers <= 1:
+        if workers <= 1:
             for task in tasks:
-                res = self._evaluate_single_task(task, model=model, dry_run=dry_run)
+                res = self._evaluate_single_task(task, model)
                 results_by_suite.setdefault(res.benchmark, []).append(res)
                 all_results.append(res)
         else:
-            with ThreadPoolExecutor(max_workers=min(workers, len(tasks) or 1)) as pool:
-                future_map = {
-                    pool.submit(self._evaluate_single_task, t, model, dry_run): t
-                    for t in tasks
-                }
-                for fut in as_completed(future_map):
+            with ThreadPoolExecutor(max_workers=min(workers, len(tasks))) as pool:
+                futures = [pool.submit(self._evaluate_single_task, t, model) for t in tasks]
+                for fut in as_completed(futures):
                     res = fut.result()
                     results_by_suite.setdefault(res.benchmark, []).append(res)
                     all_results.append(res)
 
-        # Compute summaries
-        summaries = {}
-        for suite_name, suite_results in results_by_suite.items():
-            summaries[suite_name] = compute_benchmark_summary(suite_name, suite_results)
+        summaries = {name: compute_benchmark_summary(name, rs) for name, rs in results_by_suite.items()}
 
-        total = len(all_results)
-        passed = sum(1 for r in all_results if r.passed)
-        pass_1 = round((passed / total) * 100, 2) if total else 0.0
-        # Real unbiased Pass@k estimator (metrics.py) -- pehle fake
-        # "pass_at_1 * 1.05" formula tha jo report ko misleading banata tha.
-        pass_5 = round(estimate_pass_at_k(total, passed, k=min(5, total)) * 100, 2) if total else 0.0
-        avg_lat = round(sum(r.latency_sec for r in all_results) / total, 2) if total else 0.0
-        avg_tok_sec = round(sum(r.tokens_per_sec for r in all_results) / total, 1) if total else 0.0
+        executed = [r for r in all_results if r.executed]
+        passed = sum(1 for r in executed if r.passed)
+        avg_lat = round(sum(r.latency_sec for r in executed) / len(executed), 2) if executed else 0.0
 
         report = HarnessReport(
             model_name=model,
-            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-            total_tasks=total,
-            overall_pass_at_1=pass_1,
-            overall_pass_at_5=pass_5,
+            timestamp=timestamp,
+            total_tasks=len(all_results),
+            executed_tasks=len(executed),
+            passed_tasks=passed,
+            overall_pass_at_1=pass_rate(passed, len(executed)),
             avg_latency_sec=avg_lat,
-            avg_tokens_per_sec=avg_tok_sec,
-            benchmark_summaries=summaries
+            benchmark_summaries=summaries,
         )
 
-        reporter.save_report(report)
+        # Nothing executed means nothing was measured; a leaderboard row for
+        # it would rank a model on work that never happened.
+        if report.executed_tasks > 0:
+            report.saved = reporter.save_report(report)
         return report
 
 
 # Global instance
 harness = SalehaHarness()
-

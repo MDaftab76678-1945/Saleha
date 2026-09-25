@@ -316,7 +316,7 @@ class SalehaOrchestrator:
             log=log, profile_used=profile_name, verified=True,
         )
 
-    def execute_task(self, user_goal: str, use_context: bool = True, profile: Optional[str] = None, auto_commit: bool = False, context_dir: Optional[str] = None, generate_tests: bool = False, resume_session: bool = False, on_token=None) -> OrchestrationResult:
+    def execute_task(self, user_goal: str, use_context: bool = True, profile: Optional[str] = None, auto_commit: bool = False, context_dir: Optional[str] = None, generate_tests: bool = False, resume_session: bool = False, on_token=None, use_memory: bool = True) -> OrchestrationResult:
         """
         `use_context=True` (default): if an earlier task in this same
         orchestrator session succeeded, its code is passed to the Planner and
@@ -335,6 +335,11 @@ class SalehaOrchestrator:
         `resume_session=True`: loads the last in-progress checkpoint and
         continues from the verification/healing loop, skipping planning and
         coding. Used by `saleha run --resume`.
+
+        `use_memory=False`: skip the long-term memory replay, so the model is
+        actually called. `saleha harness run` relies on it -- a replayed answer
+        measures nothing about the model under test, and without it a second
+        run of the same model replayed every task the first one solved.
         """
         from saleha.core.session_store import session_store, SessionState
         from saleha.core.telemetry.metrics import metrics_tracker
@@ -443,7 +448,7 @@ class SalehaOrchestrator:
             cached_mem = memory_store.recall(
                 user_goal,
                 model=self.model if self.model and self.model != "auto" else None,
-            )
+            ) if use_memory else None
             if cached_mem:
                 # How the cached entry was checked when it was first solved.
                 # "ran_without_error" means only that it did not crash -- no

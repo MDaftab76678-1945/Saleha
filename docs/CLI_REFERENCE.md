@@ -241,7 +241,7 @@
 |---|---|---|
 | `saleha harness leaderboard` | Display persistent model ranking leaderboard. | - |
 | `saleha harness list` | List available benchmark datasets in the harness catalog. | `--json` |
-| `saleha harness run` | Run comprehensive multi-domain model evaluation and compute Pass@k metrics. | `--benchmark/-b `BENCHMARK`` `--model/-m `MODEL`` `--limit/-l `LIMIT`` `--workers/-w `WORKERS`` `--output-file/-o `OUTPUT_FILE`` `--dry-run` `--json` |
+| `saleha harness run` | Run multi-domain model evaluation and compute Pass@1 over executed tasks. | `--benchmark/-b `BENCHMARK`` `--model/-m `MODEL`` `--limit/-l `LIMIT`` `--workers/-w `WORKERS`` `--output-file/-o `OUTPUT_FILE`` `--dry-run` `--json` |
 
 #### `saleha hook` group
 

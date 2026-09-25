@@ -1,20 +1,28 @@
 """
-Saleha Harness: Interactive Leaderboard & Comprehensive Report Generator
+Saleha Harness: Leaderboard & Report Generator
 
-Renders rich terminal leaderboards, tracks model ranking histories, and exports
-professional Markdown and HTML benchmark reports.
+Keeps the persistent run history, renders the terminal leaderboard, and exports
+Markdown reports.
+
+Only runs in which at least one task actually executed are recorded (see
+`core.SalehaHarness.evaluate`), and `save_report` refuses dry runs outright. A
+history file that cannot be parsed is moved aside, never overwritten: the old
+behaviour read it as empty and the next save replaced every record in it.
+
+No emoji anywhere in this module's output: the leaderboard crashed with
+UnicodeEncodeError on this machine's cp1252 console.
 """
 
-import os
 import json
+import os
 import time
-from dataclasses import dataclass, asdict, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
+
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 
-from saleha.harness.metrics import BenchmarkSummary, HarnessTaskResult
+from saleha.harness.metrics import BenchmarkSummary
 
 console = Console()
 HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".saleha", "harness_history.json")
@@ -25,11 +33,18 @@ class HarnessReport:
     model_name: str
     timestamp: str
     total_tasks: int
-    overall_pass_at_1: float
-    overall_pass_at_5: float
+    executed_tasks: int
+    passed_tasks: int
+    overall_pass_at_1: Optional[float]  # None when no task executed
     avg_latency_sec: float
-    avg_tokens_per_sec: float
     benchmark_summaries: Dict[str, BenchmarkSummary] = field(default_factory=dict)
+    dry_run: bool = False
+    planned_tasks: Dict[str, List[str]] = field(default_factory=dict)
+    saved: bool = False
+
+
+def _fmt_pct(value: Optional[float]) -> str:
+    return "n/a" if value is None else f"{value}%"
 
 
 class HarnessReporter:
@@ -38,29 +53,51 @@ class HarnessReporter:
     def __init__(self, history_path: str = HISTORY_FILE):
         self.history_path = history_path
 
+    def _read_history(self) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Return (records, problem). `problem` is set when the file exists but is unusable."""
+        if not os.path.isfile(self.history_path):
+            return [], None
+        try:
+            with open(self.history_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            return [], f"{type(e).__name__}: {e}"
+        if not isinstance(data, list):
+            return [], f"expected a JSON list, found {type(data).__name__}"
+        return data, None
+
     def save_report(self, report: HarnessReport) -> bool:
-        """Saves evaluation run to persistent history JSON."""
-        history = self.load_history()
-        os.makedirs(os.path.dirname(self.history_path), exist_ok=True)
-        
-        record = {
+        """Appends a run to the persistent history. Refuses runs that measured nothing."""
+        if report.dry_run or report.executed_tasks <= 0 or report.overall_pass_at_1 is None:
+            return False
+
+        history, problem = self._read_history()
+        try:
+            os.makedirs(os.path.dirname(self.history_path), exist_ok=True)
+            if problem is not None:
+                # Keep the unreadable file for inspection instead of replacing it.
+                os.replace(self.history_path, f"{self.history_path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}")
+        except OSError:
+            return False
+
+        history.append({
             "model": report.model_name,
             "timestamp": report.timestamp,
             "total_tasks": report.total_tasks,
+            "executed_tasks": report.executed_tasks,
+            "passed_tasks": report.passed_tasks,
             "pass_at_1": report.overall_pass_at_1,
-            "pass_at_5": report.overall_pass_at_5,
             "avg_latency": report.avg_latency_sec,
-            "avg_tok_sec": report.avg_tokens_per_sec,
             "benchmarks": {
                 k: {
                     "total": v.total_tasks,
+                    "executed": v.executed_tasks,
                     "passed": v.passed_tasks,
                     "pass_at_1": v.pass_at_1,
-                    "latency": v.avg_latency_sec
+                    "latency": v.avg_latency_sec,
                 } for k, v in report.benchmark_summaries.items()
-            }
-        }
-        history.append(record)
+            },
+        })
         try:
             with open(self.history_path, "w", encoding="utf-8") as f:
                 json.dump(history, f, indent=2)
@@ -69,76 +106,90 @@ class HarnessReporter:
             return False
 
     def load_history(self) -> List[Dict[str, Any]]:
-        """Loads historical benchmark records."""
-        if not os.path.isfile(self.history_path):
-            return []
-        try:
-            with open(self.history_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return []
+        """Loads historical benchmark records ([] if missing or unreadable)."""
+        return self._read_history()[0]
 
     def render_leaderboard(self):
         """Displays ranked model leaderboard in terminal."""
-        history = self.load_history()
+        history, problem = self._read_history()
+        if problem is not None:
+            console.print(f"[red]Harness history at {self.history_path} is unreadable ({problem}).[/]")
+            return
         if not history:
             console.print("[yellow]No harness benchmark records found. Run 'saleha harness run' first.[/]")
             return
 
-        # Sort by pass_at_1 descending, then latency ascending
-        ranked = sorted(history, key=lambda x: (-x.get("pass_at_1", 0), x.get("avg_latency", 999)))
+        # Rate first; on equal rates the run with more executed tasks ranks higher.
+        ranked = sorted(history, key=lambda x: (-(x.get("pass_at_1") or 0.0),
+                                                -(x.get("executed_tasks") or 0),
+                                                x.get("avg_latency", 999)))
 
-        table = Table(title="🏆 Saleha Model Evaluation Leaderboard (DeepSeek-Standard)", border_style="green")
+        table = Table(title="Saleha Model Evaluation Leaderboard (Pass@1, one sample per task)",
+                      border_style="green")
         table.add_column("Rank", justify="center", style="bold")
         table.add_column("Model Name", style="bold cyan")
         table.add_column("Pass@1", justify="right", style="bold green")
-        table.add_column("Pass@5", justify="right", style="green")
+        table.add_column("Passed / Executed", justify="right", style="green")
+        table.add_column("Not Run", justify="right")
         table.add_column("Avg Latency", justify="right", style="yellow")
-        table.add_column("Tok / Sec", justify="right", style="cyan")
         table.add_column("Evaluated At", style="dim")
 
         for idx, rec in enumerate(ranked, 1):
-            rank_icon = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}"))
+            executed = rec.get("executed_tasks")
+            total = rec.get("total_tasks")
+            not_run = "-" if executed is None or total is None else str(total - executed)
             table.add_row(
-                rank_icon,
-                rec.get("model", "unknown"),
-                f"{rec.get('pass_at_1', 0.0)}%",
-                f"{rec.get('pass_at_5', 0.0)}%",
+                str(idx),
+                str(rec.get("model", "unknown")),
+                _fmt_pct(rec.get("pass_at_1")),
+                f"{rec.get('passed_tasks', '?')} / {executed if executed is not None else '?'}",
+                not_run,
                 f"{rec.get('avg_latency', 0.0)}s",
-                f"{rec.get('avg_tok_sec', 0.0)}",
-                rec.get("timestamp", "-")[:16]
+                str(rec.get("timestamp") or "-")[:16],
             )
 
         console.print(table)
 
     def export_markdown(self, report: HarnessReport, filepath: str) -> bool:
-        """Exports evaluation results to clean GitHub Markdown format."""
+        """Exports evaluation results to GitHub Markdown."""
         md = [
-            f"# 🧪 Saleha Harness Evaluation Report",
-            f"",
+            "# Saleha Harness Evaluation Report",
+            "",
             f"**Model Evaluated:** `{report.model_name}`  ",
             f"**Evaluation Timestamp:** `{report.timestamp}`  ",
-            f"**Overall Pass@1 Accuracy:** **{report.overall_pass_at_1}%**  ",
-            f"**Unbiased Pass@5 Estimate:** **{report.overall_pass_at_5}%**  ",
-            f"**Average Latency:** `{report.avg_latency_sec}s / task`  ",
-            f"",
-            f"## 📊 Benchmark Suite Breakdown",
-            f"",
-            f"| Benchmark Suite | Total Tasks | Passed | Pass@1 Rate | Avg Latency |",
-            f"|---|:---:|:---:|:---:|:---:|",
         ]
+        if report.dry_run:
+            md += ["", "**Dry run: nothing was generated or executed. There is no score.**", "",
+                   "## Planned Tasks", ""]
+            for name, ids in report.planned_tasks.items():
+                md.append(f"- `{name}`: {', '.join(ids)}")
+        else:
+            md += [
+                f"**Pass@1 (executed tasks):** **{_fmt_pct(report.overall_pass_at_1)}**  ",
+                f"**Passed / Executed / Total:** {report.passed_tasks} / {report.executed_tasks} / {report.total_tasks}  ",
+                f"**Average Latency:** `{report.avg_latency_sec}s / executed task`  ",
+                "",
+                "## Benchmark Suite Breakdown",
+                "",
+                "| Benchmark Suite | Total | Executed | Passed | Pass@1 | Avg Latency |",
+                "|---|:---:|:---:|:---:|:---:|:---:|",
+            ]
+            for name, summ in report.benchmark_summaries.items():
+                md.append(f"| `{name}` | {summ.total_tasks} | {summ.executed_tasks} | {summ.passed_tasks} "
+                          f"| **{_fmt_pct(summ.pass_at_1)}** | {summ.avg_latency_sec}s |")
 
-        for name, summ in report.benchmark_summaries.items():
-            md.append(f"| `{name}` | {summ.total_tasks} | {summ.passed_tasks} | **{summ.pass_at_1}%** | {summ.avg_latency_sec}s |")
+            md.append("\n## Task Details\n")
+            for name, summ in report.benchmark_summaries.items():
+                md.append(f"### Benchmark: `{name}`")
+                for t in summ.task_results:
+                    verdict = "PASS" if t.passed else ("NOT RUN" if not t.executed else "FAIL")
+                    # The last line of a traceback names the exception; the first is boilerplate.
+                    detail_lines = [ln for ln in (t.error_detail or "").splitlines() if ln.strip()]
+                    why = f" -- {detail_lines[-1].strip()[:160]}" if detail_lines else ""
+                    md.append(f"- {verdict} **[{t.task_id}]** (Latency: {t.latency_sec}s, "
+                              f"Attempts: {t.attempts_used}){why}")
 
-        md.append("\n## 📋 Task Details\n")
-        for name, summ in report.benchmark_summaries.items():
-            md.append(f"### Benchmark: `{name}`")
-            for t in summ.task_results:
-                icon = "✅" if t.passed else "❌"
-                md.append(f"- {icon} **[{t.task_id}]** (Latency: {t.latency_sec}s, Attempts: {t.attempts_used})")
-
-        content = "\n".join(md)
+        content = "\n".join(md) + "\n"
         try:
             os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as f:
@@ -150,4 +201,3 @@ class HarnessReporter:
 
 # Global instance
 reporter = HarnessReporter()
-

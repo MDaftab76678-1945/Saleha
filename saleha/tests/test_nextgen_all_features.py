@@ -1,10 +1,13 @@
 """
-Unit & Integration Tests for Next-Gen Multi-Model Failover Router, SWE-bench Harness, and salehatop TUI Dashboard
+Unit & Integration Tests for Next-Gen Multi-Model Failover Router and salehatop TUI Dashboard.
+
+The SWEBenchHarnessTests class that lived here asserted `resolved == True` for
+saleha/harness/swe_bench_harness.py, whose tasks were `assert True` and never ran;
+the module was deleted in pass 158 (the real one is saleha/core/swe_bench_harness.py).
 """
 
 import unittest
 from saleha.core.platform.smart_router import SmartRouter
-from saleha.harness.swe_bench_harness import SWEBenchHarness, SWEBenchTask
 from saleha.cli.salehatop import SalehaTopDashboard
 from typing import Any
 
@@ -49,29 +52,6 @@ class SmartRouterFailoverTests(unittest.TestCase):
         res, model_used, elapsed = self.router.execute_with_failover("Test task", failing_first_call)
         self.assertIn("Recovered with", res)
         self.assertEqual(len(attempts), 2)
-
-
-class SWEBenchHarnessTests(unittest.TestCase):
-    def test_swe_bench_evaluation_and_leaderboard(self) -> None:
-        tasks = [
-            SWEBenchTask(
-                task_id="SWE-TEST-001",
-                repo="pallets/flask",
-                problem_statement="Fix URL routing",
-                test_patch="assert True"
-            )
-        ]
-        harness = SWEBenchHarness(tasks=tasks)
-        results = harness.run_evaluation(max_tasks=1)
-
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].task_id, "SWE-TEST-001")
-        self.assertTrue(results[0].resolved)
-
-        md = harness.generate_leaderboard_markdown(results)
-        self.assertIn("SWE-bench Leaderboard", md)
-        self.assertIn("SWE-TEST-001", md)
-        self.assertIn("RESOLVED", md)
 
 
 class SalehaTopTuiTests(unittest.TestCase):
