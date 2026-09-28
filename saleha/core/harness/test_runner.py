@@ -25,18 +25,36 @@ Three holes closed in pass 159, each measured before the fix:
   loader, so such a suite "ran 0 tests". Zero-argument module-level test
   functions are now collected; ones that need pytest fixtures are reported
   as failures, not silently skipped.
+
+Pass 164: `passed` is no longer a field anyone can set. The outcome is a
+`verdict` (`saleha/core/harness/verdict.py`); `passed` is true only when it
+is a `Verified`, which only the judge can issue after reading this run's
+own result line. A smoke run without tests is NOTHING_TO_VERIFY, not a pass
+-- it used to come back `passed=True` with 0 tests run.
 """
 
 from __future__ import annotations
 
 import ast
-import json
 import re
 import secrets
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Sequence, Tuple
 
-TEST_JSON_MARKER = "SALEHA_TEST_JSON:"
+from saleha.core.harness.verdict import (
+    DID_NOT_RUN,
+    FAILED,
+    NO_REPORT,
+    NOTHING_TO_VERIFY,
+    RESULT_PREFIX,
+    NotVerified,
+    Verdict,
+    Verified,
+    judge_suite_output,
+    open_run,
+)
+
+TEST_JSON_MARKER = RESULT_PREFIX
 _MAX_TRACEBACK_CHARS = 1200
 _MAX_RAW_OUTPUT = 20_000
 
@@ -58,10 +76,22 @@ class SuiteFailure:
     traceback: str
 
 
+def _no_verdict() -> NotVerified:
+    return NotVerified(DID_NOT_RUN, "no verdict recorded")
+
+
+_STATUS_LABELS = {
+    "passed": "PASSED",
+    FAILED: "FAILED",
+    DID_NOT_RUN: "DID NOT RUN",
+    NOTHING_TO_VERIFY: "NOTHING VERIFIED",
+}
+
+
 @dataclass
 class TestSuiteResult:
     __test__ = False
-    passed: bool = False
+    verdict: Verdict = field(default_factory=_no_verdict)
     ran: int = 0
     failures: List[SuiteFailure] = field(default_factory=list)
     raw_output: str = ""
@@ -70,10 +100,23 @@ class TestSuiteResult:
     backend: str = "subprocess"
 
     @property
+    def passed(self) -> bool:
+        return isinstance(self.verdict, Verified)
+
+    @property
+    def proof(self) -> Optional[Verified]:
+        return self.verdict if isinstance(self.verdict, Verified) else None
+
+    @property
+    def status(self) -> str:
+        """passed / failed / did_not_run / nothing_to_verify."""
+        return self.verdict.kind
+
+    @property
     def summary(self) -> str:
         if self.error:
             return self.error
-        status = "PASSED" if self.passed else "FAILED"
+        status = _STATUS_LABELS[self.status]
         base = f"{status}: {self.ran - len(self.failures)}/{self.ran} tests"
         if self.failures:
             first = self.failures[0]
@@ -369,88 +412,71 @@ class TestRunner:
 
     def run_suite(self, code: str, test_code: Optional[str] = None,
                   timeout: Optional[int] = None) -> TestSuiteResult:
-        """Executes full unittest suite if test_code is provided; otherwise runs a bare smoke test."""
-        effective_timeout = timeout or getattr(self.executor, "timeout", 15)
-        marker = new_result_marker()
+        """Executes full unittest suite if test_code is provided; otherwise runs a bare smoke test.
 
-        if test_code and test_code.strip():
+        Without tests the best possible outcome is NOTHING_TO_VERIFY: running
+        without a crash is recorded, never reported as a pass.
+        """
+        effective_timeout = timeout or getattr(self.executor, "timeout", 15)
+        has_tests = bool(test_code and test_code.strip())
+
+        ticket = None
+        if has_tests:
             # Validate each user segment individually against safety policy
-            for label, segment in (("solution", code), ("tests", test_code)):
+            for label, segment in (("solution", code), ("tests", test_code or "")):
                 violation = self._validate_segment(label, segment)
                 if violation:
-                    return TestSuiteResult(
-                        passed=False, blocked=True,
-                        error=f"Blocked by safety layer: {violation}",
-                    )
-            script = build_runner_script(code, test_code, marker=marker)
+                    error = f"Blocked by safety layer: {violation}"
+                    return TestSuiteResult(verdict=NotVerified(DID_NOT_RUN, error),
+                                           blocked=True, error=error)
+            ticket = open_run(code, test_code or "")
+            script = build_runner_script(code, test_code or "", marker=ticket.marker)
             exec_res = self.executor.execute(script, timeout=effective_timeout,
                                              allow_dangerous=True)
         else:
             exec_res = self.executor.execute(code, timeout=effective_timeout)  # bare smoke
 
+        output = exec_res.output or ""
         result = TestSuiteResult(
-            raw_output=(exec_res.output or "")[:_MAX_RAW_OUTPUT],
+            raw_output=output[:_MAX_RAW_OUTPUT],
             blocked=exec_res.blocked,
             backend=getattr(exec_res, "backend", "subprocess"),
         )
 
         if exec_res.blocked:
-            result.passed = False
             result.error = f"Blocked by safety layer: {exec_res.block_reason}"
+            result.verdict = NotVerified(DID_NOT_RUN, result.error)
             return result
 
-        if not test_code or not test_code.strip():
-            # Bare smoke test: exit code determines success
-            result.passed = exec_res.success
-            if not exec_res.success:
+        if ticket is None:
+            if exec_res.success:
+                result.verdict = NotVerified(
+                    NOTHING_TO_VERIFY, "no test suite given; running without a crash verifies nothing")
+            else:
                 result.error = exec_res.error or exec_res.output or f"exit {exec_res.exit_code}"
+                result.verdict = NotVerified(FAILED, f"the code crashed: {result.error}"[:1500])
             return result
 
-        marker_line = self._extract_marker(result.raw_output, marker)
-        if marker_line is None:
-            # Script crashed prior to emitting JSON marker (import error, syntax, or timeout)
-            result.passed = False
+        # Judged on the full output: the result line is printed last, and
+        # raw_output keeps only the head of a chatty run.
+        verdict = judge_suite_output(ticket, output, exec_res.success)
+        result.verdict = verdict
+        result.ran = verdict.ran
+        result.failures = [SuiteFailure(test_name=f.test, traceback=f.traceback) for f in verdict.failures]
+        if isinstance(verdict, Verified):
+            return result
+        if verdict.reason == NO_REPORT:
+            # import error, syntax error, or timeout before the result line
             result.error = (
                 exec_res.error.strip()
                 or exec_res.output.strip()
                 or f"suite crashed before reporting (exit {exec_res.exit_code})"
             )[-1500:]
-            return result
-
-        try:
-            payload = json.loads(marker_line)
-        except json.JSONDecodeError as err:
-            result.passed = False
-            result.error = f"Unparseable test payload: {err}"
-            return result
-
-        result.ran = int(payload.get("ran", 0))
-        for item in payload.get("failures", []):
-            result.failures.append(SuiteFailure(
-                test_name=str(item.get("test", "<unknown>")),
-                traceback=str(item.get("traceback", "")),
-            ))
-        if result.ran == 0:
-            # test_code was provided but contributed zero actual test methods
-            # (e.g. comments-only, malformed test names) -- nothing was verified,
-            # so this must not be reported as a pass.
-            result.passed = False
-            why = f"; {result.failures[0].traceback}" if result.failures else ""
-            result.error = result.error or f"test suite ran 0 tests -- nothing was verified{why}"
-            return result
-        result.passed = exec_res.success and not result.failures
-        if not result.passed and not result.failures and not exec_res.success:
+        elif verdict.kind == FAILED and not verdict.failures:
             result.error = exec_res.error or f"runner exit {exec_res.exit_code}"
+        elif verdict.kind != FAILED:
+            result.error = verdict.reason
         return result
-
-    @staticmethod
-    def _extract_marker(output: str, marker: str = TEST_JSON_MARKER) -> Optional[str]:
-        """The payload after `marker`; any other SALEHA_TEST_JSON line is ignored."""
-        for line in reversed((output or "").splitlines()):
-            line = line.strip()
-            if line.startswith(marker):
-                return line[len(marker):]
-        return None
 
 
 test_runner = TestRunner()

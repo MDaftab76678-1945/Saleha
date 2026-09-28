@@ -27,6 +27,7 @@ from saleha.core.self_healing import SelfHealingEngine, HealingResult
 from saleha.core.telemetry.stats_tracker import StatsTracker
 from saleha.core.task_history import TaskHistory
 from saleha.core.harness.code_executor import CodeExecutor
+from saleha.core.harness.verdict import NOTHING_TO_VERIFY, Verified
 from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory.memory_store import memory_store
@@ -50,6 +51,10 @@ class OrchestrationResult:
       verified=False  it was accepted without ever being executed --
                       `unverified_reason` says why
 
+    `tests_passed` is stronger again: a test suite ran against exactly this
+    code and passed. It is read from `proof`, which only the test runner's
+    judge can issue (`saleha/core/harness/verdict.py`).
+
     This distinction was missing. `success=True` was returned on the
     "max attempts exhausted, accept the reviewer's objections anyway" path,
     where the verifier is never reached at all because it lives inside the
@@ -59,7 +64,7 @@ class OrchestrationResult:
 
     def __init__(self, success: bool, final_code: str, attempts: int, log: str,
                  profile_used: str = "", verified: bool = False,
-                 unverified_reason: str = ""):
+                 unverified_reason: str = "", proof: Optional[Verified] = None):
         self.success = success
         self.final_code = final_code
         self.attempts = attempts
@@ -67,6 +72,11 @@ class OrchestrationResult:
         self.profile_used = profile_used
         self.verified = verified
         self.unverified_reason = unverified_reason
+        self.proof = proof
+
+    @property
+    def tests_passed(self) -> bool:
+        return self.proof is not None
 
 # ==============================================================================
 # 2. Core logic
@@ -239,6 +249,7 @@ class SalehaOrchestrator:
         current_code: str,
         current_code_result: CodeResult,
         current_test_code: str,
+        suite_proof: Optional[Verified],
         attempts: int,
         profile_name: str,
         auto_commit: bool,
@@ -259,6 +270,12 @@ class SalehaOrchestrator:
         duplicated here.
         """
         log += "Code ran successfully with no runtime error.\n"
+        # "Tested" needs a pass for exactly this code and suite. Having test
+        # code is not enough: for a non-Python task the suite never ran, yet
+        # this was recorded as verified_execution and committed as tested.
+        if suite_proof is not None and not suite_proof.covers(current_code, current_test_code):
+            suite_proof = None
+        tested = suite_proof is not None
         model_used = current_code_result.model_used or self.model
         self.stats.record(model=model_used, success=True, attempts=attempts, task_type="coding")
         self.history.log(goal=user_goal, model=model_used, success=True, attempts=attempts, code=current_code)
@@ -272,7 +289,7 @@ class SalehaOrchestrator:
                 goal=user_goal,
                 code=current_code,
                 model=model_used,
-                source_type="verified_execution" if current_test_code else "ran_without_error",
+                source_type="verified_execution" if tested else "ran_without_error",
             )
         except (IOError, OSError, TypeError) as e:
             log += f"   Warning: Memory store save failed: {e}\n"
@@ -290,12 +307,12 @@ class SalehaOrchestrator:
             # False and no suite existed.
             #
             # Staging everything is now opt-in and deliberate, and
-            # test_passed reflects whether a real suite ran.
+            # test_passed reflects whether a real suite ran and passed.
             commit_res = git_engine.auto_commit_task(
                 goal=user_goal,
                 task_type="feat",
                 model=model_used,
-                test_passed=bool(current_test_code),
+                test_passed=tested,
                 allow_stage_all=True,
             )
             if commit_res.success:
@@ -308,12 +325,13 @@ class SalehaOrchestrator:
         checkpoint("completed")
         try:
             from saleha.core.plugin_loader import plugin_loader as _pl2
-            _pl2.trigger_event("on_test_complete", result="passed", goal=user_goal)
+            _pl2.trigger_event("on_test_complete", result="passed" if tested else "ran_without_tests",
+                               goal=user_goal)
         except Exception:
             pass
         return OrchestrationResult(
             success=True, final_code=current_code, attempts=attempts,
-            log=log, profile_used=profile_name, verified=True,
+            log=log, profile_used=profile_name, verified=True, proof=suite_proof,
         )
 
     def execute_task(self, user_goal: str, use_context: bool = True, profile: Optional[str] = None, auto_commit: bool = False, context_dir: Optional[str] = None, generate_tests: bool = False, resume_session: bool = False, on_token=None, use_memory: bool = True) -> OrchestrationResult:
@@ -689,21 +707,32 @@ class SalehaOrchestrator:
         while attempts <= self.max_healing_attempts:
             log += f"\n[3/4] Tester: checking the {target_language} code (attempt {attempts})...\n"
 
+            # Only a real suite run can produce this; everything downstream
+            # that says "tests passed" reads it instead of a bool.
+            suite_proof: Optional[Verified] = None
             if current_test_code:
                 # REAL test execution: the test suite runs in the sandbox.
                 suite_res = self.tester.run_suite(
                     current_code, test_code=current_test_code, language=target_language
                 )
-                test_result = TestResult(
-                    passed=suite_res.passed,
-                    error_message="" if suite_res.passed else (
-                        f"Test Suite Failed ({suite_res.summary})\n"
-                        f"{suite_res.failure_report()}"
-                    ),
-                    error_type="TestFailure" if not suite_res.passed else "None",
-                )
+                suite_proof = suite_res.proof
+                if suite_res.status == NOTHING_TO_VERIFY and target_language != "python":
+                    # No test runner exists for this language, so the suite
+                    # was not executed. Check the code the way a task without
+                    # tests is checked; it is never recorded as tested.
+                    log += f"   Tests not run: {suite_res.verdict.reason}\n"
+                    test_result = self.tester.test_code(current_code, language=target_language)
+                else:
+                    test_result = TestResult(
+                        passed=suite_res.passed,
+                        error_message="" if suite_res.passed else (
+                            f"Test Suite Failed ({suite_res.summary})\n"
+                            f"{suite_res.failure_report()}"
+                        ),
+                        error_type="TestFailure" if not suite_res.passed else "None",
+                    )
             else:
-                test_result: TestResult = self.tester.test_code(current_code, language=target_language)
+                test_result = self.tester.test_code(current_code, language=target_language)
 
             if test_result.passed:
                 log += f"\n[4/5] Tester: {target_language} code is safe and syntactically valid.\n"
@@ -740,6 +769,7 @@ class SalehaOrchestrator:
                             current_code=current_code,
                             current_code_result=current_code_result,
                             current_test_code=current_test_code,
+                            suite_proof=suite_proof,
                             attempts=attempts,
                             profile_name=profile_name,
                             auto_commit=auto_commit,

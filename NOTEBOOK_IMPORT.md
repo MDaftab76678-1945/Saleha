@@ -11525,3 +11525,33 @@ method beats no-learning graph hops by only ~0.03-0.05 at R@20, ~0 at R@5.
 Caveats: two seeds; pairs within a commit are correlated; the current
 import graph was partly written by those commits (same head start for all
 graph methods); Euclidean's best lr sits at the grid edge (1.0).
+
+## Pass 164 (2026-09-29) -- type-state pass: only real execution can say "tested"
+
+Idea from the NEXUS v7 notes (`Task<Verified>` only built by the check).
+New `saleha/core/harness/verdict.py`: a pass is a `Verified` object that
+only `judge_suite_output()` issues, after reading this run's own nonce
+result line, exit code and executed-test count; it carries a digest of the
+exact code + tests (`covers()`). Everything else is `NotVerified` with kind
+failed / did_not_run / nothing_to_verify. `TestSuiteResult.passed` is now a
+read-only property of the verdict; `TestSuiteResult(passed=True)` raises.
+
+Fabrications found and fixed by making the type strict (probe, before -> after):
+
+- Smoke run with no tests: `passed=True, ran=0` -> nothing_to_verify.
+  `test_bare_smoke_mode_without_tests` asserted the vacuous pass; replaced.
+- Non-Python suites never ran, yet `TesterAgent.run_suite` returned
+  `passed=True, ran=1` when the program exited 0 -> nothing_to_verify, ran 0.
+- Orchestrator recorded memory `source_type="verified_execution"` and git
+  `test_passed=bool(current_test_code)` -- "has test code" treated as "passed
+  tests". JS task probe: verified_execution -> ran_without_error. Now read
+  from the proof (`OrchestrationResult.proof` / `tests_passed`).
+  `test_git_native` pinned `test_passed=bool(current_test_code)`; replaced.
+- Result line was judged on the first 20k chars of output: a correct but
+  chatty solution was reported as a crash. Now judged on full output.
+
+Teeth: 8 new/changed tests fail on the pre-fix files, pass after. Full
+suite: 2730 passed, 17 skipped. Limit (stated in the module): Python has no
+private constructors -- a deliberate forger can import `_MINT`; the lazy
+`passed=True` is what is gone. Not yet migrated: other bool-verdict
+producers (cross_check, oracle_check, swarm stages) still set their own flags.

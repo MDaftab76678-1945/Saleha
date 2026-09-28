@@ -115,11 +115,11 @@ class StagingSafetyTests(unittest.TestCase):
         else:
             os.environ["SALEHA_APPROVAL"] = self._prev_mode
 
-    def _git(self, *args) -> None:
+    def _git(self, *args: str) -> "subprocess.CompletedProcess[str]":
         return subprocess.run(["git"] + list(args), cwd=self.repo,
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, encoding="utf-8")
 
-    def _write(self, name, content):
+    def _write(self, name: str, content: str) -> None:
         with open(os.path.join(self.repo, name), "w", encoding="utf-8") as fh:
             fh.write(content)
 
@@ -270,10 +270,14 @@ class CallerStagingTests(unittest.TestCase):
         self.assertIn("allow_stage_all=True", src)
         # Assert what is passed, by stripping comment lines first -- the
         # explanatory comment above the call mentions the old hardcoded value.
-        code_only = "\n".join(l for l in src.splitlines()
-                              if not l.lstrip().startswith("#"))
+        code_only = "\n".join(line for line in src.splitlines()
+                              if not line.lstrip().startswith("#"))
         self.assertNotIn("test_passed=True", code_only)
-        self.assertIn("test_passed=bool(current_test_code)", code_only)
+        # Having test code is not the same as passing it (non-Python suites
+        # never ran); the flag comes from the runner's Verified proof. The
+        # behaviour is covered end to end in test_verdict.py.
+        self.assertNotIn("test_passed=bool(current_test_code)", code_only)
+        self.assertIn("test_passed=tested", code_only)
 
 
 if __name__ == "__main__":

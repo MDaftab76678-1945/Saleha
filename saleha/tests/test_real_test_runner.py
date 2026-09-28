@@ -195,13 +195,18 @@ class TestRunnerRealExecutionTests(unittest.TestCase):
         self.assertFalse(res.passed)
         self.assertTrue(res.error or res.failures)
 
-    def test_bare_smoke_mode_without_tests(self) -> None:
+    def test_bare_smoke_mode_without_tests_is_not_a_pass(self) -> None:
+        # This test used to assert ok.passed with 0 tests run -- it pinned a
+        # vacuous pass. Running without a crash verifies nothing.
         ok = self.runner.run_suite("print('just running')\n", test_code=None, timeout=10)
-        self.assertTrue(ok.passed)
-        self.assertEqual(ok.ran, 0)  # no unittest ran
+        self.assertFalse(ok.passed)
+        self.assertEqual(ok.status, "nothing_to_verify")
+        self.assertIsNone(ok.proof)
+        self.assertEqual(ok.ran, 0)
 
         crash = self.runner.run_suite("raise ValueError('nope')\n", test_code=None, timeout=10)
         self.assertFalse(crash.passed)
+        self.assertEqual(crash.status, "failed")
         self.assertIn("ValueError", (crash.error or "") + crash.raw_output)
 
     def test_blocked_import_short_circuits_via_static_gate(self) -> None:
@@ -219,6 +224,7 @@ class TestRunnerRealExecutionTests(unittest.TestCase):
         # suite that genuinely proved the solution correct.
         res = self.runner.run_suite(PASSING_CODE, test_code="# no tests written yet\n", timeout=15)
         self.assertFalse(res.passed)
+        self.assertEqual(res.status, "nothing_to_verify")
         self.assertEqual(res.ran, 0)
         self.assertIn("0 tests", res.error)
 

@@ -94,25 +94,37 @@ class TesterAgent:
         .failure_report() for healer prompts.
         """
         from saleha.core.harness.test_runner import TestRunner, TestSuiteResult, SuiteFailure
+        from saleha.core.harness.verdict import DID_NOT_RUN, FAILED, NOTHING_TO_VERIFY, NotVerified
 
         static = self.test_code(code, expected_keywords, language=language)
         if not static.passed:
             blocked = static.error_type == "SecurityViolation"
+            error = f"{static.error_type}: {static.error_message}"
             return TestSuiteResult(
-                passed=False, error=f"{static.error_type}: {static.error_message}",
-                blocked=blocked,
+                verdict=NotVerified(DID_NOT_RUN if blocked else FAILED, error),
+                error=error, blocked=blocked,
             )
 
         if language != "python":
+            # There is no test runner for other languages here: the program
+            # is executed, its test suite is not. That used to be reported as
+            # "1 test passed" whenever the program exited 0.
             from saleha.core.polyglot_executor import PolyglotExecutor
             poly_exec = PolyglotExecutor(timeout=timeout)
             exec_res = poly_exec.execute(code, language=language)
             failures = []
-            if not exec_res.success:
+            if exec_res.blocked:
+                verdict = NotVerified(DID_NOT_RUN, f"Blocked: {exec_res.block_reason}")
+            elif not exec_res.success:
                 failures.append(SuiteFailure(test_name=f"{language}_execution", traceback=exec_res.error or exec_res.output))
+                verdict = NotVerified(FAILED, f"{language} code crashed")
+            else:
+                verdict = NotVerified(
+                    NOTHING_TO_VERIFY,
+                    f"{language} code ran, but no {language} test runner exists here; its tests were not executed")
             return TestSuiteResult(
-                passed=exec_res.success,
-                ran=1,
+                verdict=verdict,
+                ran=0,
                 failures=failures,
                 raw_output=exec_res.output,
                 blocked=exec_res.blocked,
