@@ -11497,3 +11497,31 @@ Compare pass 161: 3-candidate agreement accepted 8 with 2 false. The oracle
 is stricter (3 vs 8 accepted) but has not produced a false success yet.
 Found by the run: an early mismatch was reported as "too few inputs"; fixed.
 Coverage is the weak point: 6 of 11 tasks got no verdict (generator issues).
+
+## Pass 163 (2026-09-29) -- N.A.H.E. hyperbolic idea measured on real co-change
+
+Notebook claim tested: hyperbolic (Poincare) space holds code hierarchy
+better, so it should pick better context files for a small model. New:
+`saleha/core/graph/poincare_embedding.py` (learned Poincare / Euclidean
+embeddings, Riemannian SGD, gradients checked against finite differences)
+and `saleha/core/graph/cochange_bench.py`. Graph = current `saleha/` tree +
+import edges (782 nodes, 2276 edges, 0 files unparsed). Ground truth = git
+history the embeddings never see: 215 of 477 commits (2-15 .py files each),
+980 (commit, seed file) pairs. lr chosen on graph MAP only.
+
+| method | graph MAP s0 / s1 | R@5 s0 / s1 | R@20 s0 / s1 |
+| --- | --- | --- | --- |
+| random | - | 0.007 / 0.008 | 0.027 / 0.026 |
+| graph_hops (no learning) | - | 0.232 / 0.230 | 0.302 / 0.306 |
+| poincare dim 5 | 0.714 / 0.736 | 0.221 / 0.243 | 0.329 / 0.343 |
+| euclidean dim 5 | 0.393 / 0.471 | 0.174 / 0.215 | 0.334 / 0.342 |
+| poincare dim 20 | 0.745 / 0.745 | 0.238 / 0.236 | 0.354 / 0.353 |
+| euclidean dim 20 | 0.993 / 0.995 | 0.265 / 0.267 | 0.367 / 0.361 |
+
+Real: at low dimension Poincare stores the graph far better (dim 5 MAP
+0.71-0.74 vs 0.39-0.47; dim 2 0.51 vs 0.38). Not supported: better file
+picking -- best retrieval is plain Euclidean dim 20, and every learned
+method beats no-learning graph hops by only ~0.03-0.05 at R@20, ~0 at R@5.
+Caveats: two seeds; pairs within a commit are correlated; the current
+import graph was partly written by those commits (same head start for all
+graph methods); Euclidean's best lr sits at the grid edge (1.0).
