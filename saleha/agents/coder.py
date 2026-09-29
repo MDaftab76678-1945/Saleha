@@ -18,7 +18,7 @@ for the expected call pattern.
 import re
 from typing import Any
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 class CodeResult:

@@ -141,7 +141,7 @@ eval("1 + 1")
         descriptions = [f.description for f in findings]
         self.assertTrue(any("os.system" in d for d in descriptions))
         self.assertTrue(any("eval()" in d for d in descriptions))
-        self.assertTrue(any("[import-check]" == f.pattern for f in findings))
+        self.assertTrue(any(f.pattern == "[import-check]" for f in findings))
 
     def test_syntax_error_handled_gracefully(self) -> None:
         broken_code = "def incomplete_func(:"

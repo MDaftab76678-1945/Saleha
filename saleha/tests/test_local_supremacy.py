@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult
 from saleha.core.fast_inference import FastInference, InferenceResult
+from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.local_supremacy import (
     LocalSupremacyEngine,
-    CandidateEvaluation,
     SupremacyResult,
 )
 

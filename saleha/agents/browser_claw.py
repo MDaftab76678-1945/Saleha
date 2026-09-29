@@ -1,11 +1,13 @@
 """SovereignClawAgent: Autonomous Headless Browser Automation & Web Extraction Engine."""
 
 from __future__ import annotations
+
 import time
 import urllib.parse
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from dataclasses import dataclass
+from typing import Any, Dict, List
+
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass

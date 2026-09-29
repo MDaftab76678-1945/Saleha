@@ -10,11 +10,11 @@ import os
 import tempfile
 import unittest
 from typing import Any
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+from saleha.core.memory.memory_store import MemoryStore
 from saleha.core.rag.repo_context_packer import RepoContextPacker
 from saleha.core.rag.vector_store import VectorStore
-from saleha.core.memory.memory_store import MemoryStore
 
 
 class RepoContextPackerTests(unittest.TestCase):

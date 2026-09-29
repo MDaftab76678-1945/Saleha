@@ -1,10 +1,10 @@
 """A2: Token-level streaming (think_stream) tests."""
 import unittest
-from unittest.mock import patch, MagicMock
-
-from saleha.agents.base_agent import BaseAgent, AgentResponse
-from saleha.core.platform.model_provider import ProviderResponse
 from typing import Any, Optional
+from unittest.mock import patch
+
+from saleha.agents.base_agent import BaseAgent
+from saleha.core.platform.model_provider import ProviderResponse
 
 
 class _StreamProvider:

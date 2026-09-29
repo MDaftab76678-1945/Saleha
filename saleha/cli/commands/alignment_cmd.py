@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Optional
 
 import click
-from rich.panel import Panel
 from rich.table import Table
 
 from saleha.cli.commands import cli, console

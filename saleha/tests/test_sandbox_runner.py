@@ -1,7 +1,8 @@
 """Unit tests for Isolated Container & Process Sandbox Execution Engine."""
 
 import unittest
-from saleha.core.harness.sandbox_runner import SandboxRunner, SandboxExecutionResult
+
+from saleha.core.harness.sandbox_runner import SandboxExecutionResult, SandboxRunner
 
 
 class TestSandboxRunner(unittest.TestCase):

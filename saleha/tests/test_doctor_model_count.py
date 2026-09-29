@@ -12,9 +12,9 @@ There was no test for `doctor` at all, which is why this went unnoticed.
 import unittest
 from unittest import mock
 
-from saleha.cli.commands import cli
 from click.testing import CliRunner
 
+from saleha.cli.commands import cli
 
 # What Ollama's /api/tags actually lists, and what the router's alias
 # expansion turns it into.

@@ -1,6 +1,7 @@
 """Unit tests for Database Migration & Schema Optimizer."""
 
 import unittest
+
 from saleha.core.db_optimizer import db_optimizer
 
 

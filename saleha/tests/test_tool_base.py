@@ -1,7 +1,7 @@
 """Unit tests for saleha.tools.base, ToolRegistry, and ASTInspectorTool."""
 
-from saleha.tools.base import BaseTool, ToolResult, ToolRegistry
 from saleha.tools.ast_inspector import ASTInspectorTool
+from saleha.tools.base import ToolRegistry, ToolResult
 
 
 def test_tool_result() -> None:

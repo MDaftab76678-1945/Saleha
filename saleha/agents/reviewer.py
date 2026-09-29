@@ -18,7 +18,7 @@ same Ollama connection and SmartRouter that already work.
 import os
 from dataclasses import dataclass
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass

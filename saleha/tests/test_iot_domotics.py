@@ -1,4 +1,3 @@
-import pytest
 
 from saleha.core.iot_domotics import FocusEnvironmentState, IoTDomoticsEngine
 

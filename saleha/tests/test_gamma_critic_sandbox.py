@@ -5,12 +5,8 @@ Validates zero-broken code guarantee, AST static safety checks, and polyglot heu
 
 from __future__ import annotations
 
-import pytest
-
 from saleha.core.gamma_critic_sandbox import (
-    ASTViolation,
     GammaASTInspector,
-    GammaReport,
     GammaSandboxEngine,
 )
 

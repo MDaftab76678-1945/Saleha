@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
 import sys
 import unittest
 from unittest.mock import MagicMock
+
 from saleha.core.env_sync import EnvSyncBridge
 
 

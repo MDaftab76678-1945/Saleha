@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
-from saleha.core.model_manager import ModelManager, BenchmarkResult
+from unittest.mock import patch
+
 from saleha.agents.base_agent import AgentResponse
+from saleha.core.model_manager import ModelManager
 
 
 class ModelManagerTests(unittest.TestCase):

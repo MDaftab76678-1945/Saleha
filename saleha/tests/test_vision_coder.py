@@ -2,6 +2,7 @@
 
 import unittest
 from unittest.mock import patch
+
 from saleha.core.vision_coder import VisionCoder, vision_coder
 
 

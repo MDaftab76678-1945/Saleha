@@ -5,8 +5,12 @@ Unit & Integration Tests for Quad Production Suite:
 """
 
 import unittest
-from saleha.agents.doc_generator import DocGeneratorAgent, CodebaseDocSpec, doc_generator
-from saleha.core.ephemeral_container_runner import EphemeralContainerRunner, ContainerExecutionResult, container_runner
+
+from saleha.agents.doc_generator import CodebaseDocSpec, DocGeneratorAgent
+from saleha.core.ephemeral_container_runner import (
+    ContainerExecutionResult,
+    EphemeralContainerRunner,
+)
 
 
 class DocGeneratorAgentTests(unittest.TestCase):

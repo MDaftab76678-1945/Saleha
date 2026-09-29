@@ -2,8 +2,8 @@
 Saleha System Info & Capability Inspector CLI.
 """
 
-import sys
 import platform
+
 import click
 from rich.console import Console
 from rich.panel import Panel
@@ -11,8 +11,8 @@ from rich.table import Table
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.tool_calling import global_tool_registry
 from saleha.core.platform.model_provider import default_provider
+from saleha.core.tool_calling import global_tool_registry
 
 console = Console()
 

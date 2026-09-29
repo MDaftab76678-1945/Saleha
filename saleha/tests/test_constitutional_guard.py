@@ -9,32 +9,33 @@ list.
 """
 
 import unittest
-from saleha.core.constitutional_guard import ConstitutionalGuard, ConstitutionalAuditReport
+
+from saleha.core.constitutional_guard import ConstitutionalAuditReport, ConstitutionalGuard
 
 
 class TestConstitutionalGuard(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.guard = ConstitutionalGuard()
 
-    def test_clean_code_matches_no_patterns(self):
+    def test_clean_code_matches_no_patterns(self) -> None:
         code = "def add(a: int, b: int) -> int:\n    return a + b\n"
         rep = self.guard.audit_code(code, "add.py")
         self.assertIsInstance(rep, ConstitutionalAuditReport)
         self.assertFalse(rep.matched_rules)
         self.assertEqual(len(rep.violations), 0)
 
-    def test_detects_destructive_os_command_violation(self):
+    def test_detects_destructive_os_command_violation(self) -> None:
         rep = self.guard.audit_code("import os\nos.system('rm -rf /')\n", "wipe.py")
         self.assertTrue(rep.matched_rules)
         self.assertTrue(any(v.clause_id == "CONST_01" for v in rep.violations))
 
-    def test_detects_unsafe_pickle_loads_violation(self):
+    def test_detects_unsafe_pickle_loads_violation(self) -> None:
         rep = self.guard.audit_code("import pickle\npickle.loads(p)\n", "deser.py")
         self.assertTrue(rep.matched_rules)
         self.assertTrue(any(v.clause_id == "CONST_02" for v in rep.violations))
 
-    def test_no_compliance_verdict_is_issued(self):
+    def test_no_compliance_verdict_is_issued(self) -> None:
         """
         `is_compliant` is gone. Four patterns not matching is not a safety
         verdict, and reporting it as one is what made this dangerous.
@@ -43,13 +44,13 @@ class TestConstitutionalGuard(unittest.TestCase):
         self.assertFalse(hasattr(rep, "is_compliant"))
         self.assertNotIn("COMPLIANT", rep.summary.upper())
 
-    def test_summary_says_what_was_checked_not_that_code_is_safe(self):
+    def test_summary_says_what_was_checked_not_that_code_is_safe(self) -> None:
         rep = self.guard.audit_code("def f(): pass", "x.py")
         self.assertIn("patterns checked", rep.summary)
         self.assertIn("not a safety verdict", rep.summary)
         self.assertIn("sast", rep.summary)
 
-    def test_genuinely_dangerous_code_outside_the_patterns_is_not_cleared(self):
+    def test_genuinely_dangerous_code_outside_the_patterns_is_not_cleared(self) -> None:
         """
         This deletes every file it can reach, ships /etc/passwd to a remote
         host and execs a downloaded payload. No pattern covers any of it, so
@@ -68,7 +69,7 @@ class TestConstitutionalGuard(unittest.TestCase):
         self.assertFalse(rep.matched_rules)
         self.assertIn("not a safety verdict", rep.summary)
 
-    def test_docstring_rule_count_matches_the_implementation(self):
+    def test_docstring_rule_count_matches_the_implementation(self) -> None:
         """The docstring listed five rules; there were four, and two of the
         five listed (sockets, obfuscated payloads) had no pattern at all."""
         import saleha.core.constitutional_guard as mod

@@ -7,11 +7,11 @@ import pytest
 
 from saleha.core import self_improve
 from saleha.core.self_improve import (
-    _extract_public_api,
+    SelfImproveResult,
     _clean_code_fence,
+    _extract_public_api,
     _heal_test_source,
     _prune_failing_tests,
-    SelfImproveResult,
     find_untested_module,
 )
 

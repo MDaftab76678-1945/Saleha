@@ -9,14 +9,13 @@ from __future__ import annotations
 import json
 import math
 import unittest
-from io import BytesIO
-from typing import List, Optional
-from unittest.mock import patch, MagicMock
+from typing import List
+from unittest.mock import MagicMock, patch
 
 from saleha.core.rag.embedding_backends import (
     OllamaEmbedder,
-    dense_dot,
     _normalize_ollama_url,
+    dense_dot,
 )
 
 

@@ -13,21 +13,21 @@ from __future__ import annotations
 import os
 import unittest
 from typing import Any, Dict, List, Tuple
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+from saleha.core.execution_policy import (
+    _reset_probe_cache,
+    build_docker_command,
+    get_sandbox_mode,
+    resolve_backend,
+)
+from saleha.core.harness.code_executor import CodeExecutor, _check_blocked_imports
+from saleha.core.hybrid_gateway import HybridModelGateway
 from saleha.core.platform.smart_router import (
     SmartRouter,
     get_default_history_path,
 )
-from saleha.core.hybrid_gateway import HybridModelGateway
 from saleha.core.safety_patterns import _check_blocked_imports as sp_check_imports
-from saleha.core.harness.code_executor import CodeExecutor, _check_blocked_imports
-from saleha.core.execution_policy import (
-    build_docker_command,
-    get_sandbox_mode,
-    resolve_backend,
-    _reset_probe_cache,
-)
 
 
 class SmartRouter2026Tests(unittest.TestCase):
@@ -310,7 +310,7 @@ class ProfileRoleRoutingTests(unittest.TestCase):
     """v1.4: llm_routing metadata now has a real routing/temperature effect."""
 
     def test_role_complexity_floors(self) -> None:
-        from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
+        from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 
         def load(profile_id: str) -> ProfileAgent:
             profile = profile_registry.get(profile_id)
@@ -339,7 +339,7 @@ class ProfileRoleRoutingTests(unittest.TestCase):
         self.assertEqual(captured["options"], {"temperature": 0.15})
 
     def test_sde_profile_reads_routing_temperature(self) -> None:
-        from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
+        from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 
         sde = profile_registry.get("agent_sde")
         assert sde is not None, "profile agent_sde missing"

@@ -1,10 +1,11 @@
 """Unit tests for Zero-Latency Local Inverted Code Search."""
 
-import unittest
-import tempfile
 import os
 import shutil
-from saleha.core.rag.fast_search import FastSearchEngine, SearchMatch
+import tempfile
+import unittest
+
+from saleha.core.rag.fast_search import FastSearchEngine
 
 
 class TestFastSearchEngine(unittest.TestCase):

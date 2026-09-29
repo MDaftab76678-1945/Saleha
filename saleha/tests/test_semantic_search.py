@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.rag.semantic_search import SemanticSearchEngine, SearchResult
+
+from saleha.core.rag.semantic_search import SemanticSearchEngine
 
 
 class SemanticSearchTests(unittest.TestCase):

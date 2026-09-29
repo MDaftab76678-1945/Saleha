@@ -1,4 +1,3 @@
-import pytest
 
 from saleha.core.nexus_mobile_bridge import MobileCommandResponse, NexusMobileBridge
 

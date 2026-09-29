@@ -4,14 +4,15 @@ J.A.R.V.I.S. Full-Duplex Audio Engine
 Sub-15ms SLA | Barge-In Support | AEC Integrated
 """
 
-import numpy as np
-import sounddevice as sd
-import threading
 import queue
+import threading
 import time
 from dataclasses import dataclass
-from typing import Optional, Callable
 from enum import Enum
+from typing import Any, Callable, Optional
+
+import numpy as np
+import sounddevice as sd
 
 
 # =============================================================================
@@ -65,7 +66,7 @@ class AcousticEchoCanceller:
     J.A.R.V.I.S. from hearing its own voice.
     """
     
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = 16000) -> None:
         self.sample_rate = sample_rate
         self.reference_buffer = np.zeros(
             int(sample_rate * AUDIO.ECHO_TAIL_MS / 1000), 
@@ -73,7 +74,7 @@ class AcousticEchoCanceller:
         )
         self._lock = threading.Lock()
     
-    def push_reference(self, speaker_audio: np.ndarray):
+    def push_reference(self, speaker_audio: np.ndarray) -> None:
         """Push speaker output as reference for echo cancellation."""
         with self._lock:
             if len(speaker_audio) > 0:
@@ -114,7 +115,7 @@ class SileroVADDetector:
     Runs ONNX model for sub-millisecond inference.
     """
     
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = 16000) -> None:
         self.sample_rate = sample_rate
         self.model = None
         self.utils = None
@@ -127,7 +128,7 @@ class SileroVADDetector:
         self.silence_start_time = 0
         self.triggered = False
     
-    def initialize(self):
+    def initialize(self) -> None:
         """Load Silero-VAD ONNX model."""
         try:
             import torch
@@ -189,7 +190,7 @@ class SileroVADDetector:
             'triggered': self.triggered
         }
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset VAD state."""
         with self._lock:
             self.is_speech = False
@@ -207,23 +208,23 @@ class BargeInController:
     Sub-1ms response time using atomic state flags.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.is_speaking = threading.Event()
         self.interrupted = threading.Event()
         self._state_lock = threading.Lock()
         self._callbacks = []
     
-    def register_callback(self, callback: Callable):
+    def register_callback(self, callback: Callable) -> None:
         """Register callback for interruption events."""
         self._callbacks.append(callback)
     
-    def start_speaking(self):
+    def start_speaking(self) -> None:
         """Mark that J.A.R.V.I.S. has started speaking."""
         with self._state_lock:
             self.is_speaking.set()
             self.interrupted.clear()
     
-    def stop_speaking(self):
+    def stop_speaking(self) -> None:
         """Mark that J.A.R.V.I.S. has stopped speaking."""
         with self._state_lock:
             self.is_speaking.clear()
@@ -257,7 +258,7 @@ class BargeInController:
         """Check if currently interrupted."""
         return self.interrupted.is_set()
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset interruption state."""
         with self._state_lock:
             self.interrupted.clear()
@@ -272,12 +273,12 @@ class AudioRingBuffer:
     Uses queue.Queue for thread safety with minimal overhead.
     """
     
-    def __init__(self, max_chunks: int = 64):
+    def __init__(self, max_chunks: int = 64) -> None:
         self.buffer = queue.Queue(maxsize=max_chunks)
         self.total_chunks = 0
         self.dropped_chunks = 0
     
-    def push(self, chunk: np.ndarray, timestamp: float):
+    def push(self, chunk: np.ndarray, timestamp: float) -> None:
         """Push audio chunk to buffer."""
         try:
             self.buffer.put_nowait((chunk, timestamp))
@@ -298,7 +299,7 @@ class AudioRingBuffer:
         except queue.Empty:
             return None
     
-    def clear(self):
+    def clear(self) -> None:
         """Clear all buffered audio."""
         while not self.buffer.empty():
             try:
@@ -321,7 +322,7 @@ class FullDuplexAudioEngine:
     with AEC, VAD, and Barge-In support.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = AUDIO
         self.state = AudioState.IDLE
         self.running = False
@@ -348,7 +349,7 @@ class FullDuplexAudioEngine:
         self._capture_thread = None
         self._lock = threading.Lock()
     
-    def initialize(self):
+    def initialize(self) -> None:
         """Initialize audio engine and all sub-components."""
         print("🎙️ [Audio Engine] Initializing Full-Duplex Audio Engine...")
         
@@ -360,7 +361,7 @@ class FullDuplexAudioEngine:
         
         print("✅ [Audio Engine] Initialization complete")
     
-    def start(self):
+    def start(self) -> None:
         """Start audio capture and processing."""
         if self.running:
             return
@@ -380,7 +381,7 @@ class FullDuplexAudioEngine:
         
         print("🎙️ [Audio Engine] Listening...")
     
-    def stop(self):
+    def stop(self) -> None:
         """Stop audio engine."""
         self.running = False
         
@@ -397,7 +398,7 @@ class FullDuplexAudioEngine:
         self.state = AudioState.IDLE
         print("🎙️ [Audio Engine] Stopped")
     
-    def _audio_callback(self, indata, frames, time_info, status):
+    def _audio_callback(self, indata: Any, frames: Any, time_info: Any, status: Any) -> None:
         """
         Main audio callback - called for every audio block.
         This runs in a separate thread managed by sounddevice.
@@ -439,7 +440,7 @@ class FullDuplexAudioEngine:
             if len(self.speech_buffer) > 0:
                 self._finalize_speech()
     
-    def _finalize_speech(self):
+    def _finalize_speech(self) -> None:
         """Finalize captured speech and send for processing."""
         if not self.speech_buffer:
             return
@@ -462,7 +463,7 @@ class FullDuplexAudioEngine:
         self.state = AudioState.LISTENING
         self.vad.reset()
     
-    def _handle_barge_in(self):
+    def _handle_barge_in(self) -> None:
         """Handle barge-in interruption."""
         print("⚡ [Barge-In] User interrupted J.A.R.V.I.S.!")
         
@@ -480,7 +481,7 @@ class FullDuplexAudioEngine:
         # Return to listening
         self.state = AudioState.LISTENING
     
-    def speak(self, audio_data: np.ndarray):
+    def speak(self, audio_data: np.ndarray) -> None:
         """
         Play audio through speakers.
         Also pushes to AEC reference buffer.
@@ -526,10 +527,10 @@ if __name__ == "__main__":
     
     engine = create_audio_engine()
     
-    def on_speech(audio):
+    def on_speech(audio: Any) -> None:
         print(f"✅ Speech received: {len(audio)} samples")
     
-    def on_interrupt():
+    def on_interrupt() -> None:
         print("🛑 Interruption handled")
     
     engine.on_speech_end = on_speech

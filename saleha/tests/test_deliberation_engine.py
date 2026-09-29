@@ -1,11 +1,12 @@
-import unittest
 import json
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
 
+from saleha.cli.commands import cli
 from saleha.core.loop.deliberation_engine import DeliberationEngine, DeliberationResult
 from saleha.core.swarm.team_orchestrator import TeamResult
-from saleha.cli.commands import cli
 
 
 class DeliberationEngineTests(unittest.TestCase):

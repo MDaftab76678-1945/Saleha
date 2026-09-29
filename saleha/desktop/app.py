@@ -7,20 +7,19 @@ and Local LLM (Ollama) Health/Model manager for the desktop environment.
 
 from __future__ import annotations
 
-import os
-import sys
-import time
 import json
+import os
 import socket
-import threading
 import subprocess
+import sys
+import threading
+import time
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
 from http.server import HTTPServer
+from typing import Any, Dict, List, Optional
 
-from saleha.server import web_server
-from saleha.server.web_server import SalehaAPIHandler, get_auth_token, set_auth_token
+from saleha.server.web_server import SalehaAPIHandler, get_auth_token
 
 
 @dataclass

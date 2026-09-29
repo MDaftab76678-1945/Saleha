@@ -19,11 +19,10 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
-
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 # Layout family -> (component list, palette). The palettes deliberately
 # differ so two unrelated prompts do not render the same six swatches.

@@ -1,9 +1,10 @@
 """Unit tests for Hierarchical Semantic Graph Memory."""
 
-import unittest
-import tempfile
 import os
-from saleha.core.graph.graph_memory import HierarchicalGraphMemory, GraphNode, GraphEdge
+import tempfile
+import unittest
+
+from saleha.core.graph.graph_memory import HierarchicalGraphMemory
 
 
 class TestHierarchicalGraphMemory(unittest.TestCase):

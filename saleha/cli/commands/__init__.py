@@ -7,26 +7,13 @@ multi-agent subsystems, diagnostics, benchmarks, history, and Octopus coordinati
 
 from __future__ import annotations
 
-import click
 import sys
-import os
-import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-import re
-import time
-import json
-import io
-import contextlib
-from contextlib import redirect_stdout
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-from saleha import __version__
+import click
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
+
+from saleha import __version__
 
 if sys.platform == "win32":
     try:
@@ -44,40 +31,41 @@ console = Console(safe_box=True)
 from saleha.cli.dashboard import render_dashboard
 
 if TYPE_CHECKING:
-    from saleha.core.platform.smart_router import SmartRouter
     from saleha.agents.base_agent import BaseAgent
-    from saleha.agents.planner import PlannerAgent
     from saleha.agents.coder import CoderAgent
-    from saleha.agents.tester import TesterAgent
     from saleha.agents.debugger import DebuggerAgent
-    from saleha.orchestrator import SalehaOrchestrator
-    from saleha.core.project_builder import ProjectBuilder
-    from saleha.core.swarm.team_orchestrator import TeamOrchestrator
-    from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
-    from saleha.core.agent_profile_loader import profile_registry
-    from saleha.core.memory.memory_store import memory_store
-    from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
-    from saleha.core.loop.deliberation_engine import DeliberationEngine
-    from saleha.core.tool_calling import global_tool_registry
-    from saleha.core.harness.sandbox_runner import SandboxRunner
-    from saleha.core.docker_sandbox import DockerSandboxRunner
-    from saleha.core.polyglot_indexer import PolyglotIndexer
-    from saleha.core.pr_generator import PRGenerator
-    from saleha.core.verification.security_scanner import ASTSecurityScanner
-    from saleha.core.dag_engine import TaskDAG, TaskNode
-    from saleha.core.mcp_engine import MCPServer
+    from saleha.agents.planner import PlannerAgent
+    from saleha.agents.tester import TesterAgent
     from saleha.ci.bot import PRReviewBot
-    from saleha.core.hybrid_gateway import gateway as hybrid_gateway
-    from saleha.server.web_server import run_web_studio
+    from saleha.cli.dashboard import run_live_dashboard
     from saleha.cli.repl import start_repl
     from saleha.cli.tui_canvas import start_tui_canvas
-    from saleha.cli.dashboard import run_live_dashboard
-    from saleha.core.loop.agentic_loop import AgentLoop
-    from saleha.core.repo_watcher import repo_watcher
-    from saleha.core.swe_bench_harness import sandbox_self_check
-    from saleha.core.platform.lsp_engine import lsp_engine
+    from saleha.core.agent_profile_loader import profile_registry
     from saleha.core.cloud_deployer import cloud_deployer
+    from saleha.core.dag_engine import TaskDAG, TaskNode
     from saleha.core.db_optimizer import db_optimizer
+    from saleha.core.docker_sandbox import DockerSandboxRunner
+    from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
+    from saleha.core.harness.sandbox_runner import SandboxRunner
+    from saleha.core.hybrid_gateway import gateway as hybrid_gateway
+    from saleha.core.loop.agentic_loop import AgentLoop
+    from saleha.core.loop.deliberation_engine import DeliberationEngine
+    from saleha.core.mcp_engine import MCPServer
+    from saleha.core.memory.memory_store import memory_store
+    from saleha.core.platform.lsp_engine import lsp_engine
+    from saleha.core.platform.smart_router import SmartRouter
+    from saleha.core.polyglot_indexer import PolyglotIndexer
+    from saleha.core.pr_generator import PRGenerator
+    from saleha.core.project_builder import ProjectBuilder
+    from saleha.core.repo_watcher import repo_watcher
+    from saleha.core.skill_registry import load_builtin_skills
+    from saleha.core.skill_registry import registry as skill_registry
+    from saleha.core.swarm.team_orchestrator import TeamOrchestrator
+    from saleha.core.swe_bench_harness import sandbox_self_check
+    from saleha.core.tool_calling import global_tool_registry
+    from saleha.core.verification.security_scanner import ASTSecurityScanner
+    from saleha.orchestrator import SalehaOrchestrator
+    from saleha.server.web_server import run_web_studio
 
 # ==============================================================================
 # LAZY IMPORTS (PEP 562)
@@ -420,13 +408,7 @@ def _one_line(text: str) -> str:
 # ==============================================================================
 
 
-from saleha.cli.monorepo_cli import monorepo_group
-from saleha.cli.demo_cli import dogfood_cmd
 from saleha.cli.benchmark_cli import benchmark_cmd
-from saleha.cli.info_cli import info_cmd
-from saleha.cli.start_cli import start_cmd
-from saleha.cli.release_cli import release_cmd
-from saleha.cli.soul_cli import soul_group
 
 # ==============================================================================
 # Category modules: each import below runs that file's top-level
@@ -437,41 +419,49 @@ from saleha.cli.soul_cli import soul_group
 # (not via the generic `from saleha.cli.commands import doom_group` used for
 # the others, which would bind this name to the submodule, not the group).
 # ==============================================================================
-from saleha.cli.commands import autonomous_cmd  # noqa: F401
-from saleha.cli.commands import workflow_cmd  # noqa: F401
-from saleha.cli.commands import agent_pc_cmd  # noqa: F401
-from saleha.cli.commands import alignment_cmd  # noqa: F401
-from saleha.cli.commands import core_agentic  # noqa: F401
-from saleha.cli.commands import deploy_infra  # noqa: F401
-from saleha.cli.commands import desktop_web  # noqa: F401
-from saleha.cli.commands import docs  # noqa: F401
+from saleha.cli.commands import (
+    agent_pc_cmd,  # noqa: F401
+    alignment_cmd,  # noqa: F401
+    autonomous_cmd,  # noqa: F401
+    core_agentic,  # noqa: F401
+    deploy_infra,  # noqa: F401
+    desktop_web,  # noqa: F401
+    docs,  # noqa: F401
+    git_group,  # noqa: F401
+    git_release,  # noqa: F401
+    governance_cmd,  # noqa: F401
+    harness_group,  # noqa: F401
+    hook_group,  # noqa: F401
+    hub_group,  # noqa: F401
+    indexing_graph,  # noqa: F401
+    mcp_group,  # noqa: F401
+    memory_context,  # noqa: F401
+    misc_tools,  # noqa: F401
+    native_kernel_cmd,  # noqa: F401
+    octopus_cmd,  # noqa: F401
+    quality_security,  # noqa: F401
+    research_experimental,  # noqa: F401
+    sandbox_exec,  # noqa: F401
+    scaffold,  # noqa: F401
+    scheduler,  # noqa: F401
+    self_improve,  # noqa: F401
+    skill_group,  # noqa: F401
+    supremacy_cmd,  # noqa: F401
+    swarm_team,  # noqa: F401
+    testing_bench,  # noqa: F401
+    tool_forge_cmd,  # noqa: F401
+    user,  # noqa: F401
+    vault_group,  # noqa: F401
+    voice_vision,  # noqa: F401
+    workflow_cmd,  # noqa: F401
+)
 from saleha.cli.commands.doom_group import doom_group
-from saleha.cli.commands import git_group  # noqa: F401
-from saleha.cli.commands import git_release  # noqa: F401
-from saleha.cli.commands import harness_group  # noqa: F401
-from saleha.cli.commands import hook_group  # noqa: F401
-from saleha.cli.commands import hub_group  # noqa: F401
-from saleha.cli.commands import indexing_graph  # noqa: F401
-from saleha.cli.commands import mcp_group  # noqa: F401
-from saleha.cli.commands import memory_context  # noqa: F401
-from saleha.cli.commands import misc_tools  # noqa: F401
-from saleha.cli.commands import octopus_cmd  # noqa: F401
-from saleha.cli.commands import quality_security  # noqa: F401
-from saleha.cli.commands import research_experimental  # noqa: F401
-from saleha.cli.commands import sandbox_exec  # noqa: F401
-from saleha.cli.commands import scaffold  # noqa: F401
-from saleha.cli.commands import scheduler  # noqa: F401
-from saleha.cli.commands import self_improve  # noqa: F401
-from saleha.cli.commands import skill_group  # noqa: F401
-from saleha.cli.commands import swarm_team  # noqa: F401
-from saleha.cli.commands import supremacy_cmd  # noqa: F401
-from saleha.cli.commands import testing_bench  # noqa: F401
-from saleha.cli.commands import tool_forge_cmd  # noqa: F401
-from saleha.cli.commands import user  # noqa: F401
-from saleha.cli.commands import vault_group  # noqa: F401
-from saleha.cli.commands import voice_vision  # noqa: F401
-from saleha.cli.commands import native_kernel_cmd  # noqa: F401
-from saleha.cli.commands import governance_cmd  # noqa: F401
+from saleha.cli.demo_cli import dogfood_cmd
+from saleha.cli.info_cli import info_cmd
+from saleha.cli.monorepo_cli import monorepo_group
+from saleha.cli.release_cli import release_cmd
+from saleha.cli.soul_cli import soul_group
+from saleha.cli.start_cli import start_cmd
 
 cli.add_command(monorepo_group)
 cli.add_command(dogfood_cmd)

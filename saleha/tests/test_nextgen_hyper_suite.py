@@ -4,12 +4,11 @@
 3. SPICSFuzzEngine (Property-Based Chaos Fuzzing & Auto-Hardening)
 """
 
-import os
 import unittest
 
-from saleha.core.graph.hypergraph_indexer import HypergraphIndexer, hypergraph_indexer, SymbolNode, HypergraphIndexStats
-from saleha.core.dynamic_lora_router import DynamicLoRARouter, dynamic_lora_router, LoRARoutingDecision
-from saleha.core.spics_fuzz_engine import SPICSFuzzEngine, spics_fuzz_engine, FuzzPropertyResult
+from saleha.core.dynamic_lora_router import DynamicLoRARouter
+from saleha.core.graph.hypergraph_indexer import HypergraphIndexer, HypergraphIndexStats
+from saleha.core.spics_fuzz_engine import FuzzPropertyResult, SPICSFuzzEngine
 
 
 class TestNextGenHyperSuite(unittest.TestCase):

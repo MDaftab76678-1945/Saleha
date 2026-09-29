@@ -1,7 +1,8 @@
 """Unit tests for SiliconCopilot Hardware / Verilog SAST Scanner."""
 
 import unittest
-from saleha.core.silicon_scanner import SiliconScanner, silicon_scanner
+
+from saleha.core.silicon_scanner import SiliconScanner
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 

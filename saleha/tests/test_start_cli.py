@@ -3,7 +3,9 @@ Unit test for saleha start CLI command.
 """
 
 import unittest
+
 from click.testing import CliRunner
+
 from saleha.cli.start_cli import start_cmd
 
 

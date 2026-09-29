@@ -1,6 +1,5 @@
-import pytest
 
-from saleha.core.dynamic_lora_router import MicroAdapterSpec, LoRARoutingDecision, DynamicLoRARouter
+from saleha.core.dynamic_lora_router import DynamicLoRARouter
 
 
 def test_route_and_switch():

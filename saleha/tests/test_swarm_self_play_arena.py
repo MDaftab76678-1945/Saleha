@@ -4,11 +4,11 @@ import os
 import unittest
 
 from saleha.core.swarm.swarm_self_play_arena import (
-    SwarmSelfPlayArena,
+    AdversarialBattleResult,
     CurriculumLevelController,
     RewardAggregator,
     RoundReward,
-    AdversarialBattleResult,
+    SwarmSelfPlayArena,
     SwarmSelfPlaySummary,
 )
 

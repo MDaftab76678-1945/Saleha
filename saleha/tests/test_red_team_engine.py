@@ -1,7 +1,8 @@
 """Unit tests for the Autonomous Adversarial Red-Team Fuzzer (AgentShield)."""
 
 import unittest
-from saleha.core.red_team_engine import RedTeamEngine, RedTeamAuditReport
+
+from saleha.core.red_team_engine import RedTeamAuditReport, RedTeamEngine
 
 
 class TestRedTeamEngine(unittest.TestCase):

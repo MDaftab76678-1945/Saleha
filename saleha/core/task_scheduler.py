@@ -212,8 +212,8 @@ class TaskSchedulerEngine:
         if not task:
             return None
 
-        from saleha.core.task_history import TaskHistory
         from saleha.core.swarm.team_orchestrator import TeamOrchestrator
+        from saleha.core.task_history import TaskHistory
 
         start = time.perf_counter()
         try:

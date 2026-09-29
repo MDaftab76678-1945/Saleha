@@ -8,8 +8,9 @@ import shutil
 import tempfile
 import unittest
 import unittest.mock
-from saleha.core.training_collector import TrainingCollector, TrainingSample
+
 from saleha.core.lora_tuner import LoRATuner, TuningConfig
+from saleha.core.training_collector import TrainingCollector, TrainingSample
 
 
 class TrainingCollectorTests(unittest.TestCase):

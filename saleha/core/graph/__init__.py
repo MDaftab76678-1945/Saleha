@@ -56,7 +56,6 @@ from saleha.core.graph.system1_scout import (
 )
 
 
-
 class CallGraphNavigator:
     """
     2026 Graph Engineering Navigator:

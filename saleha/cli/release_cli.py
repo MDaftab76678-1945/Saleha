@@ -16,12 +16,13 @@ unconditional "READY"/"SIGNED" status) and printed a hardcoded
 fixed to run pytest for real and report what actually happened.
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 import time
-import hashlib
+
 import click
 from rich.console import Console
 from rich.panel import Panel
@@ -102,7 +103,7 @@ def release_cmd(channel: str, skip_tests: bool):
     console.print(table)
 
     if test_result.get("ran") and not test_result.get("passed", True):
-        console.print(f"\n[bold red]Release manifest written, but the test suite did not pass.[/bold red]\n")
+        console.print("\n[bold red]Release manifest written, but the test suite did not pass.[/bold red]\n")
     else:
         console.print(f"\n[bold green]Release manifest for v{__version__} written to {manifest_path}.[/bold green]\n")
 

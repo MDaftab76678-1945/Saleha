@@ -20,7 +20,9 @@ import tempfile
 import unittest
 
 from saleha.core.emergence_detector import (
-    EmergenceDetector, EmergenceHealthReport, SwarmMessageEvent,
+    EmergenceDetector,
+    EmergenceHealthReport,
+    SwarmMessageEvent,
 )
 
 

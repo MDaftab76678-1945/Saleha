@@ -1,10 +1,11 @@
 """Unit tests for Codebase Snapshot & Time-Machine Rollback."""
 
-import unittest
-import tempfile
 import os
 import shutil
-from saleha.core.time_machine import TimeMachine, CodebaseSnapshot
+import tempfile
+import unittest
+
+from saleha.core.time_machine import CodebaseSnapshot, TimeMachine
 
 
 class TestTimeMachine(unittest.TestCase):

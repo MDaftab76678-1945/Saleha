@@ -4,18 +4,18 @@ Verifies that non-Python languages (JavaScript, TypeScript, Go, Rust) are handle
 without triggering Python-specific AST syntax errors.
 """
 
+import shutil
 import tempfile
 import unittest
-import shutil
 from unittest.mock import MagicMock
 
+import saleha.orchestrator as orchestrator_module
+from saleha.agents.coder import CoderAgent, CodeResult
+from saleha.agents.reviewer import ReviewerAgent, ReviewResult
+from saleha.agents.tester import TesterAgent
 from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult
 from saleha.core.memory.memory_store import MemoryStore
-from saleha.agents.coder import CoderAgent, CodeResult
-from saleha.agents.tester import TesterAgent
-from saleha.agents.reviewer import ReviewerAgent, ReviewResult
 from saleha.orchestrator import SalehaOrchestrator
-import saleha.orchestrator as orchestrator_module
 
 
 class PolyglotOrchestratorIntegrationTests(unittest.TestCase):
@@ -100,7 +100,7 @@ class PolyglotOrchestratorIntegrationTests(unittest.TestCase):
             captured_prompts.append(prompt)
             return MagicMock(success=True, content="APPROVED", model_used="qwen2.5-coder:3b", error_message="")
 
-        setattr(reviewer, "think", MagicMock(side_effect=mock_think))
+        reviewer.think = MagicMock(side_effect=mock_think)
         res = reviewer.review_code("Write a Go function", "func Add(a, b int) int { return a + b }", language="go")
         self.assertTrue(res.approved)
         self.assertTrue(any("```go" in p for p in captured_prompts))

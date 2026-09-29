@@ -6,12 +6,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from saleha.core.fast_inference import InferenceResult
-
 from saleha.core.cloud_infra_orchestrator import CloudInfraOrchestrator, CloudInfraPlan
-from saleha.core.multirepo_orchestrator import MultiRepoOrchestrator, MultiRepoSyncPlan
-from saleha.core.silicon_circuit_orchestrator import SiliconCircuitOrchestrator, SiliconCircuitDesign
 from saleha.core.debate_consensus_orchestrator import DebateConsensusOrchestrator, DebateVerdict
+from saleha.core.fast_inference import InferenceResult
+from saleha.core.multirepo_orchestrator import MultiRepoOrchestrator, MultiRepoSyncPlan
+from saleha.core.silicon_circuit_orchestrator import (
+    SiliconCircuitDesign,
+    SiliconCircuitOrchestrator,
+)
 
 
 class SpecializedOrchestratorsTests(unittest.TestCase):

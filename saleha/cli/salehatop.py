@@ -9,24 +9,21 @@ Real-time console dashboard rendering:
 
 from __future__ import annotations
 
-import os
 import random
 import sys
 import time
 from datetime import datetime
 from typing import List, Optional
 
-from rich.align import Align
 from rich.console import Console
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, TextColumn
 from rich.table import Table
 from rich.text import Text
 
 from saleha import __version__
-from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, SwarmDepartment
+from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology
 
 if sys.platform == "win32":
     try:
@@ -67,20 +64,20 @@ class SalehaTopDashboard:
         throughput = 3373819 + (self.tick * 15420) % 50000
 
         text = Text()
-        text.append(f" RAM Usage:  ", style="bold white")
+        text.append(" RAM Usage:  ", style="bold white")
         text.append(f"[{'■' * 8}{'─' * 22}] ", style="green")
         text.append(f"{ram_used} MB / 2,200 MB Hard Cap (18.7%)\n", style="bold green")
 
-        text.append(f" VRAM Usage: ", style="bold white")
+        text.append(" VRAM Usage: ", style="bold white")
         text.append(f"[{'■' * 12}{'─' * 18}] ", style="cyan")
         text.append(f"{vram_used} MB / 2,048 MB Cap (28.3%)\n", style="bold cyan")
 
-        text.append(f" Throughput: ", style="bold white")
+        text.append(" Throughput: ", style="bold white")
         text.append(f"{throughput:,} Jobs/sec", style="bold magenta")
         text.append(" | Mailbox SPSC Latency: ", style="dim")
         text.append("< 15 ns\n", style="bold green")
 
-        text.append(f" Swarm Mode: ", style="bold white")
+        text.append(" Swarm Mode: ", style="bold white")
         text.append("SOVEREIGN BARE-METAL (0% Cloud / $0 Cost)", style="bold yellow")
 
         return Panel(text, title="⚙️ Hardware Resource Bounds", border_style="green")

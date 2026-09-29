@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
+import sys
 import unittest
 import urllib.request
-from unittest.mock import patch, MagicMock
-
-import sys
 from pathlib import Path
+
 _root_dir = str(Path(__file__).resolve().parent.parent.parent)
 if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 
-from saleha.desktop.app import SalehaDesktopApp, LocalLLMManager, LocalLLMStatus
+from saleha.desktop.app import LocalLLMManager, LocalLLMStatus, SalehaDesktopApp
+
 try:
     from scripts.package_desktop_app import generate_desktop_manifest
 except ImportError:

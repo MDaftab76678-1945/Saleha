@@ -1,10 +1,11 @@
 """Unit tests for Zero-JS HTMX Web App Generator."""
 
-import unittest
-import tempfile
 import os
 import shutil
-from saleha.core.htmx_generator import HTMXGenerator, HTMXAppPackage
+import tempfile
+import unittest
+
+from saleha.core.htmx_generator import HTMXAppPackage, HTMXGenerator
 
 
 class TestHTMXGenerator(unittest.TestCase):

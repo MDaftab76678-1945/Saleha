@@ -2,12 +2,11 @@
 coverage before this file (found during a test-coverage sweep of
 saleha/core/)."""
 
-import json
 import os
 import tempfile
 import unittest
 
-from saleha.core.telemetry.stats_tracker import StatsTracker, ModelStats
+from saleha.core.telemetry.stats_tracker import StatsTracker
 
 
 class StatsTrackerTests(unittest.TestCase):

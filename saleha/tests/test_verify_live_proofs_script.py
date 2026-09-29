@@ -17,10 +17,9 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
-import sys
 import unittest
-from unittest.mock import patch
 from typing import Any
+from unittest.mock import patch
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

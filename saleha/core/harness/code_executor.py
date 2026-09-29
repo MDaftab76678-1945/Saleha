@@ -27,7 +27,6 @@ import tempfile
 from dataclasses import dataclass
 from typing import Optional
 
-from saleha.core.telemetry.audit_log import AuditLog
 from saleha.core.execution_policy import build_docker_command, ensure_image, resolve_backend
 from saleha.core.safety_patterns import (
     _check_blocked_imports as _sp_check_blocked_imports,
@@ -35,6 +34,7 @@ from saleha.core.safety_patterns import (
 from saleha.core.safety_patterns import (
     check_dangerous,
 )
+from saleha.core.telemetry.audit_log import AuditLog
 
 MAX_OUTPUT_CHARS = 50_000  # ~50KB -- enough for normal script output
 

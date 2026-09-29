@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import unittest
-from unittest.mock import patch, MagicMock
-from saleha.core.platform.self_healer import SelfHealingEngine, StackFrame, ErrorDiagnostics, HealResult
+
+from saleha.core.platform.self_healer import SelfHealingEngine
 
 
 class SelfHealingEngineTests(unittest.TestCase):

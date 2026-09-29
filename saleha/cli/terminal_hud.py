@@ -8,17 +8,15 @@ system resource load, codebase AST graph status, long-term memory metrics, and d
 from __future__ import annotations
 
 import os
-import sys
 import time
-import psutil
-from typing import Dict, List, Optional, Any
 
+import psutil
 from rich.console import Console
 from rich.layout import Layout
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.live import Live
 
 from saleha.core.graph.dependency_graph import dependency_graph
 from saleha.core.memory.memory_store import memory_store

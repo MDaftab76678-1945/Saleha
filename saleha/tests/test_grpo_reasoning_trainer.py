@@ -11,10 +11,10 @@ import unittest
 
 from saleha.core.grpo_reasoning_trainer import (
     GRPOReasoningTrainer,
-    grpo_reasoning_trainer,
     GRPORollout,
     GRPOTrainingStepResult,
     GRPOTrainingSummary,
+    grpo_reasoning_trainer,
 )
 
 

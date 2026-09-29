@@ -1,7 +1,8 @@
 """Unit tests for Saleha Headless Browser Runner."""
 
 import unittest
-from saleha.core.browser_runner import BrowserRunner, _SimpleDOMParser, BrowserResult
+
+from saleha.core.browser_runner import BrowserResult, BrowserRunner, _SimpleDOMParser
 
 
 class BrowserRunnerTests(unittest.TestCase):

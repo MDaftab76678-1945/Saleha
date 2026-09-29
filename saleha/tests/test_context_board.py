@@ -1,7 +1,8 @@
 """Unit tests for the Swarm Shared Context Blackboard."""
 
 import unittest
-from saleha.core.context_board import ContextBoard, BoardEntry
+
+from saleha.core.context_board import BoardEntry, ContextBoard
 
 
 class TestContextBoard(unittest.TestCase):

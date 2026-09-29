@@ -25,7 +25,6 @@ removed in pass 44, nothing here reports a result it did not compute.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
-
 # ---------- INTUITIVE PHYSICS ----------
 
 @dataclass

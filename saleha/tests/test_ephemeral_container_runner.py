@@ -7,11 +7,11 @@ docker daemon failure detection, and seamless local fallback.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from saleha.core.ephemeral_container_runner import (
-    EphemeralContainerRunner,
     ContainerExecutionResult,
+    EphemeralContainerRunner,
 )
 from saleha.core.harness.sandbox_runner import SandboxResult
 

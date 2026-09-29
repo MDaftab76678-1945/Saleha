@@ -6,7 +6,8 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.project_initializer import ProjectInitializer, ProjectInitSummary
+
+from saleha.core.project_initializer import ProjectInitializer
 
 
 class ProjectInitializerTests(unittest.TestCase):

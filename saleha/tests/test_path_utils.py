@@ -4,7 +4,7 @@ file (found during a test-coverage sweep of saleha/core/)."""
 import os
 import unittest
 
-from saleha.core.path_utils import safe_relpath, posix_basename
+from saleha.core.path_utils import posix_basename, safe_relpath
 
 
 class SafeRelpathTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 """Unit tests for Graph RAG & Natural Language Codebase Q&A Engine."""
 
 import unittest
+
 from saleha.core.rag.graph_rag import graph_rag
 
 

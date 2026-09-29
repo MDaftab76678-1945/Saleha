@@ -23,14 +23,14 @@ The SMT tests stay, because that module genuinely runs Z3.
 
 import unittest
 
-from saleha.core.verification.formal_smt_verifier import (
-    FormalSMTVerifier,
-    FormalProofContract,
-)
 from saleha.core.verification.apex_97_validator import (
+    Apex97CertificationReport,
     Apex97Validator,
     apex_97_validator,
-    Apex97CertificationReport,
+)
+from saleha.core.verification.formal_smt_verifier import (
+    FormalProofContract,
+    FormalSMTVerifier,
 )
 
 

@@ -13,6 +13,7 @@ table is built, so fixing one left the other lying.
 
 import json
 import unittest
+
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli

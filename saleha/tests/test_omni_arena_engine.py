@@ -16,12 +16,11 @@ fabricated verdict string is gone for good.
 import unittest
 
 from saleha.core.omni_arena_engine import (
-    OmniArenaEngine,
-    omni_arena_engine,
-    VoiceArenaModule,
-    VideoArenaModule,
     AgenticIndexEvaluator,
     OmniArenaEvaluationReport,
+    VideoArenaModule,
+    VoiceArenaModule,
+    omni_arena_engine,
 )
 
 

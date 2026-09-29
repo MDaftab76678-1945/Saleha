@@ -7,26 +7,15 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
 import time
-import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
+
+import click
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.group(name='doom')
 def doom_group() -> None:
@@ -246,7 +235,7 @@ def doom_padic_cmd() -> None:
     
     Example: saleha doom padic
     """
-    from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
+    from saleha.core.cognitive.padic_ultrametric import PadicIsolationValidator, PadicValuationNode
     node_a = PadicValuationNode.from_raw([25, 125, 5, 0, 10, 50, 0, 0])
     node_b = PadicValuationNode.from_raw([50, 250, 10, 0, 20, 100, 0, 0])
     node_c = PadicValuationNode.from_raw([75, 375, 15, 0, 30, 150, 0, 0])
@@ -293,6 +282,7 @@ def doom_jitter_cmd() -> None:
     Example: saleha doom jitter
     """
     import time
+
     from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
     # This used to fill the histogram with random.randint() values and present
@@ -334,6 +324,5 @@ def doom_web_cmd(port: int, host: str, no_browser: bool) -> None:
     
     Example: saleha doom web --port 8000
     """
-    from saleha.server.web_server import run_web_studio
     _cmds.run_web_studio(host=host, port=port, open_browser=not no_browser)
 

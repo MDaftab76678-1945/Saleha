@@ -6,9 +6,9 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.diff_engine import DiffEngine, DiffResult
-from saleha.core.change_impact import ChangeImpactAnalyzer, ImpactReport
 
+from saleha.core.change_impact import ChangeImpactAnalyzer
+from saleha.core.diff_engine import DiffEngine
 
 OLD_CODE = '''def greet(name):
     return "Hello " + name
@@ -36,14 +36,14 @@ def multiply(a: int, b: int) -> int:
 
 class DiffEngineTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = DiffEngine()
         self.tmp = tempfile.mkdtemp()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_compute_diff_basic(self):
+    def test_compute_diff_basic(self) -> None:
         diff = self.engine.compute_diff("utils.py", OLD_CODE, NEW_CODE)
         self.assertEqual(diff.file_path, "utils.py")
         self.assertGreater(diff.lines_added, 0)
@@ -51,28 +51,28 @@ class DiffEngineTests(unittest.TestCase):
         self.assertIsInstance(diff.unified_diff, str)
         self.assertIn("+", diff.unified_diff)
 
-    def test_risk_score_range(self):
+    def test_risk_score_range(self) -> None:
         diff = self.engine.compute_diff("utils.py", OLD_CODE, NEW_CODE)
         self.assertGreaterEqual(diff.risk_score, 1)
         self.assertLessEqual(diff.risk_score, 10)
 
-    def test_no_change_diff(self):
+    def test_no_change_diff(self) -> None:
         diff = self.engine.compute_diff("same.py", OLD_CODE, OLD_CODE)
         self.assertEqual(diff.lines_added, 0)
         self.assertEqual(diff.lines_removed, 0)
         self.assertEqual(len(diff.hunks), 0)
 
-    def test_critical_file_higher_risk(self):
+    def test_critical_file_higher_risk(self) -> None:
         diff_normal = self.engine.compute_diff("utils.py", OLD_CODE, NEW_CODE)
         diff_critical = self.engine.compute_diff("commands.py", OLD_CODE, NEW_CODE)
         self.assertGreaterEqual(diff_critical.risk_score, diff_normal.risk_score)
 
-    def test_dangerous_pattern_increases_risk(self):
+    def test_dangerous_pattern_increases_risk(self) -> None:
         dangerous_new = OLD_CODE + "\nimport subprocess\nsubprocess.run(['rm', '-rf', '/'])"
         diff = self.engine.compute_diff("script.py", OLD_CODE, dangerous_new)
         self.assertGreater(diff.risk_score, 2)
 
-    def test_hunks_parsed(self):
+    def test_hunks_parsed(self) -> None:
         diff = self.engine.compute_diff("f.py", OLD_CODE, NEW_CODE)
         self.assertIsInstance(diff.hunks, list)
         if diff.hunks:
@@ -80,7 +80,7 @@ class DiffEngineTests(unittest.TestCase):
             self.assertIsInstance(hunk.hunk_id, int)
             self.assertIsInstance(hunk.lines_added, int)
 
-    def test_apply_and_rollback(self):
+    def test_apply_and_rollback(self) -> None:
         fpath = os.path.join(self.tmp, "target.py")
         with open(fpath, "w") as f:
             f.write(OLD_CODE)
@@ -93,29 +93,29 @@ class DiffEngineTests(unittest.TestCase):
         with open(fpath) as f:
             self.assertEqual(f.read(), OLD_CODE)
 
-    def test_apply_nonexistent_file(self):
+    def test_apply_nonexistent_file(self) -> None:
         ok, msg = self.engine.apply_diff("/nonexistent/path.py", "code", backup=False)
         self.assertFalse(ok)
         self.assertIn("not found", msg)
 
-    def test_rollback_no_backup(self):
+    def test_rollback_no_backup(self) -> None:
         fpath = os.path.join(self.tmp, "no_backup.py")
         with open(fpath, "w") as f:
             f.write(OLD_CODE)
         ok, msg = self.engine.rollback(fpath)
         self.assertFalse(ok)
 
-    def test_format_rich_preview(self):
+    def test_format_rich_preview(self) -> None:
         diff = self.engine.compute_diff("utils.py", OLD_CODE, NEW_CODE)
         preview = self.engine.format_rich_preview(diff)
         self.assertIn("utils.py", preview)
         self.assertIn("Risk", preview)
 
-    def test_is_safe_property(self):
+    def test_is_safe_property(self) -> None:
         diff = self.engine.compute_diff("small.py", "x = 1", "x = 2")
         self.assertIsInstance(diff.is_safe, bool)
 
-    def test_change_summary(self):
+    def test_change_summary(self) -> None:
         diff = self.engine.compute_diff("f.py", OLD_CODE, NEW_CODE)
         summary = diff.change_summary
         self.assertIn("+", summary)
@@ -124,37 +124,37 @@ class DiffEngineTests(unittest.TestCase):
 
 class ChangeImpactTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.analyzer = ChangeImpactAnalyzer()
         self.tmp = tempfile.mkdtemp()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_finds_changed_symbols(self):
+    def test_finds_changed_symbols(self) -> None:
         report = self.analyzer.analyze(OLD_CODE, NEW_CODE, "utils.py", self.tmp)
         self.assertIsInstance(report.changed_symbols, list)
         self.assertIn("greet", report.changed_symbols)
 
-    def test_detects_new_symbol(self):
+    def test_detects_new_symbol(self) -> None:
         report = self.analyzer.analyze(OLD_CODE, NEW_CODE, "utils.py", self.tmp)
         self.assertIn("multiply", report.changed_symbols)
 
-    def test_blast_radius_range(self):
+    def test_blast_radius_range(self) -> None:
         report = self.analyzer.analyze(OLD_CODE, NEW_CODE, "utils.py", self.tmp)
         self.assertGreaterEqual(report.blast_radius, 0)
         self.assertLessEqual(report.blast_radius, 100)
 
-    def test_risk_levels(self):
+    def test_risk_levels(self) -> None:
         report = self.analyzer.analyze(OLD_CODE, NEW_CODE, "utils.py", self.tmp)
         self.assertIn(report.risk_level, ["low", "medium", "high", "critical"])
 
-    def test_summary_is_string(self):
+    def test_summary_is_string(self) -> None:
         report = self.analyzer.analyze(OLD_CODE, NEW_CODE, "utils.py", self.tmp)
         self.assertIsInstance(report.summary, str)
         self.assertGreater(len(report.summary), 10)
 
-    def test_no_change_low_radius(self):
+    def test_no_change_low_radius(self) -> None:
         report = self.analyzer.analyze(OLD_CODE, OLD_CODE, "f.py", self.tmp)
         self.assertEqual(len(report.changed_symbols), 0)
 

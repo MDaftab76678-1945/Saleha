@@ -1,15 +1,15 @@
 """Tier C tests: MultiFileEditor (atomic/rollback/traversal) + multi-language."""
-import io
 import os
 import tempfile
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
-from saleha.core.multi_file_editor import MultiFileEditor
 from saleha.agents.coder import CoderAgent
+from saleha.core.multi_file_editor import MultiFileEditor
 
 
-def _coder_returning(payload: str):
+def _coder_returning(payload: str) -> Any:
     coder = MagicMock()
     resp = MagicMock()
     resp.success = True
@@ -30,17 +30,17 @@ VALID_TWO_FILES = """Here is the plan:
 
 
 class MultiFileEditorTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = self._tmp.name
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _path(self, rel):
+    def _path(self, rel: Any) -> Any:
         return os.path.join(self.root, rel)
 
-    def test_dry_run_writes_nothing_but_parses_plan(self):
+    def test_dry_run_writes_nothing_but_parses_plan(self) -> None:
         coder = _coder_returning(VALID_TWO_FILES)
         ed = MultiFileEditor(coder_agent=coder, root_dir=self.root)
         res = ed.edit("add greeting module", apply=False)
@@ -49,7 +49,7 @@ class MultiFileEditorTests(unittest.TestCase):
         self.assertFalse(res.applied)
         self.assertFalse(os.path.exists(self._path("src/new_mod.py")))
 
-    def test_apply_creates_files_atomically(self):
+    def test_apply_creates_files_atomically(self) -> None:
         coder = _coder_returning(VALID_TWO_FILES)
         ed = MultiFileEditor(coder_agent=coder, root_dir=self.root)
         res = ed.edit("add files", apply=True)
@@ -59,7 +59,7 @@ class MultiFileEditorTests(unittest.TestCase):
             self.assertIn("def hello", f.read())
         self.assertTrue(os.path.isfile(self._path("README.md")))
 
-    def test_edit_existing_file_updates_content(self):
+    def test_edit_existing_file_updates_content(self) -> None:
         os.makedirs(self._path("src"))
         with open(self._path("src/app.py"), "w", encoding="utf-8") as f:
             f.write("old = 1\n")
@@ -73,7 +73,7 @@ class MultiFileEditorTests(unittest.TestCase):
         with open(self._path("src/app.py"), encoding="utf-8") as f:
             self.assertIn("old = 2", f.read())
 
-    def test_rollback_on_midway_failure(self):
+    def test_rollback_on_midway_failure(self) -> None:
         # pehli file theek, dusri ka target ek DIRECTORY hai -> write fail
         os.makedirs(self._path("blocked_dir"))
         payload = '''```json
@@ -90,7 +90,7 @@ class MultiFileEditorTests(unittest.TestCase):
         # pehli (already-written) file rollback ho ke delete ho gayi
         self.assertFalse(os.path.exists(self._path("first_ok.py")))
 
-    def test_path_traversal_blocked(self):
+    def test_path_traversal_blocked(self) -> None:
         payload = '''```json
 {"edits": [{"path": "../evil.py", "action": "create", "content": "pwned"}]}
 ```'''
@@ -101,14 +101,14 @@ class MultiFileEditorTests(unittest.TestCase):
         self.assertTrue(any("traversal" in e for e in res.errors))
         self.assertFalse(os.path.exists(os.path.join(os.path.dirname(self.root), "evil.py")))
 
-    def test_invalid_json_reported_gracefully(self):
+    def test_invalid_json_reported_gracefully(self) -> None:
         coder = _coder_returning("```json\n{not valid}\n```")
         ed = MultiFileEditor(coder_agent=coder, root_dir=self.root)
         res = ed.edit("broken json")
         self.assertFalse(res.success)
         self.assertTrue(any("invalid JSON" in e for e in res.errors))
 
-    def test_python_syntax_error_blocks_plan(self):
+    def test_python_syntax_error_blocks_plan(self) -> None:
         payload = '''```json
 {"edits": [{"path": "bad.py", "action": "create", "content": "def broken(:\\n"}]}
 ```'''
@@ -119,7 +119,7 @@ class MultiFileEditorTests(unittest.TestCase):
         self.assertTrue(any("SyntaxError" in e for e in res.errors))
         self.assertFalse(os.path.exists(self._path("bad.py")))
 
-    def test_patch_action_with_search_replace(self):
+    def test_patch_action_with_search_replace(self) -> None:
         os.makedirs(self._path("src"), exist_ok=True)
         with open(self._path("src/core.py"), "w", encoding="utf-8") as f:
             f.write("def run():\n    # old logic\n    return 10\n")
@@ -140,7 +140,7 @@ class MultiFileEditorTests(unittest.TestCase):
             self.assertIn("return 42", content)
             self.assertNotIn("return 10", content)
 
-    def test_patch_action_with_aider_blocks(self):
+    def test_patch_action_with_aider_blocks(self) -> None:
         os.makedirs(self._path("src"), exist_ok=True)
         with open(self._path("src/utils.py"), "w", encoding="utf-8") as f:
             f.write("def helper():\n    return 'v1'\n")
@@ -161,7 +161,7 @@ class MultiFileEditorTests(unittest.TestCase):
 
 
 class DetectLanguageTests(unittest.TestCase):
-    def test_detection_table(self):
+    def test_detection_table(self) -> None:
         cases = {
             "Write a TypeScript parser module": "typescript",
             "Create a react component in tsx": "typescript",
@@ -175,11 +175,11 @@ class DetectLanguageTests(unittest.TestCase):
         for task, expected in cases.items():
             self.assertEqual(CoderAgent.detect_language(task), expected, task)
 
-    def test_prompt_injects_language_rules(self):
+    def test_prompt_injects_language_rules(self) -> None:
         coder = CoderAgent(model="fixed-model")
         captured = {}
 
-        def fake_think(prompt, previous_error_reflexion=None, complexity_score=0.0):
+        def fake_think(prompt: Any, previous_error_reflexion: Any = None, complexity_score: float = 0.0) -> Any:
             captured["prompt"] = prompt
             return MagicMock(success=True, content="```typescript\ncode\n```",
                              error_message="", model_used="m")
@@ -190,7 +190,7 @@ class DetectLanguageTests(unittest.TestCase):
         self.assertIn("TypeScript", captured["prompt"])
         self.assertIn("No `any` types", captured["prompt"])
 
-    def test_tester_skips_ast_for_non_python(self):
+    def test_tester_skips_ast_for_non_python(self) -> None:
         from saleha.agents.tester import TesterAgent
         tester = TesterAgent()
         valid_js = "function add(a, b) { return a + b; }"

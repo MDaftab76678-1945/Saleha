@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 
 import click
 from rich.panel import Panel

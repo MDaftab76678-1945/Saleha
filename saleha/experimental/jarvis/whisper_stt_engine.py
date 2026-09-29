@@ -2,9 +2,10 @@
 # J.A.R.V.I.S. WHISPER STT ENGINE (TensorRT/faster-whisper Integration)
 #==============================================================================
 
-import numpy as np
 import time
-from typing import Optional, Generator
+from typing import Generator
+
+import numpy as np
 
 try:
     from faster_whisper import WhisperModel

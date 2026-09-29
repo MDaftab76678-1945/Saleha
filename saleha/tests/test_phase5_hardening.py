@@ -6,24 +6,23 @@ import ast
 import os
 import shutil
 import tempfile
-import pytest
 from pathlib import Path
 
 from saleha.core.incremental_ast_cache import IncrementalASTCache
-from saleha.core.windows_job_sandbox import WindowsJobSandbox
 from saleha.core.multi_file_auto_repair import MultiFileAutoRepairEngine
+from saleha.core.windows_job_sandbox import WindowsJobSandbox
 
 
 class TestIncrementalASTCache:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.temp_dir = tempfile.mkdtemp()
         self.cache_file = os.path.join(self.temp_dir, "test_cache.json")
         self.cache = IncrementalASTCache(cache_file_path=self.cache_file)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_cache_miss_on_first_scan_and_hit_on_second(self):
+    def test_cache_miss_on_first_scan_and_hit_on_second(self) -> None:
         test_file = Path(self.temp_dir) / "sample.py"
         test_file.write_text("def valid_math(): return 10 + 20\n", encoding="utf-8")
 
@@ -37,7 +36,7 @@ class TestIncrementalASTCache:
         assert is_hit2 is True
         assert entry2.passed is True
 
-    def test_directory_incremental_audit(self):
+    def test_directory_incremental_audit(self) -> None:
         # Create 5 files
         for i in range(5):
             fpath = Path(self.temp_dir) / f"mod_{i}.py"
@@ -56,24 +55,24 @@ class TestIncrementalASTCache:
 
 
 class TestWindowsJobSandbox:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.sandbox = WindowsJobSandbox()
 
-    def test_safe_execution_passes(self):
+    def test_safe_execution_passes(self) -> None:
         code = "print('Hello Sandbox'); x = 40 + 2; print(f'Result: {x}')"
         res = self.sandbox.run_isolated_python_snippet(code, timeout_sec=2.0)
         assert res.passed is True
         assert "Result: 42" in res.output
         assert res.exit_code == 0
 
-    def test_failing_snippet_caught_cleanly(self):
+    def test_failing_snippet_caught_cleanly(self) -> None:
         code = "raise ValueError('Fatal Error in Test')"
         res = self.sandbox.run_isolated_python_snippet(code, timeout_sec=2.0)
         assert res.passed is False
         assert res.exit_code != 0
         assert "ValueError" in res.error
 
-    def test_infinite_loop_timeout_isolation(self):
+    def test_infinite_loop_timeout_isolation(self) -> None:
         code = "import time\nwhile True: time.sleep(0.1)"
         res = self.sandbox.run_isolated_python_snippet(code, timeout_sec=0.2)
         assert res.passed is False
@@ -82,14 +81,14 @@ class TestWindowsJobSandbox:
 
 
 class TestMultiFileAutoRepairEngine:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.temp_dir = tempfile.mkdtemp()
         self.engine = MultiFileAutoRepairEngine(workspace_root=self.temp_dir)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_multi_file_coordinated_repair(self):
+    def test_multi_file_coordinated_repair(self) -> None:
         file1 = Path(self.temp_dir) / "module_a.py"
         file2 = Path(self.temp_dir) / "module_b.py"
 
@@ -110,7 +109,7 @@ class TestMultiFileAutoRepairEngine:
         ast.parse(content1)
         ast.parse(content2)
 
-    def test_repair_result_reports_what_it_declined(self):
+    def test_repair_result_reports_what_it_declined(self) -> None:
         """
         A guarded constant must be left alone and named in `declined`, not
         silently skipped and reported as a clean scan.

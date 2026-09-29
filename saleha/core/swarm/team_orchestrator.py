@@ -20,10 +20,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.emergence_detector import emergence_detector
-from saleha.core.telemetry.stats_tracker import StatsTracker
+from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.task_history import TaskHistory
+from saleha.core.telemetry.stats_tracker import StatsTracker
 
 
 @dataclass

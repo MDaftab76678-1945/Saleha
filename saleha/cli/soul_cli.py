@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import click
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.markdown import Markdown
 
 from saleha.core.cognitive.soul_engine import soul_engine
 

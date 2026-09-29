@@ -15,7 +15,9 @@ subprocess of itself on every test run, multiplying total suite runtime.
 import json
 import os
 import unittest
+
 from click.testing import CliRunner
+
 from saleha.cli.release_cli import release_cmd
 
 

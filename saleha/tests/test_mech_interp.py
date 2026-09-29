@@ -17,8 +17,14 @@ import textwrap
 import unittest
 
 from saleha.core.mech_interp import (
-    CodeStructureEngine, MechInterpEngine, MechInterpReport,
-    ERROR_GUARD, TYPE_CONTRACT, CORE_LOGIC, RESOURCE_MGMT, CONTROL_FLOW,
+    CONTROL_FLOW,
+    CORE_LOGIC,
+    ERROR_GUARD,
+    RESOURCE_MGMT,
+    TYPE_CONTRACT,
+    CodeStructureEngine,
+    MechInterpEngine,
+    MechInterpReport,
 )
 
 
@@ -188,9 +194,9 @@ class ComplexityTests(unittest.TestCase):
         radon_cc = __import__("importlib").util.find_spec("radon")
         if radon_cc is None:
             self.skipTest("radon not installed")
-        from radon.complexity import cc_visit
-
         import pathlib
+
+        from radon.complexity import cc_visit
         target = pathlib.Path(__file__).resolve().parents[1] / "core" / "rag" / "bm25.py"
         if not target.exists():
             self.skipTest("bm25.py not present")

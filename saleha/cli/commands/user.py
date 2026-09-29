@@ -8,25 +8,9 @@ for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
 import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
-import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
+from saleha.cli.commands import cli, console
+
 
 @cli.group()
 def user():

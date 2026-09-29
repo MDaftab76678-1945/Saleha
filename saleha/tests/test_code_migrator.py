@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.code_migrator import CodeMigrator, MigrationResult
+
+from saleha.core.code_migrator import CodeMigrator
 
 
 class CodeMigratorTests(unittest.TestCase):

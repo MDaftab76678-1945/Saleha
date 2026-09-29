@@ -4,8 +4,9 @@ Wires the existing `saleha.core.tool_forge.ToolForge` engine (model
 generation, QualityGuard + AST structural checks, isolated pytest run,
 git commit) and `saleha.tools.base.tool_registry` to the CLI.
 """
-from typing import Any, Dict, Tuple
 import json
+from typing import Any, Dict, Tuple
+
 import click
 from rich.panel import Panel
 from rich.table import Table

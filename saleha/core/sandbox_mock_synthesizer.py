@@ -10,10 +10,8 @@ Provides zero-dependency in-memory mock virtualization for isolated sandboxes:
 from __future__ import annotations
 
 import ast
-import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
-
+from typing import Any, Dict, List, Set
 
 VIRTUAL_MOCK_PRELUDE = """# --- AUTONOMOUS VIRTUAL MOCK HARNESS (NETWORK-ISOLATED) ---
 import sys

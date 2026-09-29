@@ -19,8 +19,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any
 import unittest
+from typing import Any
 from unittest.mock import patch
 
 from saleha.core.diff_engine import DiffHunk, DiffResult

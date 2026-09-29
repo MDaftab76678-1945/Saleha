@@ -21,10 +21,10 @@ No real model is contacted: the inference engine is injected everywhere.
 from __future__ import annotations
 
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from saleha.core.fast_inference import InferenceResult
-from typing import Any
 
 
 def _engine(ok: bool = True, content: str = "real critique text") -> Any:
@@ -321,6 +321,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
         defeats the point of a checkpoint.
         """
         import inspect
+
         from saleha.orchestrator import SalehaOrchestrator
         src = inspect.getsource(SalehaOrchestrator.execute_task)
         self.assertIn("elif resumed:", src)

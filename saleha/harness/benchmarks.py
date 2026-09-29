@@ -6,7 +6,7 @@ SWE-Bench, and Math/Reasoning suites.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional
+from typing import Dict, List
 
 
 @dataclass

@@ -20,14 +20,17 @@ from __future__ import annotations
 import json
 import os
 import unittest
+from typing import Any
 
 from saleha.core.agent_council import (
-    AgentCouncil, CouncilProposal, CouncilDebateResult,
+    AgentCouncil,
+    CouncilDebateResult,
+    CouncilProposal,
 )
 
 
 class FakeResult:
-    def __init__(self, content: str = "", success: bool = True, tag: str = ""):
+    def __init__(self, content: str = "", success: bool = True, tag: str = "") -> None:
         self.success = success
         self.content = content
         self.error = ""
@@ -44,12 +47,12 @@ class FakeEngine:
     a test can assert what was actually asked.
     """
 
-    def __init__(self, replies_by_tag=None, default=None):
+    def __init__(self, replies_by_tag: Any = None, default: Any = None) -> None:
         self.replies_by_tag = replies_by_tag or {}
         self.default = default
         self.prompts = []
 
-    def run_batch(self, requests_list, use_cache=True):
+    def run_batch(self, requests_list: Any, use_cache: bool = True) -> Any:
         out = []
         for req in requests_list:
             self.prompts.append(req.prompt)
@@ -71,12 +74,12 @@ class PhasedFakeEngine(FakeEngine):
     a full `debate_and_synthesize` run scriptable.
     """
 
-    def __init__(self, proposals, critique):
+    def __init__(self, proposals: Any, critique: Any) -> None:
         super().__init__(replies_by_tag=proposals)
         self.critique = critique
         self.batches = 0
 
-    def run_batch(self, requests_list, use_cache=True):
+    def run_batch(self, requests_list: Any, use_cache: bool = True) -> Any:
         self.batches += 1
         if self.batches == 1:
             return super().run_batch(requests_list, use_cache)
@@ -86,7 +89,7 @@ class PhasedFakeEngine(FakeEngine):
                 for r in requests_list]
 
 
-def proposal_json(code, sec, perf, maint, simp, args=("a", "b")):
+def proposal_json(code: Any, sec: Any, perf: Any, maint: Any, simp: Any, args: Any = ("a", "b")) -> Any:
     return json.dumps({
         "code": code,
         "key_arguments": list(args),
@@ -97,7 +100,7 @@ def proposal_json(code, sec, perf, maint, simp, args=("a", "b")):
     })
 
 
-def critique_json(*items):
+def critique_json(*items: Any) -> Any:
     return json.dumps({"critiques": list(items)})
 
 
@@ -106,7 +109,7 @@ SEC, PERF, ARCH = (p[0] for p in AgentCouncil.PERSONAS)
 
 class ScoringTests(unittest.TestCase):
 
-    def test_proposal_overall_score_calculation(self):
+    def test_proposal_overall_score_calculation(self) -> None:
         proposal = CouncilProposal(
             persona_name="Test Persona",
             perspective="Test Perspective",
@@ -120,7 +123,7 @@ class ScoringTests(unittest.TestCase):
         # (100 * .3) + (90 * .3) + (80 * .25) + (70 * .15) = 30 + 27 + 20 + 10.5
         self.assertEqual(proposal.overall_score, 87.5)
 
-    def test_scores_are_clamped_and_non_numeric_becomes_zero(self):
+    def test_scores_are_clamped_and_non_numeric_becomes_zero(self) -> None:
         engine = FakeEngine(replies_by_tag={
             SEC: proposal_json("x = 1", 999, -50, "high", None),
         })
@@ -135,7 +138,7 @@ class ScoringTests(unittest.TestCase):
 
 class ProposalTests(unittest.TestCase):
 
-    def test_generate_proposals_returns_three_personas(self):
+    def test_generate_proposals_returns_three_personas(self) -> None:
         engine = FakeEngine(default=proposal_json("def f(): pass", 80, 80, 80, 80))
         proposals = AgentCouncil(inference=engine).generate_proposals(
             "Distributed Rate Limiter")
@@ -145,7 +148,7 @@ class ProposalTests(unittest.TestCase):
         self.assertTrue(any("Performance" in p for p in personas))
         self.assertTrue(any("Architect" in p for p in personas))
 
-    def test_the_problem_reaches_every_persona_prompt(self):
+    def test_the_problem_reaches_every_persona_prompt(self) -> None:
         """
         The regression that motivated this rewrite: the old implementation
         interpolated the problem into a comment and ignored it everywhere
@@ -158,7 +161,7 @@ class ProposalTests(unittest.TestCase):
         for prompt in engine.prompts:
             self.assertIn("Design a token bucket rate limiter", prompt)
 
-    def test_proposed_code_is_the_model_output_not_a_template(self):
+    def test_proposed_code_is_the_model_output_not_a_template(self) -> None:
         engine = FakeEngine(default=proposal_json("def unique_marker(): ...",
                                                   70, 70, 70, 70))
         proposals = AgentCouncil(inference=engine).generate_proposals("p")
@@ -169,13 +172,13 @@ class ProposalTests(unittest.TestCase):
             self.assertNotIn("HighThroughputService", p.proposed_code)
             self.assertNotIn("hmac", p.proposed_code)
 
-    def test_markdown_fence_is_stripped(self):
+    def test_markdown_fence_is_stripped(self) -> None:
         fenced = "```python\ndef f():\n    return 1\n```"
         engine = FakeEngine(default=proposal_json(fenced, 70, 70, 70, 70))
         proposals = AgentCouncil(inference=engine).generate_proposals("p")
         self.assertEqual(proposals[0].proposed_code, "def f():\n    return 1")
 
-    def test_failed_call_yields_unanalysed_zero_scored_proposal(self):
+    def test_failed_call_yields_unanalysed_zero_scored_proposal(self) -> None:
         engine = FakeEngine(replies_by_tag={
             SEC: proposal_json("def ok(): pass", 90, 90, 90, 90),
         })  # PERF and ARCH get no reply -> failure
@@ -187,7 +190,7 @@ class ProposalTests(unittest.TestCase):
             self.assertEqual(p.proposed_code, "")
             self.assertEqual(p.key_arguments, [])
 
-    def test_unparseable_json_is_a_failure_not_a_guess(self):
+    def test_unparseable_json_is_a_failure_not_a_guess(self) -> None:
         engine = FakeEngine(default="this is not json")
         proposals = AgentCouncil(inference=engine).generate_proposals("p")
         self.assertTrue(all(not p.analysed for p in proposals))
@@ -195,7 +198,7 @@ class ProposalTests(unittest.TestCase):
 
 class CritiqueTests(unittest.TestCase):
 
-    def test_critiques_see_the_other_proposals_real_code(self):
+    def test_critiques_see_the_other_proposals_real_code(self) -> None:
         engine = FakeEngine(default=critique_json("objection one"))
         council = AgentCouncil(inference=engine)
         proposals = [
@@ -212,7 +215,7 @@ class CritiqueTests(unittest.TestCase):
         sec_prompt = next(p for p in engine.prompts if SEC in p.split("\n")[0])
         self.assertNotIn("SENTINEL_SECURITY_CODE", sec_prompt)
 
-    def test_critique_proposals_generates_cross_critiques(self):
+    def test_critique_proposals_generates_cross_critiques(self) -> None:
         engine = FakeEngine(default=critique_json("c1", "c2"))
         council = AgentCouncil(inference=engine)
         proposals = [
@@ -225,7 +228,7 @@ class CritiqueTests(unittest.TestCase):
         for c_list in critiques.values():
             self.assertGreaterEqual(len(c_list), 1)
 
-    def test_no_critiques_invented_when_nothing_to_critique(self):
+    def test_no_critiques_invented_when_nothing_to_critique(self) -> None:
         """With fewer than two real proposals there is no debate to have."""
         engine = FakeEngine(default=critique_json("should not appear"))
         council = AgentCouncil(inference=engine)
@@ -241,7 +244,7 @@ class CritiqueTests(unittest.TestCase):
 
 class DebateTests(unittest.TestCase):
 
-    def _council(self, sec, perf, arch, critique="c"):
+    def _council(self, sec: Any, perf: Any, arch: Any, critique: str = "c") -> Any:
         # Proposals and critiques are tagged with the same persona names, so
         # the fake serves them by phase: first batch proposals, then critiques.
         return AgentCouncil(inference=PhasedFakeEngine(
@@ -253,7 +256,7 @@ class DebateTests(unittest.TestCase):
             critique=critique_json(critique),
         ))
 
-    def test_winner_follows_the_scores_not_a_fixed_persona(self):
+    def test_winner_follows_the_scores_not_a_fixed_persona(self) -> None:
         """
         The old engine returned the Performance Optimizer for every problem
         ever submitted. Each persona must be able to win.
@@ -268,14 +271,14 @@ class DebateTests(unittest.TestCase):
         ).debate_and_synthesize("p")
         self.assertEqual(sec_wins.winning_persona, SEC)
 
-    def test_consensus_code_is_the_winning_proposal(self):
+    def test_consensus_code_is_the_winning_proposal(self) -> None:
         res = self._council(
             sec=(50, 50, 50, 50), perf=(50, 50, 50, 50), arch=(90, 90, 90, 90),
         ).debate_and_synthesize("p")
         self.assertEqual(res.consensus_code, "def arch(): pass")
         self.assertNotIn("HighThroughputService", res.consensus_code)
 
-    def test_different_problems_can_give_different_output(self):
+    def test_different_problems_can_give_different_output(self) -> None:
         """
         The core regression, stated directly: the old engine produced
         byte-identical consensus code and an identical 93.3 score for
@@ -291,7 +294,7 @@ class DebateTests(unittest.TestCase):
         self.assertNotEqual(a.winning_persona, b.winning_persona)
         self.assertNotEqual(a.total_consensus_score, b.total_consensus_score)
 
-    def test_unanalysed_persona_cannot_win_even_against_low_scores(self):
+    def test_unanalysed_persona_cannot_win_even_against_low_scores(self) -> None:
         council = AgentCouncil(inference=FakeEngine(replies_by_tag={
             PERF: proposal_json("def perf(): pass", 1, 1, 1, 1),
         }, default=critique_json("c")))
@@ -301,7 +304,7 @@ class DebateTests(unittest.TestCase):
         self.assertCountEqual(res.failed_personas, [SEC, ARCH])
         self.assertIn("No analysis returned from", res.trade_off_analysis)
 
-    def test_all_failed_is_reported_as_degenerate_with_no_code(self):
+    def test_all_failed_is_reported_as_degenerate_with_no_code(self) -> None:
         council = AgentCouncil(inference=FakeEngine())  # every call fails
         res = council.debate_and_synthesize("p")
         self.assertTrue(res.degenerate)
@@ -311,7 +314,7 @@ class DebateTests(unittest.TestCase):
         self.assertIn("No proposal was produced", res.trade_off_analysis)
         self.assertCountEqual(res.failed_personas, [SEC, PERF, ARCH])
 
-    def test_tie_is_reported_rather_than_passed_off_as_a_judgement(self):
+    def test_tie_is_reported_rather_than_passed_off_as_a_judgement(self) -> None:
         res = self._council(
             sec=(80, 80, 80, 80), perf=(80, 80, 80, 80), arch=(80, 80, 80, 80),
         ).debate_and_synthesize("p")
@@ -321,7 +324,7 @@ class DebateTests(unittest.TestCase):
         # Deterministic: first in council order wins the tie-break.
         self.assertEqual(res.winning_persona, SEC)
 
-    def test_trade_off_analysis_reports_real_scores_and_critiques(self):
+    def test_trade_off_analysis_reports_real_scores_and_critiques(self) -> None:
         council = self._council(
             sec=(91, 61, 71, 81), perf=(62, 92, 72, 60), arch=(63, 73, 93, 83),
             critique="MARKER_CRITIQUE",
@@ -334,7 +337,7 @@ class DebateTests(unittest.TestCase):
         self.assertIn("recorded, not resolved", res.trade_off_analysis)
         self.assertNotIn("Critiques Addressed", res.trade_off_analysis)
 
-    def test_result_shape(self):
+    def test_result_shape(self) -> None:
         res = self._council(
             sec=(90, 80, 80, 80), perf=(80, 90, 80, 80), arch=(80, 80, 90, 80),
         ).debate_and_synthesize("Design Cache Layer")
@@ -343,7 +346,7 @@ class DebateTests(unittest.TestCase):
         self.assertGreaterEqual(res.duration_sec, 0.0)
         self.assertEqual(len(res.proposals), 3)
 
-    def test_custom_proposals_bypass_generation(self):
+    def test_custom_proposals_bypass_generation(self) -> None:
         engine = FakeEngine(default=critique_json("c"))
         council = AgentCouncil(inference=engine)
         custom = [
@@ -372,7 +375,7 @@ class LiveModelTests(unittest.TestCase):
     property the constant-returning version could not have.
     """
 
-    def test_real_model_produces_problem_specific_code(self):
+    def test_real_model_produces_problem_specific_code(self) -> None:
         council = AgentCouncil()
         res = council.debate_and_synthesize(
             "Parse an ISO-8601 duration string into seconds")

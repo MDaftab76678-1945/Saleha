@@ -1,12 +1,13 @@
-import unittest
+import json
 import os
 import shutil
 import tempfile
-import json
+import unittest
+
 from click.testing import CliRunner
 
-from saleha.core.memory.memory_store import MemoryStore, MemoryEntry
 from saleha.cli.commands import cli
+from saleha.core.memory.memory_store import MemoryStore
 
 
 class MemoryStoreTests(unittest.TestCase):

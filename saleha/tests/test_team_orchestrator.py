@@ -1,12 +1,13 @@
-import unittest
+import json
 import os
 import tempfile
-import json
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
 
-from saleha.core.swarm.team_orchestrator import TeamOrchestrator, TeamResult
 from saleha.cli.commands import cli
+from saleha.core.swarm.team_orchestrator import TeamOrchestrator, TeamResult
 
 
 class TeamOrchestratorTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 import os
 import zipfile
 
+
 def create_project_structure():
     # Define directory structure
     base_dir = "nexus_substrate"

@@ -22,46 +22,46 @@ Zero-dependency local HTTP server providing:
    - Zero Alert Popups, Complete Glassmorphic Modals & Non-Blocking Toast Engine.
 """
 
-import os
-import sys
-import json
 import io
-import zipfile
+import json
+import os
 import secrets
 import sqlite3
 import subprocess
+import sys
 import urllib.parse
 import webbrowser
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from typing import Optional, Dict, Any, List
+import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, Dict, List, Optional
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.tool_calling import global_tool_registry
-from saleha.core.memory.memory_store import memory_store
+from saleha.core.api_fuzzer import api_fuzzer
+from saleha.core.collab import CollabError, collab_store
+from saleha.core.deployer import cloud_deployer
+from saleha.core.doom_vault import doom_vault_engine
+from saleha.core.full_duplex_voice import full_duplex_voice
 from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
-from saleha.core.swarm.team_orchestrator import TeamOrchestrator
+from saleha.core.iot_domotics import iot_domotics_engine
+from saleha.core.load_tester import load_tester
+from saleha.core.memory.memory_store import memory_store
+from saleha.core.mukti_chain_bridge import ChainUnavailableError, mukti_chain_bridge
+from saleha.core.mukti_economy import mukti_economy_engine
+from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
 from saleha.core.polyglot_executor import polyglot_executor
+from saleha.core.rag.graph_rag import graph_rag
+from saleha.core.sentinel_rs import sentinel_rs_engine
+from saleha.core.sre_responder import sre_responder
+from saleha.core.swarm.team_orchestrator import TeamOrchestrator
+from saleha.core.tool_calling import global_tool_registry
+from saleha.core.unimax_bridge import unimax_bridge_engine
 from saleha.core.vault import vault
 from saleha.core.vision_coder import vision_coder
-from saleha.core.api_fuzzer import api_fuzzer
-from saleha.core.rag.graph_rag import graph_rag
-from saleha.core.deployer import cloud_deployer
-from saleha.core.sre_responder import sre_responder
-from saleha.core.load_tester import load_tester
-from saleha.harness.reporter import reporter as harness_reporter
-from saleha.core.collab import CollabError, collab_store
 
 # Singularity Engines
-from saleha.core.vision_liveness import vision_liveness_engine, EyeLandmarks
-from saleha.core.full_duplex_voice import full_duplex_voice
-from saleha.core.sentinel_rs import sentinel_rs_engine
-from saleha.core.doom_vault import doom_vault_engine
-from saleha.core.mukti_economy import mukti_economy_engine
-from saleha.core.mukti_chain_bridge import mukti_chain_bridge, ChainUnavailableError
-from saleha.core.unimax_bridge import unimax_bridge_engine
-from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
-from saleha.core.iot_domotics import iot_domotics_engine
+from saleha.core.vision_liveness import EyeLandmarks, vision_liveness_engine
+from saleha.harness.reporter import reporter as harness_reporter
 
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB cap
 _AUTH_TOKEN: Optional[str] = None
@@ -1890,6 +1890,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/scheduler/list":
             from dataclasses import asdict as _asdict
+
             from saleha.core.task_scheduler import task_scheduler
             self._send_json(200, {"tasks": [_asdict(t) for t in task_scheduler.list_tasks()]})
             return
@@ -1981,7 +1982,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             self.end_headers()
 
-            from saleha.core.octopus_coordinator import OctopusCoordinator, ArmBrainOutput
+            from saleha.core.octopus_coordinator import ArmBrainOutput, OctopusCoordinator
 
             def _on_brain(out: ArmBrainOutput) -> None:
                 payload = json.dumps({
@@ -2533,6 +2534,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             # unchecked box with the real reason when a check does not pass,
             # instead of a pre-ticked checkbox.
             import ast as _ast
+
             from saleha.core.verification.security_scanner import ASTSecurityScanner
 
             files = payload.get("files", {})

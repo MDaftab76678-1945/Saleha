@@ -11,20 +11,21 @@ Master Test Suite for Saleha Grand Unified Singularity:
 """
 
 import unittest
-from saleha.core.vision_liveness import vision_liveness_engine, EyeLandmarks
-from saleha.core.full_duplex_voice import full_duplex_voice
-from saleha.core.sentinel_rs import sentinel_rs_engine
+
 from saleha.core.doom_vault import doom_vault_engine
-from saleha.core.mukti_economy import mukti_economy_engine
-from saleha.core.unimax_bridge import unimax_bridge_engine
-from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
+from saleha.core.full_duplex_voice import full_duplex_voice
 from saleha.core.iot_domotics import iot_domotics_engine
+from saleha.core.mukti_economy import mukti_economy_engine
+from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
+from saleha.core.sentinel_rs import sentinel_rs_engine
+from saleha.core.unimax_bridge import unimax_bridge_engine
+from saleha.core.vision_liveness import EyeLandmarks, vision_liveness_engine
 
 
 class GrandSingularityTests(unittest.TestCase):
 
     # 1. Vision & Liveness Anti-Spoofing
-    def test_vision_ear_liveness_and_game_mode(self):
+    def test_vision_ear_liveness_and_game_mode(self) -> None:
         # Open Eye
         open_eye = EyeLandmarks(
             p1=(0, 0), p2=(2, 2), p3=(4, 2), p4=(6, 0), p5=(4, -2), p6=(2, -2)
@@ -48,7 +49,7 @@ class GrandSingularityTests(unittest.TestCase):
         self.assertFalse(vision_liveness_engine.check_game_mode(["code.exe", "python.exe"]))
 
     # 2. Full-Duplex Voice & Audio Semaphore
-    def test_full_duplex_voice_semaphore_and_bargein(self):
+    def test_full_duplex_voice_semaphore_and_bargein(self) -> None:
         full_duplex_voice.start_speaking("Hello Commander")
         self.assertTrue(full_duplex_voice.is_speaking)
 
@@ -58,13 +59,13 @@ class GrandSingularityTests(unittest.TestCase):
         self.assertFalse(full_duplex_voice.is_speaking)
 
     # 3. Sentinel-RS Bare-Metal Scanner
-    def test_sentinel_rs_port_scanning(self):
+    def test_sentinel_rs_port_scanning(self) -> None:
         res = sentinel_rs_engine.scan_target("127.0.0.1", ports=[80, 443, 8000])
         self.assertEqual(res.target_host, "127.0.0.1")
         self.assertLess(res.scan_duration_ms, 2000.0)
 
     # 4. DooM Vault 2.0 FinTech & Whale Radar
-    def test_doom_vault_trading_and_whale_radar(self):
+    def test_doom_vault_trading_and_whale_radar(self) -> None:
         prices = doom_vault_engine.get_ticker_prices()
         self.assertIn("BTC", prices)
         self.assertGreater(prices["BTC"], 50000.0)
@@ -77,7 +78,7 @@ class GrandSingularityTests(unittest.TestCase):
         self.assertEqual(order.symbol, "ETH")
 
     # 5. Mukti Hallucination Insurance
-    def test_mukti_hallucination_insurance_lifecycle(self):
+    def test_mukti_hallucination_insurance_lifecycle(self) -> None:
         policy = mukti_economy_engine.create_insurance_policy(
             client_address="0xClient123",
             agent_address="0xAgent456",
@@ -91,7 +92,7 @@ class GrandSingularityTests(unittest.TestCase):
         self.assertEqual(settled.status, "BOND_RELEASED_VERIFIED")
 
     # 6. UNIMAX Quantum Co-Simulator & Ouroboros Kill-Switch
-    def test_unimax_quantum_and_ouroboros_zeroize(self):
+    def test_unimax_quantum_and_ouroboros_zeroize(self) -> None:
         unimax_bridge_engine.apply_quantum_gate(0, "H")
         unimax_bridge_engine.apply_quantum_gate(0, "X")
         rep = unimax_bridge_engine.measure_quantum_state(0)
@@ -106,7 +107,7 @@ class GrandSingularityTests(unittest.TestCase):
         self.assertTrue(zeroize.all_domains_zeroized)
 
     # 7. Nexus Mobile Mainframe Bridge
-    def test_nexus_mobile_bridge_dispatch(self):
+    def test_nexus_mobile_bridge_dispatch(self) -> None:
         resp = nexus_mobile_bridge.process_incoming_mobile_message("100293849", "status")
         self.assertTrue(resp.execution_success)
         self.assertIn("CPU", resp.reply_text)
@@ -115,7 +116,7 @@ class GrandSingularityTests(unittest.TestCase):
         self.assertEqual(alert["priority"], "HIGH")
 
     # 8. IoT Domotics & Focus Flow Mode
-    def test_iot_domotics_focus_flow(self):
+    def test_iot_domotics_focus_flow(self) -> None:
         flow = iot_domotics_engine.trigger_cyberpunk_focus_mode(active=True)
         self.assertTrue(flow.is_deep_focus_active)
         self.assertEqual(flow.ambient_color_hex, "#38bdf8")

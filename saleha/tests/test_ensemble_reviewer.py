@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
-from saleha.core.ensemble_reviewer import EnsembleReviewer, ReviewConsensus, AgentReview
+from unittest.mock import patch
+
 from saleha.agents.base_agent import AgentResponse
+from saleha.core.ensemble_reviewer import EnsembleReviewer
 
 
 class EnsembleReviewerTests(unittest.TestCase):

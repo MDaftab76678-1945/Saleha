@@ -1,14 +1,14 @@
 """v1.2: token accounting, stream forwarding, SWE-bench prediction format."""
-import io
 import json
 import os
 import tempfile
 import unittest
+from typing import Any, Optional
 from unittest.mock import MagicMock, patch
 
-from saleha.core.platform.model_provider import ProviderResponse
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.coder import CoderAgent
+from saleha.core.platform.model_provider import ProviderResponse
 from saleha.core.swe_bench_runner import (
     build_prompt,
     iter_instances,
@@ -17,7 +17,6 @@ from saleha.core.swe_bench_runner import (
     synth_newfile_patch,
     write_predictions,
 )
-from typing import Any, Optional
 
 
 class TokenAccountingTests(unittest.TestCase):

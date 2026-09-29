@@ -7,26 +7,17 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
 import json
-import io
-import subprocess
-import contextlib
+import os
 from pathlib import Path
+from typing import Optional
+
+import click
 from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.command(name='deploy')
 @click.option('--target', '-t', default='all', type=click.Choice(['docker', 'k8s', 'all']), help='Deployment manifest target')
@@ -36,7 +27,6 @@ from saleha import __version__
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def deploy_cmd(target, output_dir, name, port, as_json):
     """Generate production-ready Dockerfile, Compose, and Kubernetes manifests."""
-    from saleha.core.deployer import cloud_deployer
     pkg = _cmds.cloud_deployer.generate_package(root_dir='.', app_name=name, port=port)
     written = _cmds.cloud_deployer.export_package(pkg, output_dir=output_dir)
     if as_json:

@@ -1,6 +1,7 @@
 import unittest
-from saleha.core.rag.vector_store import VectorStore, SparseVectorEmbedder, cosine_similarity
+
 from saleha.core.memory.memory_store import MemoryStore
+from saleha.core.rag.vector_store import SparseVectorEmbedder, VectorStore, cosine_similarity
 
 
 class VectorStoreTests(unittest.TestCase):

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.memory.project_memory import ProjectMemory, get_project_memory
+
 from saleha.core.memory.memory_journal import MemoryJournal
+from saleha.core.memory.project_memory import ProjectMemory, get_project_memory
 
 
 class ProjectMemoryTests(unittest.TestCase):

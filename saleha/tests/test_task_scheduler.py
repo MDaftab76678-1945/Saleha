@@ -1,8 +1,8 @@
+import datetime
 import os
 import tempfile
-import datetime
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from saleha.core.task_scheduler import TaskSchedulerEngine, cron_matches
 

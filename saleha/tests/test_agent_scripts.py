@@ -9,9 +9,6 @@ from __future__ import annotations
 import ast
 import tempfile
 from pathlib import Path
-import pytest
-
-from saleha.core.verification.quality_guard import QualityGuard
 
 
 def test_compact_context_removes_docstrings() -> None:

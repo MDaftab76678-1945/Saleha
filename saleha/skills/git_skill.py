@@ -8,10 +8,7 @@ Provides fast local Git automation:
 4. Git command guidance and automation without requiring an LLM call.
 """
 
-import os
 import re
-import subprocess
-from typing import Optional, Dict, List
 
 from saleha.core.skill_base import Skill, SkillResult
 

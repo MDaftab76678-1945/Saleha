@@ -11,6 +11,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+
 from saleha.core.platform.git_native import GitAutomationEngine, GitCommitResult
 
 
@@ -53,7 +54,7 @@ class GitNativeTests(unittest.TestCase):
         self.assertEqual(res.branch, "main")
 
     def test_worktree_methods(self) -> None:
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
         with patch.object(self.engine, "is_git_repo", return_value=True), \
              patch.object(self.engine, "_run_git") as mock_git:
             mock_git.return_value = MagicMock(returncode=0, stdout="true", stderr="")
@@ -238,12 +239,14 @@ class CallerStagingTests(unittest.TestCase):
 
     def test_refactorer_passes_the_files_it_rewrote(self) -> None:
         import inspect
+
         from saleha.core.multi_file_refactorer import MultiFileRefactorer
         src = inspect.getsource(MultiFileRefactorer)
         self.assertIn("files=modified_list", src)
 
     def test_self_healer_passes_the_files_it_patched(self) -> None:
         import inspect
+
         from saleha.core import self_healer
         src = inspect.getsource(self_healer)
         self.assertIn("files=healed_files", src)
@@ -265,6 +268,7 @@ class CallerStagingTests(unittest.TestCase):
         stages everything without being asked to is.
         """
         import inspect
+
         from saleha.orchestrator import SalehaOrchestrator
         src = inspect.getsource(SalehaOrchestrator)
         self.assertIn("allow_stage_all=True", src)

@@ -3,7 +3,9 @@ Unit test for saleha benchmark CLI command.
 """
 
 import unittest
+
 from click.testing import CliRunner
+
 from saleha.cli.benchmark_cli import benchmark_cmd
 
 

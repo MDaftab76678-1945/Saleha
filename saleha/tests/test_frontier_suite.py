@@ -2,17 +2,17 @@
 
 from unittest.mock import MagicMock
 
-from saleha.core.mcp_server import SalehaMCPServer
-from saleha.agents.screen_copilot import (
-    ScreenCopilotAgent,
-    screen_copilot,
-)
-from saleha.core.swarm.swarm_cluster_node import SwarmClusterNode
 from saleha.agents.chaos_resilience import (
     ChaosResilienceAgent,
     chaos_resilience,
 )
+from saleha.agents.screen_copilot import (
+    ScreenCopilotAgent,
+    screen_copilot,
+)
 from saleha.cli.chat_session import SwarmChatSession
+from saleha.core.mcp_server import SalehaMCPServer
+from saleha.core.swarm.swarm_cluster_node import SwarmClusterNode
 
 
 class TestSalehaMCPServer:

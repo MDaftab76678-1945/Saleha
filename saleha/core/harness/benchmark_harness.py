@@ -15,7 +15,6 @@ from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
 
-
 @dataclass
 class BenchmarkTask:
     """Represents an individual evaluation task."""

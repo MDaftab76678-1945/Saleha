@@ -3,11 +3,13 @@ Unit tests for Saleha Test-Time Compute (TTC) Multi-Trajectory Solver
 (saleha/core/ttc_solver.py).
 """
 
+from typing import Any
+from unittest.mock import MagicMock
+
+from saleha.core.fast_inference import InferenceResult
 from saleha.core.verification.ttc_solver import (
-    TTCTrajectorySolver,
     CandidateTrajectory,
-    TTCSolveResult,
-    ttc_solver,
+    TTCTrajectorySolver,
 )
 
 
@@ -115,11 +117,11 @@ def test_ttc_dynamic_generator_fn() -> Any:
     def mock_generator(problem: str, strategy: str) -> Any:
         if "defensive" in strategy:
             return (
-                f"def solve(val: int) -> int:\n    if val < 0:\n        raise ValueError()\n    return val\n",
+                "def solve(val: int) -> int:\n    if val < 0:\n        raise ValueError()\n    return val\n",
                 f"Defensive strategy checking bounds for {problem}",
             )
         return (
-            f"def solve(val: int) -> int:\n    return val\n",
+            "def solve(val: int) -> int:\n    return val\n",
             f"Direct strategy for {problem}",
         )
 
@@ -188,11 +190,6 @@ def generate_code() -> str:
 #      reranker sorts descending, failed generations sorted to the TOP.
 # ---------------------------------------------------------------------------
 
-from unittest.mock import MagicMock
-
-from saleha.core.fast_inference import InferenceResult
-from typing import Any
-
 GOOD_REPLY = "```python\ndef merge(a, b):\n    return sorted(a + b)\n```"
 REAL_CODE = "def compute(x: int) -> int:\n    return x * 2\n"
 
@@ -202,7 +199,7 @@ def _fake_engine(contents: Any) -> Any:
     fi.run_batch.side_effect = lambda reqs, **kw: [
         InferenceResult(success=bool(c), content=c or "",
                         error="" if c else "connection refused", tag=r.tag)
-        for c, r in zip(contents, reqs)]
+        for c, r in zip(contents, reqs, strict=False)]
     return fi
 
 

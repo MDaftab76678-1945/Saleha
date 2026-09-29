@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import threading
 import unittest
 import urllib.request
@@ -132,8 +132,8 @@ class WebStudioV2Tests(unittest.TestCase):
 
 
     def test_workspace_sync_post_endpoint(self) -> None:
-        import tempfile
         import shutil
+        import tempfile
         tmp_dir = tempfile.mkdtemp()
         try:
             payload = {

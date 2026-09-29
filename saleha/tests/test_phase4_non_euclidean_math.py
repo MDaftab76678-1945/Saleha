@@ -3,11 +3,14 @@ Unit and integration tests for Phase 4: Non-Euclidean Hyperbolic AI, p-Adic Isol
 """
 
 import math
-import pytest
 
-from saleha.core.hyperbolic_engine import HyperbolicVector, SAMHAttractorController, HYPERBOLIC_DIM
-from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator, p_adic_valuation
-from saleha.core.sheaf_consensus import SheafCohomologyConsensus, SHEAF_MOD_PRIME
+from saleha.core.cognitive.padic_ultrametric import (
+    PadicIsolationValidator,
+    PadicValuationNode,
+    p_adic_valuation,
+)
+from saleha.core.hyperbolic_engine import HYPERBOLIC_DIM, HyperbolicVector, SAMHAttractorController
+from saleha.core.sheaf_consensus import SheafCohomologyConsensus
 from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
 

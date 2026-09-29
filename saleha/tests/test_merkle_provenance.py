@@ -1,9 +1,11 @@
 """Unit tests for Merkle-Tree Cryptographic Provenance Ledger."""
 
 import unittest
+
 from click.testing import CliRunner
-from saleha.core.merkle_provenance import MerkleProvenanceLedger, MerkleAuditLeaf
+
 from saleha.cli.commands import cli
+from saleha.core.merkle_provenance import MerkleAuditLeaf, MerkleProvenanceLedger
 
 
 class TestMerkleProvenance(unittest.TestCase):
@@ -108,7 +110,8 @@ class MerkleLeavesCLITests(unittest.TestCase):
         self.assertIn('Root hash', result.output)
 
     def test_json_output_is_valid_and_limit_respected(self) -> None:
-        import os, json
+        import json
+        import os
         os.environ["SALEHA_TEST_MODE"] = "1"
         from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 

@@ -1,7 +1,8 @@
 """Unit tests for Saleha Polyglot Multi-Language Execution Engine."""
 
 import unittest
-from saleha.core.polyglot_executor import PolyglotExecutor, PolyglotExecutionResult
+
+from saleha.core.polyglot_executor import PolyglotExecutor
 
 
 class PolyglotExecutorTests(unittest.TestCase):

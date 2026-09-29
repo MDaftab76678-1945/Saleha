@@ -1,11 +1,12 @@
 """Unit tests for Community Plugin Hub & Dynamic Skill Loader."""
 
-import unittest
-import tempfile
-import os
 import json
+import os
 import shutil
-from saleha.core.plugin_hub import SalehaPluginHub, CommunityPluginManifest
+import tempfile
+import unittest
+
+from saleha.core.plugin_hub import SalehaPluginHub
 
 
 class TestPluginHub(unittest.TestCase):

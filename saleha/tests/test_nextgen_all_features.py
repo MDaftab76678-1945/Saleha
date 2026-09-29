@@ -7,9 +7,10 @@ the module was deleted in pass 158 (the real one is saleha/core/swe_bench_harnes
 """
 
 import unittest
-from saleha.core.platform.smart_router import SmartRouter
-from saleha.cli.salehatop import SalehaTopDashboard
 from typing import Any
+
+from saleha.cli.salehatop import SalehaTopDashboard
+from saleha.core.platform.smart_router import SmartRouter
 
 
 class SmartRouterFailoverTests(unittest.TestCase):

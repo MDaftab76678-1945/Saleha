@@ -11,7 +11,7 @@ The static `test_code()` remains a fast pre-flight gate (before execution).
 
 import ast
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
 from saleha.core.safety_patterns import check_dangerous
 
@@ -93,7 +93,7 @@ class TesterAgent:
         Returns core.test_runner.TestSuiteResult -- .passed / .failures /
         .failure_report() for healer prompts.
         """
-        from saleha.core.harness.test_runner import TestRunner, TestSuiteResult, SuiteFailure
+        from saleha.core.harness.test_runner import SuiteFailure, TestRunner, TestSuiteResult
         from saleha.core.harness.verdict import DID_NOT_RUN, FAILED, NOTHING_TO_VERIFY, NotVerified
 
         static = self.test_code(code, expected_keywords, language=language)

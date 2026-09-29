@@ -3,7 +3,6 @@ Unit and integration tests for Phase 3: Multimodal Ingress, Wasm Micro-Plugin Ru
 """
 
 import time
-import pytest
 
 from saleha.core.saleha_multimodal import SalehaMultimodalHub
 from saleha.core.saleha_wasm_runtime import SalehaWasmRuntime, WASIPermission
@@ -11,10 +10,10 @@ from saleha.core.saleha_watchdog import SalehaHardwareWatchdog
 
 
 class TestSalehaMultimodalHub:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.hub = SalehaMultimodalHub()
 
-    def test_multimodal_fusion_generation(self):
+    def test_multimodal_fusion_generation(self) -> None:
         payload = self.hub.fuse_inputs(
             voice_command="Saleha, fix the pointer arithmetic bug",
             window_title="VS Code - buffer_pool.c",
@@ -29,17 +28,17 @@ class TestSalehaMultimodalHub:
 
 
 class TestSalehaWasmRuntime:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.runtime = SalehaWasmRuntime()
 
-    def test_default_plugins_listed(self):
+    def test_default_plugins_listed(self) -> None:
         plugins = self.runtime.list_plugins()
         assert len(plugins) >= 2
         names = [p["name"] for p in plugins]
         assert "crypto_tools.wasm" in names
         assert "ast_parser.wasm" in names
 
-    def test_crypto_wasm_execution_with_gas(self):
+    def test_crypto_wasm_execution_with_gas(self) -> None:
         res = self.runtime.invoke_plugin(
             plugin_name="crypto_tools.wasm",
             func_name="rust_sha3_digest",
@@ -50,7 +49,7 @@ class TestSalehaWasmRuntime:
         assert res.gas_used > 0
         assert res.output["algorithm"] == "SHA3-256"
 
-    def test_ast_parser_wasm_execution(self):
+    def test_ast_parser_wasm_execution(self) -> None:
         res = self.runtime.invoke_plugin(
             plugin_name="ast_parser.wasm",
             func_name="python_ast_validator",
@@ -59,7 +58,7 @@ class TestSalehaWasmRuntime:
         assert res.success is True
         assert res.output["valid"] is True
 
-    def test_network_permission_blocked_without_capability(self):
+    def test_network_permission_blocked_without_capability(self) -> None:
         res = self.runtime.invoke_plugin(
             plugin_name="crypto_tools.wasm",
             func_name="network_fetch",
@@ -72,10 +71,10 @@ class TestSalehaWasmRuntime:
 
 
 class TestSalehaHardwareWatchdog:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.dog = SalehaHardwareWatchdog(timeout_sec=0.05)  # 50ms timeout for fast tests
 
-    def test_healthy_workers_registered_and_pinged(self):
+    def test_healthy_workers_registered_and_pinged(self) -> None:
         self.dog.register_worker(0, "Saleha-Agent-01")
         self.dog.register_worker(1, "Saleha-Agent-05")
         
@@ -84,7 +83,7 @@ class TestSalehaHardwareWatchdog:
         assert status["healthy_workers"] == 2
         assert status["quarantined_workers"] == 0
 
-    def test_deadlock_detection_and_auto_respawn(self):
+    def test_deadlock_detection_and_auto_respawn(self) -> None:
         self.dog.register_worker(0, "Rogue-Worker-Thread")
         
         # Simulate time passing without heartbeat ping

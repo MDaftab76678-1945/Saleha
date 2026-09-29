@@ -18,7 +18,6 @@ from __future__ import annotations
 import unittest
 
 from saleha.core.rag.bm25 import (
-    DEFAULT_B,
     DEFAULT_K1,
     BM25Index,
     hybrid_search,

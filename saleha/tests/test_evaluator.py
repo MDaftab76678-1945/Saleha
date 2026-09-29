@@ -1,7 +1,8 @@
 """Unit tests for Saleha Model Benchmark Evaluator."""
 
 import unittest
-from saleha.core.evaluator import ModelBenchmarkEvaluator, BenchmarkTask
+
+from saleha.core.evaluator import BenchmarkTask, ModelBenchmarkEvaluator
 
 
 class EvaluatorTests(unittest.TestCase):

@@ -1,11 +1,13 @@
 import os
+
 from saleha.core.harness.approval_gate import (
-    ApprovalGate,
     DANGEROUS_ACTIONS,
+    ApprovalGate,
     approve,
     get_mode,
     requires_approval,
 )
+
 
 def test_approve() -> None:
     os.environ['SALEHA_APPROVAL'] = 'dangerous'

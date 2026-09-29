@@ -7,16 +7,14 @@ polling deltas, TTL expiration, and room administration.
 from __future__ import annotations
 
 import time
+
 import pytest
 
 from saleha.core.collab import (
     MAX_DOC_CHARS,
-    MAX_ROOMS,
     ROOM_TTL_SEC,
     CollabError,
     CollabStore,
-    Participant,
-    Room,
 )
 
 

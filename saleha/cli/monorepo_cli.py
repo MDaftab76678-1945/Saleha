@@ -7,13 +7,12 @@ Provides commands to inspect, test, and manage the unified ecosystem:
 - Shared Packages (@saleha/ui, @saleha/db, @saleha/api, @saleha/auth, @saleha/core)
 """
 
-import os
-import json
-import click
 from pathlib import Path
+
+import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 console = Console()
 

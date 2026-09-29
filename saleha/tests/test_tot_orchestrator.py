@@ -2,12 +2,11 @@
 Unit tests for TreeOfThoughtsOrchestrator and Self-Evolving Heuristics in Saleha v2.6.0
 """
 
-import unittest
 import shutil
 import tempfile
-from pathlib import Path
+import unittest
 
-from saleha.core.loop.tot_orchestrator import TreeOfThoughtsOrchestrator, ThoughtNode, ToTResult
+from saleha.core.loop.tot_orchestrator import ToTResult, TreeOfThoughtsOrchestrator
 
 
 class TreeOfThoughtsOrchestratorTests(unittest.TestCase):

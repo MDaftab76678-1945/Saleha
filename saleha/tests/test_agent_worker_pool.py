@@ -1,9 +1,9 @@
 """Test suite for saleha.core.agent_worker_pool."""
 
 import time
+from typing import Any
 
 from saleha.core.swarm.agent_worker_pool import AgentWorkerPool, WorkerTaskResult
-from typing import Any
 
 
 class TestAgentWorkerPool:

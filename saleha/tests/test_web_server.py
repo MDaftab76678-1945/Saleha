@@ -1,15 +1,14 @@
-import unittest
-import threading
 import json
 import socket
-import urllib.request
+import threading
+import unittest
 import urllib.error
+import urllib.request
 import uuid
 from http.server import HTTPServer
 
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
-
 
 # SEC003-safe: runtime-generated token, not a hardcoded literal.
 AUTH_TOKEN = "tok-" + uuid.uuid4().hex[:16]

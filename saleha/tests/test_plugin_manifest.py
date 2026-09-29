@@ -1,6 +1,5 @@
-import pytest
 
-from saleha.core.plugin_manifest import SalehaPluginManifest, PluginAgentSpec, PluginManifestEngine
+from saleha.core.plugin_manifest import PluginAgentSpec, PluginManifestEngine, SalehaPluginManifest
 
 
 def test_plugin_agent_spec():

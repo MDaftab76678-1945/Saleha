@@ -1,5 +1,7 @@
 import pytest
+
 from saleha.tools.word_counter import WordCounterTool
+
 
 @pytest.fixture
 def word_counter_tool():

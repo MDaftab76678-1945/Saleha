@@ -17,8 +17,8 @@ from typing import List, Optional, Set, Tuple
 
 from saleha.core.graph.codebase_indexer import SmartPatcher
 from saleha.core.graph.dependency_graph import dependency_graph
-from saleha.core.platform.git_native import git_engine
 from saleha.core.path_utils import safe_relpath
+from saleha.core.platform.git_native import git_engine
 
 
 @dataclass

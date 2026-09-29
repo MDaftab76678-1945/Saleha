@@ -12,12 +12,12 @@ import secrets
 import sys
 import tempfile
 import time
-from pathlib import Path
-import urllib.request
-import urllib.parse
 import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 

@@ -7,10 +7,10 @@ component hierarchies, modern glassmorphism aesthetics, and micro-interactions.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import Dict
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import BaseAgent
 
 
 @dataclass

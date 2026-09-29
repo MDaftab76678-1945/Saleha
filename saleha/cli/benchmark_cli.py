@@ -15,15 +15,16 @@ is gone; see the comment where it used to be.
 """
 
 import time
+
 import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from saleha import __version__
+from saleha.core.polyglot_executor import polyglot_executor
 from saleha.core.swarm.saleha_swarm_topology import LockFreeMailbox, SwarmMessage
 from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
-from saleha.core.polyglot_executor import polyglot_executor
 
 console = Console()
 

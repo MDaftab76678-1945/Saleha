@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.chaos_engine import ChaosEngine, ChaosFaultConfig, ChaosProbeResult
+
+from saleha.core.chaos_engine import ChaosEngine, ChaosFaultConfig
 
 
 class ChaosEngineTests(unittest.TestCase):

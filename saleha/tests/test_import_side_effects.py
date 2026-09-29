@@ -139,7 +139,8 @@ def test_plugin_dirs_env_var_opts_a_directory_back_in() -> None:
 def test_checkpoint_store_still_persists_when_used() -> None:
     """Moving the mkdir out of __init__ must not break real saving."""
     from saleha.core.swarm.swarm_checkpoint_store import (
-        SwarmCheckpoint, SwarmCheckpointStore,
+        SwarmCheckpoint,
+        SwarmCheckpointStore,
     )
 
     with tempfile.TemporaryDirectory() as td:

@@ -13,9 +13,9 @@ report the true state of the world, not a default success.
 import unittest
 
 from saleha.core.mukti_chain_bridge import (
-    MuktiChainBridge,
-    ChainUnavailableError,
     _WEB3_AVAILABLE,
+    ChainUnavailableError,
+    MuktiChainBridge,
 )
 
 

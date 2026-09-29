@@ -8,53 +8,54 @@ Unit tests for Saleha CLI Supercharger upgrades:
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
 from saleha.cli.repl import SalehaREPL
 
 
 class TestCLIUpgrades(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.repl = SalehaREPL(model="mock")
 
-    def test_slash_command_debate(self):
+    def test_slash_command_debate(self) -> None:
         handled = self.repl.handle_slash_command("/debate Zero-Copy Deserialization Engine")
         self.assertTrue(handled)
 
-    def test_slash_command_debate_no_arg(self):
+    def test_slash_command_debate_no_arg(self) -> None:
         handled = self.repl.handle_slash_command("/debate")
         self.assertTrue(handled)
 
-    def test_slash_command_repair(self):
+    def test_slash_command_repair(self) -> None:
         failing_output = 'File "saleha/example.py", line 42, in test_fn\nZeroDivisionError: division by zero'
         handled = self.repl.handle_slash_command(f"/repair {failing_output}")
         self.assertTrue(handled)
 
-    def test_slash_command_pr(self):
+    def test_slash_command_pr(self) -> None:
         handled = self.repl.handle_slash_command("/pr Implement Async Memory Cache")
         self.assertTrue(handled)
 
-    def test_slash_command_diff(self):
+    def test_slash_command_diff(self) -> None:
         handled = self.repl.handle_slash_command("/diff")
         self.assertTrue(handled)
 
-    def test_review_patch_auto_mode(self):
+    def test_review_patch_auto_mode(self) -> None:
         self.repl.security_mode = "auto"
         res = self.repl.review_patch("src/main.py", "a = 1", "a = 2", "Update variable")
         self.assertTrue(res)
 
-    def test_review_patch_readonly_mode(self):
+    def test_review_patch_readonly_mode(self) -> None:
         self.repl.security_mode = "readonly"
         res = self.repl.review_patch("src/main.py", "a = 1", "a = 2", "Update variable")
         self.assertFalse(res)
 
     @patch("rich.console.Console.input", return_value="y")
-    def test_review_patch_guard_mode_accept(self, mock_input):
+    def test_review_patch_guard_mode_accept(self, mock_input: MagicMock) -> None:
         self.repl.security_mode = "guard"
         res = self.repl.review_patch("src/main.py", "a = 1", "a = 2", "Update variable")
         self.assertTrue(res)
 
     @patch("rich.console.Console.input", return_value="n")
-    def test_review_patch_guard_mode_reject(self, mock_input):
+    def test_review_patch_guard_mode_reject(self, mock_input: MagicMock) -> None:
         self.repl.security_mode = "guard"
         res = self.repl.review_patch("src/main.py", "a = 1", "a = 2", "Update variable")
         self.assertFalse(res)

@@ -195,6 +195,7 @@ class AgentIntegrationTests(unittest.TestCase):
 
     def test_oversized_prompt_is_trimmed_before_the_provider_sees_it(self) -> None:
         from unittest.mock import MagicMock
+
         from saleha.agents.base_agent import BaseAgent
 
         provider = MagicMock()
@@ -213,6 +214,7 @@ class AgentIntegrationTests(unittest.TestCase):
 
     def test_normal_prompt_is_passed_through_unchanged(self) -> None:
         from unittest.mock import MagicMock
+
         from saleha.agents.base_agent import BaseAgent
 
         provider = MagicMock()
@@ -229,6 +231,7 @@ class AgentIntegrationTests(unittest.TestCase):
     def test_a_broken_guard_does_not_break_the_call(self) -> None:
         """A guard that kills the call it guards is worse than no guard."""
         from unittest.mock import MagicMock, patch
+
         from saleha.agents.base_agent import BaseAgent
 
         provider = MagicMock()

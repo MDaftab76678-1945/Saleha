@@ -37,9 +37,9 @@ from saleha.core.swarm.p2p_mesh import (
     RemoteTaskPacket,
 )
 from saleha.core.swarm.p2p_swarm import (
-    BatchResult,
-    BatchedFuzzResult,
     BatchedFuzzingEngine,
+    BatchedFuzzResult,
+    BatchResult,
     batched_fuzzing_engine,
 )
 from saleha.core.swarm.saleha_swarm_topology import (

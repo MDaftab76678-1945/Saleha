@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.distributed_server import DistributedSwarmServer, TaskQueueItem
+
+from saleha.core.distributed_server import DistributedSwarmServer
 
 
 class DistributedServerTests(unittest.TestCase):

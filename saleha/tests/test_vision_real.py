@@ -4,16 +4,15 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from typing import Any
+from unittest.mock import MagicMock, patch
 
-from saleha.core import vision_backend
 from saleha.core.vision_backend import (
     find_vision_model,
     generate_code_from_image,
     load_image_b64,
 )
 from saleha.core.vision_coder import VisionCoder
-from typing import Any
 
 
 class LoadImageTests(unittest.TestCase):

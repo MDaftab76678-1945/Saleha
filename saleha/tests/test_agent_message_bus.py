@@ -1,14 +1,16 @@
 """Test suite for saleha.core.agent_message_bus."""
 
+from typing import Any
+
 import pytest
+
 from saleha.core.swarm.agent_message_bus import (
-    AgentMessageBus,
     AgentEvent,
-    TaskAssignedEvent,
+    AgentMessageBus,
     CodeSynthesizedEvent,
     SecurityVulnerabilityEvent,
+    TaskAssignedEvent,
 )
-from typing import Any
 
 
 class TestAgentMessageBus:

@@ -2,43 +2,41 @@
 Unit and integration tests for Phase 6: Multi-Attractor Energy Landscape, Pre-Warmed Sandbox Pool, and 2PC Multi-File Repair.
 """
 
-import os
 import shutil
 import tempfile
-import pytest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from saleha.core.hyperbolic_engine import (
+    HYPERBOLIC_DIM,
     HyperbolicVector,
     MultiAttractorLandscape,
-    SAMHAttractorController,
-    HYPERBOLIC_DIM,
+)
+from saleha.core.multi_file_auto_repair import (
+    BiDirectionalDependencyGraph,
+    MultiFileAutoRepairEngine,
 )
 from saleha.core.prewarmed_sandbox_pool import PreWarmedSandboxPool
-from saleha.core.multi_file_auto_repair import (
-    MultiFileAutoRepairEngine,
-    BiDirectionalDependencyGraph,
-)
 
 
 class TestMultiAttractorLandscape:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.landscape = MultiAttractorLandscape()
 
-    def test_all_10_department_attractors_present(self):
+    def test_all_10_department_attractors_present(self) -> None:
         assert len(self.landscape.DEPARTMENT_ATTRACTORS) == 10
         assert "SYSTEMS_KERNEL" in self.landscape.DEPARTMENT_ATTRACTORS
         assert "SECURITY_GOVERNANCE" in self.landscape.DEPARTMENT_ATTRACTORS
         assert "QUANTUM_PHYSICS" in self.landscape.DEPARTMENT_ATTRACTORS
 
-    def test_lorentz_coordinate_conversion(self):
+    def test_lorentz_coordinate_conversion(self) -> None:
         v = HyperbolicVector([0.2] * HYPERBOLIC_DIM)
         x_0, spatial = v.to_lorentz_coordinates()
         assert x_0 > 1.0  # Time-like component > 1 in hyperboloid
         assert len(spatial) == HYPERBOLIC_DIM
 
-    def test_energy_minimization_picks_nearest_basin(self):
+    def test_energy_minimization_picks_nearest_basin(self) -> None:
         # Create a vector close to SECURITY_GOVERNANCE attractor
         sec_attr = self.landscape.DEPARTMENT_ATTRACTORS["SECURITY_GOVERNANCE"]
         noisy_vec = sec_attr.mobius_addition(HyperbolicVector([0.05] * HYPERBOLIC_DIM))
@@ -47,7 +45,7 @@ class TestMultiAttractorLandscape:
         assert dept == "SECURITY_GOVERNANCE"
         assert dist < 1.0
 
-    def test_multi_attractor_healing(self):
+    def test_multi_attractor_healing(self) -> None:
         drifted = HyperbolicVector([0.35] * HYPERBOLIC_DIM)
         healed, was_healed, dept, dist = self.landscape.apply_multi_attractor_healing(drifted)
         assert was_healed is True
@@ -57,10 +55,10 @@ class TestMultiAttractorLandscape:
 
 
 class TestPreWarmedSandboxPool:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.pool = PreWarmedSandboxPool(pool_size=4)
 
-    def test_prewarmed_fast_execution(self):
+    def test_prewarmed_fast_execution(self) -> None:
         code = "a = 10; b = 20; res = a + b"
         res = self.pool.run_fast_sandboxed_snippet(code)
         assert res.passed is True
@@ -68,7 +66,7 @@ class TestPreWarmedSandboxPool:
         assert res.exit_code == 0
         assert res.execution_time_us < 50000.0  # Fast sub-50ms sandboxed execution
 
-    def test_failing_snippet_isolated_cleanly(self):
+    def test_failing_snippet_isolated_cleanly(self) -> None:
         code = "100 / 0"
         res = self.pool.run_fast_sandboxed_snippet(code)
         assert res.passed is False
@@ -77,15 +75,15 @@ class TestPreWarmedSandboxPool:
 
 
 class TestMultiFileTwoPhaseCommit:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.temp_dir = tempfile.mkdtemp()
         self.root = Path(self.temp_dir)
         self.engine = MultiFileAutoRepairEngine(workspace_root=self.root)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_bidirectional_dependency_graph_building(self):
+    def test_bidirectional_dependency_graph_building(self) -> None:
         file_a = self.root / "module_a.py"
         file_b = self.root / "module_b.py"
         
@@ -96,7 +94,7 @@ class TestMultiFileTwoPhaseCommit:
         blast = graph.get_blast_radius("module_b.py")
         assert "module_a.py" in blast
 
-    def test_c_division_is_declined_not_regex_replaced(self):
+    def test_c_division_is_declined_not_regex_replaced(self) -> None:
         """
         This test previously asserted `success is True` for a batch of C files
         whose only "repair" was a regex turning `/ 0` into `/ 1` across the
@@ -119,7 +117,7 @@ class TestMultiFileTwoPhaseCommit:
         # The file is untouched: no regex ran over it.
         assert "1000 / 0" in caller1.read_text(encoding="utf-8")
 
-    def test_string_literals_are_never_rewritten(self):
+    def test_string_literals_are_never_rewritten(self) -> None:
         """
         The old regex rewrote `URL = "http://a/b/ 0k"` to `".../ 1k"`. The
         patcher is AST-based now, so only code moves.
@@ -134,7 +132,7 @@ class TestMultiFileTwoPhaseCommit:
         assert 'URL = "http://a/b/ 0k"' in after
         assert "RATE = 1" in after
 
-    def test_a_guard_is_not_rewritten_into_dead_code(self):
+    def test_a_guard_is_not_rewritten_into_dead_code(self) -> None:
         """
         Given a guarded zero constant the old code raised it to 1, turning the
         guard into dead code and changing the program's result from 0 to
@@ -155,10 +153,10 @@ class TestMultiFileTwoPhaseCommit:
         assert any("guard" in d for d in res.declined)
 
         namespace = {}
-        exec(f.read_text(encoding="utf-8"), namespace)
+        exec(f.read_text(encoding="utf-8"), namespace)  # saleha: allow-exec
         assert namespace["result"] == 0
 
-    def test_unguarded_constant_is_patched(self):
+    def test_unguarded_constant_is_patched(self) -> None:
         """The case the module genuinely can fix."""
         f = self.root / "rate.py"
         f.write_text("RATE = 0\ntotal = 100 / RATE\n", encoding="utf-8")
@@ -170,7 +168,7 @@ class TestMultiFileTwoPhaseCommit:
         assert res.rolled_back is False
         assert "RATE = 1" in f.read_text(encoding="utf-8")
 
-    def test_a_failed_write_restores_every_file_already_written(self):
+    def test_a_failed_write_restores_every_file_already_written(self) -> None:
         """
         The atomicity claim, tested. Previously Phase 2 was a bare loop: the
         first file stayed modified on disk, the second did not, and the
@@ -186,7 +184,7 @@ class TestMultiFileTwoPhaseCommit:
         real_write = Path.write_text
         calls = {"n": 0}
 
-        def failing_write(self, *args, **kwargs):
+        def failing_write(self, *args: Any, **kwargs: Any) -> Any:
             calls["n"] += 1
             if calls["n"] == 2:
                 raise OSError("simulated disk full")
@@ -203,7 +201,7 @@ class TestMultiFileTwoPhaseCommit:
         assert a.read_text(encoding="utf-8") == original
         assert b.read_text(encoding="utf-8") == original
 
-    def test_rolled_back_is_false_when_nothing_was_written(self):
+    def test_rolled_back_is_false_when_nothing_was_written(self) -> None:
         """
         The old code returned `rolled_back=True` from the abort branch, which
         runs before any write -- claiming an undo of something that never
@@ -217,7 +215,7 @@ class TestMultiFileTwoPhaseCommit:
         assert res.rolled_back is False
         assert res.rollback_failed is False
 
-    def test_declined_findings_are_not_reported_as_a_clean_scan(self):
+    def test_declined_findings_are_not_reported_as_a_clean_scan(self) -> None:
         """
         "Nothing to fix" and "found defects I cannot fix" are different
         claims. Reporting the second as the first is the reassuring default
@@ -232,7 +230,7 @@ class TestMultiFileTwoPhaseCommit:
         assert res.declined
         assert "not a clean bill of health" in res.message
 
-    def test_ambiguous_basenames_are_declined_not_patched_blindly(self):
+    def test_ambiguous_basenames_are_declined_not_patched_blindly(self) -> None:
         """
         The graph keys on basename, so `pkg1/utils.py` and `pkg2/utils.py`
         are one node. The old code resolved that with `rglob` and patched
@@ -248,7 +246,7 @@ class TestMultiFileTwoPhaseCommit:
         graph = BiDirectionalDependencyGraph(self.root)
         assert graph.is_ambiguous("utils.py")
 
-    def test_imports_inside_functions_are_found(self):
+    def test_imports_inside_functions_are_found(self) -> None:
         """
         The old indexer used `line.startswith("import ")`, so any indented
         import -- inside a function, a `try:` block, a conditional -- was
@@ -262,7 +260,7 @@ class TestMultiFileTwoPhaseCommit:
         graph = BiDirectionalDependencyGraph(self.root)
         assert "lazy.py" in graph.get_blast_radius("helper.py")
 
-    def test_the_old_fabricated_message_is_gone(self):
+    def test_the_old_fabricated_message_is_gone(self) -> None:
         """`2PC Atomic Commit` claimed a property the code did not have."""
         import saleha.core.multi_file_auto_repair as module
         source = Path(module.__file__).read_text(encoding="utf-8")

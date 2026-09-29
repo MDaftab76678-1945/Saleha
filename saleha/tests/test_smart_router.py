@@ -13,7 +13,7 @@ class SmartRouterTests(unittest.TestCase):
             simple_model = router.select_model("write a small function", complexity_score=0.5)
             complex_model = router.select_model("refactor a complex project", complexity_score=7.0)
 
-        self.assertIn(simple_model, {"qwen2.5-coder:3b", "qwen2.5-coder:3b"})
+        self.assertIn(simple_model, {"qwen2.5-coder:3b"})
         self.assertIn(complex_model, {"deepseek-coder:6.7b", "qwen3.5:9b", "qwen2.5-coder:3b"})
 
     def test_record_result_updates_model_stats_and_persists(self):

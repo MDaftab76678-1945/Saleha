@@ -8,19 +8,20 @@ Unit & Integration Tests for Enterprise Architecture Upgrades:
 
 import time
 import unittest
-from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpointStore, SwarmCheckpoint
-from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
+from typing import Any
+
 from saleha.core.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
-    SecurityOutputContract,
+    FinOpsOutputContract,
     QAOutputContract,
     ReviewerOutputContract,
-    FinOpsOutputContract,
+    SecurityOutputContract,
 )
+from saleha.core.plugin_manifest import PluginAgentSpec, PluginManifestEngine, SalehaPluginManifest
 from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
-from saleha.core.plugin_manifest import PluginManifestEngine, SalehaPluginManifest, PluginAgentSpec
-from typing import Any
+from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpoint, SwarmCheckpointStore
+from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 
 
 class SwarmCheckpointStoreTests(unittest.TestCase):

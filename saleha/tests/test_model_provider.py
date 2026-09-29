@@ -4,10 +4,10 @@ from unittest.mock import Mock, patch
 import requests
 
 from saleha.core.platform.model_provider import (
-    OllamaProvider,
-    OpenAICompatibleProvider,
     FallbackChainProvider,
     MockProvider,
+    OllamaProvider,
+    OpenAICompatibleProvider,
 )
 
 

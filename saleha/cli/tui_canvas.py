@@ -9,24 +9,19 @@ Interactive multi-pane terminal IDE canvas providing:
 """
 
 import os
-import sys
-from typing import Optional, List, Dict, Any
+from typing import Dict, List, Optional
 
 from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
-from rich.tree import Tree
 from rich.text import Text
-from rich.syntax import Syntax
-from rich.markdown import Markdown
+from rich.tree import Tree
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory.memory_store import memory_store
 from saleha.core.verification.security_scanner import ASTSecurityScanner
-from saleha.core.polyglot_indexer import PolyglotIndexer
-from saleha.core.dag_engine import TaskDAG
 
 
 def build_file_tree(startpath: str = ".", max_depth: int = 2) -> Tree:

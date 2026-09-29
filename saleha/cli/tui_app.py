@@ -8,21 +8,16 @@ Provides an immersive, split-screen terminal workspace (similar to Aider / OpenC
 4. Interactive Command Loop: :solve <goal>, :diff, :ledger, :consensus, :exit.
 """
 
-import sys
-import os
-import time
-from typing import List, Dict, Optional, Any
+from typing import List
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich.layout import Layout
+from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
 
-from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.telemetry.token_ledger import token_ledger
-from saleha.core.swarm.swarm_consensus import swarm_consensus
+from saleha.orchestrator import SalehaOrchestrator
 
 
 class SalehaTUI:

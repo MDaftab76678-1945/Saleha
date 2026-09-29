@@ -1,16 +1,15 @@
 """Unit and Integration Test Suite for Neuro-Symbolic Invariant Engine and SLM Distillation Suite."""
 
-import os
 import json
+import os
 from pathlib import Path
-
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
+from saleha.cli.chat_session import SwarmChatSession
 from saleha.core.cognitive.neuro_symbolic_engine import (
     NeuroSymbolicEngine,
-    InvariantFitnessScore,
-    neuro_symbolic_engine,
 )
 from saleha.core.dataset_synthesizer import (
     SalehaDatasetSynthesizer,
@@ -18,9 +17,7 @@ from saleha.core.dataset_synthesizer import (
 )
 from saleha.core.model_distillation_pipeline import (
     ModelDistillationPipeline,
-    model_distillation_pipeline,
 )
-from saleha.cli.chat_session import SwarmChatSession
 
 
 class TestNeuroSymbolicEngine:

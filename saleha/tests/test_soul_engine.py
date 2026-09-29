@@ -5,9 +5,11 @@ Unit and integration tests for Saleha Soul Engine & SoulSpec v1.0 CLI.
 import os
 import tempfile
 import unittest
+
 from click.testing import CliRunner
-from saleha.core.cognitive.soul_engine import SoulEngine, soul_engine
+
 from saleha.cli.soul_cli import soul_group
+from saleha.core.cognitive.soul_engine import SoulEngine, soul_engine
 
 
 class TestSoulEngine(unittest.TestCase):

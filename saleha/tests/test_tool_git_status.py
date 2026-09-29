@@ -9,16 +9,17 @@ import tempfile
 from typing import List, Tuple
 
 import pytest
+
+from saleha.tools import tool_registry
 from saleha.tools.git_status_auditor import (
-    GitStatusAuditorTool,
+    FileStatusCode,
     GitCLIExecutor,
     GitPorcelainV2Parser,
     GitSecurityAuditor,
     GitStateInspector,
-    FileStatusCode,
+    GitStatusAuditorTool,
     RepositoryState,
 )
-from saleha.tools import tool_registry
 
 
 def test_git_status_auditor_registered() -> None:
@@ -197,7 +198,6 @@ def test_edge_case_c_quoting_command_construction() -> None:
 
 def test_edge_case_double_counting_prevented() -> None:
     """Edge Case 2: Verifies partially staged files are not double-counted in summary or security audit."""
-    from saleha.tools.git_status_auditor import FileChangeDetail
 
     raw_status = (
         "# branch.head main\n"

@@ -12,9 +12,16 @@ New capabilities for 10/10 across all dimensions:
 9. Real WebSocket Token Streaming
 10. Team Workspace (shared registry)
 """
-import asyncio, json, re, ast, time, os, hashlib
+import ast
+import asyncio
+import hashlib
+import json
+import os
+import re
+import time
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional
+
 import anthropic
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY",""))
@@ -203,6 +210,7 @@ async def translate_code(code:str, from_lang:str, to_lang:str) -> dict:
 # 4. GITHUB REPO INTEGRATION
 # ══════════════════════════════════════════════════════════════════════════════
 import urllib.request
+
 
 def fetch_github_readme(repo_url:str) -> str:
     """Fetch README from GitHub repo"""

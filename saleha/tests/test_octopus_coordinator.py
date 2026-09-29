@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from saleha.core.swarm.agent_message_bus import AgentMessageBus
-from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.core.harness.code_executor import ExecutionResult
-from saleha.tests.swarm_stubs import GOOD_CODE, stub_agents
 from saleha.core.octopus_coordinator import (
     ArmBrainOutput,
     ArmBrainRole,
@@ -16,6 +13,9 @@ from saleha.core.octopus_coordinator import (
     OctopusExecutionResult,
     SynapticBlackboard,
 )
+from saleha.core.swarm.agent_message_bus import AgentMessageBus
+from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
+from saleha.tests.swarm_stubs import GOOD_CODE, stub_agents
 
 
 class OctopusCoordinatorTests(unittest.TestCase):

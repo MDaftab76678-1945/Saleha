@@ -18,20 +18,21 @@ Notes on the pieces that are easy to misread:
 import time
 from typing import Optional, Tuple
 
-from saleha.agents.planner import PlannerAgent, PlanResult
 from saleha.agents.coder import CoderAgent, CodeResult
 from saleha.agents.debugger import DebuggerAgent
-from saleha.agents.tester import TesterAgent, TestResult
+from saleha.agents.planner import PlannerAgent, PlanResult
 from saleha.agents.reviewer import ReviewerAgent, ReviewResult
-from saleha.core.self_healing import SelfHealingEngine, HealingResult
-from saleha.core.telemetry.stats_tracker import StatsTracker
-from saleha.core.task_history import TaskHistory
+from saleha.agents.tester import TesterAgent, TestResult
+from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.harness.verdict import NOTHING_TO_VERIFY, Verified
-from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
-from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory.memory_store import memory_store
 from saleha.core.platform.git_native import git_engine
+from saleha.core.self_healing import HealingResult, SelfHealingEngine
+from saleha.core.skill_registry import load_builtin_skills
+from saleha.core.skill_registry import registry as skill_registry
+from saleha.core.task_history import TaskHistory
+from saleha.core.telemetry.stats_tracker import StatsTracker
 
 load_builtin_skills()
 
@@ -359,7 +360,7 @@ class SalehaOrchestrator:
         measures nothing about the model under test, and without it a second
         run of the same model replayed every task the first one solved.
         """
-        from saleha.core.session_store import session_store, SessionState
+        from saleha.core.session_store import SessionState, session_store
         from saleha.core.telemetry.metrics import metrics_tracker
         _run_start = time.time()
 

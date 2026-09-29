@@ -3,19 +3,20 @@ Unit tests for the complete suite of first-class Python agents in saleha.agents
 """
 
 import unittest
+
 from saleha.agents import (
     ArchitectAgent,
-    SecurityGuardAgent,
-    QALeadAgent,
-    SREIncidentAgent,
-    FinOpsOptimizerAgent,
-    RefactorSpecialistAgent,
+    DataEngineerAgent,
     DesignerAgent,
     DeveloperAgent,
-    NewSkillCreatorAgent,
-    WebDevAgent,
     DevOpsAgent,
-    DataEngineerAgent,
+    FinOpsOptimizerAgent,
+    NewSkillCreatorAgent,
+    QALeadAgent,
+    RefactorSpecialistAgent,
+    SecurityGuardAgent,
+    SREIncidentAgent,
+    WebDevAgent,
 )
 
 
@@ -85,6 +86,7 @@ class NewPythonAgentsTests(unittest.TestCase):
 
     def test_qa_lead_extracts_fenced_tests_and_counts_them(self) -> None:
         from unittest.mock import patch
+
         from saleha.agents.base_agent import AgentResponse
         reply = "Here you go:\n```python\ndef test_a():\n    assert multiply(2, 3) == 6\n\ndef test_b():\n    assert multiply(0, 3) == 0\n```\n"
         with patch.object(self.qa, "think", return_value=AgentResponse(success=True, content=reply, model_used="m")):

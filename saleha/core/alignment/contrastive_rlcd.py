@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from saleha.core.alignment.verifiable_rewards import RLHVRVerifier, RLAIFAuditor
+from saleha.core.alignment.verifiable_rewards import RLAIFAuditor, RLHVRVerifier
 from saleha.core.dpo_dataset_engine import DPOPreferencePair
 
 

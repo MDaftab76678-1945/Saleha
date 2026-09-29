@@ -1,7 +1,8 @@
 """Unit tests for Live WebSocket Streaming Bridge."""
 
 import unittest
-from saleha.core.websocket_bridge import WebSocketBridge, StreamEvent
+
+from saleha.core.websocket_bridge import StreamEvent, WebSocketBridge
 
 
 class TestWebSocketBridge(unittest.TestCase):

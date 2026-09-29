@@ -1,18 +1,18 @@
-import pytest
 
 from saleha.core.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
-    SecurityOutputContract,
+    DataEngineerOutputContract,
+    DesignerOutputContract,
+    DevOpsOutputContract,
+    FinOpsOutputContract,
     QAOutputContract,
     ReviewerOutputContract,
-    FinOpsOutputContract,
-    DesignerOutputContract,
-    DataEngineerOutputContract,
-    DevOpsOutputContract,
+    SecurityOutputContract,
 )
 
-def test_architect_output_contract():
+
+def test_architect_output_contract() -> None:
     contract = ArchitectOutputContract(
         adr_title="Hexagonal Architecture",
         pattern="Hexagonal (Ports & Adapters)",
@@ -22,7 +22,7 @@ def test_architect_output_contract():
     )
     assert contract.validate()
 
-def test_coder_output_contract():
+def test_coder_output_contract() -> None:
     contract = CoderOutputContract(
         source_code="#!/usr/bin/env python\nprint('Hello, World!')",
         language="python",
@@ -32,7 +32,7 @@ def test_coder_output_contract():
     )
     assert contract.validate()
 
-def test_security_output_contract():
+def test_security_output_contract() -> None:
     contract = SecurityOutputContract(
         is_secure=True,
         cwe_identifiers=["CWE-123", "CWE-456"],
@@ -41,7 +41,7 @@ def test_security_output_contract():
     )
     assert contract.validate()
 
-def test_qa_output_contract():
+def test_qa_output_contract() -> None:
     contract = QAOutputContract(
         framework="pytest",
         test_code="...",
@@ -50,7 +50,7 @@ def test_qa_output_contract():
     )
     assert contract.validate()
 
-def test_reviewer_output_contract():
+def test_reviewer_output_contract() -> None:
     contract = ReviewerOutputContract(
         approved=True,
         score=9.0,
@@ -59,7 +59,7 @@ def test_reviewer_output_contract():
     )
     assert contract.validate()
 
-def test_fin_ops_output_contract():
+def test_fin_ops_output_contract() -> None:
     contract = FinOpsOutputContract(
         original_tokens=1000,
         optimized_tokens=800,
@@ -68,7 +68,7 @@ def test_fin_ops_output_contract():
     )
     assert contract.validate()
 
-def test_designer_output_contract():
+def test_designer_output_contract() -> None:
     contract = DesignerOutputContract(
         theme_preset="obsidian",
         css_variables={"primary-color": "#3498db", "secondary-color": "#2ecc71"},
@@ -76,7 +76,7 @@ def test_designer_output_contract():
     )
     assert contract.validate()
 
-def test_data_engineer_output_contract():
+def test_data_engineer_output_contract() -> None:
     contract = DataEngineerOutputContract(
         schema_ddl="CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);",
         tables_created=["users"],
@@ -84,7 +84,7 @@ def test_data_engineer_output_contract():
     )
     assert contract.validate()
 
-def test_dev_ops_output_contract():
+def test_dev_ops_output_contract() -> None:
     contract = DevOpsOutputContract(
         dockerfile="#!/bin/sh\npython app.py",
         ci_cd_workflow_yaml="...",

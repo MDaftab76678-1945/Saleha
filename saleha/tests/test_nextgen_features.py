@@ -8,13 +8,13 @@ Unit tests for Saleha Next-Gen Developer Superpowers:
 """
 
 import json
+import os
+import shutil
+import tempfile
 import threading
 import unittest
 import urllib.request
 from http.server import HTTPServer
-import tempfile
-import os
-import shutil
 
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler

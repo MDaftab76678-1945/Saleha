@@ -7,26 +7,20 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
-import json
-import io
-import subprocess
 import contextlib
-from pathlib import Path
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+import io
+import json
+from typing import Any
+
+import click
 from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.command()
 @click.argument('goal')
@@ -216,8 +210,8 @@ def diff_preview_cmd(file_path: Any, new_file_path: Any) -> None:
     
     Example: saleha diff-preview old.py new.py
     """
-    from saleha.core.diff_engine import diff_engine
     from saleha.core.change_impact import change_impact
+    from saleha.core.diff_engine import diff_engine
     with open(file_path, 'r', encoding='utf-8') as f:
         old_code = f.read()
     with open(new_file_path, 'r', encoding='utf-8') as f:

@@ -23,7 +23,12 @@ from saleha.core.rag.repo_context_packer import RepoContextPacker, repo_context_
 from saleha.core.rag.semantic_cache import CacheEntry, SemanticCache, semantic_cache
 from saleha.core.rag.semantic_search import SearchResult, SemanticSearchEngine, semantic_search
 from saleha.core.rag.tree_context_ranker import TreeContextRanker, tree_context_ranker
-from saleha.core.rag.vector_store import VectorDocument, VectorSearchResult, VectorStore, vector_store
+from saleha.core.rag.vector_store import (
+    VectorDocument,
+    VectorSearchResult,
+    VectorStore,
+    vector_store,
+)
 
 
 @dataclass

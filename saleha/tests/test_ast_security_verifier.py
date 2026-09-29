@@ -3,6 +3,7 @@ Unit tests for Gamma AST Security Verifier and Static Code Auditor.
 """
 
 import unittest
+
 from saleha.sandbox.ast_security_verifier import ASTContractAuditor
 
 

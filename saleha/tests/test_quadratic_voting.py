@@ -1,9 +1,11 @@
 """Unit tests for Quadratic Voting & VCG Swarm Allocator."""
 
 import unittest
+
 from click.testing import CliRunner
-from saleha.core.quadratic_voting import QuadraticVotingEngine, QuadraticVotingReport
+
 from saleha.cli.commands import cli
+from saleha.core.quadratic_voting import QuadraticVotingEngine, QuadraticVotingReport
 
 
 class TestQuadraticVoting(unittest.TestCase):

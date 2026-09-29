@@ -11,39 +11,39 @@ Provides a rich, interactive terminal playground for conversational pair-program
 
 from __future__ import annotations
 
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.table import Table
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
-from saleha.agents.issue_resolver import issue_resolver
-from saleha.agents.vision_designer import vision_designer
-from saleha.agents.doc_generator import doc_generator
-from saleha.agents.deep_researcher import deep_researcher
-from saleha.agents.slides_architect import slides_architect
-from saleha.agents.sheets_analyst import sheets_analyst
 from saleha.agents.browser_claw import browser_claw
-from saleha.agents.notebook_architect import notebook_architect
-from saleha.agents.voice_architect import voice_architect
-from saleha.agents.screen_copilot import screen_copilot
 from saleha.agents.chaos_resilience import chaos_resilience
-from saleha.core.task_scheduler import task_scheduler
+from saleha.agents.deep_researcher import deep_researcher
+from saleha.agents.doc_generator import doc_generator
+from saleha.agents.issue_resolver import issue_resolver
+from saleha.agents.notebook_architect import notebook_architect
+from saleha.agents.screen_copilot import screen_copilot
+from saleha.agents.sheets_analyst import sheets_analyst
+from saleha.agents.slides_architect import slides_architect
+from saleha.agents.vision_designer import vision_designer
+from saleha.agents.voice_architect import voice_architect
 from saleha.core.cognitive.neuro_symbolic_engine import neuro_symbolic_engine
 from saleha.core.dataset_synthesizer import dataset_synthesizer
-from saleha.core.model_distillation_pipeline import model_distillation_pipeline
-from saleha.core.local_inference_engine import local_inference_engine
-from saleha.core.repo_orchestrator import repo_orchestrator
-from saleha.core.mcp_server import saleha_mcp_server
-from saleha.core.swarm.swarm_cluster_node import swarm_cluster
 from saleha.core.ephemeral_container_runner import container_runner
+from saleha.core.local_inference_engine import local_inference_engine
+from saleha.core.mcp_server import saleha_mcp_server
 from saleha.core.mcts_search_engine import mcts_search_engine
-from saleha.core.speculative_accelerator import speculative_accelerator
+from saleha.core.model_distillation_pipeline import model_distillation_pipeline
+from saleha.core.repo_orchestrator import repo_orchestrator
 from saleha.core.self_evolving_loop import self_evolving_loop
+from saleha.core.speculative_accelerator import speculative_accelerator
+from saleha.core.swarm.swarm_cluster_node import swarm_cluster
+from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
+from saleha.core.task_scheduler import task_scheduler
 from saleha.tools.release_manager import release_manager
 
 

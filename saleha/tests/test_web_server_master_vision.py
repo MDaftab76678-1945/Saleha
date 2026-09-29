@@ -10,7 +10,6 @@ Integration tests for Saleha Web Studio Master Vision REST & SSE endpoints:
 from __future__ import annotations
 
 import json
-import os
 import threading
 import unittest
 import urllib.error

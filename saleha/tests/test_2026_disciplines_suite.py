@@ -14,79 +14,39 @@ Validates:
 """
 
 import unittest
-import os
-import tempfile
-import time
 
-from saleha.core.loop import (
-    MakerCheckerLoop,
-    LoopCheckpoint,
-    tot_orchestrator,
-    recursive_solver,
-    deliberation_engine,
-)
-from saleha.core.harness import (
-    PolyglotHarnessParser,
-    ApprovalGate,
-    approval_gate,
-    SWEBenchRunner,
-    SWEBenchTask,
-    test_runner,
-    code_executor,
-)
-from saleha.core.rag import (
-    HybridRetriever,
-    hybrid_retriever,
-    semantic_search,
-    vector_store,
-    repo_context_packer,
+from saleha.core.cognitive import (
+    DualProcessCognition,
 )
 from saleha.core.graph import (
     CallGraphNavigator,
-    call_graph_navigator,
-    codebase_indexer,
-    dependency_graph,
 )
-from saleha.core.cognitive import (
-    DualProcessCognition,
-    dual_process_cognition,
-    soul_engine,
-    causal_world_model,
-    persona_debate_engine,
-    neuro_symbolic_engine,
+from saleha.core.harness import (
+    PolyglotHarnessParser,
+    SWEBenchRunner,
+    SWEBenchTask,
 )
-from saleha.core.verification import (
-    QualityGuard,
-    quality_guard,
-    TTCSolver,
-    ttc_solver,
-    FormalSMTVerifier,
-    formal_smt_verifier,
-    safety_guard,
-    security_scanner,
-    apex_97_validator,
+from saleha.core.loop import (
+    MakerCheckerLoop,
+)
+from saleha.core.platform import (
+    lsp_engine,
+    smart_router,
+)
+from saleha.core.rag import (
+    HybridRetriever,
+    vector_store,
+)
+from saleha.core.swarm import (
+    swarm_consensus,
+    swarm_engine,
 )
 from saleha.core.telemetry import (
     session_tracer,
     token_analytics,
-    audit_log,
-    metrics_tracker,
 )
-from saleha.core.swarm import (
-    swarm_engine,
-    message_bus,
-    swarm_consensus,
-    team_orchestrator,
-    worker_pool,
-    checkpoint_store,
-)
-from saleha.core.platform import (
-    smart_router,
-    model_provider,
-    git_native,
-    lsp_engine,
-    mcp_hub,
-    self_healer,
+from saleha.core.verification import (
+    FormalSMTVerifier,
 )
 
 
@@ -96,7 +56,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 1. Loop Engineering
     # ------------------------------------------------------------------
-    def test_loop_engineering_checkpoint_and_cycle_detection(self):
+    def test_loop_engineering_checkpoint_and_cycle_detection(self) -> None:
         loop = MakerCheckerLoop(agent=None, enable_checkpoints=True)
         cp1 = loop.save_checkpoint(step=1, action="read_file", args_str="main.py", observation="class App: pass")
         self.assertEqual(cp1.step_number, 1)
@@ -114,7 +74,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 2. Harness Engineering
     # ------------------------------------------------------------------
-    def test_harness_polyglot_parser_and_swebench_assertion(self):
+    def test_harness_polyglot_parser_and_swebench_assertion(self) -> None:
         # Pytest parsing
         pytest_out = "======= 14 passed, 1 failed in 2.34s ======="
         outcome = PolyglotHarnessParser.parse_pytest(pytest_out)
@@ -169,7 +129,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 3. RAG Engineering
     # ------------------------------------------------------------------
-    def test_rag_hybrid_retriever_rrf(self):
+    def test_rag_hybrid_retriever_rrf(self) -> None:
         retriever = HybridRetriever(k_rrf=60)
         # Vector store document addition
         vector_store.add_document("doc_01", "def compute_sha256_hash(data): return hashlib.sha256(data).hexdigest()")
@@ -181,7 +141,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 4. Graph Engineering
     # ------------------------------------------------------------------
-    def test_graph_call_navigator_impact_radius(self):
+    def test_graph_call_navigator_impact_radius(self) -> None:
         navigator = CallGraphNavigator()
         impact = navigator.trace_impact_radius("save")
         self.assertIn("symbol", impact)
@@ -191,7 +151,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 5. Cognitive Engineering
     # ------------------------------------------------------------------
-    def test_cognitive_dual_process_system1_and_system2(self):
+    def test_cognitive_dual_process_system1_and_system2(self) -> None:
         cognition = DualProcessCognition()
         # System 1: Low complexity heuristic
         s1 = cognition.reason("format text to lowercase", complexity=0.2)
@@ -206,7 +166,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 6. Verification & Quality
     # ------------------------------------------------------------------
-    def test_verification_formal_smt_ast_sat_and_unsat(self):
+    def test_verification_formal_smt_ast_sat_and_unsat(self) -> None:
         # formal_smt_verifier now asks Z3 a real, narrow question (can a
         # guarded division by a variable actually be zero?) instead of
         # emitting fixed "SMT_Z3_CERTIFICATE_SAT" text regardless of input.
@@ -239,7 +199,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 7. Telemetry & Observability
     # ------------------------------------------------------------------
-    def test_telemetry_span_and_token_analytics(self):
+    def test_telemetry_span_and_token_analytics(self) -> None:
         with session_tracer.span("test_2026_op", attributes={"layer": "test"}) as s:
             s.add_event("event_in_span", {"detail": "ok"})
             self.assertEqual(s.name, "test_2026_op")
@@ -257,7 +217,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 8. Swarm Orchestration
     # ------------------------------------------------------------------
-    def test_swarm_router_and_pbft_consensus(self):
+    def test_swarm_router_and_pbft_consensus(self) -> None:
         dag = swarm_engine.router.route_goal_to_dag("Build a web dashboard with UI and database")
         self.assertIn("Designer", dag)
         self.assertIn("DataEngineer", dag)
@@ -268,7 +228,7 @@ class Test2026EngineeringDisciplines(unittest.TestCase):
     # ------------------------------------------------------------------
     # 9. Platform & Runtime
     # ------------------------------------------------------------------
-    def test_platform_smart_router_and_lsp_engine(self):
+    def test_platform_smart_router_and_lsp_engine(self) -> None:
         best_model = smart_router.select_model_for_task("code", complexity_score=0.7)
         self.assertTrue(best_model)
 

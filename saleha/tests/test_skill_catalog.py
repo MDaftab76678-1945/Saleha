@@ -5,7 +5,8 @@ Unit & Integration Tests for Saleha 1,000+ AgentSkills Engine & Universal Catalo
 from __future__ import annotations
 
 import unittest
-from saleha.core.skill_catalog import SkillCatalog, AgentSkillMetadata, skill_catalog
+
+from saleha.core.skill_catalog import SkillCatalog, skill_catalog
 
 
 class SkillCatalogTests(unittest.TestCase):

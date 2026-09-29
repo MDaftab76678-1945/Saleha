@@ -1,5 +1,6 @@
 import unittest
-from saleha.cli.tui_canvas import build_tui_layout, build_file_tree
+
+from saleha.cli.tui_canvas import build_file_tree, build_tui_layout
 
 
 class TUICanvasTests(unittest.TestCase):

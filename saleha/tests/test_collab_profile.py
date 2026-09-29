@@ -1,8 +1,8 @@
 """v1.6: CollabStore rooms + HTTP routes + HardwareProfiler."""
 import json
-from typing import Any, Dict
 import unittest
 import urllib.request
+from typing import Any, Dict
 
 from saleha.core.collab import CollabError, CollabStore
 
@@ -65,8 +65,8 @@ class CollabHttpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         import threading
-        import urllib.request
         from http.server import HTTPServer
+
         from saleha.server import web_server
         from saleha.server.web_server import SalehaAPIHandler
         web_server.set_auth_token("collab-test-token")

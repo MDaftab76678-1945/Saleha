@@ -6,7 +6,6 @@ Validates UCB1 exploration policy, multi-depth expansion, rollout evaluation, an
 from __future__ import annotations
 
 import ast
-import pytest
 
 from saleha.core.mcts_search_engine import MCTSExecutionResult, MCTSNode, MCTSSearchEngine
 

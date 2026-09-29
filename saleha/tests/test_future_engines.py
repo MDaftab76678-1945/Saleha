@@ -17,16 +17,16 @@ import urllib.request
 from http.server import HTTPServer
 from typing import Any, Dict
 
+from saleha.core.formal_verifier import formal_verifier
+from saleha.core.native_compiler import native_compiler
+from saleha.core.pqc_guard import sha3_vault_guard as pqc_guard
+from saleha.core.spatial_coder import spatial_coder
+from saleha.core.swarm.p2p_swarm import batched_fuzzing_engine as p2p_engine
+from saleha.core.visual_diff import visual_diff_engine
+from saleha.core.wasm_runner import wasm_engine
+from saleha.core.webgpu_accelerator import webgpu_accelerator
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
-from saleha.core.wasm_runner import wasm_engine
-from saleha.core.visual_diff import visual_diff_engine
-from saleha.core.swarm.p2p_swarm import batched_fuzzing_engine as p2p_engine
-from saleha.core.webgpu_accelerator import webgpu_accelerator
-from saleha.core.formal_verifier import formal_verifier
-from saleha.core.spatial_coder import spatial_coder
-from saleha.core.pqc_guard import sha3_vault_guard as pqc_guard
-from saleha.core.native_compiler import native_compiler
 
 
 class FutureEnginesTests(unittest.TestCase):

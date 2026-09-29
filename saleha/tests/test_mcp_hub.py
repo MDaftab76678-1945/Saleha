@@ -5,11 +5,11 @@ Unit & Integration Tests for Saleha Universal Model Context Protocol (MCP) Multi
 from __future__ import annotations
 
 import os
-import json
 import tempfile
 import unittest
 from unittest.mock import patch
-from saleha.core.platform.mcp_hub import UniversalMCPHub, MCPServerConfig, mcp_hub
+
+from saleha.core.platform.mcp_hub import mcp_hub
 
 
 class MCPHubTests(unittest.TestCase):

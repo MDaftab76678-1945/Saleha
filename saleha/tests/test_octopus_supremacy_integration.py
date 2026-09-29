@@ -7,11 +7,11 @@ from __future__ import annotations
 import json
 import os
 import unittest
+
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
 from saleha.core.octopus_coordinator import (
-    ArmBrainRole,
     OctopusCoordinator,
     OctopusExecutionResult,
 )

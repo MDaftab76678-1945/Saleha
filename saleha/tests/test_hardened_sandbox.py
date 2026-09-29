@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.hardened_sandbox import HardenedSandboxEngine, HardenedExecutionResult
+
+from saleha.core.hardened_sandbox import HardenedSandboxEngine
 
 
 class HardenedSandboxTests(unittest.TestCase):

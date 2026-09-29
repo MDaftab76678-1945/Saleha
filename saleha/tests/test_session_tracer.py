@@ -5,9 +5,11 @@ Unit tests for Saleha Session Tracer (saleha/core/session_tracer.py).
 import json
 import os
 import tempfile
+
 import pytest
-from saleha.core.telemetry.session_tracer import SessionTracer, TraceSpan, session_tracer
+
 from saleha.core.swarm.agent_message_bus import AgentMessageBus, TaskAssignedEvent
+from saleha.core.telemetry.session_tracer import SessionTracer
 
 
 def test_tracer_span_lifecycle():
@@ -48,9 +50,8 @@ def test_tracer_context_manager():
     assert s.attributes["key"] == "val"
     assert len(s.events) == 1
 
-    with pytest.raises(ValueError):
-        with tracer.span("failing_step") as fs:
-            raise ValueError("Something went wrong")
+    with pytest.raises(ValueError), tracer.span("failing_step") as fs:
+        raise ValueError("Something went wrong")
 
     assert fs.status == "ERROR"
     assert "Something went wrong" in fs.error_message

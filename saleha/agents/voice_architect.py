@@ -1,11 +1,12 @@
 """VoiceArchitectAgent: 25th Autonomous Agent for Real-Time Spoken Pair-Programming & Audio Commentary."""
 
 from __future__ import annotations
-import time
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+import time
+from dataclasses import dataclass
+from typing import List
+
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass

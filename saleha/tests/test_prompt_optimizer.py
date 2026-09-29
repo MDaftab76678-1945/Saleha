@@ -1,26 +1,29 @@
 """Unit tests for Auto-Curriculum & Prompt Self-Optimizer."""
 
-import unittest
-import tempfile
 import os
-from saleha.core.prompt_optimizer import PromptOptimizer, PromptOptimizationRecord
+import tempfile
+import unittest
+from pathlib import Path
+from typing import Any
+
+from saleha.core.prompt_optimizer import PromptOptimizationRecord, PromptOptimizer
 
 
 class TestPromptOptimizer(unittest.TestCase):
     """Test suite for PromptOptimizer self-refinement and directive synthesis."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         self.optimizer = PromptOptimizer(store_path=self.tmp_file)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.tmp_file):
             try:
                 os.unlink(self.tmp_file)
             except OSError:
                 pass
 
-    def test_optimize_prompt_adds_safety_directives(self):
+    def test_optimize_prompt_adds_safety_directives(self) -> None:
         record = self.optimizer.optimize_prompt(
             role_name="CoderAgent",
             current_prompt="You are a senior coder.",
@@ -49,14 +52,14 @@ if __name__ == "__main__":
 
 from unittest.mock import MagicMock, patch
 
-from saleha.core.prompt_optimizer import PromptOptimizer, recent_real_errors
+from saleha.core.prompt_optimizer import recent_real_errors
 
 
-def _opt(tmp_path):
+def _opt(tmp_path: Path) -> Any:
     return PromptOptimizer(store_path=str(tmp_path / "opt.json"))
 
 
-def test_unmatched_errors_are_reported_not_hidden(tmp_path):
+def test_unmatched_errors_are_reported_not_hidden(tmp_path: Path) -> None:
     rec = _opt(tmp_path).optimize_prompt(
         "CoderAgent", "Base.",
         ["RecursionError: maximum recursion depth exceeded"])
@@ -65,7 +68,7 @@ def test_unmatched_errors_are_reported_not_hidden(tmp_path):
     assert rec.learned_from_all is False
 
 
-def test_matched_error_is_learned_from(tmp_path):
+def test_matched_error_is_learned_from(tmp_path: Path) -> None:
     rec = _opt(tmp_path).optimize_prompt(
         "CoderAgent", "Base.", ["IndexError: list index out of range"])
     assert rec.unmatched_errors == []
@@ -73,7 +76,7 @@ def test_matched_error_is_learned_from(tmp_path):
     assert any("index boundaries" in d for d in rec.added_directives)
 
 
-def test_mixed_errors_split_correctly(tmp_path):
+def test_mixed_errors_split_correctly(tmp_path: Path) -> None:
     rec = _opt(tmp_path).optimize_prompt(
         "CoderAgent", "Base.",
         ["TypeError: bad operand", "RecursionError: too deep"])
@@ -82,20 +85,20 @@ def test_mixed_errors_split_correctly(tmp_path):
     assert rec.learned_from_all is False
 
 
-def test_no_errors_means_nothing_was_learned(tmp_path):
+def test_no_errors_means_nothing_was_learned(tmp_path: Path) -> None:
     rec = _opt(tmp_path).optimize_prompt("CoderAgent", "Base.", [])
     assert rec.errors_seen == 0
     assert rec.learned_from_all is False   # zero errors is not "learned all"
 
 
-def test_different_errors_give_different_prompts(tmp_path):
+def test_different_errors_give_different_prompts(tmp_path: Path) -> None:
     o = _opt(tmp_path)
     a = o.optimize_prompt("A", "Base.", ["IndexError: x"])
     b = o.optimize_prompt("B", "Base.", ["TypeError: y"])
     assert a.optimized_prompt != b.optimized_prompt
 
 
-def test_recent_real_errors_reads_history():
+def test_recent_real_errors_reads_history() -> None:
     fake = MagicMock()
     fake.all.return_value = [
         MagicMock(success=True, error=""),
@@ -108,7 +111,7 @@ def test_recent_real_errors_reads_history():
     assert len(errs) == 2                      # the successful run is excluded
 
 
-def test_recent_real_errors_is_most_recent_first():
+def test_recent_real_errors_is_most_recent_first() -> None:
     fake = MagicMock()
     fake.all.return_value = [
         MagicMock(success=False, error="older"),
@@ -118,14 +121,14 @@ def test_recent_real_errors_is_most_recent_first():
         assert recent_real_errors()[0] == "newer"
 
 
-def test_recent_real_errors_deduplicates():
+def test_recent_real_errors_deduplicates() -> None:
     fake = MagicMock()
     fake.all.return_value = [MagicMock(success=False, error="same")] * 5
     with patch("saleha.core.task_history.TaskHistory", return_value=fake):
         assert recent_real_errors() == ["same"]
 
 
-def test_recent_real_errors_skips_blank_messages():
+def test_recent_real_errors_skips_blank_messages() -> None:
     fake = MagicMock()
     fake.all.return_value = [
         MagicMock(success=False, error="   "),
@@ -135,7 +138,7 @@ def test_recent_real_errors_skips_blank_messages():
         assert recent_real_errors() == ["real failure"]
 
 
-def test_recent_real_errors_honours_limit():
+def test_recent_real_errors_honours_limit() -> None:
     fake = MagicMock()
     fake.all.return_value = [
         MagicMock(success=False, error=f"err {i}") for i in range(50)
@@ -144,7 +147,7 @@ def test_recent_real_errors_honours_limit():
         assert len(recent_real_errors(limit=3)) == 3
 
 
-def test_unreadable_history_returns_empty_not_a_fake_error():
+def test_unreadable_history_returns_empty_not_a_fake_error() -> None:
     """An empty list must be reported as 'nothing to learn from', never
     replaced with an invented example -- that was the original bug."""
     fake = MagicMock()

@@ -1,6 +1,7 @@
 """Unit tests for Autonomous Headless Browser & UI Inspector."""
 
 import unittest
+
 from saleha.core.browser_agent import BrowserAgent, BrowserInspectionReport
 
 

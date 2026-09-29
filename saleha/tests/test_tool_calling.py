@@ -1,15 +1,13 @@
-import unittest
-import os
-import tempfile
 import json
+import os
 import sqlite3
+import tempfile
+import unittest
+
 from click.testing import CliRunner
 
-from saleha.core.tool_calling import (
-    ToolRegistry, ToolDefinition, ToolParameter,
-    ToolCallingLoop, global_tool_registry
-)
 from saleha.cli.commands import cli
+from saleha.core.tool_calling import ToolCallingLoop, ToolDefinition, ToolParameter, ToolRegistry
 
 
 class ToolCallingTests(unittest.TestCase):

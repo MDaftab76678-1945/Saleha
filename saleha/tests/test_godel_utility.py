@@ -1,16 +1,17 @@
 """Unit tests for Gödel Machine Self-Proving Utility Engine."""
 
 import unittest
-from saleha.core.godel_utility import GodelUtilityEngine, SystemStateUtility, GodelProofDecision
+
+from saleha.core.godel_utility import GodelProofDecision, GodelUtilityEngine, SystemStateUtility
 
 
 class TestGodelUtility(unittest.TestCase):
     """Test suite for GodelUtilityEngine mathematical proof bounds."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.engine = GodelUtilityEngine()
 
-    def test_authorizes_positive_utility_delta(self):
+    def test_authorizes_positive_utility_delta(self) -> None:
         s_curr = SystemStateUtility(0.80, 0.80, 1.0, 0.70)
         s_cand = SystemStateUtility(0.90, 0.85, 1.0, 0.75)
         dec = self.engine.evaluate_modification(s_curr, s_cand, "Safe Refactoring")
@@ -18,7 +19,7 @@ class TestGodelUtility(unittest.TestCase):
         self.assertTrue(dec.is_authorized)
         self.assertGreater(dec.delta_utility, 0.0)
 
-    def test_prohibits_negative_utility_or_safety_degradation(self):
+    def test_prohibits_negative_utility_or_safety_degradation(self) -> None:
         s_curr = SystemStateUtility(0.90, 0.90, 1.0, 0.80)
         s_cand = SystemStateUtility(0.95, 0.95, 0.7, 0.90)  # Safety dropped
         dec = self.engine.evaluate_modification(s_curr, s_cand, "Unsafe Shortcut")
@@ -43,13 +44,13 @@ from saleha.core.godel_utility import measure_current_state
 
 class MeasuredStateTests(unittest.TestCase):
 
-    def test_direct_construction_stays_trusted(self):
+    def test_direct_construction_stays_trusted(self) -> None:
         """The long-standing API: caller supplies numbers and vouches for them."""
         s = SystemStateUtility(0.8, 0.8, 1.0, 0.7)
         self.assertEqual(s.unmeasured_fields, [])
         self.assertTrue(s.fully_measured)
 
-    def test_unmeasured_field_is_reported(self):
+    def test_unmeasured_field_is_reported(self) -> None:
         s = SystemStateUtility(0.0, 0.9, 0.9, 0.9,
                                measured={"alignment_score": False,
                                          "task_pass_rate": True,
@@ -58,7 +59,7 @@ class MeasuredStateTests(unittest.TestCase):
         self.assertEqual(s.unmeasured_fields, ["alignment_score"])
         self.assertFalse(s.fully_measured)
 
-    def test_proof_over_unmeasured_inputs_is_inconclusive_not_authorized(self):
+    def test_proof_over_unmeasured_inputs_is_inconclusive_not_authorized(self) -> None:
         """A utility proof over invented numbers proves nothing."""
         engine = GodelUtilityEngine()
         flags = {"alignment_score": False, "task_pass_rate": True,
@@ -72,7 +73,7 @@ class MeasuredStateTests(unittest.TestCase):
         self.assertIn("alignment_score", dec.proof_summary)
         self.assertNotIn("AUTHORIZED", dec.proof_summary)
 
-    def test_fully_measured_states_can_still_authorize(self):
+    def test_fully_measured_states_can_still_authorize(self) -> None:
         engine = GodelUtilityEngine()
         flags = {k: True for k in ("alignment_score", "task_pass_rate",
                                    "safety_score", "efficiency_score")}
@@ -82,13 +83,13 @@ class MeasuredStateTests(unittest.TestCase):
         self.assertTrue(dec.is_authorized)
         self.assertIn("AUTHORIZED", dec.proof_summary)
 
-    def test_measure_current_state_records_provenance(self):
+    def test_measure_current_state_records_provenance(self) -> None:
         s = measure_current_state()
         for key in ("alignment_score", "task_pass_rate",
                     "safety_score", "efficiency_score"):
             self.assertIn(key, s.measured)
 
-    def test_alignment_is_never_self_scored(self):
+    def test_alignment_is_never_self_scored(self) -> None:
         """A system rating its own alignment is the trust failure this repo
         keeps finding; it must stay unmeasured rather than be invented."""
         s = measure_current_state()
@@ -96,14 +97,14 @@ class MeasuredStateTests(unittest.TestCase):
         self.assertFalse(s.measured["alignment_score"])
         self.assertIn("alignment_score", s.unmeasured_fields)
 
-    def test_measured_values_are_in_range(self):
+    def test_measured_values_are_in_range(self) -> None:
         s = measure_current_state()
         for value in (s.task_pass_rate, s.safety_score,
                       s.efficiency_score, s.alignment_score):
             self.assertGreaterEqual(value, 0.0)
             self.assertLessEqual(value, 1.0)
 
-    def test_safety_is_measured_from_real_source(self):
+    def test_safety_is_measured_from_real_source(self) -> None:
         """saleha/core exists, so the constitutional scan must produce a value."""
         s = measure_current_state()
         self.assertTrue(s.measured["safety_score"])

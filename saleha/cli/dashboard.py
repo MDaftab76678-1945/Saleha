@@ -8,27 +8,25 @@ A responsive, multi-pane visual operations dashboard rendering:
 4. Real-time task history and execution audit records
 """
 
-import os
 import sys
 import time
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
 from rich.console import Console
 from rich.layout import Layout
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.live import Live
 
 from saleha import __version__
 from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.skill_registry import registry as skill_registry, load_builtin_skills
 from saleha.core.memory.memory_store import memory_store
-from saleha.core.telemetry.stats_tracker import StatsTracker
+from saleha.core.skill_registry import load_builtin_skills
+from saleha.core.skill_registry import registry as skill_registry
 from saleha.core.task_history import TaskHistory
-from saleha.core.telemetry.audit_log import AuditLog
-from saleha.core.platform.smart_router import SmartRouter
+from saleha.core.telemetry.stats_tracker import StatsTracker
 
 if sys.platform == "win32":
     try:

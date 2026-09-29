@@ -2,12 +2,12 @@
 
 from unittest.mock import MagicMock, patch
 
-from saleha.agents.deep_researcher import DeepResearcherAgent, deep_researcher
-from saleha.agents.slides_architect import SlidesArchitectAgent, slides_architect
-from saleha.agents.sheets_analyst import SheetsAnalystAgent, sheets_analyst
 from saleha.agents.browser_claw import SovereignClawAgent, browser_claw
-from saleha.core.task_scheduler import TaskSchedulerEngine
+from saleha.agents.deep_researcher import DeepResearcherAgent, deep_researcher
+from saleha.agents.sheets_analyst import SheetsAnalystAgent, sheets_analyst
+from saleha.agents.slides_architect import SlidesArchitectAgent, slides_architect
 from saleha.cli.chat_session import SwarmChatSession
+from saleha.core.task_scheduler import TaskSchedulerEngine
 
 
 class TestDeepResearcherAgent:

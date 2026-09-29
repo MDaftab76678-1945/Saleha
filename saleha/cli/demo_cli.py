@@ -10,19 +10,20 @@ Executes an end-to-end autonomous verification cycle across all 9 tracks:
 """
 
 import os
+
 import click
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 from saleha import __version__
-from saleha.core.platform.model_provider import default_provider
+from saleha.core.cognitive.padic_ultrametric import PadicIsolationValidator, PadicValuationNode
 from saleha.core.hyperbolic_engine import MultiAttractorLandscape
-from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, SwarmMessage
+from saleha.core.platform.model_provider import default_provider
 from saleha.core.self_healing import SelfHealingEngine
+from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, SwarmMessage
 from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
-from saleha.core.cognitive.padic_ultrametric import PadicValuationNode, PadicIsolationValidator
 
 console = Console()
 

@@ -232,6 +232,7 @@ class ToolIntegrationTests(unittest.TestCase):
         import os
         import tempfile
         from unittest.mock import MagicMock
+
         from saleha.core.loop.agentic_loop import AgentLoop
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -254,6 +255,7 @@ class ToolIntegrationTests(unittest.TestCase):
         import os
         import tempfile
         from unittest.mock import MagicMock
+
         from saleha.core.loop.agentic_loop import AgentLoop
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -270,6 +272,7 @@ class ToolIntegrationTests(unittest.TestCase):
 
     def test_missing_file_still_reports_plainly(self) -> None:
         from unittest.mock import MagicMock
+
         from saleha.core.loop.agentic_loop import AgentLoop
         out = AgentLoop(agent=MagicMock())._tool_read_file("does_not_exist.py")
         self.assertIn("no such file", out)
@@ -289,6 +292,7 @@ class RepeatDetectionTests(unittest.TestCase):
 
     def _looping_agent(self, tool_call):
         from unittest.mock import MagicMock
+
         from saleha.agents.base_agent import AgentResponse
         agent = MagicMock()
         agent.think.return_value = AgentResponse(
@@ -318,6 +322,7 @@ class RepeatDetectionTests(unittest.TestCase):
 
     def test_different_arguments_are_not_a_repeat(self) -> None:
         from unittest.mock import MagicMock
+
         from saleha.agents.base_agent import AgentResponse
         from saleha.core.loop.agentic_loop import AgentLoop
 
@@ -375,6 +380,7 @@ class ApprovalGateCoverageTests(unittest.TestCase):
         import io
         import os
         import re
+
         from saleha.core.harness.approval_gate import DANGEROUS_ACTIONS
 
         used = set()

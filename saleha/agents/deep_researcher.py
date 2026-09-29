@@ -1,11 +1,13 @@
 """DeepResearcherAgent: Autonomous Recursive Multi-Hop Research and Citation Synthesis."""
 
 from __future__ import annotations
-import time
+
 import re
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+import time
+from dataclasses import dataclass
+from typing import List
+
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass
@@ -76,22 +78,22 @@ class DeepResearcherAgent(BaseAgent):
                 title=f"High-Throughput State Machine Replication for {primary_entity}",
                 url_or_doi=f"https://doi.org/10.1145/{abs(hash(clean_topic)) % 8000000 + 1000000}",
                 credibility_score=0.94,
-                key_finding=f"Eliminated non-deterministic race conditions using Write-Ahead Log state machines.",
+                key_finding="Eliminated non-deterministic race conditions using Write-Ahead Log state machines.",
             ),
             ResearchCitation(
                 source_id="SRC-03",
                 title=f"Sub-Millisecond Heuristic State-Space Search in {primary_entity}",
                 url_or_doi=f"https://ieeexplore.ieee.org/document/{abs(hash(clean_topic)) % 7000000 + 1000000}",
                 credibility_score=0.92,
-                key_finding=f"Achieved 99.98% accuracy in multi-hop reasoning DAG pipelines with 0 token waste.",
+                key_finding="Achieved 99.98% accuracy in multi-hop reasoning DAG pipelines with 0 token waste.",
             ),
         ]
 
         key_findings = [
             f"AST verification guarantees zero runtime type corruption in {clean_topic}.",
-            f"Tree-of-Thoughts heuristic routing outperforms single-thread chain-of-thought by 42.8%.",
-            f"Ephemeral container isolation bounds CPU and RAM footprint to deterministic limits.",
-            f"Multi-agent checkpointing enables instant state recovery without token re-computation.",
+            "Tree-of-Thoughts heuristic routing outperforms single-thread chain-of-thought by 42.8%.",
+            "Ephemeral container isolation bounds CPU and RAM footprint to deterministic limits.",
+            "Multi-agent checkpointing enables instant state recovery without token re-computation.",
         ]
         findings_text = "\n".join(f"- **[FINDING-{idx+1}]**: {f}" for idx, f in enumerate(key_findings))
         citations_text = "\n".join(

@@ -3,7 +3,9 @@ Unit test for saleha info CLI command.
 """
 
 import unittest
+
 from click.testing import CliRunner
+
 from saleha.cli.info_cli import info_cmd
 
 

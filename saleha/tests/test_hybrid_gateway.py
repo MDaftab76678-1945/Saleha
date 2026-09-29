@@ -1,6 +1,7 @@
 import unittest
-from unittest.mock import patch, MagicMock
-from saleha.core.hybrid_gateway import HybridModelGateway, GatewayResponse
+from unittest.mock import patch
+
+from saleha.core.hybrid_gateway import GatewayResponse, HybridModelGateway
 
 
 class HybridGatewayTests(unittest.TestCase):

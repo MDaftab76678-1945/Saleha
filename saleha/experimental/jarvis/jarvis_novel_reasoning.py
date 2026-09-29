@@ -26,9 +26,9 @@ its structure is a usable starting point, but the header must not describe
 work it does not do.
 """
 
+from collections import deque
 from dataclasses import dataclass
 from typing import List
-from collections import deque
 
 
 @dataclass

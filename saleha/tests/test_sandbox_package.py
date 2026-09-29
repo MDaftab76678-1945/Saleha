@@ -36,19 +36,20 @@ class ImportTests(unittest.TestCase):
         "saleha.sandbox.v5_production_core",
     )
 
-    def test_every_module_imports(self):
+    def test_every_module_imports(self) -> None:
         for name in self.MODULES:
             with self.subTest(module=name):
                 importlib.import_module(name)
 
-    def test_no_flat_intra_package_imports(self):
+    def test_no_flat_intra_package_imports(self) -> None:
         """
         `from local_llm_driver import ...` resolves only with this directory
         on sys.path. Inside a package it must be the dotted path.
         """
         import ast
-        import saleha.sandbox as pkg
         from pathlib import Path
+
+        import saleha.sandbox as pkg
 
         siblings = {"local_llm_driver", "ast_security_verifier",
                     "sandbox_jail", "v5_production_core"}
@@ -65,17 +66,18 @@ class ImportTests(unittest.TestCase):
 class AvailabilityTests(unittest.TestCase):
     """The jail must be honest about where it can run."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         from saleha.sandbox.sandbox_jail import HardenedSandbox
         self.HardenedSandbox = HardenedSandbox
 
-    def test_is_available_matches_the_platform(self):
+    def test_is_available_matches_the_platform(self) -> None:
         import os
+
         import saleha.sandbox.sandbox_jail as mod
         expected = mod.resource is not None and hasattr(os, "fork")
         self.assertEqual(self.HardenedSandbox.is_available(), expected)
 
-    def test_unavailable_reason_is_empty_only_when_available(self):
+    def test_unavailable_reason_is_empty_only_when_available(self) -> None:
         reason = self.HardenedSandbox.unavailable_reason()
         if self.HardenedSandbox.is_available():
             self.assertEqual(reason, "")
@@ -83,28 +85,28 @@ class AvailabilityTests(unittest.TestCase):
             self.assertTrue(reason)
             self.assertIn("resource", reason)
 
-    def test_run_isolated_refuses_rather_than_running_unconfined(self):
+    def test_run_isolated_refuses_rather_than_running_unconfined(self) -> None:
         """
         The property this whole file exists for. A sandbox that runs code with
         none of its limits applied, and reports it the same way as a confined
         run, is worse than no sandbox -- the caller believes it is contained.
         """
-        from saleha.sandbox.sandbox_jail import SandboxUnavailableError
         import saleha.sandbox.sandbox_jail as mod
+        from saleha.sandbox.sandbox_jail import SandboxUnavailableError
 
         with patch.object(mod, "resource", None):
             with self.assertRaises(SandboxUnavailableError):
                 self.HardenedSandbox().run_isolated("print(1)")
 
-    def test_self_healing_engine_refuses_to_construct_without_the_jail(self):
+    def test_self_healing_engine_refuses_to_construct_without_the_jail(self) -> None:
         """
         Every verification path in SelfHealingEngine goes through the jail.
         Failing at construction beats failing partway through a healing run,
         after a model call, with a half-written result.
         """
+        import saleha.sandbox.sandbox_jail as mod
         from saleha.sandbox.sandbox_jail import SandboxUnavailableError
         from saleha.sandbox.v5_production_core import SelfHealingEngine
-        import saleha.sandbox.sandbox_jail as mod
 
         with patch.object(mod, "resource", None):
             with self.assertRaises(SandboxUnavailableError):
@@ -113,7 +115,7 @@ class AvailabilityTests(unittest.TestCase):
 
 class LedgerAccuracyTests(unittest.TestCase):
 
-    def test_notebook_import_does_not_call_this_unconditionally_real(self):
+    def test_notebook_import_does_not_call_this_unconditionally_real(self) -> None:
         """
         The ledger described this directory as the "Real sandbox" with no
         platform qualifier, on a Windows machine where it could not be

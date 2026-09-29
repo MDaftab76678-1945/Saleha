@@ -1,11 +1,11 @@
 """Unit tests for RepoWatcher incremental AST engine."""
 
 import os
-import time
 import tempfile
+import time
 import unittest
 
-from saleha.core.repo_watcher import RepoWatcher, RepoChangeEvent
+from saleha.core.repo_watcher import RepoWatcher
 
 
 class RepoWatcherTests(unittest.TestCase):

@@ -1,11 +1,12 @@
 """ScreenCopilotAgent: 26th Autonomous Agent for Visual UI Layout Debugging & Multi-Modal Screen Inspection."""
 
 from __future__ import annotations
-import time
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+import time
+from dataclasses import dataclass
+from typing import List
+
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass

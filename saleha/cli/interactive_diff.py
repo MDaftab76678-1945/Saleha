@@ -7,12 +7,12 @@ interactive keyboard confirmation before committing surgical edits to disk.
 
 import difflib
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict
+from typing import Optional
+
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
+from rich.prompt import Prompt
 from rich.syntax import Syntax
-from rich.prompt import Confirm, Prompt
 
 console = Console(safe_box=True)
 

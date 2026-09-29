@@ -1,6 +1,7 @@
 """Unit tests for Autonomous Bug Bounty & API Fuzzing Agent."""
 
 import unittest
+
 from saleha.core.api_fuzzer import api_fuzzer
 
 

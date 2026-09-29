@@ -9,14 +9,13 @@ Scans software repositories, parses AST symbols, and autonomously synthesizes:
 
 from __future__ import annotations
 
-import os
 import ast
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
 @dataclass

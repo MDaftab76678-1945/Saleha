@@ -3,15 +3,15 @@ J.A.R.V.I.S. Audio Module
 """
 
 from .duplex import (
-    FullDuplexAudioEngine,
-    AudioState,
-    AudioConfig,
+    AUDIO,
     AcousticEchoCanceller,
-    SileroVADDetector,
-    BargeInController,
+    AudioConfig,
     AudioRingBuffer,
+    AudioState,
+    BargeInController,
+    FullDuplexAudioEngine,
+    SileroVADDetector,
     create_audio_engine,
-    AUDIO
 )
 
 __all__ = [

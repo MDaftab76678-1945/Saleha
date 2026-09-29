@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import unittest
+
 from saleha.core.agent_permissions import (
-    PolicyEnforcementEngine,
     AgentCapabilityToken,
     FilesystemPolicy,
-    NetworkPolicy,
+    PolicyEnforcementEngine,
     ProcessPolicy,
 )
 

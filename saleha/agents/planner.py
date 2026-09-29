@@ -7,10 +7,9 @@ break it into small, manageable steps (a DAG).
 
 from typing import Optional
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import AgentResponse, BaseAgent
 from saleha.core.active_inference import active_inference_gate
 from saleha.core.math_logic import MathLogicEngine
-
 
 # ==============================================================================
 # 1. Data structures

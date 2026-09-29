@@ -20,7 +20,6 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-
 # Below this many pairs a DPO pass is more noise than signal.
 MIN_DPO_PAIRS = 20
 

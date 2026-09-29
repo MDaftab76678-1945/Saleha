@@ -10,9 +10,9 @@ in test_cli_debug.py, which stub out ProjectBuilder entirely.
 import unittest
 
 from saleha.core.project_builder import (
-    ProjectBuilder,
-    FileSpec,
     FileResult,
+    FileSpec,
+    ProjectBuilder,
 )
 
 
@@ -128,8 +128,8 @@ class VerifyEntryPointTests(unittest.TestCase):
         self.builder = ProjectBuilder()
 
     def test_a_script_that_exits_zero_is_verified_ok(self) -> None:
-        import tempfile
         import os
+        import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, "ok.py"), "w", encoding="utf-8") as f:
@@ -139,8 +139,8 @@ class VerifyEntryPointTests(unittest.TestCase):
             self.assertEqual(error, "")
 
     def test_a_script_that_raises_is_reported_not_ok(self) -> None:
-        import tempfile
         import os
+        import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, "broken.py"), "w", encoding="utf-8") as f:

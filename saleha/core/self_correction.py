@@ -28,7 +28,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from saleha.core.agent_pc import AgentPC
 from saleha.core.alignment.verifiable_rewards import RewardSignal, RLHVRVerifier
 from saleha.core.prm_mcts_engine import ProcessRewardModel
-from saleha.core.self_healing import SelfHealingEngine, HealingResult
+from saleha.core.self_healing import HealingResult, SelfHealingEngine
 
 PatchFn = Callable[[str, str, str], str]
 

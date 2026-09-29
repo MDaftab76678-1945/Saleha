@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+
 from saleha.core.lsp_server import SalehaLSPServer
 
 

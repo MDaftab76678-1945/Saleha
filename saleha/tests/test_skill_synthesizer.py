@@ -7,8 +7,9 @@ import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
-from saleha.core.skill_synthesizer import SkillSynthesizer, SynthesizedSkill
+
 from saleha.agents.base_agent import AgentResponse
+from saleha.core.skill_synthesizer import SkillSynthesizer, SynthesizedSkill
 
 
 class SkillSynthesizerTests(unittest.TestCase):

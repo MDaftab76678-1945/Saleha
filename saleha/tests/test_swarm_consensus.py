@@ -1,7 +1,8 @@
 """Unit tests for Swarm PBFT Consensus Protocol."""
 
 import unittest
-from saleha.core.swarm.swarm_consensus import SwarmPBFTConsensus, SwarmProposal, ConsensusDecision
+
+from saleha.core.swarm.swarm_consensus import ConsensusDecision, SwarmPBFTConsensus, SwarmProposal
 
 
 class TestSwarmConsensus(unittest.TestCase):

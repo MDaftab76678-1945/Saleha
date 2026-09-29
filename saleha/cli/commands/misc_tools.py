@@ -7,26 +7,22 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
-
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
+import json
 import os
 import sys
-import re
 import time
-import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
-from rich.panel import Panel
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from typing import Optional
+
+import click
 from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.syntax import Syntax
-from saleha import __version__
+from rich.table import Table
+
+from saleha.cli import commands as _cmds
+from saleha.cli.commands import cli, console
+
 
 @cli.command()
 @click.argument('code_file', type=click.Path(exists=True, dir_okay=False))
@@ -214,9 +210,9 @@ def doctor(as_json: bool) -> None:
         with open(test_file, 'w') as f:
             f.write('ok')
         os.remove(test_file)
-        checks.append((f'~/.saleha/ writable', True, saleha_home))
+        checks.append(('~/.saleha/ writable', True, saleha_home))
     except Exception as e:
-        checks.append((f'~/.saleha/ writable', False, str(e)))
+        checks.append(('~/.saleha/ writable', False, str(e)))
     if as_json:
         failed = sum((1 for _, ok, _ in checks if not ok))
         click.echo(json.dumps({'healthy': failed == 0, 'checks': [{'name': name, 'ok': ok, 'detail': detail} for name, ok, detail in checks]}, ensure_ascii=False))
@@ -439,6 +435,7 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
     """Diagnose local environment, Ollama models, Git, Sandbox, and Vault."""
     import shutil
     import subprocess
+
     from saleha.core.platform.smart_router import get_installed_ollama_models
     checks = []
     py_ver = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
@@ -561,7 +558,6 @@ def lsp_cmd(target: str, as_json: bool) -> None:
     
     Example: saleha lsp ./src
     """
-    from saleha.core.platform.lsp_engine import lsp_engine
     if os.path.isfile(target):
         diags = _cmds.lsp_engine.check_file(target)
         errs = sum((1 for d in diags if d.severity == 'ERROR'))
@@ -645,7 +641,7 @@ def init_cmd(force: bool) -> None:
     from saleha.core.project_initializer import project_initializer
     console.print('[bold cyan]🪄 Initializing Saleha AI for current workspace...[/]')
     res = project_initializer.initialize_workspace(force=force)
-    console.print(f'\n[bold green]✅ Project Initialized Successfully![/]')
+    console.print('\n[bold green]✅ Project Initialized Successfully![/]')
     console.print(f"  • Stack: [cyan]{', '.join(res.detected_languages)}[/]")
     console.print(f'  • Rules: [yellow]{res.rules_file_created}[/]')
     console.print(f'  • Indexed AST Symbols: [green]{res.ast_symbols_indexed}[/]\n')
@@ -659,7 +655,7 @@ def pull_cmd(model_name: str, benchmark: bool) -> None:
     
     Example: saleha pull recommended --benchmark
     """
-    from saleha.core.model_manager import model_manager, RECOMMENDED_MODELS
+    from saleha.core.model_manager import RECOMMENDED_MODELS, model_manager
     targets = [RECOMMENDED_MODELS['fast'], RECOMMENDED_MODELS['reasoning']] if model_name == 'recommended' else [model_name]
     for m in targets:
         console.print(f'[bold cyan]📥 Pulling model:[/] [yellow]{m}[/]...')
@@ -683,13 +679,13 @@ def tune_cmd(model: str, epochs: int, name: str = 'saleha-custom') -> None:
     
     Example: saleha tune --model qwen2.5-coder:3b --epochs 3
     """
-    from saleha.core.lora_tuner import lora_tuner, TuningConfig
+    from saleha.core.lora_tuner import TuningConfig, lora_tuner
     out_name = name or 'saleha-custom'
     cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=out_name)
     console.print(f'[bold cyan]🚀 Starting Local LoRA Fine-Tuning on {model}...[/]')
     result = lora_tuner.fine_tune(cfg)
     if result.success:
-        console.print(f'[bold green]✅ Fine-Tuning Completed Successfully![/]')
+        console.print('[bold green]✅ Fine-Tuning Completed Successfully![/]')
         console.print(f'  Model: [bold cyan]{result.output_model}[/]')
         console.print(f'  Samples: {result.samples_used} | Time: {result.training_time_sec}s')
         console.print(f'  Score: {result.before_score} → [bold green]{result.after_score}[/] (+{result.improvement_pct}%)')
@@ -822,7 +818,6 @@ def db_group() -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def db_optimize_cmd(schema_or_file: str, as_json: bool) -> None:
     """Analyze SQL DDL or models for missing indexes and generate UP/DOWN migrations."""
-    from saleha.core.db_optimizer import db_optimizer
     content = schema_or_file
     if os.path.isfile(schema_or_file):
         with open(schema_or_file, 'r', encoding='utf-8', errors='ignore') as f:

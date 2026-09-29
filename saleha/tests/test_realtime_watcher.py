@@ -7,9 +7,9 @@ import shutil
 import tempfile
 import time
 import unittest
-from saleha.core.inline_suggester import InlineSuggester, InlineSuggestion
-from saleha.core.realtime_watcher import RealtimeWatcher, FileChangeEvent
 
+from saleha.core.inline_suggester import InlineSuggester
+from saleha.core.realtime_watcher import RealtimeWatcher
 
 CLEAN_PY = '''
 from __future__ import annotations
@@ -38,54 +38,54 @@ def broken(
 
 class InlineSuggesterTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.suggester = InlineSuggester()
 
-    def test_clean_code_no_errors(self):
+    def test_clean_code_no_errors(self) -> None:
         suggestions = self.suggester.analyze(CLEAN_PY)
         errors = [s for s in suggestions if s.severity == "error"]
         self.assertEqual(len(errors), 0)
 
-    def test_detects_eval(self):
+    def test_detects_eval(self) -> None:
         suggestions = self.suggester.analyze(DIRTY_PY)
         titles = [s.message for s in suggestions]
         self.assertTrue(any("eval" in t.lower() for t in titles), titles)
 
-    def test_detects_hardcoded_password(self):
+    def test_detects_hardcoded_password(self) -> None:
         suggestions = self.suggester.analyze(DIRTY_PY)
         titles = [s.message for s in suggestions]
         self.assertTrue(any("password" in t.lower() or "secret" in t.lower() for t in titles), titles)
 
-    def test_detects_syntax_error(self):
+    def test_detects_syntax_error(self) -> None:
         suggestions = self.suggester.analyze(SYNTAX_ERROR_PY)
         errors = [s for s in suggestions if s.severity == "error" and s.category == "syntax"]
         self.assertGreater(len(errors), 0)
 
-    def test_has_errors_true(self):
+    def test_has_errors_true(self) -> None:
         self.assertTrue(self.suggester.has_errors(SYNTAX_ERROR_PY))
 
-    def test_has_errors_false(self):
+    def test_has_errors_false(self) -> None:
         self.assertFalse(self.suggester.has_errors(CLEAN_PY))
 
-    def test_suggestion_format(self):
+    def test_suggestion_format(self) -> None:
         suggestions = self.suggester.analyze(DIRTY_PY)
         if suggestions:
             formatted = suggestions[0].format()
             self.assertIn("Line", formatted)
             self.assertIn("Fix:", formatted)
 
-    def test_non_python_returns_empty(self):
+    def test_non_python_returns_empty(self) -> None:
         suggestions = self.suggester.analyze("const x = 1;", file_ext=".js")
         self.assertIsInstance(suggestions, list)
 
 
 class RealtimeWatcherTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp()
         self.watcher = RealtimeWatcher(root_dir=self.tmp, poll_interval=0.2)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.watcher.stop()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
@@ -95,24 +95,24 @@ class RealtimeWatcherTests(unittest.TestCase):
             f.write(content)
         return path
 
-    def test_scan_once_clean_file(self):
+    def test_scan_once_clean_file(self) -> None:
         path = self._write("clean.py", CLEAN_PY)
         event = self.watcher.scan_once(path)
         self.assertEqual(event.event_type, "scan")
         self.assertEqual(event.error_count, 0)
 
-    def test_scan_once_dirty_file(self):
+    def test_scan_once_dirty_file(self) -> None:
         path = self._write("dirty.py", DIRTY_PY)
         event = self.watcher.scan_once(path)
         self.assertGreater(len(event.suggestions), 0)
 
-    def test_watcher_starts_and_stops(self):
+    def test_watcher_starts_and_stops(self) -> None:
         self.watcher.start()
         self.assertTrue(self.watcher._running)
         self.watcher.stop()
         self.assertFalse(self.watcher._running)
 
-    def test_watcher_detects_file_change(self):
+    def test_watcher_detects_file_change(self) -> None:
         events = []
         self.watcher.on_change(events.append)
         self.watcher.start()
@@ -123,7 +123,7 @@ class RealtimeWatcherTests(unittest.TestCase):
         paths = [e.path for e in events]
         self.assertTrue(any("new_file.py" in p for p in paths), f"Events: {paths}")
 
-    def test_get_recent_events(self):
+    def test_get_recent_events(self) -> None:
         self.watcher.start()
         self._write("test.py", CLEAN_PY)
         time.sleep(0.6)
@@ -131,7 +131,7 @@ class RealtimeWatcherTests(unittest.TestCase):
         recent = self.watcher.get_recent_events()
         self.assertIsInstance(recent, list)
 
-    def test_callback_receives_event(self):
+    def test_callback_receives_event(self) -> None:
         received = []
         self.watcher.on_change(received.append)
         self.watcher.start()
@@ -141,13 +141,13 @@ class RealtimeWatcherTests(unittest.TestCase):
         self.watcher.stop()
         self.assertTrue(len(received) >= 0)
 
-    def test_double_start_safe(self):
+    def test_double_start_safe(self) -> None:
         self.watcher.start()
         self.watcher.start()
         self.assertTrue(self.watcher._running)
         self.watcher.stop()
 
-    def test_stop_without_start_safe(self):
+    def test_stop_without_start_safe(self) -> None:
         watcher = RealtimeWatcher(root_dir=self.tmp)
         watcher.stop()
 

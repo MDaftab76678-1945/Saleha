@@ -6,25 +6,25 @@ switching, AST scanning, security audits, memory search, and sandboxed execution
 """
 
 import os
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.table import Table
 
 from saleha import __version__
-from saleha.core.agent_profile_loader import profile_registry, ProfileAgent
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.memory.memory_store import memory_store
+from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 from saleha.core.graph.codebase_indexer import CodebaseIndexer
-from saleha.core.verification.security_scanner import ASTSecurityScanner
-from saleha.core.tool_calling import global_tool_registry
 from saleha.core.harness.sandbox_runner import SandboxRunner
-from saleha.core.verification.quality_guard import quality_guard
-from saleha.core.verification.ttc_solver import ttc_solver
+from saleha.core.memory.memory_store import memory_store
 from saleha.core.telemetry.session_tracer import session_tracer
+from saleha.core.tool_calling import global_tool_registry
+from saleha.core.verification.quality_guard import quality_guard
+from saleha.core.verification.security_scanner import ASTSecurityScanner
+from saleha.core.verification.ttc_solver import ttc_solver
 
 console = Console(safe_box=True)
 
@@ -215,7 +215,7 @@ class SalehaREPL:
                 f"[bold green]Consensus:[/] {contract.consensus_decision}\n"
                 f"[bold cyan]CP-WBFT Score:[/] [bold]{int(contract.cp_wbft_score * 100)}%[/] | [bold green]Status:[/] {'APPROVED' if contract.approved else 'REVISE'}\n\n"
                 f"[bold yellow]🛡️ Critical Invariants:[/]\n" + "\n".join(f"  • {inv}" for inv in contract.invariants[:3]) + "\n\n"
-                f"[bold magenta]🩹 Adversarial Mitigations:[/]\n" + "\n".join(f"  • {mit}" for mit in contract.mitigations[:3]),
+                "[bold magenta]🩹 Adversarial Mitigations:[/]\n" + "\n".join(f"  • {mit}" for mit in contract.mitigations[:3]),
                 title=f"[bold green]Debate Result: {contract.topic}[/]",
                 border_style="green" if contract.approved else "yellow"
             ))

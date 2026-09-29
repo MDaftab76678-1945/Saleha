@@ -1,11 +1,12 @@
-import unittest
+import json
 import os
 import tempfile
-import json
+import unittest
+
 from click.testing import CliRunner
 
-from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
 from saleha.cli.commands import cli
+from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
 
 
 class CodebaseIndexerTests(unittest.TestCase):

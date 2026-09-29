@@ -3,14 +3,13 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
-
-from saleha.core.rag.vector_store import VectorStore
-from saleha.core.rag.embedding_backends import OllamaEmbedder, dense_dot
-from saleha.core.harness.approval_gate import approve, get_mode, requires_approval
-from saleha.core.telemetry.metrics import MetricsTracker
 from typing import Any
+from unittest.mock import patch
 
+from saleha.core.harness.approval_gate import approve, get_mode, requires_approval
+from saleha.core.rag.embedding_backends import OllamaEmbedder, dense_dot
+from saleha.core.rag.vector_store import VectorStore
+from saleha.core.telemetry.metrics import MetricsTracker
 
 # ---------------- B1: Embeddings ----------------
 

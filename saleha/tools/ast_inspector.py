@@ -10,16 +10,13 @@ and maintainability index calculation without executing any user code.
 from __future__ import annotations
 
 import ast
-from dataclasses import asdict, dataclass, field
 import enum
 import math
 import os
-import re
-import sys
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple, Union
+from dataclasses import dataclass, field
+from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple, Union
 
 from saleha.tools.base import BaseTool, ToolResult
-
 
 # =====================================================================
 # Section 1: Domain Enums & Classification Constants
@@ -371,15 +368,7 @@ class IsolatedMcCabeCalculator:
                 continue
 
             # Check decision points
-            if isinstance(current, (ast.If, ast.IfExp)):
-                complexity += 1
-            elif isinstance(current, (ast.For, ast.AsyncFor, ast.While)):
-                complexity += 1
-            elif isinstance(current, ast.ExceptHandler):
-                complexity += 1
-            elif isinstance(current, (ast.With, ast.AsyncWith)):
-                complexity += 1
-            elif isinstance(current, ast.Assert):
+            if isinstance(current, (ast.If, ast.IfExp)) or isinstance(current, (ast.For, ast.AsyncFor, ast.While)) or isinstance(current, ast.ExceptHandler) or isinstance(current, (ast.With, ast.AsyncWith)) or isinstance(current, ast.Assert):
                 complexity += 1
             elif isinstance(current, ast.BoolOp):
                 # E.g. 'a and b and c' introduces len(values) - 1 decision points
@@ -1118,9 +1107,7 @@ class SinglePassASTVisitor(ast.NodeVisitor):
     def visit_If(self, node: ast.If) -> None:
         """Detects TYPE_CHECKING guards to classify imports accurately."""
         is_type_guard = False
-        if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
-            is_type_guard = True
-        elif isinstance(node.test, ast.Attribute) and node.test.attr == "TYPE_CHECKING":
+        if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING" or isinstance(node.test, ast.Attribute) and node.test.attr == "TYPE_CHECKING":
             is_type_guard = True
 
         if is_type_guard:

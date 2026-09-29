@@ -1,6 +1,7 @@
 """Unit tests for Full-Screen Interactive Terminal UI Workspace."""
 
 import unittest
+
 from saleha.cli.tui_app import SalehaTUI
 
 

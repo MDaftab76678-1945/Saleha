@@ -34,7 +34,6 @@ import unittest
 from pathlib import Path
 from typing import List, Tuple
 
-
 CLI_DIR = Path(__file__).resolve().parents[1] / "cli"
 
 # Both decorator spellings register onto the same Click group. An earlier scan

@@ -20,10 +20,10 @@ is what stops this file from being one.
 import unittest
 
 from saleha.core.inference_router_bridge import (
+    _EXT_AVAILABLE,
     RustInferenceRouterBridge,
     RustInferenceRouterUnavailable,
     build_instructions,
-    _EXT_AVAILABLE,
 )
 
 

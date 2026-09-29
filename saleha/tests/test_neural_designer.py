@@ -1,7 +1,8 @@
 """Unit tests for Neural Architecture & Transformer Model Designer."""
 
 import unittest
-from saleha.core.neural_designer import NeuralDesigner, NeuralArchitectureSpec, NeuralModelReport
+
+from saleha.core.neural_designer import NeuralArchitectureSpec, NeuralDesigner, NeuralModelReport
 
 
 class TestNeuralDesigner(unittest.TestCase):

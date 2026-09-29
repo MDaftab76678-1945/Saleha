@@ -10,7 +10,8 @@ repository.
 """
 
 import tempfile
-from saleha.core.verification.quality_guard import QualityGuard, QualityReport, QualityIssue, quality_guard
+
+from saleha.core.verification.quality_guard import QualityGuard, quality_guard
 
 
 def test_clean_code_passes() -> None:

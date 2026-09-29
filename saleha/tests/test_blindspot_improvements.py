@@ -15,10 +15,9 @@ import unittest
 import urllib.request
 from http.server import HTTPServer
 
+from saleha.core.visual_diff import visual_diff_engine
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
-from saleha.core.vault import vault
-from saleha.core.visual_diff import visual_diff_engine
 
 
 class BlindspotImprovementsTests(unittest.TestCase):

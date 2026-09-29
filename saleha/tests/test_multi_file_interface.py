@@ -8,24 +8,21 @@ Verifies:
 """
 
 from pathlib import Path
-import pytest
 
 from saleha.core.agent_pc import AgentPC
-from saleha.core.multi_file_interface_propagator import (
-    MultiFileInterfacePropagator,
-    SignatureDelta,
-    PropagationResult,
-)
-from saleha.core.sandbox_mock_synthesizer import (
-    SandboxMockSynthesizer,
-    VIRTUAL_MOCK_PRELUDE,
-)
 from saleha.core.alignment.multi_file_prm import (
     MultiFilePRM,
     MultiFilePRMScore,
 )
+from saleha.core.multi_file_interface_propagator import (
+    MultiFileInterfacePropagator,
+    PropagationResult,
+    SignatureDelta,
+)
+from saleha.core.sandbox_mock_synthesizer import (
+    SandboxMockSynthesizer,
+)
 from saleha.core.windows_job_sandbox import WindowsJobSandbox
-
 
 # ==============================================================================
 # 1. Multi-File Interface Propagation (2PC Atomic Commit)

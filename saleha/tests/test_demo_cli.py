@@ -4,8 +4,10 @@ Unit test for saleha dogfood CLI command.
 
 import os
 import unittest
+
 from click.testing import CliRunner
-from saleha.cli.demo_cli import dogfood_cmd, TOTAL_PILLARS
+
+from saleha.cli.demo_cli import TOTAL_PILLARS, dogfood_cmd
 
 
 class DemoCLITests(unittest.TestCase):

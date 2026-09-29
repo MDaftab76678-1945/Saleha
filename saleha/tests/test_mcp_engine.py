@@ -1,8 +1,8 @@
-import unittest
 import json
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
 
-from saleha.core.mcp_engine import MCPServer, MCPClient
+from saleha.core.mcp_engine import MCPClient, MCPServer
 
 
 class MCPEngineTests(unittest.TestCase):

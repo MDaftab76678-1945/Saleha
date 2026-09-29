@@ -5,10 +5,7 @@ Validates execution safety, wall-clock timeout killing, and memory limits.
 
 from __future__ import annotations
 
-import sys
-import pytest
-
-from saleha.core.windows_job_sandbox import IS_WINDOWS, SandboxRunResult, WindowsJobSandbox
+from saleha.core.windows_job_sandbox import IS_WINDOWS, WindowsJobSandbox
 
 
 class TestWindowsJobSandbox:

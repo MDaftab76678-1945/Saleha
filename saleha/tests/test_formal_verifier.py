@@ -1,7 +1,8 @@
 """Unit tests for Formal Verification Invariant Prover."""
 
 import unittest
-from saleha.core.formal_verifier import FormalVerifier, FormalProofReport
+
+from saleha.core.formal_verifier import FormalProofReport, FormalVerifier
 
 
 class TestFormalVerifier(unittest.TestCase):

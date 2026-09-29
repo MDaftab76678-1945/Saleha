@@ -3,7 +3,9 @@ Unit tests for new REPL slash commands (/quality, /ttc, /trace) in saleha/cli/re
 """
 
 import tempfile
+
 import pytest
+
 from saleha.cli.repl import SalehaREPL
 
 

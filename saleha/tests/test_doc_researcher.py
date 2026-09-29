@@ -1,6 +1,7 @@
 """Unit tests for Offline Doc Researcher & API Signature Injector."""
 
 import unittest
+
 from saleha.core.doc_researcher import DocResearcher
 
 

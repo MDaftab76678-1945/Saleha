@@ -1,13 +1,13 @@
 """NotebookArchitectAgent: Autonomous Interactive Multi-Modal Notebook Synthesis Specialist."""
 
 from __future__ import annotations
+
 import time
 import uuid
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
-from saleha.core.notebook_engine import NotebookDocument, NotebookCell, notebook_engine
+from saleha.agents.base_agent import AgentResponse, BaseAgent
+from saleha.core.notebook_engine import NotebookCell, NotebookDocument, notebook_engine
 
 
 @dataclass
@@ -68,11 +68,11 @@ class NotebookArchitectAgent(BaseAgent):
             NotebookCell(
                 cell_id="cell_02",
                 cell_type="code",
-                source=f"""# [1/4] Environment & Invariant Initialization
+                source="""# [1/4] Environment & Invariant Initialization
 import sys
 import time
 
-print(f"🚀 Initialized Kernel: Python {{sys.version.split()[0]}}")
+print(f"🚀 Initialized Kernel: Python {sys.version.split()[0]}")
 print(f"🔒 Sandboxed Container: 256MB RAM / 1.0 CPU CGroups")""",
                 defined_variables=["sys", "time"],
             ),

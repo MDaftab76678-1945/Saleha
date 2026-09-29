@@ -1,7 +1,8 @@
 """Unit tests for Jarvis Voice Assistant Engine."""
 
 import unittest
-from saleha.core.voice_assistant import VoiceAssistant, VoiceCommandResult
+
+from saleha.core.voice_assistant import VoiceAssistant
 
 
 class TestVoiceAssistant(unittest.TestCase):

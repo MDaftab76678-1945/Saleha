@@ -199,6 +199,7 @@ Do not hallucinate requirements the user did not state."""
 
 import re
 
+
 def lint_saleha_output(rtl: str) -> dict:
     """
     Hard checks on generated SystemVerilog. These catch the exact bugs

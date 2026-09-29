@@ -1,6 +1,7 @@
 """Unit tests for Stateful AI REPL & Variable Debugger."""
 
 import unittest
+
 from saleha.core.debugger_repl import StatefulREPL
 
 

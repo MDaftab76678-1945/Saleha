@@ -2,9 +2,10 @@
 
 import unittest
 from io import StringIO
+
 from rich.console import Console
 
-from saleha.cli.interactive_diff import InteractiveDiffReviewer, diff_reviewer
+from saleha.cli.interactive_diff import InteractiveDiffReviewer
 
 
 class InteractiveDiffTests(unittest.TestCase):

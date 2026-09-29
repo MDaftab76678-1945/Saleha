@@ -7,13 +7,11 @@ original module -- this keeps mock.patch("saleha.cli.commands.X") working
 for tests that patch those names, and preserves the PEP 562 lazy-loading
 behavior for whatever this file's commands use.
 """
-import click
-from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
+from typing import List
 
-from typing import Any, Dict, List, Optional
 import click
 from rich.table import Table
+
 from saleha.cli.commands import cli, console
 
 
@@ -30,7 +28,7 @@ def self_improve() -> None:
 def self_improve_run(cycles: int = 1, max_repairs: int = 2) -> None:
     """Runs autonomous self-improvement test generation cycles."""
     if cycles > 1:
-        from saleha.core.self_improve import run_self_improvement_batch, SelfImproveResult
+        from saleha.core.self_improve import SelfImproveResult, run_self_improvement_batch
 
         def on_cycle(idx: int, total: int, res: SelfImproveResult) -> None:
             color = "green" if res.status == "committed" else "yellow"

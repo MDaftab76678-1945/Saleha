@@ -6,7 +6,8 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.multi_file_refactorer import MultiFileRefactorer, FilePatchPlan, RefactorTransactionResult
+
+from saleha.core.multi_file_refactorer import FilePatchPlan, MultiFileRefactorer
 
 
 class MultiFileRefactorerTests(unittest.TestCase):
