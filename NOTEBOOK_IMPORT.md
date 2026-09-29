@@ -11626,3 +11626,50 @@ re-scans it. Real runs, qwen2.5-coder:3b, bisect_right LIS bug: prompt with only
 mismatch returned the same bug 2/2; with reference + "trace first" the loop fixed it
 in 1 of 3 runs (the other runs stayed reported as failed, never as passed).
 4 new/changed tests; the repair test fails with the engine change stashed.
+
+## Pass 169 (2026-09-29) -- shrink the brute-force counterexample
+
+oracle_check now deletes items from a failing input while it still fails and the
+oracle still accepts it (400 calls / 5 s budget; verdict printed before shrinking, so
+a hang loses only the smaller input). Real: [2, 4, 6, 7, 1, 7, 8] -> [7, 7]. The
+report shows the shrunk input; `first_mismatch` keeps the generated one.
+Measured on qwen2.5-coder:3b, LIS bug, 10 repair tries each: full input 2/10 fixed,
+shrunk 0/10, both 1/10 -- shrinking did not help repair, so repair keeps the full
+input. 2 new tests, both fail with the change stashed. Suite 2751 passed / 17 skipped.
+
+## Pass 170 (2026-09-29) -- verified search for swarm repair
+
+New saleha/core/verification/verified_search.py: draws candidates on a thread pool,
+stops at the first one a caller-supplied verifier passes. Source/verifier crash =
+DID_NOT_RUN, repeat = DUPLICATE, bare True from a verifier = DID_NOT_RUN; zero budget
+finds nothing. 13 tests, 100% line+branch coverage. Swarm repair now uses it: 6 tries,
+3 at a time, winner must pass tests + brute-force check (the old code is pre-marked
+as seen). Lost: the old loop fed each try the newest counterexample.
+Real run, qwen2.5-coder:3b, LIS bug, 8 trials each: old 3 sequential tries 3/8 fixed
+(mean 20.6s); new 5/8 fixed (mean 41.4s). About 7s per try in both -- this Ollama
+setup did not run the calls in parallel, so the gain is from the bigger budget, not
+speed. Suite 2764 passed / 17 skipped.
+
+## Pass 171 (2026-09-29) -- circuit breaker, pooled async Ollama client, retry policy
+
+New saleha/core/platform/circuit_breaker.py (pure admit/record transitions over frozen
+snapshots, atomic store, epoch so a late probe cannot decide a newer round; full-jitter
+retry policy; HTTP status classification) and platform/async_ollama.py (pooled aiohttp
+client: bulkhead = pool size, connect/read/total/queue timeouts, typed results so "not
+sent" never reads as a failure of the model or as success). Both 100% line+branch covered.
+FastInference now rides on them: a timed-out generation or a 4xx is no longer retried,
+an empty answer is a failure (sibling of the OllamaProvider fix), a RuntimeError inside a
+batch is raised instead of silently re-sending every request on threads, and the URL
+comes from ollama_endpoint. OllamaProvider shares the breaker (tags 200 only hands the
+probe to generate(), since tags answer while generation hangs); the fallback chain now
+names skipped providers instead of an empty "failed: ".
+Before -> after, fake servers + real qwen2.5-coder:3b (probe run against git stash):
+  FastInference.run, generation hangs (2s timeout): 3 sent, 9.0s -> 1 sent, 2.0s
+  FastInference.run, unknown model 404:             3 sent, 3.0s -> 1 sent, 0.0s
+  run_batch x4, generation hangs:                  12 sent, 9.1s -> 4 sent, 2.0s
+  agent path x10, Ollama down:                     15.1s        -> 4.5s (calls 4-10 instant)
+  agent path x6, tags up, generation hangs:        6 sent, 12.2s -> 3 sent, 6.1s
+  real Ollama run_batch x4: 4/4 before and after (0.2s / 0.3s, warm).
+Pooling itself is not a latency win here: a fresh localhost connection costs ~25-45 ms.
+Remaining editor hints in model_provider (unused `response_format`/`disable_reasoning`
+on other providers) are interface parameters, not defects. Suite 2838 passed / 17 skipped.

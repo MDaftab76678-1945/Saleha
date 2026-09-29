@@ -55,6 +55,20 @@ _EXECUTION_ENV_VARS = (
 
 
 @pytest.fixture(autouse=True)
+def _reset_circuit_breaker() -> Iterator[None]:
+    """
+    The model-server circuit breaker is process-wide, keyed by base URL. Three
+    mocked connection failures in one test would otherwise open the circuit
+    for the same URL in every later test, which then fails with "not called:
+    circuit open" for a reason unrelated to what it tests.
+    """
+    from saleha.core.platform.circuit_breaker import reset_shared_breaker
+
+    reset_shared_breaker()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _restore_execution_env() -> Iterator[None]:
     """Snapshot and restore execution-policy env vars around every test."""
     saved = {name: os.environ.get(name) for name in _EXECUTION_ENV_VARS}

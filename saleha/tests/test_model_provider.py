@@ -1,13 +1,24 @@
+import os
+import time
 import unittest
 from unittest.mock import Mock, patch
 
 import requests
 
+from saleha.core.platform.circuit_breaker import (
+    BreakerPolicy,
+    BreakerSnapshot,
+    CircuitBreaker,
+    CircuitState,
+    Health,
+    shared_breaker,
+)
 from saleha.core.platform.model_provider import (
     FallbackChainProvider,
     MockProvider,
     OllamaProvider,
     OpenAICompatibleProvider,
+    _health_of,
 )
 
 
@@ -220,6 +231,149 @@ class ModelProviderTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertEqual(chunks, [])
         self.assertIn("not reachable", res.error_message)
+
+
+def _answer(text: str) -> Mock:
+    resp = Mock()
+    resp.raise_for_status = Mock()
+    resp.json.return_value = {"response": text}
+    return resp
+
+
+class OllamaCircuitTests(unittest.TestCase):
+    """OllamaProvider calls go through the circuit breaker."""
+
+    URL = "http://ollama.test"
+
+    def setUp(self) -> None:
+        self.breaker = CircuitBreaker(BreakerPolicy(failure_threshold=2, open_seconds=30.0))
+        self.provider = OllamaProvider(base_url=self.URL, breaker=self.breaker)
+
+    def _open(self, opened_at: float) -> None:
+        self.breaker.store.transact(self.URL, lambda s: (BreakerSnapshot(
+            state=CircuitState.OPEN, failures=2, opened_at=opened_at, last_error="refused"), None))
+
+    @patch("saleha.core.platform.model_provider.requests.post")
+    def test_repeated_failures_open_the_circuit_and_skip_the_network(self, post: Mock) -> None:
+        post.side_effect = requests.exceptions.ConnectionError("refused")
+        self.provider.generate("m", "p")
+        self.provider.generate("m", "p")
+        third = self.provider.generate("m", "p")
+        self.assertEqual(post.call_count, 2)
+        self.assertFalse(third.success)
+        self.assertRegex(third.error_message,
+                         r"^Ollama at http://ollama\.test not called: circuit open after 2 failure\(s\): "
+                         r"not reachable at http://ollama\.test; next try in \d+s$")
+
+    @patch("saleha.core.platform.model_provider.requests.post")
+    def test_answers_that_prove_the_server_is_up_reset_the_count(self, post: Mock) -> None:
+        rejected = Mock()
+        rejected.raise_for_status.side_effect = requests.exceptions.HTTPError(response=Mock(status_code=404))
+        post.side_effect = [requests.exceptions.Timeout("slow"), rejected,
+                            requests.exceptions.Timeout("slow"), _answer("")]
+        self.provider.generate("m", "p")
+        self.assertEqual(self.breaker.snapshot(self.URL).failures, 1)
+        self.provider.generate("m", "p")  # 404: the request was wrong, the server is fine
+        self.assertEqual(self.breaker.snapshot(self.URL), BreakerSnapshot())
+        self.provider.generate("m", "p")
+        empty = self.provider.generate("m", "p")  # empty answer: a model problem, not a server one
+        self.assertFalse(empty.success)
+        self.assertEqual(self.breaker.snapshot(self.URL), BreakerSnapshot())
+
+    @patch("saleha.core.platform.model_provider.requests.post")
+    def test_interrupted_call_does_not_count(self, post: Mock) -> None:
+        post.side_effect = KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            self.provider.generate("m", "p")
+        self.assertEqual(self.breaker.snapshot(self.URL), BreakerSnapshot())
+
+    @patch("saleha.core.platform.model_provider.requests.post")
+    def test_stream_generate_is_guarded_too(self, post: Mock) -> None:
+        self._open(time.monotonic())
+        chunks: list = []
+        res = self.provider.stream_generate("m", "p", callback=chunks.append)
+        post.assert_not_called()
+        self.assertFalse(res.success)
+        self.assertIn("not called: circuit open", res.error_message)
+
+    @patch("saleha.core.platform.model_provider.requests.post")
+    def test_stream_failures_count_against_the_server(self, post: Mock) -> None:
+        post.side_effect = requests.exceptions.Timeout("slow")
+        self.provider.stream_generate("m", "p", callback=lambda _: None)
+        self.assertEqual(self.breaker.snapshot(self.URL).failures, 1)
+        broken = Mock()
+        broken.__enter__ = Mock(return_value=broken)
+        broken.__exit__ = Mock(return_value=False)
+        broken.iter_lines.return_value = ["not json"]
+        post.side_effect = None
+        post.return_value = broken
+        self.provider.stream_generate("m", "p", callback=lambda _: None)
+        self.assertIs(self.breaker.snapshot(self.URL).state, CircuitState.OPEN)
+
+    @patch("saleha.core.platform.model_provider.requests.get")
+    def test_is_available_skips_the_network_while_open_and_says_why(self, get: Mock) -> None:
+        self._open(time.monotonic())
+        self.assertFalse(self.provider.is_available())
+        get.assert_not_called()
+        self.assertEqual(self.provider.unavailable_reason(), "circuit open after 2 failure(s): refused")
+
+    @patch("saleha.core.platform.model_provider.requests.get")
+    def test_reachable_tags_leave_the_probe_to_generation(self, get: Mock) -> None:
+        # Tags answer while a generation hangs, so a 200 from them must not
+        # close the circuit; generate() takes the probe.
+        get.return_value.status_code = 200
+        self._open(time.monotonic() - 60.0)
+        self.assertTrue(self.provider.is_available())
+        snap = self.breaker.snapshot(self.URL)
+        self.assertEqual((snap.state, snap.probes), (CircuitState.HALF_OPEN, 0))
+        self.assertTrue(self.breaker.admit(self.URL).probe)
+
+    @patch("saleha.core.platform.model_provider.requests.get")
+    def test_unreachable_tags_count_against_the_server(self, get: Mock) -> None:
+        get.side_effect = requests.exceptions.ConnectionError("refused")
+        self.assertFalse(self.provider.is_available())
+        self.assertFalse(self.provider.is_available())
+        self.assertIs(self.breaker.snapshot(self.URL).state, CircuitState.OPEN)
+        self.assertEqual(self.breaker.snapshot(self.URL).last_error, "GET /api/tags failed: ConnectionError")
+
+    def test_closed_circuit_reason_points_at_the_server(self) -> None:
+        self.assertEqual(self.provider.unavailable_reason(), "no answer from http://ollama.test/api/tags")
+
+    def test_fallback_chain_names_every_skipped_provider(self) -> None:
+        self._open(time.monotonic())
+
+        class Down(MockProvider):
+            def is_available(self) -> bool:
+                return False
+
+        stub = Mock(spec=["is_available", "provider_name"])
+        stub.is_available.return_value = False
+        stub.provider_name = "stub"
+        chain = FallbackChainProvider([self.provider, Down(), stub])
+        for res in (chain.generate("m", "p"), chain.stream_generate("m", "p", callback=lambda _: None)):
+            self.assertFalse(res.success)
+            self.assertEqual(res.error_message,
+                             "All providers in fallback chain failed: ollama: skipped, circuit open after "
+                             "2 failure(s): refused | unknown: skipped, not available | stub: skipped, not available")
+
+    def test_default_url_and_breaker(self) -> None:
+        with patch.dict(os.environ, {"SALEHA_OLLAMA_URL": "", "OLLAMA_HOST": "0.0.0.0:11434"}):
+            provider = OllamaProvider()
+        self.assertEqual(provider.base_url, "http://127.0.0.1:11434")
+        self.assertIs(provider.breaker, shared_breaker())
+
+    def test_health_of_each_failure(self) -> None:
+        table = [
+            (requests.exceptions.HTTPError(response=Mock(status_code=404)), Health.HEALTHY),
+            (requests.exceptions.HTTPError(response=Mock(status_code=503)), Health.UNHEALTHY),
+            (requests.exceptions.HTTPError(), Health.UNHEALTHY),
+            (ValueError("bad json"), Health.UNHEALTHY),
+            (OSError("reset"), Health.UNHEALTHY),
+            (RuntimeError("our bug"), Health.UNKNOWN),
+        ]
+        for exc, expected in table:
+            with self.subTest(exc=repr(exc)):
+                self.assertIs(_health_of(exc), expected)
 
 
 if __name__ == "__main__":

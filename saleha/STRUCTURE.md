@@ -51,11 +51,11 @@ whole repo (~450 real references) was rewritten to the new dotted path.
 | `harness/` | `approval_gate`, `benchmark_harness`, `code_executor`, `sandbox_runner`, `swebench_runner`, `test_runner` |
 | `loop/` | `agentic_loop`, `deliberation_engine`, `recursive_solver`, `tot_orchestrator` |
 | `memory/` | `memory_journal`, `memory_store`, `project_memory`, `semantic_memory_cache`, `tri_tier_memory` |
-| `platform/` | `git_native`, `lora_adapter_hot_swapper`, `lsp_engine`, `mcp_hub`, `model_provider`, `self_healer`, `smart_router` |
+| `platform/` | `async_ollama`, `circuit_breaker`, `git_native`, `lora_adapter_hot_swapper`, `lsp_engine`, `mcp_hub`, `model_provider`, `self_healer`, `smart_router` |
 | `rag/` | `bm25`, `embedding_backends`, `fast_search`, `graph_rag`, `repo_context_packer`, `semantic_cache`, `semantic_search`, `tree_context_ranker`, `vector_store` |
 | `swarm/` | `agent_message_bus`, `agent_worker_pool`, `octopus_swarm_expansion`, `p2p_mesh`, `p2p_swarm`, `saleha_swarm_topology`, `swarm_checkpoint_store`, `swarm_cluster_node`, `swarm_consensus`, `swarm_pipeline_engine`, `swarm_self_play_arena`, `team_orchestrator` |
 | `telemetry/` | `audit_log`, `hardware_profiler`, `latency_histogram`, `metrics`, `performance_profiler`, `session_tracer`, `stats_tracker`, `token_analytics`, `token_ledger` |
-| `verification/` | `apex_97_validator`, `formal_smt_verifier`, `quality_guard`, `safety_guard`, `security_scanner`, `ttc_solver` |
+| `verification/` | `apex_97_validator`, `formal_smt_verifier`, `oracle_check`, `quality_guard`, `safety_guard`, `security_scanner`, `ttc_solver`, `verified_search` |
 | `alignment/` | `contrastive_rlcd`, `multi_file_prm`, `preference_store`, `verifiable_rewards` |
 | `daemons/` | `continuous_learning_daemon` |
 | `db/` | `migration_safety_verifier` |

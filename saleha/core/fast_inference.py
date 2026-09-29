@@ -24,12 +24,17 @@ What this adds over calling the provider directly
 2. **Exact-prompt caching**, keyed on model AND prompt AND sampling options.
    Keying on the prompt alone is what let one model's answer be served to
    another elsewhere in this repo; that bug is not repeated here.
-3. **Retry with backoff** (hand-rolled exponential backoff, no external
-   retry library) for transport failures only. A model that answers badly
-   is not retried -- that is a quality problem, and silently re-rolling it
-   would hide it.
-4. **Honest degradation**: if aiohttp is missing, parallel calls fall back
-   to a thread pool over the sync client rather than failing.
+3. **Retry with jittered backoff** for transient failures only: a refused
+   or reset connection, HTTP 408/429/502/503/504. A timed-out generation is
+   not retried (it used to be, twice: one hung model cost three full
+   timeouts per request), nor is a 4xx, nor a model that answers badly --
+   that is a quality problem, and silently re-rolling it would hide it.
+4. **Circuit breaker** shared with OllamaProvider (platform/circuit_breaker):
+   after consecutive failures, calls answer "not sent" at once instead of
+   paying the failure again.
+5. **Honest degradation**: if aiohttp is missing, or an event loop is
+   already running, parallel calls fall back to a thread pool over the sync
+   client rather than failing.
 
 Deliberately not included
 -------------------------
@@ -43,15 +48,32 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import os
+import random
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
-DEFAULT_OLLAMA = os.getenv("SALEHA_OLLAMA_URL", "http://localhost:11434")
+from saleha.core.ollama_endpoint import ollama_base_url
+from saleha.core.platform.async_ollama import (
+    Exchange,
+    GenerateRequest,
+    ResultKind,
+    interpret_answer,
+)
+from saleha.core.platform.circuit_breaker import (
+    AttemptOutcome,
+    CircuitBreaker,
+    Health,
+    RetryPolicy,
+    next_delay,
+    parse_retry_after,
+    shared_breaker,
+)
+
 DEFAULT_CONCURRENCY = 4          # measured; see module docstring
 DEFAULT_TIMEOUT = 300.0
+CONNECT_TIMEOUT = 5.0
 
 
 def _have(name: str) -> bool:
@@ -63,6 +85,14 @@ def _have(name: str) -> bool:
 
 
 HAVE_AIOHTTP = _have("aiohttp")
+
+
+def _event_loop_running() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
 
 
 @dataclass
@@ -168,39 +198,42 @@ class FastInference:
     attempt to infer it.
     """
 
-    def __init__(self, base_url: str = DEFAULT_OLLAMA,
+    def __init__(self, base_url: Optional[str] = None,
                  max_concurrency: int = DEFAULT_CONCURRENCY,
                  cache: Optional[PromptCache] = None,
                  timeout: float = DEFAULT_TIMEOUT,
-                 max_retries: int = 2):
-        self.base_url = base_url.rstrip("/")
+                 max_retries: int = 2,
+                 breaker: Optional[CircuitBreaker] = None):
+        self.base_url = (base_url or ollama_base_url()).rstrip("/")
         self.generate_url = f"{self.base_url}/api/generate"
         self.max_concurrency = max(1, max_concurrency)
         self.cache = cache if cache is not None else PromptCache()
+        # Per request, retries included: a retry never starts a sleep that
+        # would end past it.
         self.timeout = timeout
         self.max_retries = max_retries
+        self.retry = RetryPolicy(max_attempts=max_retries + 1)
+        self.breaker = breaker or shared_breaker()
+        self._rng = random.Random()
 
     # -- payload -------------------------------------------------------
-    def _payload(self, req: InferenceRequest) -> Dict[str, Any]:
+    def _request(self, req: InferenceRequest) -> GenerateRequest:
         opts = dict(req.options or {})
         # Some community models ship a Modelfile with values this Ollama
         # build rejects outright (repeat_last_n: -1 -> HTTP 400 before the
         # model runs). Normalise rather than let a usable model look broken.
         if opts.get("repeat_last_n", 0) < 0:
             opts["repeat_last_n"] = 64
-        body: Dict[str, Any] = {
-            "model": req.model,
-            "prompt": req.prompt,
-            "stream": False,
-            "options": opts or {"temperature": 0.2, "num_predict": 1024},
-        }
-        if req.response_format:
-            body["format"] = req.response_format
-        return body
+        return GenerateRequest(model=req.model, prompt=req.prompt,
+                               options=opts or {"temperature": 0.2, "num_predict": 1024},
+                               response_format=req.response_format or None)
+
+    def _payload(self, req: InferenceRequest) -> Dict[str, Any]:
+        return self._request(req).payload()
 
     # -- single call ---------------------------------------------------
     def run(self, req: InferenceRequest, use_cache: bool = True) -> InferenceResult:
-        """One call, synchronous, with cache and transport retry."""
+        """One call, synchronous, with cache, circuit breaker and transient-failure retry."""
         key = req.cache_key()
         if use_cache:
             hit = self.cache.get(key)
@@ -208,106 +241,105 @@ class FastInference:
                 return InferenceResult(success=True, content=hit, cached=True,
                                        tag=req.tag, model=req.model)
 
+        started = time.monotonic()
+        deadline = started + self.timeout
+        body = self._payload(req)
+        attempts = 0
+        while True:
+            admission = self.breaker.admit(self.base_url)
+            if not admission.allowed:
+                return InferenceResult(success=False, error=f"not sent: {admission.reason}",
+                                       latency_sec=round(time.monotonic() - started, 2),
+                                       attempts=attempts, tag=req.tag, model=req.model)
+            attempts += 1
+            try:
+                ex = self._post_once(body, max(0.001, deadline - time.monotonic()))
+            except BaseException:
+                self.breaker.record(self.base_url, admission, Health.UNKNOWN, "call did not finish")
+                raise
+            self.breaker.record(self.base_url, admission, ex.outcome.health, ex.error)
+            delay = next_delay(self.retry, attempts, ex.outcome, deadline - time.monotonic(), self._rng)
+            if delay is None:
+                if ex.kind is ResultKind.OK and use_cache:
+                    self.cache.put(key, ex.text)
+                return InferenceResult(success=ex.kind is ResultKind.OK, content=ex.text,
+                                       error=ex.error,
+                                       latency_sec=round(time.monotonic() - started, 2),
+                                       attempts=attempts, tag=req.tag, model=req.model)
+            time.sleep(delay)
+
+    def _post_once(self, body: Dict[str, Any], read_timeout: float) -> Exchange:
         import requests
 
-        last_err = ""
-        attempts = 0
-        started = time.time()
-        for attempt in range(1, self.max_retries + 2):
-            attempts = attempt
-            try:
-                resp = requests.post(self.generate_url, json=self._payload(req),
-                                     timeout=self.timeout)
-                resp.raise_for_status()
-                content = (resp.json().get("response") or "").strip()
-                if use_cache and content:
-                    self.cache.put(key, content)
-                return InferenceResult(success=True, content=content,
-                                       latency_sec=round(time.time() - started, 2),
-                                       attempts=attempts, tag=req.tag,
-                                       model=req.model)
-            except Exception as exc:  # transport-level only
-                last_err = str(exc)
-                if attempt <= self.max_retries:
-                    # Exponential backoff. Retries cover transport faults;
-                    # a bad *answer* is never retried, because silently
-                    # re-rolling it would hide a quality problem.
-                    time.sleep(min(2.0 ** (attempt - 1), 4.0))
-
-        return InferenceResult(success=False, error=last_err,
-                               latency_sec=round(time.time() - started, 2),
-                               attempts=attempts, tag=req.tag, model=req.model)
+        try:
+            resp = requests.post(self.generate_url, json=body,
+                                 timeout=(CONNECT_TIMEOUT, read_timeout))
+        except requests.exceptions.ConnectTimeout:
+            return Exchange(ResultKind.UNREACHABLE, AttemptOutcome(Health.UNHEALTHY, retryable=True),
+                            f"no connection to {self.base_url} within {CONNECT_TIMEOUT:g}s")
+        except requests.exceptions.Timeout:
+            return Exchange(ResultKind.TIMEOUT, AttemptOutcome(Health.UNHEALTHY, retryable=False),
+                            f"no complete answer within {read_timeout:g}s")
+        except requests.exceptions.ConnectionError as exc:
+            return Exchange(ResultKind.UNREACHABLE, AttemptOutcome(Health.UNHEALTHY, retryable=True),
+                            f"cannot connect to {self.base_url}: {exc}")
+        except requests.exceptions.RequestException as exc:  # bad URL or similar: not the server
+            return Exchange(ResultKind.UNREACHABLE, AttemptOutcome(Health.UNKNOWN, retryable=False),
+                            f"request failed: {type(exc).__name__}: {exc}")
+        except OSError as exc:
+            return Exchange(ResultKind.UNREACHABLE, AttemptOutcome(Health.UNHEALTHY, retryable=True),
+                            f"{type(exc).__name__}: {exc}")
+        return interpret_answer(resp.status_code, resp.content,
+                                parse_retry_after(resp.headers.get("Retry-After")))
 
     # -- batch ---------------------------------------------------------
     async def _run_async(self, requests_list: Sequence[InferenceRequest],
                          use_cache: bool) -> List[InferenceResult]:
-        import aiohttp
+        from saleha.core.platform.async_ollama import AsyncOllamaClient, ClientConfig
 
-        sem = asyncio.Semaphore(self.max_concurrency)
         results: List[Optional[InferenceResult]] = [None] * len(requests_list)
+        pending: List[Tuple[int, InferenceRequest]] = []
+        for i, req in enumerate(requests_list):
+            hit = self.cache.get(req.cache_key()) if use_cache else None
+            if hit is not None:
+                results[i] = InferenceResult(success=True, content=hit, cached=True,
+                                             tag=req.tag, model=req.model)
+            else:
+                pending.append((i, req))
 
-        async def one(i: int, req: InferenceRequest, sess) -> None:
-            key = req.cache_key()
-            if use_cache:
-                hit = self.cache.get(key)
-                if hit is not None:
-                    results[i] = InferenceResult(success=True, content=hit,
-                                                 cached=True, tag=req.tag,
-                                                 model=req.model)
-                    return
-            started = time.time()
-            last_err = ""
-            async with sem:
-                for attempt in range(1, self.max_retries + 2):
-                    try:
-                        async with sess.post(self.generate_url,
-                                             json=self._payload(req)) as r:
-                            r.raise_for_status()
-                            data = await r.json()
-                        content = (data.get("response") or "").strip()
-                        if use_cache and content:
-                            self.cache.put(key, content)
-                        results[i] = InferenceResult(
-                            success=True, content=content,
-                            latency_sec=round(time.time() - started, 2),
-                            attempts=attempt, tag=req.tag, model=req.model)
-                        return
-                    except Exception as exc:
-                        last_err = str(exc)
-                        if attempt <= self.max_retries:
-                            await asyncio.sleep(min(2.0 ** (attempt - 1), 4.0))
-            results[i] = InferenceResult(
-                success=False, error=last_err,
-                latency_sec=round(time.time() - started, 2),
-                attempts=self.max_retries + 1, tag=req.tag, model=req.model)
-
-        timeout = aiohttp.ClientTimeout(total=self.timeout)
-        async with aiohttp.ClientSession(timeout=timeout) as sess:
-            await asyncio.gather(*[one(i, r, sess)
-                                   for i, r in enumerate(requests_list)])
-        return [r for r in results if r is not None]
+        config = ClientConfig(base_url=self.base_url, max_in_flight=self.max_concurrency,
+                              connect_timeout=CONNECT_TIMEOUT, read_timeout=self.timeout,
+                              total_timeout=self.timeout, retry=self.retry)
+        async with AsyncOllamaClient(config, breaker=self.breaker, rng=self._rng) as client:
+            answers = await client.generate_many([self._request(req) for _, req in pending])
+        for (i, req), answer in zip(pending, answers, strict=True):
+            if answer.ok and use_cache:
+                self.cache.put(req.cache_key(), answer.text)
+            results[i] = InferenceResult(success=answer.ok, content=answer.text, error=answer.error,
+                                         latency_sec=round(answer.seconds, 2),
+                                         attempts=answer.attempts, tag=req.tag, model=req.model)
+        return cast(List[InferenceResult], results)  # every index was filled above
 
     def run_batch(self, requests_list: Sequence[InferenceRequest],
                   use_cache: bool = True) -> List[InferenceResult]:
         """
         Run independent requests concurrently. Results keep input order.
 
-        Falls back to a thread pool when aiohttp is unavailable, so this
-        degrades in speed rather than breaking. Callers must only pass
-        requests with no ordering dependency between them.
+        Falls back to a thread pool when aiohttp is unavailable or an event
+        loop is already running here, so this degrades in speed rather than
+        breaking. Callers must only pass requests with no ordering
+        dependency between them.
         """
         if not requests_list:
             return []
         if len(requests_list) == 1:
             return [self.run(requests_list[0], use_cache=use_cache)]
 
-        if HAVE_AIOHTTP:
-            try:
-                return asyncio.run(self._run_async(requests_list, use_cache))
-            except RuntimeError:
-                # Already inside an event loop (e.g. a notebook or a server
-                # handler). Fall through to threads rather than failing.
-                pass
+        # Checked up front: catching asyncio.run's RuntimeError also caught
+        # any RuntimeError raised inside the batch and silently re-sent every
+        # request on threads.
+        if HAVE_AIOHTTP and not _event_loop_running():
+            return asyncio.run(self._run_async(requests_list, use_cache))
 
         from concurrent.futures import ThreadPoolExecutor
 

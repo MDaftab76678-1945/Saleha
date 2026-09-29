@@ -29,6 +29,16 @@ from typing import Callable, List, Optional
 
 import requests
 
+from saleha.core.ollama_endpoint import ollama_base_url
+from saleha.core.platform.circuit_breaker import (
+    Admission,
+    CircuitBreaker,
+    CircuitState,
+    Health,
+    classify_status,
+    shared_breaker,
+)
+
 
 @dataclass
 class ProviderResponse:
@@ -64,6 +74,10 @@ class ModelProvider(ABC):
     @abstractmethod
     def is_available(self) -> bool:
         raise NotImplementedError
+
+    def unavailable_reason(self) -> str:
+        """Why is_available() said no, for the caller's error message."""
+        return "not available"
 
     def stream_generate(self, model: str, prompt: str, callback: Callable[[str], None],
                          options: Optional[dict] = None) -> "ProviderResponse":
@@ -127,17 +141,53 @@ def budget_for_model(model: str, requested: int) -> int:
     return max(requested + _REASONING_THINKING_HEADROOM, 2048)
 
 
+def _health_of(exc: Exception) -> Health:
+    """What a failed Ollama call says about the server (see circuit_breaker.Health)."""
+    if isinstance(exc, requests.exceptions.HTTPError):
+        status = getattr(exc.response, "status_code", None)
+        return classify_status(status)[0] if isinstance(status, int) else Health.UNHEALTHY
+    if isinstance(exc, (ValueError, OSError)):  # a malformed body, or the transport
+        return Health.UNHEALTHY
+    return Health.UNKNOWN
+
+
 class OllamaProvider(ModelProvider):
-    """Localhost Ollama server ($0 local inference)."""
+    """
+    Local Ollama server ($0 local inference).
+
+    Calls go through the process-wide circuit breaker, keyed by base URL:
+    after SALEHA_BREAKER_FAILURES consecutive failures (refused, timed out,
+    5xx) the provider answers "not called" at once for
+    SALEHA_BREAKER_OPEN_SECONDS, then lets one call through to test the
+    server. A 4xx or an empty answer proves the server is up and does not
+    count against it.
+    """
 
     provider_name = "ollama"
 
-    def __init__(self, base_url: str = "http://localhost:11434",
-                 timeout: int = DEFAULT_GENERATE_TIMEOUT):
-        self.base_url = base_url
-        self.generate_url = f"{base_url}/api/generate"
-        self.tags_url = f"{base_url}/api/tags"
+    def __init__(self, base_url: Optional[str] = None,
+                 timeout: int = DEFAULT_GENERATE_TIMEOUT,
+                 breaker: Optional[CircuitBreaker] = None):
+        # SALEHA_OLLAMA_URL / OLLAMA_HOST, normalised. The hard-coded
+        # `localhost` default ignored both, and a refused connection through
+        # `localhost` costs ~4 s here against ~2 s for 127.0.0.1 (both
+        # addresses are tried).
+        self.base_url = (base_url or ollama_base_url()).rstrip("/")
+        self.generate_url = f"{self.base_url}/api/generate"
+        self.tags_url = f"{self.base_url}/api/tags"
         self.timeout = timeout
+        self.breaker = breaker or shared_breaker()
+
+    def _not_called(self, admission: Admission) -> ProviderResponse:
+        wait = f"; next try in {admission.retry_after:.0f}s" if admission.retry_after else ""
+        return ProviderResponse(False, "", f"Ollama at {self.base_url} not called: {admission.reason}{wait}",
+                                provider_name="ollama")
+
+    def unavailable_reason(self) -> str:
+        snap = self.breaker.snapshot(self.base_url)
+        if snap.state is not CircuitState.CLOSED:
+            return f"circuit {snap.state.value} after {snap.failures} failure(s): {snap.last_error}"
+        return f"no answer from {self.tags_url}"
 
     def generate(self, model: str, prompt: str, options: Optional[dict] = None,
                  response_format: Optional[dict] = None,
@@ -218,11 +268,16 @@ class OllamaProvider(ModelProvider):
         if isinstance(opts, dict) and opts.get("repeat_last_n", 0) < 0:
             opts["repeat_last_n"] = 64
 
+        admission = self.breaker.admit(self.base_url)
+        if not admission.allowed:
+            return self._not_called(admission)
+        health, detail = Health.UNKNOWN, "call did not finish"
         start_time = time.time()
         try:
             response = requests.post(self.generate_url, json=payload, timeout=self.timeout)
             response.raise_for_status()
             result = response.json()
+            health, detail = Health.HEALTHY, ""
             content = result.get("response", "").strip()
             if not content:
                 # HTTP 200 with an empty `response` was reported as
@@ -263,6 +318,7 @@ class OllamaProvider(ModelProvider):
                 f"(model={model}, prompt {len(prompt)} chars). "
                 f"Raise SALEHA_MODEL_TIMEOUT if the model needs longer."
             )
+            health, detail = Health.UNHEALTHY, f"no answer within {self.timeout}s"
             return ProviderResponse(
                 success=False,
                 content="",
@@ -271,6 +327,7 @@ class OllamaProvider(ModelProvider):
                 provider_name="ollama",
             )
         except requests.exceptions.ConnectionError:
+            health, detail = Health.UNHEALTHY, f"not reachable at {self.base_url}"
             return ProviderResponse(
                 success=False,
                 content="",
@@ -279,6 +336,7 @@ class OllamaProvider(ModelProvider):
                 provider_name="ollama",
             )
         except Exception as e:
+            health, detail = _health_of(e), str(e)[:200]
             return ProviderResponse(
                 success=False,
                 content="",
@@ -286,13 +344,30 @@ class OllamaProvider(ModelProvider):
                 response_time=time.time() - start_time,
                 provider_name="ollama",
             )
+        finally:
+            self.breaker.record(self.base_url, admission, health, detail)
 
     def is_available(self) -> bool:
+        """
+        A real GET /api/tags, skipped while the circuit is open. A reachable
+        server says nothing about whether generation works (tags answer
+        while a generation hangs), so a success only hands back a probe
+        slot for generate() to use; a failure counts against the server.
+        """
+        admission = self.breaker.admit(self.base_url)
+        if not admission.allowed:
+            return False
+        health, detail = Health.UNKNOWN, ""
         try:
             resp = requests.get(self.tags_url, timeout=1.5)
+            if resp.status_code != 200:
+                health, detail = Health.UNHEALTHY, f"GET /api/tags returned HTTP {resp.status_code}"
             return resp.status_code == 200
-        except Exception:
+        except Exception as exc:
+            health, detail = Health.UNHEALTHY, f"GET /api/tags failed: {type(exc).__name__}"
             return False
+        finally:
+            self.breaker.record(self.base_url, admission, health, detail)
 
     def stream_generate(self, model: str, prompt: str, callback: Callable[[str], None],
                          options: Optional[dict] = None) -> ProviderResponse:
@@ -326,6 +401,10 @@ class OllamaProvider(ModelProvider):
             "options": merged_options,
         }
 
+        admission = self.breaker.admit(self.base_url)
+        if not admission.allowed:
+            return self._not_called(admission)
+        health, detail = Health.UNKNOWN, "call did not finish"
         start_time = time.time()
         accumulated = []
         tokens_used = 0
@@ -343,6 +422,7 @@ class OllamaProvider(ModelProvider):
                         callback(piece)
                     if chunk.get("done"):
                         tokens_used = int(chunk.get("eval_count", 0) or 0)
+            health, detail = Health.HEALTHY, ""
             return ProviderResponse(
                 success=True,
                 content="".join(accumulated),
@@ -355,20 +435,25 @@ class OllamaProvider(ModelProvider):
                 f"Ollama did not respond within {self.timeout}s "
                 f"(model={model}, prompt {len(prompt)} chars) while streaming."
             )
+            health, detail = Health.UNHEALTHY, f"no answer within {self.timeout}s while streaming"
             return ProviderResponse(success=False, content="".join(accumulated),
                                      error_message=error_msg,
                                      response_time=time.time() - start_time,
                                      provider_name="ollama")
         except requests.exceptions.ConnectionError:
+            health, detail = Health.UNHEALTHY, f"not reachable at {self.base_url}"
             return ProviderResponse(success=False, content="".join(accumulated),
                                      error_message=f"Ollama server not reachable at {self.base_url}",
                                      response_time=time.time() - start_time,
                                      provider_name="ollama")
         except Exception as e:
+            health, detail = _health_of(e), str(e)[:200]
             return ProviderResponse(success=False, content="".join(accumulated),
                                      error_message=str(e),
                                      response_time=time.time() - start_time,
                                      provider_name="ollama")
+        finally:
+            self.breaker.record(self.base_url, admission, health, detail)
 
 
 class OpenAICompatibleProvider(ModelProvider):
@@ -647,6 +732,12 @@ def cloud_provider_for(model: str) -> Optional[ModelProvider]:
     return None
 
 
+def _unavailable(provider: object) -> str:
+    """A skipped provider still shows up in the chain's error: an empty list read as 'no reason'."""
+    reason = provider.unavailable_reason() if isinstance(provider, ModelProvider) else "not available"
+    return f"{getattr(provider, 'provider_name', 'unknown')}: skipped, {reason}"
+
+
 class FallbackChainProvider(ModelProvider):
     """
     Intelligent cascade provider:
@@ -693,6 +784,8 @@ class FallbackChainProvider(ModelProvider):
                 if res.success:
                     return res
                 errors.append(f"{getattr(p, 'provider_name', 'unknown')}: {res.error_message}")
+            else:
+                errors.append(_unavailable(p))
         
         # If all providers unavailable or failed, return composite error
         return ProviderResponse(
@@ -721,6 +814,8 @@ class FallbackChainProvider(ModelProvider):
                 if res.success:
                     return res
                 errors.append(f"{getattr(p, 'provider_name', 'unknown')}: {res.error_message}")
+            else:
+                errors.append(_unavailable(p))
 
         return ProviderResponse(
             success=False,
