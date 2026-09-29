@@ -54,7 +54,7 @@ from saleha.core import real_task_bench as bench
 from saleha.core.harness.real_task_bench import Task
 
 SOLVER = "qwen2.5-coder:3b"
-WRITER = "qwen3:8b"
+WRITER = "qwen3.5:4b"
 HEADER = "Lessons from earlier mistakes -- apply them where they fit:"
 PLACEBOS = (
     "Give every function a one-line docstring that says what it returns.",

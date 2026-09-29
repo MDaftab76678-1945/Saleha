@@ -1,11 +1,11 @@
 ---
 trigger: always_on
-description: Cognitive load budgeting and model routing constraints for 3B/8B local inference.
+description: Cognitive load budgeting and model routing constraints for 3B/4B local inference.
 ---
 
 # Cognitive Load Budget & Local Model Routing Contract
 
-This rule codifies context limits and specialized role routing to maximize the capabilities of local Ollama models (`qwen2.5-coder:3b`, `qwen3:8b`).
+This rule codifies context limits and specialized role routing to maximize the capabilities of local Ollama models (`qwen2.5-coder:3b`, `qwen3.5:4b`).
 
 ## 1. Physical Context Budget (2048 - 4096 Tokens)
 
@@ -22,7 +22,7 @@ Tasks must be routed to the appropriate engine rather than burdening a single ge
 | :--- | :--- | :--- |
 | **AST Inspection & Parsing** | `python:ast` / `QualityGuard` | Deterministic, zero tokens, instant execution. |
 | **Surgical Syntax Fixes (<30 lines)** | `qwen2.5-coder:3b` | Fast latency (80+ tok/s), high syntax precision. |
-| **Architectural Design & Planning** | `qwen3:8b` / `deepseek-r1:7b` | Multi-step reasoning and structural coherence. |
+| **Architectural Design & Planning** | `qwen3.5:4b` / `deepseek-r1:7b` | Multi-step reasoning and structural coherence. |
 | **Mathematical Contract Proof** | `saleha/core/verification/formal_smt_verifier.py` (Z3) | Exact logical proofs; zero stochastic hallucinations. |
 | **Semantic Recall** | `BM25` + `nomic-embed-text` | Dense semantic retrieval under 50ms. |
 

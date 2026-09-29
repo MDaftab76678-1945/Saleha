@@ -9,8 +9,8 @@ recorded separately, so a false "done" is counted, not believed.
     # 1. build tasks (needs `datasets`: use .venv_train)
     .venv_train/Scripts/python scripts/agent_bench.py prepare --n 30
     # 2. run an agent
-    .venv/Scripts/python scripts/agent_bench.py run saleha --model qwen3:8b
-    .venv/Scripts/python scripts/agent_bench.py run hermes --model qwen3:8b
+    .venv/Scripts/python scripts/agent_bench.py run saleha --model qwen3.5:4b
+    .venv/Scripts/python scripts/agent_bench.py run hermes --model qwen3.5:4b
     # 3. compare
     .venv/Scripts/python scripts/agent_bench.py score
 
@@ -215,7 +215,7 @@ def main() -> int:
     p.add_argument("--n", type=int, default=30)
     r = sub.add_parser("run")
     r.add_argument("agent", choices=["saleha", "tourist", "tourist-claude", "tourist-gemini", "claude-code", "hermes"])
-    r.add_argument("--model", default="qwen3:8b")
+    r.add_argument("--model", default="qwen3.5:4b")
     r.add_argument("--limit", type=int, default=0)
     sub.add_parser("score")
     args = ap.parse_args()

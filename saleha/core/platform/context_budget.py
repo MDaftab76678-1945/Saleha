@@ -73,6 +73,7 @@ KNOWN_CONTEXT_WINDOWS = {
     "qwen2.5-coder:3b": 32768,
     "qwen2.5-coder:7b": 32768,
     "qwen3:8b": 40960,
+    "qwen3.5:4b": 262144,  # read from `ollama show qwen3.5:4b` on this box
     "qwen3.5:9b": 40960,
     "deepseek-coder:6.7b": 16384,
     "deepseek-r1:7b": 32768,

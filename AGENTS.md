@@ -96,7 +96,7 @@ Never quote a pass/fail count from memory or from a doc. Run the suite.
   and `0.0.0.0` is a bind address, not a client address. Normalise both.
 - `pip install -e ".[dev]"` alone is not enough: Z3 lives in `[formal]`.
 - Local models: run `ollama list` for what is installed now. `qwen2.5-coder:3b`
-  and `qwen3:8b` are the working pair; 3B/8B context is small, so never feed
+  and `qwen3.5:4b` are the working pair; 3B/4B context is small, so never feed
   whole multi-file dumps into one prompt.
 - `saleha-asi:latest` does not exist. It scored 0/5 and was deleted
   (commit `a464b68`). Do not assume it is there.
@@ -114,7 +114,7 @@ Never quote a pass/fail count from memory or from a doc. Run the suite.
 
 | Path | What |
 | --- | --- |
-| `saleha/core/` | Engines: flat modules plus category subpackages (see `saleha/STRUCTURE.md`) |
+| `saleha/core/` | Engines: category subpackages (see `saleha/STRUCTURE.md`) |
 | `saleha/cli/commands/` | CLI command implementations |
 | `saleha/agents/` | Agent personas |
 | `saleha/tests/` | The suite |

@@ -430,17 +430,17 @@ class SmartRouter:
 
         elif thermal_state == "warm":
             if complexity >= 9.0:
-                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "qwen3:8b"])
+                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "qwen3.5:4b"])
             elif complexity >= 5.0:
-                return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen3:8b", "qwen2.5-coder:3b"])
+                return self._filter_installed(["deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen3.5:4b", "qwen2.5-coder:3b"])
             else:
                 return self._filter_installed(["qwen2.5-coder:3b"])
 
         else:
             if complexity >= 9.0:
-                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "qwen3:8b", "deepseek-coder:6.7b"])
+                return self._filter_installed(["qwen3-coder:30b", "deepseek-r1:8b", "qwen3.5:9b", "qwen3.5:4b", "deepseek-coder:6.7b"])
             elif complexity >= 5.0:
-                return self._filter_installed(["devstral:24b", "qwen3:8b", "deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
+                return self._filter_installed(["devstral:24b", "qwen3.5:4b", "deepseek-coder:6.7b", "qwen2.5-coder:7b", "qwen2.5-coder:3b"])
             elif complexity >= 2.0:
                 return self._filter_installed(["qwen2.5-coder:3b", "qwen3.5:4b", "qwen3:4b"])
             else:

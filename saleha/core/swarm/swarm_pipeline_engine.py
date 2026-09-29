@@ -49,10 +49,10 @@ REPAIR_PROMPT = (
 )
 
 # The bigger local model a repair escalates to when the coder model's tries
-# all fail. Measured in pass 172 on the LIS bug and four hard-bench bugs, one
-# repair prompt per try: qwen3:8b (thinking off) fixed 4 of 22 tries,
-# qwen2.5-coder:3b 2 of 34; ~50 s per 8B try against ~11 s. Small samples.
-ESCALATION_MODEL = "qwen3:8b"
+# all fail. Was qwen3:8b (pass 172: 4/22 fixes, ~50 s/try, 11 GB load);
+# switched to qwen3.5:4b, which answers a trivial ping in ~11 s on this box.
+# Repair-trial fix rate for 4b is not measured yet -- do not cite one.
+ESCALATION_MODEL = "qwen3.5:4b"
 
 # Context the escalation model runs with. A repair prompt is a task, one
 # solution and its brute-force version -- a few thousand chars -- but Ollama

@@ -264,7 +264,7 @@ class ToolForge:
         """Selects the best available local coding model from Ollama."""
         from saleha.core.platform.smart_router import get_installed_ollama_models
         installed = {m for m in get_installed_ollama_models() if ":" in m}
-        preference = ["qwen2.5-coder:3b", "deepseek-coder:6.7b", "qwen3:8b", "qwen3.5:9b"]
+        preference = ["qwen2.5-coder:3b", "deepseek-coder:6.7b", "qwen3.5:4b", "qwen3.5:9b"]
         return next((m for m in preference if m in installed), None) or next(
             (m for m in sorted(installed) if "coder" in m), next(iter(sorted(installed)), None)
         )
