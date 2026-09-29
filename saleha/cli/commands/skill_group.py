@@ -9,24 +9,11 @@ behavior for whatever this file's commands use.
 """
 import click
 from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
+from typing import Optional
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.group(name='skill')
 def skill_group():
@@ -98,7 +85,7 @@ def skill_stats_cmd():
     """Display statistical breakdown of the 1,000+ skill catalog."""
     from saleha.core.skill_catalog import skill_catalog
     stats = skill_catalog.get_stats()
-    table = Table(title=f'Saleha 1,000+ AgentSkills Domain Distribution', border_style='blue')
+    table = Table(title='Saleha 1,000+ AgentSkills Domain Distribution', border_style='blue')
     table.add_column('Domain Name', style='bold cyan')
     table.add_column('Skills Count', style='green', justify='right')
     for domain, count in sorted(stats['domain_breakdown'].items(), key=lambda x: x[1], reverse=True):

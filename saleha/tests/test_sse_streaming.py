@@ -36,8 +36,8 @@ class SSEStreamingTests(unittest.TestCase):
             )
 
         with patch.object(handler, "send_response") as mock_resp, \
-             patch.object(handler, "send_header") as mock_header, \
-             patch.object(handler, "end_headers") as mock_end, \
+             patch.object(handler, "send_header"), \
+             patch.object(handler, "end_headers"), \
              patch("saleha.server.web_server.TeamOrchestrator") as mock_orch_cls:
 
             mock_orch = MagicMock()

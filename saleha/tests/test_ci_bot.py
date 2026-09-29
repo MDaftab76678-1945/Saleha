@@ -1,9 +1,7 @@
 import unittest
 import tempfile
 import os
-from unittest.mock import patch, MagicMock
-from saleha.ci.bot import PRReviewBot, ReviewReport
-from saleha.core.verification.security_scanner import ScanReport, SecurityVulnerability
+from saleha.ci.bot import PRReviewBot
 
 
 class CIBotTests(unittest.TestCase):

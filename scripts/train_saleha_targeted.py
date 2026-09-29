@@ -58,8 +58,8 @@ from saleha.core.frontier_trainer import FrontierTrainer
 # Real, official reference numbers (see module docstring for source) --
 # printed for context, never used as a training/eval result.
 OFFICIAL_REFERENCE = {
-    "qwen2.5-coder:3b": {"HumanEval": 61.6, "MBPP": 52.4, "LiveCodeBench": 2.0},
-    "qwen2.5-coder:3b": {"HumanEval": 70.7, "MBPP": 69.2, "LiveCodeBench": 6.1},
+    "qwen2.5-coder:0.5b": {"HumanEval": 61.6, "MBPP": 52.4, "LiveCodeBench": 2.0},
+    "qwen2.5-coder:1.5b": {"HumanEval": 70.7, "MBPP": 69.2, "LiveCodeBench": 6.1},
     "qwen2.5-coder:3b": {"HumanEval": 84.1, "MBPP": 73.6, "LiveCodeBench": 10.8},
 }
 

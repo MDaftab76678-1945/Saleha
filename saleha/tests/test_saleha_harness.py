@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from click.testing import CliRunner
 
-from saleha.harness.metrics import estimate_pass_at_k, HarnessTaskResult, compute_benchmark_summary
-from saleha.harness.benchmarks import BenchmarkCatalog, BenchmarkTaskSpec
+from saleha.harness.metrics import estimate_pass_at_k
+from saleha.harness.benchmarks import BenchmarkCatalog
 from saleha.harness.reporter import HarnessReporter, HarnessReport, BenchmarkSummary
 from saleha.harness.core import SalehaHarness
 from saleha.cli.commands import cli

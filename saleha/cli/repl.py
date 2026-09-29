@@ -215,7 +215,7 @@ class SalehaREPL:
                 f"[bold green]Consensus:[/] {contract.consensus_decision}\n"
                 f"[bold cyan]CP-WBFT Score:[/] [bold]{int(contract.cp_wbft_score * 100)}%[/] | [bold green]Status:[/] {'APPROVED' if contract.approved else 'REVISE'}\n\n"
                 f"[bold yellow]Critical Invariants:[/]\n" + "\n".join(f"  • {inv}" for inv in contract.invariants[:3]) + "\n\n"
-                f"[bold magenta]Adversarial Mitigations:[/]\n" + "\n".join(f"  • {mit}" for mit in contract.mitigations[:3]),
+                "[bold magenta]Adversarial Mitigations:[/]\n" + "\n".join(f"  • {mit}" for mit in contract.mitigations[:3]),
                 title=f"[bold green]Debate Result: {contract.topic}[/]",
                 border_style="green" if contract.approved else "yellow"
             ))

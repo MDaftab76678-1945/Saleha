@@ -42,7 +42,6 @@ class RepoContextPackerTests(unittest.TestCase):
         self.assertIn("payments.py", ctx)
 
     def test_budget_is_respected(self) -> None:
-        big = "def filler_%d(): pass\n" * 1  # small lines; use many files instead
         for i in range(50):
             self._write(f"src/mod_{i}.py", f"class Thing{i}:\n    def process(self): ...\n" * 30)
         packer = RepoContextPacker(root_dir=self.root)

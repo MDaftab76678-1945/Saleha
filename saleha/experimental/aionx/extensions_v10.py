@@ -14,7 +14,7 @@ New capabilities for 10/10 across all dimensions:
 """
 import asyncio, json, re, ast, time, os, hashlib
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional
 import anthropic
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY",""))

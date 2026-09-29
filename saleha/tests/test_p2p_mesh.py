@@ -1,6 +1,5 @@
-import pytest
 
-from saleha.core.swarm.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat, RemoteTaskPacket
+from saleha.core.swarm.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat
 
 
 def test_p2pmeshnode_start() -> None:

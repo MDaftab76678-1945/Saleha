@@ -11,22 +11,15 @@ import click
 from saleha.cli.commands import cli, console
 from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
+from typing import Optional
 import os
-import sys
-import re
-import time
 import json
 import io
-import subprocess
 import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.command()
 @click.argument('goal')
@@ -162,7 +155,6 @@ def ship_cmd(target_dir, auto_apply):
     
     Example: saleha ship . --apply
     """
-    from saleha.core.cloud_deployer import cloud_deployer
     plan = _cmds.cloud_deployer.plan_deployment(target_dir)
     console.print(Panel(f'[bold cyan]Target Workspace:[/] {os.path.abspath(target_dir)}\n[bold cyan]Detected Runtime Stack:[/] [bold green]{plan.stack_detected.upper()}[/]\n[bold cyan]Generated Assets:[/] {len(plan.assets)} artifacts', title='[bold green]Saleha Autonomous Cloud Deployer[/]', border_style='green'))
     for asset in plan.assets:

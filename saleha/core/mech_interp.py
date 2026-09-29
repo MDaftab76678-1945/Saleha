@@ -351,9 +351,13 @@ class _Classifier(ast.NodeVisitor):
         qualname = ".".join(self._scope + [node.name])
         args = node.args
         all_args = list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs)
-        annotated = bool(all_args) and all(a.annotation is not None for a in all_args)
-        if not all_args:
-            annotated = node.returns is not None
+        # `self` / `cls` are conventionally unannotated, so counting them made
+        # every fully typed method report as unannotated.
+        checked_args = all_args
+        in_class = ".".join(self._scope) in self.classes
+        if in_class and checked_args and checked_args[0].arg in ("self", "cls", "mcs", "mcls"):
+            checked_args = checked_args[1:]
+        annotated = all(a.annotation is not None for a in checked_args)
         self.functions.append(FunctionProfile(
             name=node.name,
             qualname=qualname,

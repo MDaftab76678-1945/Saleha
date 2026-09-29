@@ -44,7 +44,7 @@ class DocGeneratorAgentTests(unittest.TestCase):
         self.assertNotIn("ArchitectAgent", spec_one.architecture_diagram_mermaid)
 
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as other_root:
-            with open(os.path.join(other_root, "agents_module.py"), "w", encoding="utf-8") as f:
+            with open(os.path.join(other_root, "agents_module.py"), "w", encoding="utf-8"):
                 pass  # no agents/ path component, no classes -- should not appear
             spec_two = self.agent.scan_and_generate_docs(other_root)
             self.assertNotIn("OnlyAgentHere", spec_two.architecture_diagram_mermaid)

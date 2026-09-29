@@ -56,9 +56,9 @@ def render_group(group: click.Group, title: str, out: List[str]):
 
 def main():
     out: List[str] = [
-        "# 🛠️ Saleha CLI Reference",
+        "# Saleha CLI Reference",
         "",
-        "> ⚠️ Ye file **auto-generated** hai -- `python scripts/gen_cli_docs.py`",
+        "> [WARN] Ye file **auto-generated** hai -- `python scripts/gen_cli_docs.py`",
         f"> (Generated against Saleha CLI, {len(cli.commands)} top-level commands)",
         "",
         "## Commands\n",

@@ -5,7 +5,7 @@ import tempfile
 import os
 import json
 import shutil
-from saleha.core.plugin_hub import SalehaPluginHub, CommunityPluginManifest
+from saleha.core.plugin_hub import SalehaPluginHub
 
 
 class TestPluginHub(unittest.TestCase):

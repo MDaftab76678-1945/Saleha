@@ -6,7 +6,6 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-from saleha.core import vision_backend
 from saleha.core.vision_backend import (
     find_vision_model,
     generate_code_from_image,

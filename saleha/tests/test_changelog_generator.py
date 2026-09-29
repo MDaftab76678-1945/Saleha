@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.changelog_generator import ChangelogGenerator, ReleaseSection
+from saleha.core.changelog_generator import ChangelogGenerator
 
 
 class ChangelogGeneratorTests(unittest.TestCase):

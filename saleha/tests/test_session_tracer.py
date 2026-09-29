@@ -6,7 +6,7 @@ import json
 import os
 import tempfile
 import pytest
-from saleha.core.telemetry.session_tracer import SessionTracer, TraceSpan, session_tracer
+from saleha.core.telemetry.session_tracer import SessionTracer
 from saleha.core.swarm.agent_message_bus import AgentMessageBus, TaskAssignedEvent
 
 

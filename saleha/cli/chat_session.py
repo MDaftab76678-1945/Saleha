@@ -343,7 +343,7 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_container_command(self, code: str) -> None:
-        self.console.print(f"\n[bold cyan]Ephemeral Container Sandbox Executing...[/bold cyan]")
+        self.console.print("\n[bold cyan]Ephemeral Container Sandbox Executing...[/bold cyan]")
         res = container_runner.run_code(code)
         color = "green" if res.success else "red"
         self.console.print(f"[{color}]● Execution {'SUCCESS' if res.success else 'FAILED'} ({res.duration_ms}ms) | {res.isolation_engine}[/{color}]\n")
@@ -368,18 +368,18 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_dataset_command(self, path: str) -> None:
-        self.console.print(f"\n[bold cyan]Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
+        self.console.print("\n[bold cyan]Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
         count = dataset_synthesizer.synthesize_dataset(output_path=path, sample_count=50)
         self.console.print(f"[bold green]Successfully Synthesized {count} Verified Samples -> [yellow]{path}[/yellow]![/bold green]\n")
 
     def _execute_lora_config_command(self) -> None:
-        self.console.print(f"\n[bold cyan]Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
+        self.console.print("\n[bold cyan]Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
         model_distillation_pipeline.generate_lora_training_yaml("configs/lora_training_config.yaml")
         model_distillation_pipeline.generate_training_script("scripts/train_lora_slm.py")
         self.console.print("[bold green]Exported `configs/lora_training_config.yaml` & `scripts/train_lora_slm.py`![/bold green]\n")
 
     def _execute_score_code_command(self, code: str) -> None:
-        self.console.print(f"\n[bold cyan]Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
+        self.console.print("\n[bold cyan]Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
         score = neuro_symbolic_engine.score_code(code)
         color = "green" if score.composite_score >= 0.8 else "yellow" if score.composite_score >= 0.5 else "red"
         self.console.print(f"[{color}]● Composite Invariant Score: {score.composite_score * 100:.1f}% ({score.evaluation_duration_ms}ms)[/{color}]")
@@ -409,7 +409,7 @@ class SwarmChatSession:
 
     def _execute_cluster_command(self, sub: str) -> None:
         status = swarm_cluster.get_cluster_status()
-        self.console.print(f"\n[bold cyan]Decentralized P2P Swarm Cluster Status[/bold cyan]")
+        self.console.print("\n[bold cyan]Decentralized P2P Swarm Cluster Status[/bold cyan]")
         self.console.print(f"- Local Node ID : [cyan]{status['local_node_id']}[/cyan]")
         self.console.print(f"- Total Nodes   : [bold green]{status['total_nodes']}[/bold green]")
         self.console.print(f"- Cluster Cores : [white]{status['total_cluster_cores']} vCPUs[/white] | Cluster RAM: [white]{status['total_cluster_ram_gb']} GB[/white]\n")
@@ -431,7 +431,7 @@ class SwarmChatSession:
         result = repo_orchestrator.execute_auto_pr(task)
 
         if not result.is_git_repo:
-            self.console.print(f"[bold red]Not a git repository — nothing to prepare.[/bold red]")
+            self.console.print("[bold red]Not a git repository — nothing to prepare.[/bold red]")
             self.console.print()
             return
 
@@ -502,7 +502,7 @@ class SwarmChatSession:
         self.console.print(f"[bold green]Task Registered Successfully (Task ID: {task.task_id})![/bold green]\n")
 
     def _execute_tasks_command(self) -> None:
-        self.console.print(f"\n[bold cyan]Registered Background Cron Tasks:[/bold cyan]\n")
+        self.console.print("\n[bold cyan]Registered Background Cron Tasks:[/bold cyan]\n")
         tasks = task_scheduler.list_tasks()
         table = Table(title="Scheduled Background Tasks", border_style="cyan")
         table.add_column("Task ID", style="cyan")
@@ -523,7 +523,7 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_release_command(self) -> None:
-        self.console.print(f"\n[bold cyan]Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n")
+        self.console.print("\n[bold cyan]Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n")
         report = release_manager.check_release_readiness()
         table = Table(title=f"Release Pre-Flight Report (v{report.version})", border_style="green" if report.success else "red")
         table.add_column("Component", style="white")

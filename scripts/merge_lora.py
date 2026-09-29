@@ -18,7 +18,7 @@ def merge_weights():
     adapter_path = os.path.abspath("models/saleha_asi_master_adapter")
     output_dir = os.path.abspath("models/saleha_asi_merged")
 
-    print(f"📥 Loading Base Architecture: {base_model_id} in FP16 on CPU...")
+    print(f"Loading Base Architecture: {base_model_id} in FP16 on CPU...")
     tokenizer = AutoTokenizer.from_pretrained(adapter_path, trust_remote_code=True)
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_id,
@@ -28,15 +28,15 @@ def merge_weights():
         trust_remote_code=True,
     )
 
-    print(f"🔌 Merging Rank-32 LoRA weights from {adapter_path}...")
+    print(f"Merging Rank-32 LoRA weights from {adapter_path}...")
     model = PeftModel.from_pretrained(base_model, adapter_path)
     merged_model = model.merge_and_unload()
 
-    print(f"💾 Saving consolidated merged model to {output_dir}...")
+    print(f"Saving consolidated merged model to {output_dir}...")
     os.makedirs(output_dir, exist_ok=True)
     merged_model.save_pretrained(output_dir, safe_serialization=True)
     tokenizer.save_pretrained(output_dir)
-    print("✅ Model successfully merged and saved ready for GGUF/Ollama conversion!")
+    print("[OK] Model successfully merged and saved ready for GGUF/Ollama conversion!")
 
 
 if __name__ == "__main__":

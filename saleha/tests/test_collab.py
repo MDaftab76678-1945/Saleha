@@ -11,12 +11,9 @@ import pytest
 
 from saleha.core.collab import (
     MAX_DOC_CHARS,
-    MAX_ROOMS,
     ROOM_TTL_SEC,
     CollabError,
     CollabStore,
-    Participant,
-    Room,
 )
 
 

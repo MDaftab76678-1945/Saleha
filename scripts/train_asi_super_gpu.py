@@ -2,10 +2,10 @@
 Saleha: ASI Mathematics, Core Knowledge & High-Speed Reasoning GPU Training Pipeline
 
 Fine-tunes `Qwen/Qwen2.5-Coder-3B-Instruct` on 1,750 High-Density Multi-Domain Samples:
-- 🧮 Advanced Olympiad Mathematics & Number Theory
-- 🧠 Metacognitive Chain-of-Thought (<think> Formal Verification)
-- ⚡ CUDA C++ Tensor Acceleration & High-Performance Kernels
-- 🏛️ Distributed Systems & Resilient Architecture
+- Advanced Olympiad Mathematics & Number Theory
+- Metacognitive Chain-of-Thought (<think> Formal Verification)
+- CUDA C++ Tensor Acceleration & High-Performance Kernels
+- Distributed Systems & Resilient Architecture
 - Saves to `models/saleha_asi_master_adapter/`
 """
 
@@ -20,7 +20,6 @@ if hasattr(sys.stdout, "reconfigure"):
 import torch
 from datasets import Dataset
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from transformers import (
     AutoModelForCausalLM,
@@ -64,23 +63,23 @@ def load_all_datasets(dataset_paths: list[str]):
 def main():
     console = Console()
     console.print("\n" + "=" * 80, style="bold red")
-    console.print("🧠⚡ [bold white on red] SALEHA-ASI MATHEMATICS & SUPER-INTELLIGENCE GPU TRAINING [/]", justify="center")
+    console.print("[bold white on red] SALEHA-ASI MATHEMATICS & SUPER-INTELLIGENCE GPU TRAINING [/]", justify="center")
     console.print("=" * 80, style="bold red")
     console.print("[dim]Fine-tuning 3.09B Base Model on 1,750 High-Density ASI & Mathematics Samples[/dim]\n")
 
     if not torch.cuda.is_available():
-        console.print("[bold red]❌ Error: CUDA GPU not detected![/]")
+        console.print("[bold red][FAIL] Error: CUDA GPU not detected![/]")
         sys.exit(1)
 
     gpu_name = torch.cuda.get_device_name(0)
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-    console.print(f"✅ [bold green]Active GPU:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
+    console.print(f"[OK] [bold green]Active GPU:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
 
     model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
     output_dir = os.path.abspath("models/saleha_asi_master_adapter")
     os.makedirs(output_dir, exist_ok=True)
 
-    console.print(f"📥 Loading 3B Base Architecture with 4-Bit NF4 Quantization: [bold cyan]{model_id}[/]...")
+    console.print(f"Loading 3B Base Architecture with 4-Bit NF4 Quantization: [bold cyan]{model_id}[/]...")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -116,7 +115,7 @@ def main():
     model = get_peft_model(model, peft_config)
     trainable_params, all_params = model.get_nb_trainable_parameters()
     console.print(
-        f"📊 [bold green]Rank-32 LoRA Parameters Injected:[/] Trainable: [bold yellow]{trainable_params:,}[/] / {all_params:,} ({100 * trainable_params / all_params:.2f}%)"
+        f"[bold green]Rank-32 LoRA Parameters Injected:[/] Trainable: [bold yellow]{trainable_params:,}[/] / {all_params:,} ({100 * trainable_params / all_params:.2f}%)"
     )
 
     dataset_files = [
@@ -124,9 +123,9 @@ def main():
         "datasets/saleha_omni_hardcore_train.json",
         "datasets/saleha_artificial_analysis_omni_train.json",
     ]
-    console.print(f"📁 Combining datasets: [cyan]{dataset_files}[/]...")
+    console.print(f"Combining datasets: [cyan]{dataset_files}[/]...")
     raw_dataset = load_all_datasets(dataset_files)
-    console.print(f"✅ Total formatted ASI training samples: [bold green]{len(raw_dataset)}[/]")
+    console.print(f"[OK] Total formatted ASI training samples: [bold green]{len(raw_dataset)}[/]")
 
     def tokenize_function(examples):
         tokens = tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
@@ -159,16 +158,16 @@ def main():
         data_collator=DataCollatorForSeq2Seq(tokenizer=tokenizer, pad_to_multiple_of=8),
     )
 
-    console.print(f"\n🔥 [bold white on red] STARTING ASI MATHEMATICS & HIGH-SPEED GPU TRAINING ON CUDA... [/]\n")
+    console.print("\n[bold white on red] STARTING ASI MATHEMATICS & HIGH-SPEED GPU TRAINING ON CUDA... [/]\n")
     start_time = time.time()
     train_result = trainer.train()
     training_time = round(time.time() - start_time, 2)
 
-    console.print(f"\n💾 Saving Saleha-ASI Master LoRA to: [bold green]{output_dir}[/]...")
+    console.print(f"\nSaving Saleha-ASI Master LoRA to: [bold green]{output_dir}[/]...")
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    table = Table(title="🏆 Saleha-ASI Super-Intelligence Training Summary", border_style="red")
+    table = Table(title="Saleha-ASI Super-Intelligence Training Summary", border_style="red")
     table.add_column("Metric", style="white")
     table.add_column("Value", style="bold green", justify="center")
 
@@ -182,7 +181,7 @@ def main():
     table.add_row("Adapter Location", output_dir)
 
     console.print(table)
-    console.print("\n[bold white on green] ✨ ASI MATHEMATICS & REASONING TRAINING COMPLETED WITH 100% CONVERGENCE! [/]\n")
+    console.print("\n[bold white on green] ASI MATHEMATICS & REASONING TRAINING COMPLETED WITH 100% CONVERGENCE! [/]\n")
 
 
 if __name__ == "__main__":

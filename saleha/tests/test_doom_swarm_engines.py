@@ -5,10 +5,9 @@ Unit and integration tests for Gamma Sandbox, Swarm Topology, Tri-Tier Memory, a
 import os
 import shutil
 import tempfile
-import pytest
 
-from saleha.core.gamma_critic_sandbox import GammaSandboxEngine, GammaASTInspector
-from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, AgentRole, SwarmDepartment
+from saleha.core.gamma_critic_sandbox import GammaSandboxEngine
+from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, AgentRole
 from saleha.core.memory.tri_tier_memory import TriTierMemoryEngine
 from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
 

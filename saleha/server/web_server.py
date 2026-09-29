@@ -41,7 +41,6 @@ from saleha.core.tool_calling import global_tool_registry
 from saleha.core.memory.memory_store import memory_store
 from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
 from saleha.core.swarm.team_orchestrator import TeamOrchestrator
-from saleha.orchestrator import SalehaOrchestrator
 from saleha.core.polyglot_executor import polyglot_executor
 from saleha.core.vault import vault
 from saleha.core.vision_coder import vision_coder

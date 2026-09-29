@@ -27,7 +27,7 @@ def consolidate():
 
     for path, label in files:
         if not os.path.exists(path):
-            print(f"⚠️ Warning: {path} not found, skipping.")
+            print(f"[WARN] Warning: {path} not found, skipping.")
             continue
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -41,7 +41,7 @@ def consolidate():
                         "response": resp.strip()
                     })
                     count += 1
-            print(f"✅ Ingested {count} samples from {label} ({path})")
+            print(f"[OK] Ingested {count} samples from {label} ({path})")
 
     random.seed(42)
     random.shuffle(master_samples)
@@ -50,7 +50,7 @@ def consolidate():
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(master_samples, f, indent=2)
 
-    print(f"\n🎉 Successfully consolidated {len(master_samples)} balanced master samples into '{out_file}'!")
+    print(f"\nSuccessfully consolidated {len(master_samples)} balanced master samples into '{out_file}'!")
 
 if __name__ == "__main__":
     consolidate()

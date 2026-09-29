@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.frontier_trainer import FrontierTrainer, frontier_trainer, TrainingRunReport
+from saleha.core.frontier_trainer import FrontierTrainer, TrainingRunReport
 from saleha.core.training_collector import TrainingCollector
 
 

@@ -9,7 +9,6 @@ from saleha.core.swarm.agent_message_bus import (
     TaskAssignedEvent,
     CodeSynthesizedEvent,
     SecurityVulnerabilityEvent,
-    TestExecutionEvent,
 )
 from saleha.core.memory.semantic_memory_cache import SemanticMemoryCache
 from saleha.core.swarm.swarm_pipeline_engine import (

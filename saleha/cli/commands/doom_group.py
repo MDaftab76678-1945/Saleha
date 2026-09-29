@@ -11,22 +11,9 @@ import click
 from saleha.cli.commands import cli, console
 from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
 import time
-import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.group(name='doom')
 def doom_group() -> None:
@@ -334,6 +321,5 @@ def doom_web_cmd(port: int, host: str, no_browser: bool) -> None:
     
     Example: saleha doom web --port 8000
     """
-    from saleha.server.web_server import run_web_studio
     _cmds.run_web_studio(host=host, port=port, open_browser=not no_browser)
 

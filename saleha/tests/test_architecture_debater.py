@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
-from saleha.core.architecture_debater import ArchitectureDebater, ADRDocument, DebateRound
+from saleha.core.architecture_debater import ArchitectureDebater
 from saleha.agents.base_agent import AgentResponse
 
 

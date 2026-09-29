@@ -26,7 +26,7 @@ class TerminalHUDTests(unittest.TestCase):
         try:
             self.hud.render_once()
             rendered = True
-        except Exception as e:
+        except Exception:
             rendered = False
         self.assertTrue(rendered)
 

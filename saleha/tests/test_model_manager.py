@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
-from saleha.core.model_manager import ModelManager, BenchmarkResult
+from unittest.mock import patch
+from saleha.core.model_manager import ModelManager
 from saleha.agents.base_agent import AgentResponse
 
 

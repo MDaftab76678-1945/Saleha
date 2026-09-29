@@ -1,6 +1,6 @@
 """Unit tests for saleha.tools.base, ToolRegistry, and ASTInspectorTool."""
 
-from saleha.tools.base import BaseTool, ToolResult, ToolRegistry
+from saleha.tools.base import ToolResult, ToolRegistry
 from saleha.tools.ast_inspector import ASTInspectorTool
 
 

@@ -7,7 +7,6 @@ from saleha.core.agent_permissions import (
     PolicyEnforcementEngine,
     AgentCapabilityToken,
     FilesystemPolicy,
-    NetworkPolicy,
     ProcessPolicy,
 )
 

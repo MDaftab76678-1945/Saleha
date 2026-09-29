@@ -59,7 +59,6 @@ if __name__ == "__main__":
 import json as _json
 from unittest.mock import MagicMock
 
-from saleha.core.loop.recursive_solver import ReasoningPath
 from saleha.core.fast_inference import InferenceResult
 from typing import Any
 

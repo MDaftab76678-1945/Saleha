@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from saleha.core.docker_sandbox import DockerSandboxRunner, is_docker_available
-from saleha.core.harness.sandbox_runner import SandboxResult
 
 
 class DockerSandboxTests(unittest.TestCase):

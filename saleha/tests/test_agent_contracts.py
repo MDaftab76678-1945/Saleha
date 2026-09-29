@@ -1,4 +1,3 @@
-import pytest
 
 from saleha.core.agent_contracts import (
     ArchitectOutputContract,

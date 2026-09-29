@@ -1,5 +1,4 @@
 """Unit tests for tool catalog CLI and self-improvement CLI commands."""
-from typing import Any
 import json
 import unittest
 from click.testing import CliRunner

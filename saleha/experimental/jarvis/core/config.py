@@ -7,7 +7,7 @@ Air-Gapped | Bare-Metal | Sub-15ms SLA
 
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 # =============================================================================

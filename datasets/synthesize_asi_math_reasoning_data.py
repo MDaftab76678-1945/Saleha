@@ -15,10 +15,10 @@ this against the real output path.
 Saleha: Advanced Mathematics, Core Knowledge & ASI Reasoning Dataset Synthesizer
 
 Generates 1,000 high-density, rigorous samples covering:
-1. 🧮 Advanced Olympiad Mathematics & Number Theory
-2. 🧠 Metacognitive Chain-of-Thought (<think> Formal Verification)
-3. ⚡ Ultra-High-Performance Tensor Operations (CUDA C++, SIMD, Cache-Locality)
-4. 🏛️ Distributed Systems & Enterprise Architecture
+1. Advanced Olympiad Mathematics & Number Theory
+2. Metacognitive Chain-of-Thought (<think> Formal Verification)
+3. Ultra-High-Performance Tensor Operations (CUDA C++, SIMD, Cache-Locality)
+4. Distributed Systems & Enterprise Architecture
 """
 
 import json

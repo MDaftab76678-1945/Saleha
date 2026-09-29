@@ -20,7 +20,6 @@ if hasattr(sys.stdout, "reconfigure"):
 import torch
 from datasets import Dataset
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from transformers import (
     AutoModelForCausalLM,
@@ -62,23 +61,23 @@ def load_dataset(dataset_paths: list[str]):
 def main():
     console = Console()
     console.print("\n" + "=" * 80, style="bold yellow")
-    console.print("👑 [bold white on yellow] SALEHA-1.5B PRO REAL GPU TRAINING PIPELINE [/]", justify="center")
+    console.print("[bold white on yellow] SALEHA-1.5B PRO REAL GPU TRAINING PIPELINE [/]", justify="center")
     console.print("=" * 80, style="bold yellow")
     console.print("[dim]Scaling from 0.5B to 1.54B Base Model on NVIDIA GeForce RTX 3050 GPU[/dim]\n")
 
     if not torch.cuda.is_available():
-        console.print("[bold red]❌ Error: CUDA GPU not detected![/]")
+        console.print("[bold red][FAIL] Error: CUDA GPU not detected![/]")
         sys.exit(1)
 
     gpu_name = torch.cuda.get_device_name(0)
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-    console.print(f"✅ [bold green]Active GPU:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
+    console.print(f"[OK] [bold green]Active GPU:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
 
     model_id = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
     output_dir = os.path.abspath("models/saleha_1.5b_master_adapter")
     os.makedirs(output_dir, exist_ok=True)
 
-    console.print(f"📥 Loading 1.5B Base Architecture: [bold cyan]{model_id}[/]...")
+    console.print(f"Loading 1.5B Base Architecture: [bold cyan]{model_id}[/]...")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -105,16 +104,16 @@ def main():
     model = get_peft_model(model, peft_config)
     trainable_params, all_params = model.get_nb_trainable_parameters()
     console.print(
-        f"📊 [bold green]1.5B LoRA Parameters Injected:[/] Trainable: [bold yellow]{trainable_params:,}[/] / {all_params:,} ({100 * trainable_params / all_params:.2f}%)"
+        f"[bold green]1.5B LoRA Parameters Injected:[/] Trainable: [bold yellow]{trainable_params:,}[/] / {all_params:,} ({100 * trainable_params / all_params:.2f}%)"
     )
 
     dataset_files = [
         "datasets/saleha_omni_hardcore_train.json",
         "datasets/saleha_artificial_analysis_omni_train.json",
     ]
-    console.print(f"📁 Combining datasets: [cyan]{dataset_files}[/]...")
+    console.print(f"Combining datasets: [cyan]{dataset_files}[/]...")
     raw_dataset = load_dataset(dataset_files)
-    console.print(f"✅ Total formatted samples: [bold green]{len(raw_dataset)}[/]")
+    console.print(f"[OK] Total formatted samples: [bold green]{len(raw_dataset)}[/]")
 
     def tokenize_function(examples):
         tokens = tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
@@ -146,16 +145,16 @@ def main():
         data_collator=DataCollatorForSeq2Seq(tokenizer=tokenizer, pad_to_multiple_of=8),
     )
 
-    console.print(f"\n🔥 [bold white on yellow] STARTING 1.5B PARAMETER REAL GPU TRAINING ON CUDA... [/]\n")
+    console.print("\n[bold white on yellow] STARTING 1.5B PARAMETER REAL GPU TRAINING ON CUDA... [/]\n")
     start_time = time.time()
     train_result = trainer.train()
     training_time = round(time.time() - start_time, 2)
 
-    console.print(f"\n💾 Saving 1.5B Master LoRA to: [bold green]{output_dir}[/]...")
+    console.print(f"\nSaving 1.5B Master LoRA to: [bold green]{output_dir}[/]...")
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    table = Table(title="🏆 Saleha-1.5B Pro GPU Training Summary", border_style="yellow")
+    table = Table(title="Saleha-1.5B Pro GPU Training Summary", border_style="yellow")
     table.add_column("Metric", style="white")
     table.add_column("Value", style="bold green", justify="center")
 
@@ -167,7 +166,7 @@ def main():
     table.add_row("Adapter Location", output_dir)
 
     console.print(table)
-    console.print("\n[bold white on green] ✨ 1.5B PRO REAL TRAINING COMPLETED WITH 100% SUCCESS! [/]\n")
+    console.print("\n[bold white on green] 1.5B PRO REAL TRAINING COMPLETED WITH 100% SUCCESS! [/]\n")
 
 
 if __name__ == "__main__":

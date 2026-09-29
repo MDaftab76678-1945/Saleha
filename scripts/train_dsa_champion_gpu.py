@@ -34,7 +34,7 @@ from transformers import (
 def train_dsa_champion():
     console = Console()
     console.print("\n" + "=" * 80, style="bold cyan")
-    console.print("🏆 [bold white on blue] SALEHA-ASI: DSA & LIVECODEBENCH CHAMPION GPU TRAINING [/]", justify="center")
+    console.print("[bold white on blue] SALEHA-ASI: DSA & LIVECODEBENCH CHAMPION GPU TRAINING [/]", justify="center")
     console.print("=" * 80, style="bold cyan")
 
     if not torch.cuda.is_available():
@@ -43,7 +43,7 @@ def train_dsa_champion():
 
     gpu_name = torch.cuda.get_device_name(0)
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-    console.print(f"🎮 Target Hardware: [bold green]{gpu_name}[/] ({vram_gb} GB VRAM)")
+    console.print(f"Target Hardware: [bold green]{gpu_name}[/] ({vram_gb} GB VRAM)")
 
     base_model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
     adapter_save_path = os.path.abspath("models/saleha_asi_master_adapter")
@@ -51,7 +51,7 @@ def train_dsa_champion():
     dsa_file = "datasets/saleha_dsa_livecodebench_train.json"
     math_file = "datasets/saleha_asi_math_reasoning_train.json"
 
-    console.print(f"📖 Ingesting Cleaned DSA Dataset: [bold yellow]{dsa_file}[/]...")
+    console.print(f"Ingesting Cleaned DSA Dataset: [bold yellow]{dsa_file}[/]...")
     raw_samples = []
     if os.path.exists(dsa_file):
         with open(dsa_file, "r", encoding="utf-8") as f:
@@ -90,7 +90,7 @@ def train_dsa_champion():
     raw_dataset = Dataset.from_list(raw_samples)
     tokenized_dataset = raw_dataset.map(formatting_prompts_func, remove_columns=["instruction", "response"])
 
-    console.print(f"📥 Loading Base Model: [bold cyan]{base_model_id}[/] (4-Bit NF4)...")
+    console.print(f"Loading Base Model: [bold cyan]{base_model_id}[/] (4-Bit NF4)...")
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -118,7 +118,7 @@ def train_dsa_champion():
 
     model = get_peft_model(base_model, peft_config)
     trainable_params, all_param = model.get_nb_trainable_parameters()
-    console.print(f"🧠 LoRA Trainable Parameters: [bold green]{trainable_params:,}[/] / {all_param:,} ({100 * trainable_params / all_param:.2f}%)")
+    console.print(f"LoRA Trainable Parameters: [bold green]{trainable_params:,}[/] / {all_param:,} ({100 * trainable_params / all_param:.2f}%)")
 
     training_args = TrainingArguments(
         output_dir="./runs/saleha_dsa_champion",
@@ -142,16 +142,16 @@ def train_dsa_champion():
         data_collator=DataCollatorForSeq2Seq(tokenizer, pad_to_multiple_of=8, return_tensors="pt", padding=True),
     )
 
-    console.print("\n🚀 [bold green]Starting DSA Champion GPU Training Run...[/]\n")
+    console.print("\n[bold green]Starting DSA Champion GPU Training Run...[/]\n")
     start_time = time.time()
     train_result = trainer.train()
     training_duration = time.time() - start_time
 
-    console.print(f"\n💾 Saving Refined DSA Master Adapter to: [bold cyan]{adapter_save_path}[/]...")
+    console.print(f"\nSaving Refined DSA Master Adapter to: [bold cyan]{adapter_save_path}[/]...")
     model.save_pretrained(adapter_save_path)
     tokenizer.save_pretrained(adapter_save_path)
 
-    table = Table(title="🏆 Saleha DSA Champion Training Summary", border_style="green")
+    table = Table(title="Saleha DSA Champion Training Summary", border_style="green")
     table.add_column("Metric", style="bold white")
     table.add_column("Value", style="cyan")
     table.add_row("Base Architecture", f"{base_model_id} (3.09B)")
@@ -160,7 +160,7 @@ def train_dsa_champion():
     table.add_row("Runtime", f"{training_duration:.2f} seconds")
     table.add_row("Adapter Location", adapter_save_path)
     console.print(table)
-    console.print("\n✨ [bold green]DSA & LIVECODEBENCH REFINEMENT COMPLETED WITH 100% SUCCESS![/]\n")
+    console.print("\n[bold green]DSA & LIVECODEBENCH REFINEMENT COMPLETED WITH 100% SUCCESS![/]\n")
 
 
 if __name__ == "__main__":

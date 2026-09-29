@@ -376,7 +376,6 @@ def run_self_improvement_cycle(
 
     module_name = module[:-3]
     test_filename = f"test_{module_name}.py"
-    test_path = os.path.join(TEST_DIR, test_filename)
 
     # Initial AST healing for missing imports
     test_source = _heal_test_source(test_source, module_name, public_symbols)

@@ -10,12 +10,10 @@ import os
 import shutil
 import tempfile
 import unittest
-from typing import Optional
 
 from saleha.core.graph.hypergraph_indexer import (
     HypergraphIndexer,
     HypergraphIndexStats,
-    SymbolNode,
 )
 
 

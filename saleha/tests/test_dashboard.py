@@ -2,7 +2,7 @@ import unittest
 from click.testing import CliRunner
 from unittest.mock import patch
 
-from saleha.cli.dashboard import build_dashboard_layout, render_dashboard, run_live_dashboard
+from saleha.cli.dashboard import build_dashboard_layout, render_dashboard
 from saleha.cli.commands import cli
 
 

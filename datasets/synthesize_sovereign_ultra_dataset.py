@@ -177,10 +177,10 @@ DEBUG_SCENARIOS = [
 4. Correction: Use `losses.append(loss.item())`.
 </think>
 
-### 🛠️ Root Cause:
+### Root Cause:
 `loss` tensor retains the entire autograd computational graph. Appending raw tensor prevents Python garbage collection, leaking memory across training iterations.
 
-### ✅ Corrected Code:
+### [OK] Corrected Code:
 ```python
 losses = []
 for x, y in dataloader:
@@ -199,10 +199,10 @@ for x, y in dataloader:
 3. Fix: Synchronize critical section using `threading.Lock()` or mutex.
 </think>
 
-### 🛠️ Root Cause:
+### Root Cause:
 `counter += 1` consists of 4 distinct bytecode steps. Preemptive thread switching causes lost updates.
 
-### ✅ Corrected Code:
+### [OK] Corrected Code:
 ```python
 import threading
 
@@ -222,10 +222,10 @@ def worker():
 3. Solution: Add 1 padding element per row `__shared__ float sdata[32][33];` to shift bank alignment.
 </think>
 
-### 🛠️ Root Cause:
+### Root Cause:
 Column-stride indexing across a 32-word row forces all 32 warp threads to access Bank 0 simultaneously, serializing memory transactions.
 
-### ✅ Corrected Kernel:
+### [OK] Corrected Kernel:
 ```cpp
 // Add 1 float padding to skew bank addresses across rows
 __shared__ float sdata[32][33];

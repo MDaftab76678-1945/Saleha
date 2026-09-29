@@ -4,6 +4,16 @@ import urllib.error
 import asyncio
 from typing import Dict, List, Any, Optional
 
+class LLMUnavailableError(RuntimeError):
+    """No local inference backend produced a usable answer.
+
+    Raised instead of returning canned output: this driver used to fall back to
+    a fixed "network packet parser" response (and a SHA-256-derived 16-number
+    "embedding") when the daemon was down, which callers then verified, cached
+    and reported as if a model had written it.
+    """
+
+
 class LocalLLMDriver:
     """Production driver for local inference engines (Ollama / vLLM)."""
     
@@ -26,6 +36,7 @@ class LocalLLMDriver:
         temperature: float = 0.1
     ) -> Dict[str, Any]:
         target_model = model or self.default_model
+        failures: List[str] = []
 
         # 1. Try Ollama Native JSON Mode (/api/generate)
         try:
@@ -44,15 +55,17 @@ class LocalLLMDriver:
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            
+
             def _call_ollama():
                 with urllib.request.urlopen(req, timeout=90) as resp:
-                    raw_resp = json.loads(resp.read().decode("utf-8")).get("response", "{}")
+                    raw_resp = json.loads(resp.read().decode("utf-8")).get("response", "")
+                    if not raw_resp.strip():
+                        raise ValueError("empty response")
                     return json.loads(raw_resp) if json_mode else {"raw_text": raw_resp}
 
             return await asyncio.to_thread(_call_ollama)
-        except urllib.error.URLError:
-            pass
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            failures.append(f"ollama {self.ollama_url}: {exc}")
 
         # 2. Try vLLM / OpenAI Compatible (/v1/chat/completions)
         try:
@@ -79,33 +92,12 @@ class LocalLLMDriver:
                     return json.loads(raw_content) if json_mode else {"raw_text": raw_content}
 
             return await asyncio.to_thread(_call_vllm)
-        except Exception as e:
-            # Deterministic fallback when daemon is offline
-            return self._fallback_deterministic_response(prompt, json_mode)
+        except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError) as exc:
+            failures.append(f"vllm {self.vllm_url}: {exc}")
 
-    def _fallback_deterministic_response(self, prompt: str, json_mode: bool) -> Dict[str, Any]:
-        if "Agent Specification" in prompt or "agent_profile" in prompt:
-            return {
-                "id": "agent_packet_engineer",
-                "name": "Network Packet Engineer",
-                "goals": ["High throughput packet parsing", "Zero memory leak"],
-                "constraints": ["Defensive type asserts", "RFC standard compliance"],
-                "system_prompt": "You are a network systems engineer specialized in packet parsing."
-            }
-        return {
-            "code": (
-                "def parse_payload(data: bytes) -> dict:\n"
-                "    assert isinstance(data, bytes), 'data must be bytes'\n"
-                "    assert len(data) >= 4, 'header too short'\n"
-                "    magic = int.from_bytes(data[:4], 'big')\n"
-                "    assert magic == 0xDEADBEEF, f'Invalid magic: {hex(magic)}'\n"
-                "    return {'status': 'VALID', 'magic': hex(magic), 'length': len(data)}\n\n"
-                "res = parse_payload(b'\\xde\\xad\\xbe\\xef\\x01\\x02')\n"
-                "assert res['status'] == 'VALID'\n"
-                "print(f'SELF_TEST_PASSED: {res}')\n"
-            ),
-            "explanation": "Validates 4-byte network magic header with strict asserts."
-        }
+        raise LLMUnavailableError(
+            f"No backend answered for model '{target_model}': " + "; ".join(failures)
+        )
 
     async def get_embedding(self, text: str, model: str = "nomic-embed-text") -> List[float]:
         payload = {"model": model, "prompt": text}
@@ -119,10 +111,11 @@ class LocalLLMDriver:
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
-                    return data.get("embedding", [])
-            except Exception:
-                import hashlib
-                h = hashlib.sha256(text.encode()).digest()
-                return [float(b) / 255.0 for b in h[:16]]
+            except (urllib.error.URLError, OSError, ValueError) as exc:
+                raise LLMUnavailableError(f"embedding request to {self.ollama_url} failed: {exc}") from exc
+            embedding = data.get("embedding", [])
+            if not embedding:
+                raise LLMUnavailableError(f"model '{model}' returned no embedding")
+            return embedding
 
         return await asyncio.to_thread(_call_embed)

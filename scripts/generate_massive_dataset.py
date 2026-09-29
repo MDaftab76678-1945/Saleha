@@ -29,11 +29,10 @@ hand-authored samples instead of re-enabling this synthesis path.
 from __future__ import annotations
 
 import ast
-import json
 import os
 import sys
 import time
-from typing import List, Dict, Any, Tuple
+from typing import List, Tuple
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -41,7 +40,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from saleha.core.training_collector import training_collector, TrainingSample
+from saleha.core.training_collector import training_collector
 
 
 SEED_TEMPLATES: List[Tuple[str, str, str]] = [
@@ -338,7 +337,7 @@ def create_{func_name}_instance(**kwargs: Any) -> {func_name.title().replace("_"
 
 def generate_dataset(target_count: int = 500, output_path: str = "datasets/saleha_slm_train.jsonl") -> int:
     """Generates and exports target_count verified training samples."""
-    print(f"🚀 Starting synthesis of {target_count}+ verified training samples...")
+    print(f"Starting synthesis of {target_count}+ verified training samples...")
     start_time = time.time()
     
     samples_added = 0
@@ -357,7 +356,7 @@ def generate_dataset(target_count: int = 500, output_path: str = "datasets/saleh
     # mismatched samples were found and purged from the real dataset). Left
     # as a loud, explicit skip rather than silently producing more of them.
     if samples_added < target_count:
-        print(f"⚠ Skipping topic-variation synthesis ({target_count - samples_added} short of "
+        print(f"[WARN] Skipping topic-variation synthesis ({target_count - samples_added} short of "
               f"target {target_count}): that path is disabled, it never generated real per-topic "
               f"solutions (see module docstring). Add real samples via scripts/train_saleha_targeted.py.")
 
@@ -368,9 +367,9 @@ def generate_dataset(target_count: int = 500, output_path: str = "datasets/saleh
     training_collector.export_alpaca(alpaca_path, min_quality=0.7)
     
     elapsed = round(time.time() - start_time, 2)
-    print(f"✨ Successfully generated and verified {count} samples in {elapsed}s!")
-    print(f"📁 ShareGPT JSONL : {output_path}")
-    print(f"📁 Alpaca JSON    : {alpaca_path}")
+    print(f"Successfully generated and verified {count} samples in {elapsed}s!")
+    print(f"ShareGPT JSONL : {output_path}")
+    print(f"Alpaca JSON    : {alpaca_path}")
     return count
 
 

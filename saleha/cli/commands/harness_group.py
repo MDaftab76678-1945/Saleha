@@ -9,24 +9,11 @@ behavior for whatever this file's commands use.
 """
 import click
 from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.group(name='harness')
 def harness_group():
@@ -42,7 +29,6 @@ def harness_list_cmd(as_json):
     if as_json:
         click.echo(json.dumps(catalogs, ensure_ascii=True))
         return
-    from rich.table import Table
     table = Table(title='Saleha Harness Benchmark Datasets', border_style='cyan')
     table.add_column('Benchmark Suite', style='bold cyan')
     table.add_column('Tasks', justify='right', style='green')
@@ -70,7 +56,6 @@ def harness_run_cmd(benchmark, model, limit, workers, output_file, dry_run, as_j
         payload = {'model': report.model_name, 'timestamp': report.timestamp, 'total_tasks': report.total_tasks, 'overall_pass_at_1': report.overall_pass_at_1, 'overall_pass_at_5': report.overall_pass_at_5, 'avg_latency_sec': report.avg_latency_sec, 'avg_tokens_per_sec': report.avg_tokens_per_sec, 'benchmarks': {k: {'total': v.total_tasks, 'passed': v.passed_tasks, 'pass_at_1': v.pass_at_1, 'avg_latency': v.avg_latency_sec} for k, v in report.benchmark_summaries.items()}}
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
-    from rich.table import Table
     table = Table(title=f'Saleha Harness Evaluation — Model: {report.model_name}', border_style='green')
     table.add_column('Benchmark Suite', style='bold cyan')
     table.add_column('Tasks', justify='right')

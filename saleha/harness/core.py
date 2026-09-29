@@ -7,7 +7,7 @@ sandboxes, verifies execution output against assertions, and aggregates Pass@k m
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 
 from saleha.harness.benchmarks import BenchmarkCatalog, BenchmarkTaskSpec
 from saleha.harness.metrics import HarnessTaskResult, compute_benchmark_summary, estimate_pass_at_k

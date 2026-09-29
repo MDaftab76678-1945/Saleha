@@ -2,7 +2,6 @@
 Saleha System Info & Capability Inspector CLI.
 """
 
-import sys
 import platform
 import click
 from rich.console import Console

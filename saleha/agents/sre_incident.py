@@ -7,9 +7,8 @@ and synthesizes automated incident runbooks and mitigation steps.
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import List, Optional
 
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 

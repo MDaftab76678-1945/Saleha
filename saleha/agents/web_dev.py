@@ -7,11 +7,10 @@ enforces SEO best practices, rich glassmorphism aesthetics, and accessibility.
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import Dict
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import BaseAgent
 
 
 @dataclass

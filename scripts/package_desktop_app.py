@@ -10,8 +10,6 @@ from __future__ import annotations
 import os
 import sys
 import json
-import shutil
-from pathlib import Path
 
 
 def generate_desktop_manifest(output_dir: str = "dist/desktop") -> str:

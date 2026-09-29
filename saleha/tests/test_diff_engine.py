@@ -6,8 +6,8 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.diff_engine import DiffEngine, DiffResult
-from saleha.core.change_impact import ChangeImpactAnalyzer, ImpactReport
+from saleha.core.diff_engine import DiffEngine
+from saleha.core.change_impact import ChangeImpactAnalyzer
 
 
 OLD_CODE = '''def greet(name):

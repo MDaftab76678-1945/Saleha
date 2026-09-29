@@ -7,7 +7,7 @@ latency meters, token throughput metrics, and self-healing convergence rates.
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import List, Optional
 
 
 def estimate_pass_at_k(num_samples: int, num_correct: int, k: int = 1) -> float:
@@ -70,7 +70,6 @@ def compute_benchmark_summary(benchmark_name: str, results: List[HarnessTaskResu
     total = len(results)
     passed = sum(1 for r in results if r.passed)
     total_latency = sum(r.latency_sec for r in results)
-    total_tokens = sum(r.tokens_generated for r in results)
     total_tok_sec = sum(r.tokens_per_sec for r in results)
 
     pass_1 = round((passed / total) * 100, 2)

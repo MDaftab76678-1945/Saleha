@@ -21,7 +21,6 @@ if hasattr(sys.stdout, "reconfigure"):
 import torch
 from datasets import Dataset
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from transformers import (
     AutoModelForCausalLM,
@@ -68,22 +67,22 @@ def main():
 
     console = Console()
     console.print("\n" + "=" * 80, style="bold magenta")
-    console.print("🚀 [bold white on magenta] SALEHA FULL-SCALE REAL GPU LoRA TRAINING [/]", justify="center")
+    console.print("[bold white on magenta] SALEHA FULL-SCALE REAL GPU LoRA TRAINING [/]", justify="center")
     console.print("=" * 80, style="bold magenta")
 
     if not torch.cuda.is_available():
-        console.print("[bold red]❌ Error: CUDA GPU not detected![/]")
+        console.print("[bold red][FAIL] Error: CUDA GPU not detected![/]")
         sys.exit(1)
 
     gpu_name = torch.cuda.get_device_name(0)
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-    console.print(f"✅ [bold green]Active Training GPU:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
+    console.print(f"[OK] [bold green]Active Training GPU:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
 
     model_id = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
     output_dir = os.path.abspath("models/saleha_full_real_master_adapter")
     os.makedirs(output_dir, exist_ok=True)
 
-    console.print(f"📥 Loading Base Model: [bold cyan]{model_id}[/]...")
+    console.print(f"Loading Base Model: [bold cyan]{model_id}[/]...")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -107,11 +106,11 @@ def main():
     model = get_peft_model(model, peft_config)
     trainable_params, all_params = model.get_nb_trainable_parameters()
     console.print(
-        f"📊 [bold green]High-Capacity LoRA Matrices:[/] Trainable: [bold yellow]{trainable_params:,}[/] / {all_params:,} ({100 * trainable_params / all_params:.2f}%)"
+        f"[bold green]High-Capacity LoRA Matrices:[/] Trainable: [bold yellow]{trainable_params:,}[/] / {all_params:,} ({100 * trainable_params / all_params:.2f}%)"
     )
 
     dataset_file = "datasets/saleha_sft_10k_alpaca.json"
-    console.print(f"📁 Tokenizing [bold yellow]{args.samples} real samples[/] from [cyan]{dataset_file}[/]...")
+    console.print(f"Tokenizing [bold yellow]{args.samples} real samples[/] from [cyan]{dataset_file}[/]...")
     raw_dataset = load_dataset_samples(dataset_file, max_samples=args.samples)
 
     def tokenize_function(examples):
@@ -142,16 +141,16 @@ def main():
         data_collator=DataCollatorForSeq2Seq(tokenizer=tokenizer, pad_to_multiple_of=8),
     )
 
-    console.print(f"\n🔥 [bold white on red] EXECUTING {args.epochs} FULL TRAINING EPOCHS ON NVIDIA GPU... [/]\n")
+    console.print(f"\n[bold white on red] EXECUTING {args.epochs} FULL TRAINING EPOCHS ON NVIDIA GPU... [/]\n")
     start_time = time.time()
     train_result = trainer.train()
     training_time = round(time.time() - start_time, 2)
 
-    console.print(f"\n💾 Saving Master LoRA weights to: [bold green]{output_dir}[/]...")
+    console.print(f"\nSaving Master LoRA weights to: [bold green]{output_dir}[/]...")
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    table = Table(title="🏆 Full-Scale GPU Training Results", border_style="magenta")
+    table = Table(title="Full-Scale GPU Training Results", border_style="magenta")
     table.add_column("Metric", style="white")
     table.add_column("Value", style="bold green", justify="center")
 
@@ -164,7 +163,7 @@ def main():
     table.add_row("Saved Weights Directory", output_dir)
 
     console.print(table)
-    console.print("\n[bold white on green] ✨ FULL-SCALE REAL TRAINING COMPLETED WITH 100% SUCCESS! [/]\n")
+    console.print("\n[bold white on green] FULL-SCALE REAL TRAINING COMPLETED WITH 100% SUCCESS! [/]\n")
 
 
 if __name__ == "__main__":

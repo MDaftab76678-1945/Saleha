@@ -1,18 +1,14 @@
 """Unit and Integration Test Suite for Saleha Sovereign Reactive Notebook Engine."""
 
 import json
-import pytest
 from unittest.mock import MagicMock
 
 from saleha.core.notebook_engine import (
     SalehaNotebookEngine,
     NotebookCell,
-    NotebookDocument,
-    notebook_engine,
 )
 from saleha.agents.notebook_architect import (
     NotebookArchitectAgent,
-    NotebookSynthesisResult,
     notebook_architect,
 )
 from saleha.cli.chat_session import SwarmChatSession

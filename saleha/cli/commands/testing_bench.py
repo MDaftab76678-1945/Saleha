@@ -11,22 +11,12 @@ import click
 from saleha.cli.commands import cli, console
 from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
 import os
-import sys
-import re
-import time
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.command()
 @click.argument('code_file', type=click.Path(exists=True))
@@ -99,7 +89,6 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
         }
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
-    from rich.table import Table
     table = Table(title=f'Saleha Benchmark Report — Model: {score.model}', border_style='green')
     table.add_column('Task ID', style='bold cyan')
     table.add_column('Difficulty', style='dim')
@@ -148,7 +137,6 @@ def sandbox_selfcheck_cmd(limit: int, list_only: bool, as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps({'total_instances': report.total_instances, 'executed_ok': report.executed_ok, 'did_execute': report.did_execute, 'avg_latency_sec': report.avg_latency_sec, 'results': report.results}, ensure_ascii=True))
         return
-    from rich.table import Table
     table = Table(title='Sandbox self-check', border_style='cyan')
     table.add_column('Instance ID', style='bold cyan')
     table.add_column('Source', style='dim')
@@ -403,5 +391,5 @@ def solve_issue_cli_cmd(issue_description: str, repo: str) -> None:
         console.print('  [dim]This repository\'s own test suite was not run.[/]\n')
         console.print(Panel(plan.pr_body_markdown, title='[bold green]Generated GitHub PR Markdown[/]', border_style='green'))
     else:
-        console.print(f'[bold red][FAIL] Failed to resolve issue automatically.[/]')
+        console.print('[bold red][FAIL] Failed to resolve issue automatically.[/]')
 

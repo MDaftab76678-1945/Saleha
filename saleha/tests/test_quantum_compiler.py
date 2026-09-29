@@ -10,8 +10,6 @@ nothing.
 
 from __future__ import annotations
 
-import cmath
-import math
 import unittest
 
 from saleha.core.quantum_compiler import (

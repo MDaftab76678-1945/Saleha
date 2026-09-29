@@ -5,7 +5,7 @@ import tempfile
 import json
 from click.testing import CliRunner
 
-from saleha.core.memory.memory_store import MemoryStore, MemoryEntry
+from saleha.core.memory.memory_store import MemoryStore
 from saleha.cli.commands import cli
 
 
@@ -75,7 +75,7 @@ class MemoryStoreTests(unittest.TestCase):
 
     def test_delete_and_clear(self) -> None:
         e1 = self.store.remember("Task 1", "Code 1")
-        e2 = self.store.remember("Task 2", "Code 2")
+        self.store.remember("Task 2", "Code 2")
         self.assertEqual(len(self.store.list_all()), 2)
 
         self.store.delete(e1.id)

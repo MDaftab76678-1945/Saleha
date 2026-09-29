@@ -9,24 +9,9 @@ behavior for whatever this file's commands use.
 """
 import click
 from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
-from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.group(name='vault')
 def vault_group():
@@ -71,7 +56,6 @@ def vault_list_cmd(as_json):
     if not secrets_list:
         console.print("[yellow]Vault is empty. Use 'saleha vault set <KEY> <VALUE>' to add secrets.[/]")
         return
-    from rich.table import Table
     table = Table(title='Saleha Encrypted Secret Vault', border_style='cyan')
     table.add_column('Secret Key', style='bold cyan')
     table.add_column('Masked Preview', style='yellow')

@@ -7,7 +7,6 @@ or creates a standard zipped marketplace archive ready for distribution.
 
 from __future__ import annotations
 
-import os
 import sys
 import json
 import shutil
@@ -30,7 +29,7 @@ def package_extension() -> bool:
     
     pkg_json_path = vscode_dir / "package.json"
     if not pkg_json_path.exists():
-        print(f"❌ package.json not found at {pkg_json_path}")
+        print(f"[FAIL] package.json not found at {pkg_json_path}")
         return False
         
     with open(pkg_json_path, "r", encoding="utf-8") as f:
@@ -53,7 +52,7 @@ def package_extension() -> bool:
             print(f"Attempting vsce package in {vscode_dir}...")
             res = subprocess.run(cmd, cwd=str(vscode_dir), capture_output=True, text=True, timeout=30)
             if res.returncode == 0 and out_vsix.exists():
-                print(f"✅ Created VSIX via vsce: {out_vsix}")
+                print(f"[OK] Created VSIX via vsce: {out_vsix}")
                 packaged_via_vsce = True
         except Exception as e:
             print(f"Notice: vsce cli package skipped ({e}), falling back to zip bundle builder...")
@@ -81,7 +80,7 @@ def package_extension() -> bool:
 </PackageManifest>"""
             zf.writestr("extension.vsixmanifest", manifest_content)
             
-        print(f"✅ Successfully built VSIX package: {out_vsix} ({out_vsix.stat().st_size / 1024:.1f} KB)")
+        print(f"[OK] Successfully built VSIX package: {out_vsix} ({out_vsix.stat().st_size / 1024:.1f} KB)")
         
     return True
 

@@ -4,7 +4,7 @@
 
 import numpy as np
 import time
-from typing import Optional, Generator
+from typing import Generator
 
 try:
     from faster_whisper import WhisperModel

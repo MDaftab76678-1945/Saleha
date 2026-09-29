@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from saleha.core.ai_reviewer import AICodeReviewer, ReviewIssue
+from saleha.core.ai_reviewer import AICodeReviewer
 from saleha.core.review_reporter import ReviewReporter
 
 

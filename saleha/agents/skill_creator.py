@@ -7,13 +7,10 @@ Saleha's 1,000+ SkillCatalog and agent profile registry.
 
 from __future__ import annotations
 
-import os
-import json
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from pathlib import Path
+from dataclasses import dataclass
+from typing import List, Optional
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import BaseAgent
 from saleha.core.skill_catalog import AgentSkill, skill_catalog
 
 

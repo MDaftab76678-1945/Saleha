@@ -52,7 +52,7 @@ def build_turns(instruction, user_input, output):
 
 def main():
     print("=" * 70)
-    print("  👑 SALEHA SOVEREIGN ULTRA AGENTIC GPU TRAINING  ")
+    print("  SALEHA SOVEREIGN ULTRA AGENTIC GPU TRAINING  ")
     print("=" * 70)
 
     dataset_path = os.path.abspath("datasets/saleha_sovereign_train.json")
@@ -60,21 +60,21 @@ def main():
     base_model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
 
     if not torch.cuda.is_available():
-        print("❌ Error: CUDA-enabled GPU is required for training.")
+        print("[FAIL] Error: CUDA-enabled GPU is required for training.")
         sys.exit(1)
 
     gpu_name = torch.cuda.get_device_name(0)
     total_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-    print(f"🎮 Target Hardware: {gpu_name} ({total_vram_gb:.2f} GB VRAM)")
+    print(f"Target Hardware: {gpu_name} ({total_vram_gb:.2f} GB VRAM)")
 
     # 1. Load Dataset
-    print(f"📦 Loading dataset from: {dataset_path}")
+    print(f"Loading dataset from: {dataset_path}")
     with open(dataset_path, "r", encoding="utf-8") as f:
         raw_data = json.load(f)
-    print(f"📊 Total Training Samples: {len(raw_data)}")
+    print(f"Total Training Samples: {len(raw_data)}")
 
     # 2. Tokenizer
-    print("🔤 Loading Tokenizer...")
+    print("Loading Tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -94,7 +94,7 @@ def main():
                 output,
             )
         )
-    print(f"🧹 Usable samples: {len(pairs)} (dropped {dropped} with no output)")
+    print(f"Usable samples: {len(pairs)} (dropped {dropped} with no output)")
 
     truncated = {"n": 0}
 
@@ -127,7 +127,7 @@ def main():
         desc="Tokenizing samples",
     )
     print(
-        f"✂️  Samples longer than {MAX_LEN} tokens (tail truncated): {truncated['n']}"
+        f" Samples longer than {MAX_LEN} tokens (tail truncated): {truncated['n']}"
     )
 
     # 4. BitsAndBytes 4-bit Config
@@ -139,7 +139,7 @@ def main():
     )
 
     # 5. Load Base Model
-    print(f"📥 Loading Base Model in 4-bit NF4: {base_model_id}...")
+    print(f"Loading Base Model in 4-bit NF4: {base_model_id}...")
     model = AutoModelForCausalLM.from_pretrained(
         base_model_id,
         quantization_config=bnb_config,
@@ -175,7 +175,7 @@ def main():
     model = get_peft_model(model, lora_config)
     trainable_params, all_params = model.get_nb_trainable_parameters()
     print(
-        f"🧠 LoRA Trainable Parameters: {trainable_params:,} / {all_params:,} "
+        f"LoRA Trainable Parameters: {trainable_params:,} / {all_params:,} "
         f"({100 * trainable_params / all_params:.2f}%)"
     )
 
@@ -213,21 +213,21 @@ def main():
     if os.path.isdir(output_dir):
         resume_ckpt = get_last_checkpoint(output_dir)
     if resume_ckpt:
-        print(f"\n🔄 Resuming from checkpoint: {resume_ckpt}")
+        print(f"\nResuming from checkpoint: {resume_ckpt}")
     else:
-        print("\n🚀 Starting fresh Saleha Sovereign Ultra GPU Training Run...")
+        print("\nStarting fresh Saleha Sovereign Ultra GPU Training Run...")
 
     t0 = time.time()
     train_result = trainer.train(resume_from_checkpoint=resume_ckpt)
     total_time = time.time() - t0
 
     # 8. Save LoRA Adapter
-    print(f"\n💾 Saving Refined Sovereign-Ultra LoRA Adapter to: {output_dir}...")
+    print(f"\nSaving Refined Sovereign-Ultra LoRA Adapter to: {output_dir}...")
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
     print("\n" + "=" * 70)
-    print("      👑 SALEHA SOVEREIGN ULTRA AGENTIC TRAINING COMPLETED!       ")
+    print("      SALEHA SOVEREIGN ULTRA AGENTIC TRAINING COMPLETED!       ")
     print("=" * 70)
     print(f"Total Samples Trained : {len(raw_data)}")
     print(f"Final Training Loss   : {train_result.training_loss:.4f}")

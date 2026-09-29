@@ -1,5 +1,5 @@
 import os
-import sys
+import hashlib
 import json
 import time
 import sqlite3
@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 # resolve when this directory is the working directory. Imported as part of
 # the package -- which is how everything else in the repo reaches it -- they
 # raised ModuleNotFoundError, so this module could not be imported at all.
-from saleha.sandbox.local_llm_driver import LocalLLMDriver
+from saleha.sandbox.local_llm_driver import LLMUnavailableError, LocalLLMDriver
 from saleha.sandbox.ast_security_verifier import ASTContractAuditor
 from saleha.sandbox.sandbox_jail import HardenedSandbox, SandboxUnavailableError
 
@@ -121,7 +121,9 @@ class SelfHealingEngine:
         self.registry = SwarmGenesisRegistry()
 
     async def execute_task_with_healing(self, task_spec: str, max_retries: int = 3) -> Dict[str, Any]:
-        task_hash = str(abs(hash(task_spec)))
+        # hashlib, not hash(): str hashes are randomised per process, so the
+        # old key never matched across runs and the cache could never hit.
+        task_hash = hashlib.sha256(task_spec.encode("utf-8")).hexdigest()
 
         # 1. Check persistent memory cache
         cached_fix = self.db.get_past_solution(task_hash)
@@ -156,8 +158,19 @@ class SelfHealingEngine:
                     f"Return the corrected JSON payload."
                 )
 
-            structured_resp = await self.llm.generate_structured(prompt, system_prompt, json_mode=True)
+            try:
+                structured_resp = await self.llm.generate_structured(prompt, system_prompt, json_mode=True)
+            except LLMUnavailableError as exc:
+                return {
+                    "status": "MODEL_UNAVAILABLE",
+                    "attempts": attempt - 1,
+                    "error": str(exc),
+                }
             code = structured_resp.get("code", "")
+            if not isinstance(code, str) or not code.strip():
+                last_error = "Model returned no code"
+                logger.warning(f"  └─ Attempt {attempt}: {last_error}")
+                continue
             previous_code = code
 
             # Step 1: Strict AST Audit

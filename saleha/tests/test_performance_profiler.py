@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.telemetry.performance_profiler import PerformanceProfiler, ProfileMetrics
+from saleha.core.telemetry.performance_profiler import PerformanceProfiler
 
 
 class PerformanceProfilerTests(unittest.TestCase):

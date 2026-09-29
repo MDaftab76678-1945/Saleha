@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.voice_live import VoiceLiveAssistant, VoiceCommand
-from saleha.core.speech import PyttsxTTS, WhisperSTT
+from saleha.core.voice_live import VoiceLiveAssistant
 
 
 class VoiceLiveAssistantTests(unittest.TestCase):

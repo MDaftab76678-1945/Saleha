@@ -10,13 +10,11 @@ and maintainability index calculation without executing any user code.
 from __future__ import annotations
 
 import ast
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import enum
 import math
 import os
-import re
-import sys
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple, Union
 
 from saleha.tools.base import BaseTool, ToolResult
 

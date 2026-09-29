@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 import saleha
-from saleha.core.swe_bench_exporter import SWEBenchExporter, SWEBenchPrediction
+from saleha.core.swe_bench_exporter import SWEBenchExporter
 from saleha.core.benchmark_reporter import BenchmarkRun
 from saleha.core.swe_leaderboard import TaskResult
 

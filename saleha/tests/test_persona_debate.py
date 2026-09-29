@@ -6,8 +6,6 @@ import os
 import unittest
 from saleha.core.cognitive.persona_debate import (
     PersonaDebateEngine,
-    PersonaTurn,
-    DebateRound,
     HardenedContract,
     persona_debate_engine,
 )

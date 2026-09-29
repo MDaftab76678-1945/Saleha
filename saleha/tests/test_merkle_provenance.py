@@ -14,7 +14,7 @@ class TestMerkleProvenance(unittest.TestCase):
 
     def test_record_event_and_verify_integrity(self) -> None:
         leaf1 = self.ledger.record_event("code_patch", "CoderAgent", "def solve(): return 42")
-        leaf2 = self.ledger.record_event("test_run", "TesterAgent", "test_solve PASSED")
+        self.ledger.record_event("test_run", "TesterAgent", "test_solve PASSED")
         self.assertIsInstance(leaf1, MerkleAuditLeaf)
         self.assertEqual(len(self.ledger.leaves), 2)
 

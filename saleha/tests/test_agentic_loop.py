@@ -6,7 +6,6 @@ import tempfile
 import time
 import unittest
 from typing import Any, Optional
-from unittest.mock import MagicMock
 
 from saleha.agents.base_agent import AgentResponse
 from saleha.core.loop.agentic_loop import (

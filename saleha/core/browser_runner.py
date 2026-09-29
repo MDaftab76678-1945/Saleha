@@ -69,11 +69,9 @@ class BrowserRunner:
         self._playwright_available = self._check_playwright_installed()
 
     def _check_playwright_installed(self) -> bool:
-        try:
-            import playwright
-            return True
-        except ImportError:
-            return False
+        import importlib.util
+
+        return importlib.util.find_spec("playwright") is not None
 
     def navigate(self, url: str,
                  expected_selectors: Optional[List[str]] = None,

@@ -34,7 +34,7 @@ from transformers import (
 def train_omni_grandmaster():
     console = Console()
     console.print("\n" + "=" * 80, style="bold cyan")
-    console.print("👑 [bold white on blue] SALEHA-ASI: OMNI GRANDMASTER GPU TRAINING (2,250 SAMPLES) [/]", justify="center")
+    console.print("[bold white on blue] SALEHA-ASI: OMNI GRANDMASTER GPU TRAINING (2,250 SAMPLES) [/]", justify="center")
     console.print("=" * 80, style="bold cyan")
 
     if not torch.cuda.is_available():
@@ -43,13 +43,13 @@ def train_omni_grandmaster():
 
     gpu_name = torch.cuda.get_device_name(0)
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-    console.print(f"🎮 Hardware: [bold green]{gpu_name}[/] ({vram_gb} GB VRAM)")
+    console.print(f"Hardware: [bold green]{gpu_name}[/] ({vram_gb} GB VRAM)")
 
     base_model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
     adapter_save_path = os.path.abspath("models/saleha_asi_master_adapter")
     data_file = "datasets/saleha_omni_grandmaster_train.json"
 
-    console.print(f"📖 Ingesting Omni Grandmaster Dataset: [bold yellow]{data_file}[/]...")
+    console.print(f"Ingesting Omni Grandmaster Dataset: [bold yellow]{data_file}[/]...")
     with open(data_file, "r", encoding="utf-8") as f:
         master_data = json.load(f)
 
@@ -72,7 +72,7 @@ def train_omni_grandmaster():
     raw_dataset = Dataset.from_list(master_data)
     tokenized_dataset = raw_dataset.map(formatting_prompts_func, remove_columns=["instruction", "response"])
 
-    console.print(f"📥 Loading Base Architecture: [bold cyan]{base_model_id}[/] in 4-Bit NF4...")
+    console.print(f"Loading Base Architecture: [bold cyan]{base_model_id}[/] in 4-Bit NF4...")
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -100,7 +100,7 @@ def train_omni_grandmaster():
 
     model = get_peft_model(base_model, peft_config)
     trainable_params, all_param = model.get_nb_trainable_parameters()
-    console.print(f"🧠 LoRA Trainable Parameters: [bold green]{trainable_params:,}[/] / {all_param:,} ({100 * trainable_params / all_param:.2f}%)")
+    console.print(f"LoRA Trainable Parameters: [bold green]{trainable_params:,}[/] / {all_param:,} ({100 * trainable_params / all_param:.2f}%)")
 
     training_args = TrainingArguments(
         output_dir="./runs/saleha_omni_grandmaster",
@@ -124,16 +124,16 @@ def train_omni_grandmaster():
         data_collator=DataCollatorForSeq2Seq(tokenizer, pad_to_multiple_of=8, return_tensors="pt", padding=True),
     )
 
-    console.print("\n🚀 [bold green]Starting Omni Grandmaster GPU Training Run...[/]\n")
+    console.print("\n[bold green]Starting Omni Grandmaster GPU Training Run...[/]\n")
     start_time = time.time()
     train_result = trainer.train()
     training_duration = time.time() - start_time
 
-    console.print(f"\n💾 Saving Refined Grandmaster LoRA Adapter to: [bold cyan]{adapter_save_path}[/]...")
+    console.print(f"\nSaving Refined Grandmaster LoRA Adapter to: [bold cyan]{adapter_save_path}[/]...")
     model.save_pretrained(adapter_save_path)
     tokenizer.save_pretrained(adapter_save_path)
 
-    table = Table(title="👑 Saleha Omni Grandmaster Training Summary", border_style="green")
+    table = Table(title="Saleha Omni Grandmaster Training Summary", border_style="green")
     table.add_column("Metric", style="bold white")
     table.add_column("Value", style="cyan")
     table.add_row("Base Architecture", f"{base_model_id} (3.09B)")
@@ -143,7 +143,7 @@ def train_omni_grandmaster():
     table.add_row("Runtime", f"{training_duration:.2f} seconds")
     table.add_row("Adapter Location", adapter_save_path)
     console.print(table)
-    console.print("\n✨ [bold green]OMNI GRANDMASTER TRAINING COMPLETED WITH 100% CONVERGENCE![/]\n")
+    console.print("\n[bold green]OMNI GRANDMASTER TRAINING COMPLETED WITH 100% CONVERGENCE![/]\n")
 
 
 if __name__ == "__main__":

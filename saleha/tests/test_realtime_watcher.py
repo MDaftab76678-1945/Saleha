@@ -7,8 +7,8 @@ import shutil
 import tempfile
 import time
 import unittest
-from saleha.core.inline_suggester import InlineSuggester, InlineSuggestion
-from saleha.core.realtime_watcher import RealtimeWatcher, FileChangeEvent
+from saleha.core.inline_suggester import InlineSuggester
+from saleha.core.realtime_watcher import RealtimeWatcher
 
 
 CLEAN_PY = '''

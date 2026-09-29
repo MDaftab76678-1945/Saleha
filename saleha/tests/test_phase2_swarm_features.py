@@ -2,13 +2,9 @@
 Unit and integration tests for Phase 2: Live TUI Dashboard, Sandboxed MCP Client, P2P Mesh, and Web Studio API.
 """
 
-import os
-import shutil
-import tempfile
-import pytest
 
 from saleha.cli.salehatop import SalehaTopDashboard
-from saleha.core.sandboxed_mcp_client import SandboxedMCPClient, DiscoveredMCPTool
+from saleha.core.sandboxed_mcp_client import SandboxedMCPClient
 from saleha.core.swarm.p2p_mesh import P2PMeshNode, MeshNodeHeartbeat
 
 

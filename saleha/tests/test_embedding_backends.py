@@ -9,8 +9,7 @@ from __future__ import annotations
 import json
 import math
 import unittest
-from io import BytesIO
-from typing import List, Optional
+from typing import List
 from unittest.mock import patch, MagicMock
 
 from saleha.core.rag.embedding_backends import (

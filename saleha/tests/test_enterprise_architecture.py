@@ -17,9 +17,6 @@ from saleha.core.agent_contracts import (
     QAOutputContract,
     ReviewerOutputContract,
     FinOpsOutputContract,
-    DesignerOutputContract,
-    DataEngineerOutputContract,
-    DevOpsOutputContract,
 )
 from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.core.plugin_manifest import PluginManifestEngine, SalehaPluginManifest, PluginAgentSpec

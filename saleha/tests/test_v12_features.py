@@ -1,5 +1,4 @@
 """v1.2: token accounting, stream forwarding, SWE-bench prediction format."""
-import io
 import json
 import os
 import tempfile

@@ -51,7 +51,7 @@ TOURIST_PROBLEMS = [
    - Integer Overflow: Line intersections can exceed 2^63 - 1; use floor division.
    - N = 1: Base case dp[0] = 0.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Convex Hull Trick Lower Envelope
+        "solution": """### Tourist Mindset: Convex Hull Trick Lower Envelope
 
 ```python
 from collections import deque
@@ -117,7 +117,7 @@ def solve_dp_cht(a: List[int], b: List[int]) -> List[int]:
    - Version 0: Build complete base tree in O(N) time.
    - Disjoint range query: Return 0 identity element.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Path-Copying Persistent Segment Tree
+        "solution": """### Tourist Mindset: Path-Copying Persistent Segment Tree
 
 ```python
 from typing import List, Optional
@@ -184,7 +184,7 @@ class PersistentSegmentTree:
    - Tarjan DFS visits each vertex and edge once: O(V + E) = O(N + M).
    - Space: O(N + M) adjacency and recursion stack.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Linear O(N + M) 2-SAT Solver
+        "solution": """### Tourist Mindset: Linear O(N + M) 2-SAT Solver
 
 ```python
 import sys
@@ -265,7 +265,7 @@ class TwoSatSolver:
    - Preprocessing: BFS/DFS O(N), table fill O(N log N).
    - Query: At most 2 * log2(N) jumps -> O(log N) per query.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Binary Lifting LCA & Tree Engine
+        "solution": """### Tourist Mindset: Binary Lifting LCA & Tree Engine
 
 ```python
 from collections import deque
@@ -335,7 +335,7 @@ class TreeLCA:
 2. Complexity Guarantee:
    - Total Time: O(V^2 E), Space: O(V + E).
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Dinic's Maximum Flow Engine
+        "solution": """### Tourist Mindset: Dinic's Maximum Flow Engine
 
 ```python
 from collections import deque
@@ -417,7 +417,7 @@ class DinicMaxFlow:
    - Preprocessing: 2 DFS passes -> O(N).
    - Path Query / Update: O(log^2 N) time.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Heavy-Light Decomposition (HLD)
+        "solution": """### Tourist Mindset: Heavy-Light Decomposition (HLD)
 
 ```python
 import sys
@@ -492,7 +492,7 @@ class HLD:
    - Split & Merge: O(log N) expected depth due to uniform random priorities.
    - Space: O(N) heap nodes.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Implicit Treap with Lazy Subarray Reversal
+        "solution": """### Tourist Mindset: Implicit Treap with Lazy Subarray Reversal
 
 ```python
 import random
@@ -585,7 +585,7 @@ class ImplicitTreap:
 2. Complexity Guarantee:
    - Construction Time: O(N) linear time. Space: O(N) states.
 </think>""",
-        "solution": """### 🏆 Tourist Mindset: Suffix Automaton (SAM)
+        "solution": """### Tourist Mindset: Suffix Automaton (SAM)
 
 ```python
 from typing import Dict

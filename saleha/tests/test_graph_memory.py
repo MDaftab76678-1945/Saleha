@@ -3,7 +3,7 @@
 import unittest
 import tempfile
 import os
-from saleha.core.graph.graph_memory import HierarchicalGraphMemory, GraphNode, GraphEdge
+from saleha.core.graph.graph_memory import HierarchicalGraphMemory
 
 
 class TestHierarchicalGraphMemory(unittest.TestCase):
@@ -21,8 +21,8 @@ class TestHierarchicalGraphMemory(unittest.TestCase):
                 pass
 
     def test_add_node_and_edge(self):
-        n1 = self.memory.add_node("task_1", "Build Auth API", "task")
-        n2 = self.memory.add_node("mod_1", "auth.py", "module")
+        self.memory.add_node("task_1", "Build Auth API", "task")
+        self.memory.add_node("mod_1", "auth.py", "module")
         edge = self.memory.add_edge("task_1", "mod_1", "CONTAINS")
 
         self.assertIn("task_1", self.memory.nodes)

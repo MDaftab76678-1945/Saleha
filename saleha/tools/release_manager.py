@@ -9,12 +9,11 @@ Validates cross-ecosystem package metadata, versions, and build integrity:
 
 from __future__ import annotations
 
-import os
 import re
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
+from typing import List, Optional
 from pathlib import Path
 
 

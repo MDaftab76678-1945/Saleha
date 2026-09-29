@@ -272,6 +272,32 @@ class StructureTests(unittest.TestCase):
         rep = self.engine.explain_code(code)
         self.assertFalse(rep.functions[0].is_annotated)
 
+    def test_self_and_cls_do_not_count_as_unannotated(self) -> None:
+        code = src("""
+            class Box:
+                def typed(self, a: int) -> int:
+                    return a
+
+                @classmethod
+                def make(cls, a: int) -> "Box":
+                    return cls()
+
+                def half(self, a) -> None:
+                    return None
+
+                def bare_self_only(self) -> None:
+                    return None
+
+            def free(self_like) -> None:
+                return None
+        """)
+        by_name = {f.qualname: f for f in self.engine.explain_code(code).functions}
+        self.assertTrue(by_name["Box.typed"].is_annotated)
+        self.assertTrue(by_name["Box.make"].is_annotated)
+        self.assertTrue(by_name["Box.bare_self_only"].is_annotated)
+        self.assertFalse(by_name["Box.half"].is_annotated)   # `a` really is unannotated
+        self.assertFalse(by_name["free"].is_annotated)       # not a method: no self exemption
+
     def test_async_function_is_flagged(self) -> None:
         rep = self.engine.explain_code("async def go():\n    return 1\n")
         self.assertTrue(rep.functions[0].is_async)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from saleha.core.polyglot_ast_engine import PolyglotASTEngine, PolyglotSymbol
+from saleha.core.polyglot_ast_engine import PolyglotASTEngine
 
 
 class PolyglotASTEngineTests(unittest.TestCase):

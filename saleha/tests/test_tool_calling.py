@@ -7,7 +7,7 @@ from click.testing import CliRunner
 
 from saleha.core.tool_calling import (
     ToolRegistry, ToolDefinition, ToolParameter,
-    ToolCallingLoop, global_tool_registry
+    ToolCallingLoop
 )
 from saleha.cli.commands import cli
 

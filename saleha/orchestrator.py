@@ -827,7 +827,7 @@ class SalehaOrchestrator:
             log += f"   Reason: {test_result.error_message}\n"
 
             if attempts < self.max_healing_attempts:
-                log += f"\n[4/4] Healer: analysing the error and instructing the Coder...\n"
+                log += "\n[4/4] Healer: analysing the error and instructing the Coder...\n"
                 healing_result: HealingResult = self.healer.analyze_and_heal(test_result.error_message, user_goal)
 
                 log += f"   Identified error: {healing_result.error_type}\n"

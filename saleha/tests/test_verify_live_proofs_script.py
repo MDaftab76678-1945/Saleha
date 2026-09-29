@@ -17,7 +17,6 @@ from __future__ import annotations
 import importlib.util
 import io
 import os
-import sys
 import unittest
 from unittest.mock import patch
 from typing import Any

@@ -6,6 +6,8 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
+
 from saleha.core.vault import EncryptedVault
 
 
@@ -132,6 +134,55 @@ class VaultTests(unittest.TestCase):
         ok = self.vault.rekey("atomic-passphrase-test-789")
         self.assertTrue(ok)
         self.assertEqual(self.vault.get_secret("REKEY_ATOMIC"), "atomic_test_value")
+
+
+class VaultSaltSafetyTests(unittest.TestCase):
+    """A salt problem must be an error, never a silent new salt.
+
+    The old code swallowed every exception: an unreadable salt file was replaced
+    by a fresh random one (making every stored secret permanently undecryptable),
+    and a failed write left an unpersisted salt whose key vanished at exit.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.mkdtemp(prefix="saleha_vault_salt_")
+        self.vault_file = os.path.join(self.temp_dir, "v.enc")
+        self.salt_file = os.path.join(self.temp_dir, ".vault_salt")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_salt_is_persisted_and_reused(self) -> None:
+        first = EncryptedVault(vault_path=self.vault_file, passphrase="p")
+        with open(self.salt_file, "rb") as f:
+            self.assertEqual(f.read(), first._salt)
+        second = EncryptedVault(vault_path=self.vault_file, passphrase="p")
+        self.assertEqual(first._salt, second._salt)
+
+    def test_unreadable_salt_raises_and_leaves_the_file_untouched(self) -> None:
+        EncryptedVault(vault_path=self.vault_file, passphrase="p")
+        with open(self.salt_file, "rb") as f:
+            original = f.read()
+        real_open = open
+
+        def flaky_open(path, mode="r", *args, **kwargs):
+            if str(path) == self.salt_file and "r" in mode and "b" in mode:
+                raise PermissionError("simulated read failure")
+            return real_open(path, mode, *args, **kwargs)
+
+        with mock.patch("builtins.open", flaky_open):
+            with self.assertRaises(RuntimeError) as ctx:
+                EncryptedVault(vault_path=self.vault_file, passphrase="p")
+        self.assertIn("Cannot read the vault salt", str(ctx.exception))
+        with open(self.salt_file, "rb") as f:
+            self.assertEqual(f.read(), original)
+
+    def test_failed_salt_write_raises_instead_of_using_a_lost_salt(self) -> None:
+        with mock.patch("os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(RuntimeError) as ctx:
+                EncryptedVault(vault_path=self.vault_file, passphrase="p")
+        self.assertIn("Cannot persist the vault salt", str(ctx.exception))
+        self.assertEqual([n for n in os.listdir(self.temp_dir) if n.startswith(".vault_salt")], [])
 
 
 if __name__ == "__main__":

@@ -7,14 +7,12 @@ professional Markdown and HTML benchmark reports.
 
 import os
 import json
-import time
-from dataclasses import dataclass, asdict, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+from typing import Dict, List, Any
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 
-from saleha.harness.metrics import BenchmarkSummary, HarnessTaskResult
+from saleha.harness.metrics import BenchmarkSummary
 
 console = Console()
 HISTORY_FILE = os.path.join(os.path.expanduser("~"), ".saleha", "harness_history.json")
@@ -114,18 +112,18 @@ class HarnessReporter:
     def export_markdown(self, report: HarnessReport, filepath: str) -> bool:
         """Exports evaluation results to clean GitHub Markdown format."""
         md = [
-            f"# Saleha Harness Evaluation Report",
-            f"",
+            "# Saleha Harness Evaluation Report",
+            "",
             f"**Model Evaluated:** `{report.model_name}`  ",
             f"**Evaluation Timestamp:** `{report.timestamp}`  ",
             f"**Overall Pass@1 Accuracy:** **{report.overall_pass_at_1}%**  ",
             f"**Unbiased Pass@5 Estimate:** **{report.overall_pass_at_5}%**  ",
             f"**Average Latency:** `{report.avg_latency_sec}s / task`  ",
-            f"",
-            f"## Benchmark Suite Breakdown",
-            f"",
-            f"| Benchmark Suite | Total Tasks | Passed | Pass@1 Rate | Avg Latency |",
-            f"|---|:---:|:---:|:---:|:---:|",
+            "",
+            "## Benchmark Suite Breakdown",
+            "",
+            "| Benchmark Suite | Total Tasks | Passed | Pass@1 Rate | Avg Latency |",
+            "|---|:---:|:---:|:---:|:---:|",
         ]
 
         for name, summ in report.benchmark_summaries.items():

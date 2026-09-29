@@ -1,5 +1,4 @@
 """Tier C tests: MultiFileEditor (atomic/rollback/traversal) + multi-language."""
-import io
 import os
 import tempfile
 import unittest

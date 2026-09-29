@@ -59,16 +59,6 @@ class PRGeneratorTests(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(tmpdir, "COMMIT_MSG.txt")))
 
     def test_cli_pr_json_output(self):
-        fake_team_res = TeamResult(
-            success=True,
-            goal="Implement Bloom Filter",
-            prd="PRD",
-            design="Design",
-            code="class BloomFilter: pass",
-            security_report="Safe",
-            test_code="test",
-            attempts=1
-        )
         with patch("saleha.cli.commands.PRGenerator") as mock_pr_gen:
             mock_inst = MagicMock()
             mock_inst.generate_pr.return_value = PRResult(

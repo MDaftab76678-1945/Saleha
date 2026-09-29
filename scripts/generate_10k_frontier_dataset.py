@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from saleha.core.dpo_dataset_engine import SalehaDPODatasetEngine, dpo_dataset_engine
+from saleha.core.dpo_dataset_engine import SalehaDPODatasetEngine
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
         except ValueError:
             target_count = 1000
 
-    print(f"🚀 Initializing Saleha Frontier Dataset Synthesis (Target: {target_count}+ Polyglot Pairs)...")
+    print(f"Initializing Saleha Frontier Dataset Synthesis (Target: {target_count}+ Polyglot Pairs)...")
     start_t = time.time()
     
     engine = SalehaDPODatasetEngine(output_dir="datasets")
@@ -41,7 +41,7 @@ def main():
 
     elapsed = round(time.time() - start_t, 2)
     print("\n" + "=" * 65)
-    print(f"✨ Polyglot Dataset Synthesis Completed in {elapsed}s!")
+    print(f"Polyglot Dataset Synthesis Completed in {elapsed}s!")
     print("=" * 65)
     print(f"  • Total DPO Preference Pairs : {dpo_count}")
     print(f"  • Total SFT Instruction Pairs: {sft_count}")

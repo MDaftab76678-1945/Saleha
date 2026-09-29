@@ -11,22 +11,10 @@ import click
 from saleha.cli.commands import cli, console
 from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
-import os
-import sys
-import re
-import time
+from typing import Optional
 import json
-import io
-import subprocess
-import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.group(name='mcp')
 def mcp_group():
@@ -73,7 +61,6 @@ def mcp_connect_cmd(server_name: str):
 @mcp_group.command(name='serve')
 def mcp_serve_cmd():
     """Start Saleha's standard JSON-RPC 2.0 stdio MCP server."""
-    from saleha.core.mcp_engine import MCPServer
     server = _cmds.MCPServer()
     console.print('[bold green]Saleha MCP Server running over stdio (JSON-RPC 2.0)...[/bold green]')
     server.run_stdio()

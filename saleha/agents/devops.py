@@ -7,10 +7,9 @@ GitHub Actions CI/CD deployment pipelines, and Nginx reverse proxies.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 
-from saleha.agents.base_agent import BaseAgent, AgentResponse
+from saleha.agents.base_agent import BaseAgent
 
 
 @dataclass
@@ -53,7 +52,7 @@ EXPOSE 8000
 CMD ["python", "-m", "saleha.server.web_server"]
 """
 
-        compose = f"""version: '3.8'
+        compose = """version: '3.8'
 services:
   app:
     build: .

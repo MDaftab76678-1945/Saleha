@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
 from unittest.mock import MagicMock, patch
 
-from saleha.core.prompt_optimizer import PromptOptimizer, recent_real_errors
+from saleha.core.prompt_optimizer import recent_real_errors
 
 
 def _opt(tmp_path):

@@ -6,7 +6,6 @@ import os
 import json
 import unittest
 import urllib.request
-from unittest.mock import patch, MagicMock
 
 import sys
 from pathlib import Path

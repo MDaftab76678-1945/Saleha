@@ -12,7 +12,6 @@ Verifies:
 8. Zero ambient filesystem side-effects (all tests run in isolated tempdirs).
 """
 
-import os
 import tempfile
 import time
 import unittest

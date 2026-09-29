@@ -6,8 +6,6 @@ and generates structured enterprise PR reviews with remediation diffs.
 """
 
 import os
-import sys
-import json
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 

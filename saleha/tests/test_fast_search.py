@@ -4,7 +4,7 @@ import unittest
 import tempfile
 import os
 import shutil
-from saleha.core.rag.fast_search import FastSearchEngine, SearchMatch
+from saleha.core.rag.fast_search import FastSearchEngine
 
 
 class TestFastSearchEngine(unittest.TestCase):

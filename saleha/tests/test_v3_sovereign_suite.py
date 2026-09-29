@@ -3,22 +3,16 @@
 import os
 import tempfile
 
-import pytest
 from unittest.mock import MagicMock
 
 from saleha.core.local_inference_engine import (
     LocalInferenceEngine,
-    LocalInferenceResult,
-    local_inference_engine,
 )
 from saleha.core.repo_orchestrator import (
     AutonomousRepoOrchestrator,
-    AutoPRResult,
-    repo_orchestrator,
 )
 from saleha.agents.voice_architect import (
     VoiceArchitectAgent,
-    VoiceCommentaryResult,
     voice_architect,
 )
 from saleha.cli.chat_session import SwarmChatSession

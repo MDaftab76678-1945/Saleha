@@ -1,9 +1,7 @@
 """Debugger agent for diagnosing and repairing generated Python code."""
 
-import os
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from saleha.agents.base_agent import AgentResponse, BaseAgent
 from saleha.core.self_healing import SelfHealingEngine

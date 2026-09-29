@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 from unittest.mock import patch
-from saleha.core.voice_engine import VoiceAssistantEngine, VoiceInteractionResult
+from saleha.core.voice_engine import VoiceAssistantEngine
 from saleha.agents.base_agent import AgentResponse
 
 

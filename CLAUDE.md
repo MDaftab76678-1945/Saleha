@@ -2340,6 +2340,28 @@ reports a measurement, ask first where the ground truth came from.
 
 Detail: `NOTEBOOK_IMPORT.md`, "Pass 147 correction."
 
+**Passes 148-149 -- first run on Python 3.12/Linux, then the fabrications it
+led to (2382 passed, 0 failed).** Circular import from the pass-139 migration
+(`issue_resolver` now lazy-loads the swarm engine), an uncollectable test,
+`WindowsJobSandbox` ignoring its memory limit off Windows, stale doc paths. Then
+found and fixed: `browser_tester` reporting passed steps (and writing
+`b"PNG_MOCK"` screenshots) with no browser; `saleha doom top` drawing invented
+telemetry; `nexus_mobile_bridge` returning constant CPU/RAM/deploy replies with
+an unchecked `chat_id`; the web dashboard's build button playing five fake
+"Done" stages without calling the backend; `LocalLLMDriver` returning a canned
+answer that `SelfHealingEngine` sandboxed, called PASSED and cached; the
+LoRA training script printing "Simulated Dry-Run ... 100% Validated"; the
+vault replacing an unreadable salt (secrets lost for good). Detail:
+`NOTEBOOK_IMPORT.md`, "Pass 148" and "Pass 149". **Lessons:** (1) a blanket
+emoji strip turned `'❓' in log` into `'' in log`; when removing "decorative"
+characters first check whether the string is data another line searches for.
+(2) Never edit source while the suite runs -- `inspect.getsource` tests failed
+from line-number drift I caused. (3) Every fabrication this pass was again
+pinned by an existing test. **Open:** 104 silent broad `except Exception`
+handlers unaudited; the LoRA training path is untested (no torch here);
+Python 3.14/Windows not re-measured; `EncryptedVault`'s default passphrase is a
+public constant.
+
 ---
 
 ## Environment facts worth knowing

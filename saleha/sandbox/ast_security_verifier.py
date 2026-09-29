@@ -1,5 +1,5 @@
 import ast
-from typing import Dict, List, Tuple, Any
+from typing import List, Tuple
 
 class ASTContractAuditor(ast.NodeVisitor):
     """Static AST analyzer to check for syntax errors, banned modules, and defensive asserts."""

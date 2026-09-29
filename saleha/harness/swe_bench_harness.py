@@ -8,9 +8,8 @@ patch synthesis, AST validation, and Markdown Leaderboard generation.
 from __future__ import annotations
 
 import time
-import uuid
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from dataclasses import dataclass
+from typing import List, Optional
 
 from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
 

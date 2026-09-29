@@ -9,12 +9,9 @@ behavior for whatever this file's commands use.
 """
 import click
 from saleha.cli.commands import cli, console
-from saleha.cli import commands as _cmds
 
-from typing import Any, Dict, List, Optional
-import click
+from typing import List
 from rich.table import Table
-from saleha.cli.commands import cli, console
 
 
 @cli.group()

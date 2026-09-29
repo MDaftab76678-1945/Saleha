@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from saleha.core.rag.vector_store import VectorStore
 from saleha.core.rag.embedding_backends import OllamaEmbedder, dense_dot

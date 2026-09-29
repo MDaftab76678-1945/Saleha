@@ -56,24 +56,24 @@ def load_saleha_dataset(dataset_path: str, max_samples: int = 100):
 def main():
     console = Console()
     console.print("\n" + "=" * 80, style="bold green")
-    console.print("🔥 [bold white on green] SALEHA REAL PYTORCH & PEFT LoRA GPU TRAINING PIPELINE [/]", justify="center")
+    console.print("[bold white on green] SALEHA REAL PYTORCH & PEFT LoRA GPU TRAINING PIPELINE [/]", justify="center")
     console.print("=" * 80, style="bold green")
 
     # 1. Check Hardware
     if not torch.cuda.is_available():
-        console.print("[bold red]❌ Error: CUDA GPU not detected![/]")
+        console.print("[bold red][FAIL] Error: CUDA GPU not detected![/]")
         sys.exit(1)
 
     gpu_name = torch.cuda.get_device_name(0)
     vram_gb = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-    console.print(f"✅ [bold green]Active GPU Device:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
+    console.print(f"[OK] [bold green]Active GPU Device:[/] [yellow]{gpu_name}[/] ([cyan]{vram_gb} GB VRAM[/])")
 
     # Model configuration (Qwen2.5-Coder-0.5B-Instruct is lightweight, fast, and fits comfortably in 6GB VRAM)
     model_id = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
     output_dir = os.path.abspath("models/saleha_real_lora_adapter")
     os.makedirs(output_dir, exist_ok=True)
 
-    console.print(f"📥 Loading Base Model & Tokenizer: [bold cyan]{model_id}[/]...")
+    console.print(f"Loading Base Model & Tokenizer: [bold cyan]{model_id}[/]...")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -96,11 +96,11 @@ def main():
     )
     model = get_peft_model(model, peft_config)
     trainable_params, all_params = model.get_nb_trainable_parameters()
-    console.print(f"📊 [bold green]LoRA Parameters Injected:[/] Trainable: {trainable_params:,} / {all_params:,} ({100 * trainable_params / all_params:.2f}%)")
+    console.print(f"[bold green]LoRA Parameters Injected:[/] Trainable: {trainable_params:,} / {all_params:,} ({100 * trainable_params / all_params:.2f}%)")
 
     # 3. Load & Tokenize Real Training Dataset
     dataset_file = "datasets/saleha_sft_10k_alpaca.json"
-    console.print(f"📁 Loading dataset from: [bold yellow]{dataset_file}[/]...")
+    console.print(f"Loading dataset from: [bold yellow]{dataset_file}[/]...")
     raw_dataset = load_saleha_dataset(dataset_file, max_samples=50)
 
     def tokenize_function(examples):
@@ -131,18 +131,18 @@ def main():
     )
 
     # 5. Execute Real Forward & Backward Passes on GPU
-    console.print("\n🚀 [bold white on blue] STARTING REAL GPU BACKPROPAGATION ON CUDA... [/]\n")
+    console.print("\n[bold white on blue] STARTING REAL GPU BACKPROPAGATION ON CUDA... [/]\n")
     start_time = time.time()
     train_result = trainer.train()
     training_time = round(time.time() - start_time, 2)
 
     # 6. Save Real Trained LoRA Weights (.safetensors)
-    console.print(f"\n💾 Saving real LoRA weights to: [bold green]{output_dir}[/]...")
+    console.print(f"\nSaving real LoRA weights to: [bold green]{output_dir}[/]...")
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
     # 7. Generate Real Training Summary Table
-    table = Table(title="🏆 Real GPU Training Metrics (PyTorch / CUDA)", border_style="green")
+    table = Table(title="Real GPU Training Metrics (PyTorch / CUDA)", border_style="green")
     table.add_column("Metric", style="white")
     table.add_column("Value", style="bold green", justify="center")
 

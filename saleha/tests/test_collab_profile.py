@@ -65,7 +65,6 @@ class CollabHttpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         import threading
-        import urllib.request
         from http.server import HTTPServer
         from saleha.server import web_server
         from saleha.server.web_server import SalehaAPIHandler

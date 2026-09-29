@@ -197,7 +197,6 @@ def test_edge_case_c_quoting_command_construction() -> None:
 
 def test_edge_case_double_counting_prevented() -> None:
     """Edge Case 2: Verifies partially staged files are not double-counted in summary or security audit."""
-    from saleha.tools.git_status_auditor import FileChangeDetail
 
     raw_status = (
         "# branch.head main\n"

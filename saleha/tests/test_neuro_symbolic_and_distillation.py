@@ -5,13 +5,10 @@ from typing import Any
 import json
 from pathlib import Path
 
-import pytest
 from unittest.mock import MagicMock
 
 from saleha.core.cognitive.neuro_symbolic_engine import (
     NeuroSymbolicEngine,
-    InvariantFitnessScore,
-    neuro_symbolic_engine,
 )
 from saleha.core.dataset_synthesizer import (
     SalehaDatasetSynthesizer,

@@ -3,7 +3,6 @@ Unit and integration tests for Phase 3: Multimodal Ingress, Wasm Micro-Plugin Ru
 """
 
 import time
-import pytest
 
 from saleha.core.saleha_multimodal import SalehaMultimodalHub
 from saleha.core.saleha_wasm_runtime import SalehaWasmRuntime, WASIPermission

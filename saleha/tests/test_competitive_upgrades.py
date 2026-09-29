@@ -15,7 +15,6 @@ from http.server import HTTPServer
 
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
-from saleha.core.vision_coder import vision_coder
 
 
 class CompetitiveUpgradesTests(unittest.TestCase):

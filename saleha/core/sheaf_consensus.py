@@ -10,7 +10,7 @@ Implements:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 SHEAF_MOD_PRIME = 0xFFFFFFFF00000001  # Topos Prime Field Target
 

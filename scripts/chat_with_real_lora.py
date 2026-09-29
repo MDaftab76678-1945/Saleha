@@ -12,7 +12,6 @@ if hasattr(sys.stdout, "reconfigure"):
 
 import torch
 from rich.console import Console
-from rich.panel import Panel
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 from peft import PeftModel
 
@@ -20,7 +19,7 @@ from peft import PeftModel
 def main():
     console = Console()
     console.print("\n" + "=" * 80, style="bold green")
-    console.print("💬 [bold white on green] SALEHA REAL LoRA INTERACTIVE TERMINAL CHAT [/]", justify="center")
+    console.print("[bold white on green] SALEHA REAL LoRA INTERACTIVE TERMINAL CHAT [/]", justify="center")
     console.print("=" * 80, style="bold green")
     console.print("[dim]Type your coding question or prompt. Type 'exit' or 'quit' to end session.[/dim]\n")
 
@@ -29,7 +28,7 @@ def main():
     if not os.path.exists(adapter_path):
         adapter_path = os.path.abspath("models/saleha_3b_master_adapter")
 
-    console.print(f"📥 Loading Base Model & Merging LoRA Weights on [yellow]NVIDIA GPU[/]...")
+    console.print("Loading Base Model & Merging LoRA Weights on [yellow]NVIDIA GPU[/]...")
     tokenizer = AutoTokenizer.from_pretrained(adapter_path, trust_remote_code=True)
     from transformers import BitsAndBytesConfig
 
@@ -50,7 +49,7 @@ def main():
     model.eval()
 
     streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
-    console.print("✅ [bold green]Model Ready for Live Conversations![/]\n")
+    console.print("[OK] [bold green]Model Ready for Live Conversations![/]\n")
 
     conversation_history = [
         {"role": "system", "content": "You are Saleha, an autonomous Neuro-Symbolic AI Coding Assistant."}
@@ -58,18 +57,18 @@ def main():
 
     while True:
         try:
-            user_input = console.input("[bold cyan]User ❯ [/]").strip()
+            user_input = console.input("[bold cyan]User [/]").strip()
             if not user_input:
                 continue
             if user_input.lower() in ["exit", "quit", "q"]:
-                console.print("\n[bold yellow]👋 Exiting Saleha Real Chat. Goodbye![/]\n")
+                console.print("\n[bold yellow]Exiting Saleha Real Chat. Goodbye![/]\n")
                 break
 
             conversation_history.append({"role": "user", "content": user_input})
             text = tokenizer.apply_chat_template(conversation_history, tokenize=False, add_generation_prompt=True)
             inputs = tokenizer([text], return_tensors="pt").to("cuda")
 
-            console.print("\n[bold green]Saleha ❯[/] ", end="")
+            console.print("\n[bold green]Saleha [/] ", end="")
             with torch.no_grad():
                 outputs = model.generate(
                     **inputs,

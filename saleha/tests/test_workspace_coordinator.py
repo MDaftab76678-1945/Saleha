@@ -1,6 +1,5 @@
 """Unit tests for Multi-Repo & Monorepo Workspace Coordinator."""
 
-import os
 import unittest
 from click.testing import CliRunner
 

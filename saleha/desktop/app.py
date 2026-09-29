@@ -16,11 +16,10 @@ import threading
 import subprocess
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from http.server import HTTPServer
 
-from saleha.server import web_server
-from saleha.server.web_server import SalehaAPIHandler, get_auth_token, set_auth_token
+from saleha.server.web_server import SalehaAPIHandler, get_auth_token
 
 
 @dataclass

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from saleha.core.github_integrator import GitHubIntegrator, GitHubPRResult
-from saleha.core.pr_generator import PRGenerator, PRResult
+from saleha.core.pr_generator import PRGenerator
 
 
 class GitHubIntegratorTests(unittest.TestCase):

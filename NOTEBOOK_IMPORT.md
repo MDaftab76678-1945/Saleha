@@ -10886,3 +10886,73 @@ Also cleared 10 pre-existing ruff F-diagnostics in the four touched code/test fi
 
 Result: `2360 passed, 30 skipped, 172 subtests, 0 failed` (Python 3.12, Linux).
 Not measured: Python 3.14, Windows.
+
+## Pass 149: fabrications found by fixing what pass 148 listed (2026-09-29)
+
+Started from the pass-148 findings list; each fix below was reproduced before
+it was changed. Suite: 2360 (pass 148) -> **2382 passed, 30 skipped, 0 failed**
+(Python 3.12, Linux). Not measured: Python 3.14, Windows.
+
+Fabrications (all reproduced, all with tests that fail against the old code):
+- **`browser_tester.py`** -- without Playwright, `execute_flow` "simulated" the
+  run: every step passed and a screenshot step wrote the bytes `b"PNG_MOCK"`.
+  The old tests pinned that (`passed_steps == 4`). Now `executed=False,
+  success=False`, inputs validated up front, and the tests drive a real
+  Chromium against a local HTML file (real PNG magic bytes; a missing element
+  fails the run). 4 of 6 new tests fail against the old module.
+- **`salehatop.py` (`saleha doom top`)** -- RAM/VRAM/throughput ("3,373,819
+  Jobs/sec", "< 15 ns"), the 250-agent grid, its legend counts ("Idle (218)"),
+  the department load bars and the event lines were formulas of a tick counter
+  or `random.choice` over invented log lines. Rewritten to psutil,
+  `nvidia-smi` (else "n/a"), persisted task history and message-bus counts.
+- **`nexus_mobile_bridge.py`** -- constant CPU/RAM/"250 Agents Active", benchmark
+  numbers, a fictitious "Live Netlify Deployment", `shutdown` "acknowledged",
+  every command "routed to 10-Department Swarm", and `chat_id` never checked
+  (the web endpoint even defaulted a missing id to the authorised one).
+- **Web dashboard `launchOmniboxBuild`** -- played five hard-coded "Done" stages
+  ("Verified 0 Memory Leaks"), loaded a template app by keyword and toasted
+  "Autonomous AGI Build Finished in 1.1s (0 Leaks)" without calling the backend;
+  it also put the prompt into `innerHTML` unescaped. Now POSTs
+  `/api/v2/swarm/execute` and renders the real stages (escaped). Verified in
+  headless Chromium against a stubbed success (incl. a failed stage and a
+  `<script>` payload shown as text) and a stubbed HTTP 500.
+- **`local_llm_driver.py` / `SelfHealingEngine`** -- with no daemon it returned
+  a fixed "network packet parser" answer; the engine sandboxed it, reported
+  `PASSED` and cached it under the user's real task (measured:
+  "thread-safe rate limiter" -> `parse_payload`, cached). Also embeddings fell
+  back to 16 numbers derived from SHA-256, and the cache key was `hash()`
+  (randomised per process, so it never hit across runs). Now `LLMUnavailableError`
+  / `MODEL_UNAVAILABLE`, empty code is not a pass, key is sha256.
+- **`swarm_visualizer.py`** printed "COMPLETED SUCCESSFULLY" regardless of
+  `result.success`; also "Hardened" for a failed security check.
+- **`model_distillation_pipeline.py`** generated a training script that printed
+  "Simulated Dry-Run Complete ... 100% Configured & Validated" and returned True
+  even with no dependencies. Now reads the YAML, checks dataset and deps, exits
+  non-zero with the reason, and trains with `SFTTrainer`. **The training path
+  itself was not run** (no torch/GPU here); the failure paths are tested.
+- `quadratic-vote` claimed VCG and sqrt weighting that never existed.
+
+Other real defects: `core_agentic.py` searched the log for an emoji
+`orchestrator.py` had stopped writing, so the "Need one detail" panel could never
+appear (now a shared `CLARIFICATION_MARKER`, end-to-end test); `vault.py` replaced
+an unreadable salt file with a fresh random salt (all stored secrets permanently
+undecryptable) and continued with an unpersisted salt when the write failed;
+`mech_interp.py` counted `self`/`cls` as unannotated so every method looked
+untyped; `train_saleha_targeted.py` had three identical dict keys so two of three
+reference rows were silently dropped; the agents table said "19" for 20 rows.
+
+Rule 1/3 cleanup: decorative emoji removed from non-test code (`saleha/` 821,
+scripts etc. 211; status symbols became `[OK]`/`[FAIL]`/`[WARN]`, icon maps became
+ASCII tags), romanized Hinglish translated in 19 files (trigger phrases and
+detection regexes kept as data), 947 unused imports and all `F`/`E9` ruff
+diagnostics cleared. **A first, blunt emoji pass was reverted:** it turned
+`'❓' in log` into `'' in log` (always true), blanked a medal-rank column and broke
+a regex character class; the second pass protects quoted emoji-only tokens and
+ranges, and the leftover icon maps were converted by hand.
+
+Not done / not audited: 104 of 245 broad `except Exception` handlers only
+pass/continue/return a constant; I read the ones in vault, godel_utility,
+self_improve and orchestrator (only the vault salt was a real defect) but not
+the rest. `EncryptedVault` still defaults its passphrase to a public constant.
+Emoji remain in `saleha/tests/` (fixtures/assertions) and in vendored
+`scripts/convert_hf_to_gguf_standalone.py`.

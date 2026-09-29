@@ -8,10 +8,8 @@ system resource load, codebase AST graph status, long-term memory metrics, and d
 from __future__ import annotations
 
 import os
-import sys
 import time
 import psutil
-from typing import Dict, List, Optional, Any
 
 from rich.console import Console
 from rich.layout import Layout

@@ -3,8 +3,8 @@
 from __future__ import annotations
 import time
 import urllib.parse
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from typing import List, Dict, Any
+from dataclasses import dataclass
 from saleha.agents.base_agent import BaseAgent, AgentResponse
 
 

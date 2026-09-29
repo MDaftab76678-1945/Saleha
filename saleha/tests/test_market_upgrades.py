@@ -18,16 +18,14 @@ from unittest.mock import patch, MagicMock
 from saleha.core.platform.smart_router import (
     SmartRouter,
     get_default_history_path,
-    get_installed_ollama_models,
 )
 from saleha.core.hybrid_gateway import HybridModelGateway
 from saleha.core.safety_patterns import _check_blocked_imports as sp_check_imports
-from saleha.core.harness.code_executor import CodeExecutor, ExecutionResult, _check_blocked_imports
+from saleha.core.harness.code_executor import CodeExecutor, _check_blocked_imports
 from saleha.core.execution_policy import (
     build_docker_command,
     get_sandbox_mode,
     resolve_backend,
-    docker_available,
     _reset_probe_cache,
 )
 

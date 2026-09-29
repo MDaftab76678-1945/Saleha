@@ -1,6 +1,5 @@
 """Unit tests for Polyglot Multi-Language Indexer & SAST Security Scanner."""
 
-import os
 import unittest
 from saleha.core.polyglot_indexer import PolyglotIndexer
 from saleha.core.verification.security_scanner import ASTSecurityScanner

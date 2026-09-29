@@ -7,7 +7,6 @@ using standard build tools and validates package metadata.
 
 from __future__ import annotations
 
-import os
 import sys
 import subprocess
 import shutil
@@ -31,9 +30,9 @@ def build_package(clean: bool = True) -> bool:
         shutil.rmtree(dist_dir)
         
     # Ensure build is installed
-    try:
-        import build
-    except ImportError:
+    import importlib.util
+
+    if importlib.util.find_spec("build") is None:
         print("Installing build frontend...")
         subprocess.run([sys.executable, "-m", "pip", "install", "build", "twine"], check=True)
         
@@ -46,11 +45,11 @@ def build_package(clean: bool = True) -> bool:
         print(res.stderr, file=sys.stderr)
         
     if res.returncode != 0:
-        print(f"❌ Build failed with exit code {res.returncode}")
+        print(f"[FAIL] Build failed with exit code {res.returncode}")
         return False
         
     built_files = list(dist_dir.glob("*"))
-    print(f"✅ Built {len(built_files)} distribution artifacts:")
+    print(f"[OK] Built {len(built_files)} distribution artifacts:")
     for f in built_files:
         print(f"  • {f.name} ({f.stat().st_size / 1024:.1f} KB)")
         

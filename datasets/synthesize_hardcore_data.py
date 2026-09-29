@@ -13,11 +13,11 @@ output path -- it would silently regenerate the same bug.
 
 High-Density Hardcore Multi-Arena Dataset Synthesizer (500 Samples across 5 Domains)
 Reinforces exact schema formatting for:
-1. 🎙️ TTS SSML (<speak><voice><prosody>...</prosody></voice></speak>)
-2. 🎬 Video Rendering (ffmpeg -hwaccel cuda -c:v h264_nvenc 1080p 60fps)
-3. 🤖 SWE-bench Git Diffs (--- a/, +++ b/, @@)
-4. 🎥 Image-to-Video Trajectories (camera_motion, orbit_angle_degrees)
-5. 🧠 Reasoning (<think> CoT + complete python implementation)
+1. TTS SSML (<speak><voice><prosody>...</prosody></voice></speak>)
+2. Video Rendering (ffmpeg -hwaccel cuda -c:v h264_nvenc 1080p 60fps)
+3. SWE-bench Git Diffs (--- a/, +++ b/, @@)
+4. Image-to-Video Trajectories (camera_motion, orbit_angle_degrees)
+5. Reasoning (<think> CoT + complete python implementation)
 """
 
 import json

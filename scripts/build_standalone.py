@@ -17,7 +17,7 @@ if sys.stdout.encoding is not None and sys.stdout.encoding.lower() != "utf-8":
 
 def build_binary(clean: bool = False, use_nuitka: bool = False):
     print("=" * 60)
-    print("📦 Saleha Standalone Binary Packager")
+    print("Saleha Standalone Binary Packager")
     print("=" * 60)
 
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -36,12 +36,12 @@ def build_binary(clean: bool = False, use_nuitka: bool = False):
         )
 
     if clean:
-        print("🧹 Cleaning previous build artifacts...")
+        print("Cleaning previous build artifacts...")
         shutil.rmtree(dist_dir, ignore_errors=True)
         shutil.rmtree(build_dir, ignore_errors=True)
 
     if use_nuitka:
-        print("🚀 Compiling with Nuitka C++ Native Compiler...")
+        print("Compiling with Nuitka C++ Native Compiler...")
         cmd = [
             sys.executable, "-m", "nuitka",
             "--onefile",
@@ -51,7 +51,7 @@ def build_binary(clean: bool = False, use_nuitka: bool = False):
             entrypoint
         ]
     else:
-        print("⚡ Compiling with PyInstaller Bundler...")
+        print("Compiling with PyInstaller Bundler...")
         cmd = [
             sys.executable, "-m", "PyInstaller",
             "--onefile",

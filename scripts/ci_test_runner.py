@@ -48,7 +48,7 @@ def main():
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
     
     if proc.returncode != 0:
-        print(f"\n❌ PyTest exited with return code {proc.returncode}")
+        print(f"\n[FAIL] PyTest exited with return code {proc.returncode}")
         
         # Extract failed tests: e.g. "FAILED saleha/tests/test_foo.py::TestClass::test_method - AssertionError: ..."
         failures = re.findall(r"FAILED\s+([^\s]+)\s*(?:-\s*(.*))?", combined)
@@ -60,7 +60,7 @@ def main():
         if summary_file:
             try:
                 with open(summary_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n### ❌ Test Failures on `{sys.platform}` (Python `{sys.version.split()[0]}`)\n\n")
+                    f.write(f"\n### [FAIL] Test Failures on `{sys.platform}` (Python `{sys.version.split()[0]}`)\n\n")
                     f.write(f"**Total Failures:** {len(failures)}\n\n")
                     f.write("| Failed Test | Error Reason |\n|---|---|\n")
                     for f_name, reason in failures:
@@ -73,11 +73,11 @@ def main():
             except Exception as e:
                 print(f"Warning: could not write to GITHUB_STEP_SUMMARY: {e}")
     else:
-        print("\n✅ All tests passed successfully!")
+        print("\n[OK] All tests passed successfully!")
         if summary_file:
             try:
                 with open(summary_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n### ✅ All tests passed on `{sys.platform}` (Python `{sys.version.split()[0]}`)\n")
+                    f.write(f"\n### [OK] All tests passed on `{sys.platform}` (Python `{sys.version.split()[0]}`)\n")
             except Exception:
                 pass
                 

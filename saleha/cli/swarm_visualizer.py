@@ -7,9 +7,6 @@ execution duration (ms), and engineering metrics in the terminal.
 
 from __future__ import annotations
 
-import sys
-import time
-from typing import List
 from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineStage, SwarmExecutionResult
 
 

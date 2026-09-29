@@ -11,22 +11,16 @@ import click
 from saleha.cli.commands import cli, console
 from saleha.cli import commands as _cmds
 
-from typing import Optional, Tuple, List, Dict, Any, Callable, Union, Set, TYPE_CHECKING
+from typing import Optional, Dict, Any
 import os
-import sys
-import re
 import time
 import json
 import io
-import subprocess
 import contextlib
-from pathlib import Path
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.markdown import Markdown
 from rich.syntax import Syntax
-from saleha import __version__
 
 @cli.command()
 @click.argument('goal', required=False)
@@ -111,7 +105,7 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
                     console.print('\n[bold cyan]Output:[/]')
                     console.print(exec_result.output)
             else:
-                console.print(Panel(f'[bold red][FAIL] Execution Failed[/]', border_style='red'))
+                console.print(Panel('[bold red][FAIL] Execution Failed[/]', border_style='red'))
                 if exec_result.error:
                     console.print(f'\n[red]Error:[/] {exec_result.error}')
     else:
@@ -145,8 +139,6 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
 
     Example: saleha agent "find all API endpoints missing auth checks" --dir ./src
     """
-    from saleha.core.loop.agentic_loop import AgentLoop
-    from saleha.agents.base_agent import BaseAgent
     # The tool list here was hardcoded and stale: it omitted get_file_outline,
     # find_symbols and -- most misleadingly -- patch_file, the tool a user has
     # to know about to ask for an actual fix. The loop's own dispatch table
@@ -203,7 +195,7 @@ def plan(goal: str, model: str, as_json: bool) -> None:
         for i, step in enumerate(result.steps, 1):
             console.print(f'  [yellow]{i}.[/] {step}')
     else:
-        console.print(Panel(f'[bold red][FAIL] Planning Failed[/]', border_style='red'))
+        console.print(Panel('[bold red][FAIL] Planning Failed[/]', border_style='red'))
         console.print(result.raw_response)
 
 @cli.command()
@@ -256,7 +248,7 @@ def code(task: str, model: str, as_json: bool, output: Optional[str]) -> None:
             else:
                 console.print(Panel(f'[bold red][FAIL] Save cancelled[/] - generated code failed validation\n{validation.error_type}: {validation.error_message}', border_style='red'))
     else:
-        console.print(Panel(f'[bold red][FAIL] Code Generation Failed[/]', border_style='red'))
+        console.print(Panel('[bold red][FAIL] Code Generation Failed[/]', border_style='red'))
         console.print(result.error)
 
 @cli.command()
@@ -381,7 +373,7 @@ def profile_cmd(code_snippet: str) -> None:
         exec(code_snippet, {})  # saleha: allow-exec -- profiling a user snippet IS this command's job
     _, m = performance_profiler.profile_callable(target_exec)
     if m.success:
-        console.print(f'\n[bold green][OK] Execution Profile Completed:[/]')
+        console.print('\n[bold green][OK] Execution Profile Completed:[/]')
         console.print(f'  • Duration: [cyan]{m.duration_ms} ms[/]')
         console.print(f'  • Peak Memory: [yellow]{m.peak_memory_mb} MB[/]')
         console.print(f'  • Current Memory: {m.current_memory_mb} MB')
@@ -600,10 +592,8 @@ def dev_cli_cmd(all_apps: bool, port: int) -> None:
         console.print('  • Backend Web Studio : http://127.0.0.1:8000')
         console.print('  • Next.js App Studio : http://localhost:3000')
         console.print('  • Astro Landing Page : http://localhost:4321')
-        from saleha.server.web_server import run_web_studio
         _cmds.run_web_studio(port=port, open_browser=True)
     else:
-        from saleha.server.web_server import run_web_studio
         _cmds.run_web_studio(port=port, open_browser=True)
 
 @cli.command('chat')
@@ -624,7 +614,7 @@ def play_cli_cmd() -> None:
 def run_container_cli_cmd(code_or_file: str, timeout: float) -> None:
     """Execute code inside isolated ephemeral Docker container with cgroup bounds."""
     from saleha.core.ephemeral_container_runner import container_runner
-    console.print(f'\n[bold cyan]Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
+    console.print('\n[bold cyan]Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
     res = container_runner.run_code(code_or_file, timeout_sec=timeout)
     status_color = 'green' if res.success else 'red'
     console.print(f"[{status_color}]● Execution {('SUCCESS' if res.success else 'FAILED')} ({res.duration_ms}ms)[/{status_color}]")

@@ -50,16 +50,27 @@ class EncryptedVault:
             try:
                 with open(salt_file, "rb") as f:
                     content = f.read()
-                    if content:
-                        return content
-            except Exception:
-                pass
+            except OSError as exc:
+                # Never fall through to "generate a new salt" here: that would
+                # overwrite the real one and make every stored secret
+                # permanently undecryptable because of a transient read error.
+                raise RuntimeError(f"Cannot read the vault salt at {salt_file}: {exc}") from exc
+            if content:
+                return content
+
         salt = secrets.token_bytes(32)
+        tmp_path = f"{salt_file}.tmp.{os.getpid()}"
         try:
-            with open(salt_file, "wb") as f:
+            with open(tmp_path, "wb") as f:
                 f.write(salt)
-        except Exception:
-            pass
+            os.replace(tmp_path, salt_file)
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                os.remove(tmp_path)
+            # An unpersisted salt is worse than an error: the key derived from
+            # it is lost when the process exits, so everything encrypted with
+            # it could never be read again.
+            raise RuntimeError(f"Cannot persist the vault salt at {salt_file}: {exc}") from exc
         return salt
 
     def _derive_key(self, passphrase: str, salt: bytes) -> bytes:

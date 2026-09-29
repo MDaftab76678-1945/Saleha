@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 from saleha.core.speech import (
     PyttsxTTS,
-    TranscriptionResult,
     WhisperSTT,
     get_status,
 )
@@ -78,7 +77,6 @@ class VoiceCliTests(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
 
     def test_text_mode_dispatches_to_assistant(self):
-        from saleha.cli.commands import cli as root_cli
         with patch("saleha.core.voice_assistant.VoiceAssistant.process_voice_prompt") as pv:
             pv.return_value = MagicMock(success=True, execution_result="done")
             result = self._invoke(["build a cache"])

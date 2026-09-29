@@ -11,9 +11,9 @@ True -- which is why the module stayed broken for as long as it existed.
 import ast
 import unittest
 
-from saleha.core.mcts_search_engine import MCTSSearchEngine, mcts_search_engine, MCTSExecutionResult
-from saleha.core.speculative_accelerator import SpeculativeAccelerator, speculative_accelerator, SpeculativeMetrics
-from saleha.core.self_evolving_loop import SelfEvolvingLoop, self_evolving_loop, EvolvingBufferStats
+from saleha.core.mcts_search_engine import MCTSSearchEngine, MCTSExecutionResult
+from saleha.core.speculative_accelerator import SpeculativeAccelerator
+from saleha.core.self_evolving_loop import SelfEvolvingLoop, EvolvingBufferStats
 from saleha.cli.chat_session import SwarmChatSession
 
 
