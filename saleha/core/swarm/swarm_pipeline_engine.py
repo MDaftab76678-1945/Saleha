@@ -209,7 +209,8 @@ class SwarmPipelineEngine:
                 continue
             v = differential_check(code, oracle.code, gen.code, entry)
             result = {"ran": True, "supported": v.supported, "checked": v.checked,
-                      "mismatch": v.mismatch, "reason": v.reason, "generator_attempts": attempt,
+                      "mismatch": v.mismatch, "first_mismatch": v.first_mismatch,
+                      "reason": v.reason, "generator_attempts": attempt,
                       "entry": entry, "oracle_code": oracle.code, "generator_code": gen.code}
             if v.supported or v.mismatch:
                 break
@@ -228,7 +229,10 @@ class SwarmPipelineEngine:
         from saleha.core.verification.oracle_check import differential_check
 
         coder = CoderAgent(model=self._resolve_model("coder"))
-        mismatch = oracle["mismatch"]
+        # The generated input, not the shrunk one: on qwen2.5-coder:3b (LIS bug,
+        # 10 tries each) the full input led to 2 fixes, the shrunk [7, 7] to 0,
+        # both together to 1. The shrunk one is for the human-readable report.
+        mismatch = oracle.get("first_mismatch") or oracle["mismatch"]
         for attempt in range(1, self.REPAIR_ATTEMPTS + 1):
             fix = coder.generate_code(REPAIR_PROMPT.format(task=goal, code=code, mismatch=mismatch,
                                                            oracle=oracle["oracle_code"]))
@@ -242,7 +246,7 @@ class SwarmPipelineEngine:
                 return {"code": fix.code, "run": run, "checked": v.checked, "attempts": attempt,
                         "fixed_mismatch": oracle["mismatch"]}
             if v.mismatch:
-                code, mismatch = fix.code, v.mismatch  # next attempt sees the newest counterexample
+                code, mismatch = fix.code, v.first_mismatch or v.mismatch  # next attempt sees the newest counterexample
         return None
 
     def _resolve_model(self, task_role: str) -> str:

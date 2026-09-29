@@ -31,6 +31,20 @@ class OracleCheckTests(unittest.TestCase):
         # An early mismatch must be reported as one, not as "too few inputs".
         self.assertEqual(v.reason, "differs from the brute-force oracle")
 
+    def test_counterexample_is_shrunk_to_the_smallest_failing_input(self) -> None:
+        # Seed 0 draws 6 items; the bug needs only two equal ones.
+        wide = "def gen(rng):\n    return ([rng.randint(0, 3) for _ in range(rng.randint(5, 8))],)\n"
+        v = differential_check(BUGGY, ORACLE, wide, "lis_length", n=50)
+        self.assertRegex(v.mismatch, r"^args=\(\[(\d), \1\],\) oracle=\('ok', 1\) candidate=\('ok', 2\)$")
+        self.assertRegex(v.first_mismatch, r"^args=\(\[\d(, \d){4,}\],\)")
+
+    def test_shrinking_never_uses_an_input_the_oracle_rejects(self) -> None:
+        # The oracle raises on lists shorter than 3; the shrunk input must keep 3.
+        oracle = ORACLE.replace("    best = 0\n", "    if len(nums) < 3:\n        raise ValueError\n    best = 0\n")
+        wide = "def gen(rng):\n    return ([rng.randint(0, 3) for _ in range(rng.randint(5, 8))],)\n"
+        v = differential_check(BUGGY, oracle, wide, "lis_length", n=50)
+        self.assertRegex(v.mismatch, r"^args=\(\[\d, \d, \d\],\)")
+
     def test_degenerate_generator_is_not_evidence(self) -> None:
         bad_gen = "def gen(rng):\n    return (None,)\n"
         v = differential_check(FAST, ORACLE, bad_gen, "lis_length", n=20)

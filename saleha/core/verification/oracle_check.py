@@ -34,6 +34,10 @@ from typing import Optional
 from saleha.core.safety_patterns import check_dangerous
 
 MIN_VALID_FRACTION = 0.5  # oracle must return normally on at least half the inputs
+# Budget for shrinking a counterexample (deleting items while it still fails):
+# a small model traces a 2-item input far more easily than an 8-item one.
+SHRINK_CALLS = 400
+SHRINK_SECONDS = 5
 
 
 @dataclass
@@ -41,8 +45,9 @@ class OracleVerdict:
     supported: bool
     checked: int = 0
     oracle_ok: int = 0
-    mismatch: str = ""
+    mismatch: str = ""  # the smallest failing input found
     reason: str = ""
+    first_mismatch: str = ""  # the generated input, when shrinking made it smaller
 
 
 def entry_point(prompt: str) -> Optional[str]:
@@ -74,7 +79,7 @@ GENERATOR_PROMPT = (
 )
 
 _CHILD = r'''
-import copy, json, random, types
+import copy, json, random, time, types
 def _load(src, name):
     m = types.ModuleType(name)
     exec(compile(src, name + ".py", "exec"), m.__dict__)
@@ -84,11 +89,41 @@ def _call(fn, args):
         return ("ok", fn(*copy.deepcopy(args)))
     except Exception as e:
         return ("error", type(e).__name__)
+def _describe(args, want, got):
+    return ("args=%r oracle=%r candidate=%r" % (args, want, got))[:300]
+def _smaller(v):
+    # Deletion only: a sub-list of a valid input usually stays valid (sorted,
+    # distinct, in range); changing values would break stated constraints.
+    if isinstance(v, (list, tuple, str)):
+        for i in range(len(v)):
+            yield v[:i] + v[i + 1:]
+        if not isinstance(v, str):
+            for i, x in enumerate(v):
+                for s in _smaller(x):
+                    yield v[:i] + type(v)([s]) + v[i + 1:]
+def _shrink(args, want, got):
+    budget, deadline = __SHRINK_CALLS__, time.monotonic() + __SHRINK_SECONDS__
+    improved = True
+    while improved and budget > 0 and time.monotonic() < deadline:
+        improved = False
+        for smaller in _smaller(args):
+            if budget <= 0 or time.monotonic() >= deadline:
+                break
+            budget -= 1
+            w = _call(orac, smaller)
+            if w[0] != "ok":
+                continue  # the oracle rejects it: probably not a valid input
+            g = _call(cand, smaller)
+            if w != g:
+                args, want, got, improved = smaller, w, g, True
+                break
+    return args, want, got
 cand = getattr(_load(__CAND__, "candidate"), __ENTRY__)
 orac = getattr(_load(__ORACLE__, "oracle"), __ENTRY__)
 gen = _load(__GEN__, "gen").gen
 checked = oracle_ok = gen_failed = 0
 mismatch = ""
+found = None
 for seed in range(__N__):
     try:
         args = gen(random.Random(seed))
@@ -102,11 +137,17 @@ for seed in range(__N__):
     checked += 1
     oracle_ok += want[0] == "ok"
     if want != got:
-        mismatch = "args=%r oracle=%r candidate=%r" % (args, want, got)
-        mismatch = mismatch[:300]
+        mismatch = _describe(args, want, got)
+        found = (args, want, got)
         break
+# Printed before shrinking, so a candidate that hangs on a smaller input
+# cannot cost the verdict.
 print(__MARKER__ + json.dumps({"checked": checked, "oracle_ok": oracle_ok, "mismatch": mismatch,
-                               "gen_failed": gen_failed}))
+                               "gen_failed": gen_failed}), flush=True)
+if found and found[1][0] == "ok":
+    small = _shrink(*found)
+    if small[0] != found[0]:
+        print(__MARKER__ + json.dumps({"shrunk": _describe(*small)}), flush=True)
 '''
 
 
@@ -123,7 +164,9 @@ def differential_check(candidate: str, oracle: str, generator: str, entry: str,
     marker = f"ORACLE_RESULT_{secrets.token_hex(8)}:"
     script = (_CHILD.replace("__CAND__", repr(candidate)).replace("__ORACLE__", repr(oracle))
               .replace("__GEN__", repr(generator)).replace("__ENTRY__", repr(entry))
-              .replace("__N__", str(n)).replace("__MARKER__", repr(marker)))
+              .replace("__N__", str(n)).replace("__MARKER__", repr(marker))
+              .replace("__SHRINK_CALLS__", str(SHRINK_CALLS))
+              .replace("__SHRINK_SECONDS__", str(SHRINK_SECONDS)))
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         path = os.path.join(tmp, "oracle_check.py")
         with open(path, "w", encoding="utf-8") as fh:
@@ -131,16 +174,26 @@ def differential_check(candidate: str, oracle: str, generator: str, entry: str,
         try:
             proc = subprocess.run([sys.executable, "-I", "-B", path], capture_output=True, text=True,
                                   encoding="utf-8", errors="replace", timeout=timeout, cwd=tmp)
-        except subprocess.TimeoutExpired:
-            return OracleVerdict(False, reason=f"timed out after {timeout}s")
+            stdout, stderr, timed_out = proc.stdout, proc.stderr, False
+        except subprocess.TimeoutExpired as exc:
+            # The verdict is printed before shrinking starts; a hang after it
+            # loses only the smaller counterexample.
+            raw = exc.stdout or b""
+            stdout = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+            stderr, timed_out = "", True
 
-    line = next((ln for ln in reversed(proc.stdout.splitlines()) if ln.startswith(marker)), None)
-    if line is None:
-        tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-1:] or ["no output"]
+    results = [json.loads(ln[len(marker):]) for ln in stdout.splitlines() if ln.startswith(marker)]
+    data = next((r for r in results if "checked" in r), None)
+    if data is None:
+        if timed_out:
+            return OracleVerdict(False, reason=f"timed out after {timeout}s")
+        tail = (stderr or stdout or "").strip().splitlines()[-1:] or ["no output"]
         return OracleVerdict(False, reason=f"check did not complete: {tail[0][:200]}")
-    data = json.loads(line[len(marker):])
     verdict = OracleVerdict(False, checked=data["checked"], oracle_ok=data["oracle_ok"],
                             mismatch=data["mismatch"])
+    shrunk = next((r["shrunk"] for r in results if "shrunk" in r), "")
+    if verdict.mismatch and shrunk:
+        verdict.first_mismatch, verdict.mismatch = verdict.mismatch, shrunk
     # Mismatch first: it stops the loop early, so a low `checked` count then
     # means "found a difference", not "too few inputs".
     if verdict.mismatch:
