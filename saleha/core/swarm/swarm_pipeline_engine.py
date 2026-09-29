@@ -36,6 +36,18 @@ from saleha.core.swarm.agent_message_bus import (
 )
 from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpoint, checkpoint_store
 
+# Measured on qwen2.5-coder:3b (pass 168): given only the failing input it
+# returned the same bug twice; with the reference code and "trace it first"
+# the full repair loop fixed the LIS bug in 1 of 3 runs. Weak, but real.
+REPAIR_PROMPT = (
+    "Task: {task}\n\nThis solution is WRONG:\n{code}\n\n"
+    "Compared with a slow reference version on the same input: {mismatch}\n"
+    "The slow reference version is correct:\n{oracle}\n\n"
+    "First trace the wrong solution on that input line by line to find the bug. Then write a "
+    "fixed, efficient solution with the same function name and signature, including every "
+    "import it needs. Return only the fixed code."
+)
+
 
 @dataclass
 class SwarmPipelineStage:
@@ -101,6 +113,7 @@ class SwarmPipelineEngine:
     """Executes Dynamic Multi-Agent DAG Pipelines with Checkpointing & Session Resumption."""
 
     GENERATOR_ATTEMPTS = 3
+    REPAIR_ATTEMPTS = 3
 
     def __init__(self, router: Optional[AutonomousSwarmRouter] = None, model: str = "auto",
                  candidates: int = 1):
@@ -196,10 +209,41 @@ class SwarmPipelineEngine:
                 continue
             v = differential_check(code, oracle.code, gen.code, entry)
             result = {"ran": True, "supported": v.supported, "checked": v.checked,
-                      "mismatch": v.mismatch, "reason": v.reason, "generator_attempts": attempt}
+                      "mismatch": v.mismatch, "reason": v.reason, "generator_attempts": attempt,
+                      "entry": entry, "oracle_code": oracle.code, "generator_code": gen.code}
             if v.supported or v.mismatch:
                 break
         return result
+
+    def _repair_with_counterexample(self, goal: str, code: str, test_code: str,
+                                    oracle: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Hand the model the exact input where its code disagrees with the
+        brute-force version and ask for a fix. A fix counts only if it passes
+        the same tests AND the same oracle/generator check again -- never on the
+        model's word. None when no attempt did.
+        """
+        from saleha.agents.coder import CoderAgent
+        from saleha.core.harness.test_runner import TestRunner
+        from saleha.core.verification.oracle_check import differential_check
+
+        coder = CoderAgent(model=self._resolve_model("coder"))
+        mismatch = oracle["mismatch"]
+        for attempt in range(1, self.REPAIR_ATTEMPTS + 1):
+            fix = coder.generate_code(REPAIR_PROMPT.format(task=goal, code=code, mismatch=mismatch,
+                                                           oracle=oracle["oracle_code"]))
+            if not (fix.success and fix.code.strip()) or fix.code.strip() == code.strip():
+                continue
+            run = TestRunner().run_suite(fix.code, test_code=test_code, timeout=15)
+            if not run.passed:
+                continue
+            v = differential_check(fix.code, oracle["oracle_code"], oracle["generator_code"], oracle["entry"])
+            if v.supported:
+                return {"code": fix.code, "run": run, "checked": v.checked, "attempts": attempt,
+                        "fixed_mismatch": oracle["mismatch"]}
+            if v.mismatch:
+                code, mismatch = fix.code, v.mismatch  # next attempt sees the newest counterexample
+        return None
 
     def _resolve_model(self, task_role: str) -> str:
         """Dynamically resolves model: uses test mock when in test mode or explicitly requested,
@@ -375,8 +419,21 @@ class SwarmPipelineEngine:
                     # its blind spots; a concrete input where the code differs
                     # from a brute-force version overrides their pass.
                     oracle = self._oracle_check(goal, source_code) if tests_passed else None
+                    repair = None
                     if oracle and oracle["mismatch"]:
                         tests_passed = False
+                        repair = self._repair_with_counterexample(goal, source_code, suite.test_code, oracle)
+                    if repair:
+                        # The security stage scanned the old code, not this one.
+                        from saleha.agents.security_guard import SecurityGuardAgent
+                        source_code, run = repair["code"], repair["run"]
+                        audit = SecurityGuardAgent(model=self._resolve_model("security")).audit_and_harden(
+                            goal, source_code)
+                        is_secure = audit.is_secure
+                        tests_passed = run.passed
+                        oracle = {**(oracle or {}), "mismatch": "", "supported": True,
+                                  "checked": repair["checked"], "repaired_from": repair["fixed_mismatch"],
+                                  "repair_attempts": repair["attempts"]}
                     contract = QAOutputContract(
                         framework=suite.framework,
                         test_code=suite.test_code,
@@ -392,6 +449,8 @@ class SwarmPipelineEngine:
                         verdict_text = "PASSED" + (
                             f"; matches a brute-force version on {oracle['checked']} random inputs"
                             if oracle and oracle["supported"] else "")
+                        if oracle and oracle.get("repaired_from"):
+                            verdict_text += f" (after fixing its failure on {oracle['repaired_from']})"
                     else:
                         verdict_text = "FAILED (" + run.failure_report(200) + ")"
                     stage.output_summary = (

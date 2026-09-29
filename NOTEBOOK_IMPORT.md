@@ -11616,3 +11616,13 @@ draws. The swarm now asks for a fresh generator (up to 3) until the check either
 vouches or finds a mismatch. Real run, qwen2.5-coder:3b: buggy LIS caught on
 `[-9, 76, 89, 89]`; correct LIS matched the brute-force version on 200/200 inputs.
 New test fails with the engine change stashed.
+
+## Pass 168 (2026-09-29) -- counterexample-driven repair in the swarm
+
+When the brute-force check finds a mismatch, the swarm hands the model the failing
+input and the reference code and asks for a fix (3 attempts). A fix is accepted only
+if it passes the same tests AND the same oracle/generator again; the security stage
+re-scans it. Real runs, qwen2.5-coder:3b, bisect_right LIS bug: prompt with only the
+mismatch returned the same bug 2/2; with reference + "trace first" the loop fixed it
+in 1 of 3 runs (the other runs stayed reported as failed, never as passed).
+4 new/changed tests; the repair test fails with the engine change stashed.

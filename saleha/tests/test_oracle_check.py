@@ -69,7 +69,7 @@ class SwarmOracleTests(unittest.TestCase):
     WEAK_TESTS = ("import unittest\nclass T(unittest.TestCase):\n"
                   "    def test_basic(self):\n        self.assertEqual(lis_length([1, 3, 2, 4]), 3)\n")
 
-    def _run(self, code: str, *gens: str) -> tuple:
+    def _run(self, code: str, *later: str) -> tuple:
         from unittest.mock import patch
 
         from saleha.agents.coder import CodeResult
@@ -77,7 +77,8 @@ class SwarmOracleTests(unittest.TestCase):
         from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
         from saleha.tests.swarm_stubs import stub_agents
 
-        outputs = iter([code, ORACLE, *(gens or (GEN,))])  # solution, brute-force version, generator(s)
+        # solution, brute-force version, then generator(s) and any repair attempts
+        outputs = iter([code, ORACLE, *(later or (GEN,))])
         suite = QATestSuite(task=self.GOAL, framework="unittest", test_code=self.WEAK_TESTS,
                             test_case_count=1, edge_cases_covered=[])
         with stub_agents(), \
@@ -88,7 +89,7 @@ class SwarmOracleTests(unittest.TestCase):
         return res, next(s for s in res.stages if s.agent_role == "QALead")
 
     def test_brute_force_catches_code_the_weak_tests_pass(self) -> None:
-        res, qa = self._run(BUGGY)
+        res, qa = self._run(BUGGY, GEN, BUGGY, BUGGY, BUGGY)  # every repair returns the same bug
         self.assertFalse(res.tests_passed)
         self.assertFalse(res.success)
         self.assertIn("differs from a brute-force version", qa.output_summary)
@@ -105,6 +106,20 @@ class SwarmOracleTests(unittest.TestCase):
         res, qa = self._run(FAST, crashing, GEN)
         self.assertTrue(qa.payload["oracle"]["supported"], qa.payload["oracle"])
         self.assertEqual(qa.payload["oracle"]["generator_attempts"], 2)
+
+    def test_counterexample_drives_a_rechecked_fix(self) -> None:
+        res, qa = self._run(BUGGY, GEN, FAST)  # the one repair attempt returns the fix
+        self.assertEqual(res.final_code, FAST)
+        self.assertTrue(res.tests_passed, qa.output_summary)
+        self.assertIn("after fixing its failure on", qa.output_summary)
+        self.assertEqual(qa.payload["oracle"]["repair_attempts"], 1)
+
+    def test_a_fix_that_still_differs_is_not_accepted(self) -> None:
+        worse = "def lis_length(nums):\n    return len(nums)\n"
+        res, qa = self._run(BUGGY, GEN, worse, BUGGY, BUGGY)
+        self.assertFalse(res.success)
+        self.assertNotEqual(res.final_code, worse)
+        self.assertIn("differs from a brute-force version", qa.output_summary)
 
 
 if __name__ == "__main__":
