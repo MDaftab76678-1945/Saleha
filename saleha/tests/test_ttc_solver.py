@@ -3,11 +3,11 @@ Unit tests for Saleha Test-Time Compute (TTC) Multi-Trajectory Solver
 (saleha/core/ttc_solver.py).
 """
 
+from typing import Any
+
 from saleha.core.verification.ttc_solver import (
     TTCTrajectorySolver,
     CandidateTrajectory,
-    TTCSolveResult,
-    ttc_solver,
 )
 
 
@@ -115,11 +115,11 @@ def test_ttc_dynamic_generator_fn() -> Any:
     def mock_generator(problem: str, strategy: str) -> Any:
         if "defensive" in strategy:
             return (
-                f"def solve(val: int) -> int:\n    if val < 0:\n        raise ValueError()\n    return val\n",
+                "def solve(val: int) -> int:\n    if val < 0:\n        raise ValueError()\n    return val\n",
                 f"Defensive strategy checking bounds for {problem}",
             )
         return (
-            f"def solve(val: int) -> int:\n    return val\n",
+            "def solve(val: int) -> int:\n    return val\n",
             f"Direct strategy for {problem}",
         )
 

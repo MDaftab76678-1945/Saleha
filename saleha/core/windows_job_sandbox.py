@@ -1,7 +1,10 @@
 """
 Windows-Native Job Object Hardware Sandbox & Process Isolation.
-Enforces strict memory bounds (e.g. 50MB per test) and CPU time limits
-using Windows Win32 Job Objects via ctypes to match Linux Seccomp security guarantees.
+Enforces a memory bound (e.g. 50MB per test) and a wall-clock timeout.
+
+Windows: Win32 Job Objects via ctypes (process and job memory quota, kill on close).
+POSIX: RLIMIT_DATA applied inside the child before the snippet runs. This bounds
+heap growth only; it is not seccomp and does not restrict syscalls, files or network.
 """
 
 from __future__ import annotations
@@ -15,6 +18,15 @@ from dataclasses import dataclass
 from typing import Any
 
 IS_WINDOWS = sys.platform == "win32"
+
+# Runs in the child interpreter: cap heap growth, then execute the snippet.
+# Done in the child (not via Popen's preexec_fn, which is unsafe with threads).
+_POSIX_BOOTSTRAP = (
+    "import resource, sys\n"
+    "_lim = int(sys.argv[1])\n"
+    "resource.setrlimit(resource.RLIMIT_DATA, (_lim, _lim))\n"
+    "exec(compile(sys.argv[2], '<string>', 'exec'), {'__name__': '__main__'})\n"
+)
 
 if IS_WINDOWS:
     from ctypes import wintypes
@@ -138,7 +150,10 @@ class WindowsJobSandbox:
         self, code: str, timeout_sec: float = 3.0
     ) -> SandboxRunResult:
         start_time = time.perf_counter()
-        cmd = [sys.executable, "-c", code]
+        if IS_WINDOWS:
+            cmd = [sys.executable, "-c", code]
+        else:
+            cmd = [sys.executable, "-c", _POSIX_BOOTSTRAP, str(self.memory_limit_bytes), code]
         job_handle = self._create_job_object()
 
         try:

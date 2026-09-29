@@ -10849,3 +10849,40 @@ Live re-run of the fixed `self_mutator.py` against `cpg_slicer.py`:
 2 real mutants rejected on failing tests, 1 accepted with a genuine (not
 fabricated) measured speedup, original file confirmed restored via
 `git diff --stat`.
+
+## Pass 148: four defects found by running the suite on Python 3.12/Linux (2026-09-29)
+
+Setup: fresh Linux box, Python 3.12 venv (`pip install -e .`), no Ollama. Earlier
+passes were measured on Windows/Python 3.14; this was the first run on the
+`requires-python` floor. Baseline: `3 failed, 2345 passed, 30 skipped`, plus
+`test_ttc_solver.py` failing at collection (excluded from that count).
+
+1. **Circular import (pass 139 migration).** In a fresh process,
+   `import saleha.core.swarm.swarm_pipeline_engine` raised `ImportError: cannot
+   import name 'swarm_engine' from partially initialized module`. Chain:
+   swarm_pipeline_engine -> memory -> memory_store -> rag -> graph_rag ->
+   `saleha.agents.__init__` -> issue_resolver -> swarm_pipeline_engine. The CLI
+   worked only because its import order happened to be favourable. Fix:
+   `AutonomousIssueResolver.engine` is now a lazy property (with a setter so
+   tests can inject a mock); `SwarmExecutionResult` is a TYPE_CHECKING import.
+   Verified by importing every non-test module in its own process: the only 3
+   failures are missing optional dependencies (`anthropic`, `sounddevice`, the
+   `realtime` extra), each with a clear message.
+2. **`test_ttc_solver.py` never collected on 3.12.** `-> Any` with no `Any`
+   import (pass 139's auto-annotator). Python 3.14's lazy annotations hid it.
+   Ruff F821 found no other undefined names under `saleha/`.
+3. **`WindowsJobSandbox` enforced no memory limit off Windows** while reporting
+   `passed=True, memory_limit_hit=False` for a 100 MB allocation under a 15 MB
+   limit; the docstring also claimed parity with Linux seccomp. The failing test
+   was right; skipping it would have hidden this. Now applies `RLIMIT_DATA` in
+   the child on POSIX (not `preexec_fn`, which is unsafe with threads). Measured
+   before wiring: 15 MB limit -> 5 MB alloc passes, 100 MB alloc `MemoryError`.
+   Docstring now says what it is: heap bound only, not seccomp. New test
+   guards against a limit so tight the interpreter cannot start.
+4. **`AGENTSKILLS.md`** cited `saleha/core/bm25.py` and `saleha/core/memory_store.py`
+   (moved to `rag/` and `memory/` in pass 139); `test_doc_consistency` caught it.
+
+Also cleared 10 pre-existing ruff F-diagnostics in the four touched code/test files.
+
+Result: `2360 passed, 30 skipped, 172 subtests, 0 failed` (Python 3.12, Linux).
+Not measured: Python 3.14, Windows.

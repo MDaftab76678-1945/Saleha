@@ -5,10 +5,8 @@ Validates execution safety, wall-clock timeout killing, and memory limits.
 
 from __future__ import annotations
 
-import sys
-import pytest
 
-from saleha.core.windows_job_sandbox import IS_WINDOWS, SandboxRunResult, WindowsJobSandbox
+from saleha.core.windows_job_sandbox import IS_WINDOWS, WindowsJobSandbox
 
 
 class TestWindowsJobSandbox:
@@ -46,6 +44,16 @@ class TestWindowsJobSandbox:
         assert res.passed is False
         # Memory limit violation triggers memory_limit_hit (either via OS quota or MemoryError)
         assert res.memory_limit_hit is True or res.exit_code != 0
+
+    def test_allocation_within_limit_still_passes(self) -> None:
+        # Guards against a limit so tight the interpreter cannot run at all,
+        # which would make the exhaustion test above pass for the wrong reason.
+        sandbox = WindowsJobSandbox(memory_limit_mb=50, timeout_ms=3000)
+        res = sandbox.run_isolated_python_snippet(
+            "print(len(bytearray(5 * 1024 * 1024)))", timeout_sec=3.0
+        )
+        assert res.passed is True, res.error
+        assert res.output == str(5 * 1024 * 1024)
 
     def test_job_object_lifecycle_on_windows(self) -> None:
         if IS_WINDOWS:

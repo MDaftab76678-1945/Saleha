@@ -13,10 +13,11 @@ import ast
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional, Any
 
-from saleha.core.swarm.swarm_pipeline_engine import swarm_engine, SwarmExecutionResult
+if TYPE_CHECKING:
+    from saleha.core.swarm.swarm_pipeline_engine import SwarmExecutionResult
 
 
 @dataclass
@@ -37,8 +38,26 @@ class IssueResolutionPlan:
 class AutonomousIssueResolver:
     """Autonomous Bot for End-to-End Bug Triage, Code Patching, and PR Generation."""
 
-    def __init__(self):
-        self.engine = swarm_engine
+    def __init__(self) -> None:
+        self._engine: Any = None
+
+    @property
+    def engine(self) -> Any:
+        """The swarm engine, imported on first use.
+
+        Imported lazily because saleha.agents is imported while
+        swarm_pipeline_engine is still initialising (via memory -> rag ->
+        graph_rag -> saleha.agents); a module-level import made
+        `import saleha.core.swarm.swarm_pipeline_engine` fail in a fresh process.
+        """
+        if self._engine is None:
+            from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
+            self._engine = swarm_engine
+        return self._engine
+
+    @engine.setter
+    def engine(self, value: Any) -> None:
+        self._engine = value
 
     def _sanitize_branch_name(self, issue_id: str, title: str) -> str:
         clean_title = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-")[:40]
