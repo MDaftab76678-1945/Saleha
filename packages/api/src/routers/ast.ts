@@ -11,10 +11,15 @@ export const astRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      // Toy substring checks only ("/ 0", malloc without free). This is
+      // not a verification: real AST/SAST checking lives in the Python
+      // backend (saleha/core/verification/). Labeled as what it is.
       const isDivZero = input.code.includes("/ 0") || input.code.includes("/0");
       const hasMemoryLeak = input.code.includes("malloc(") && !input.code.includes("free(");
 
       return {
+        stub: true,
+        note: "Substring heuristics only, not a verification.",
         isValid: !isDivZero && !hasMemoryLeak,
         language: input.language,
         violations: [

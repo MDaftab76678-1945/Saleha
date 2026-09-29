@@ -33,12 +33,27 @@ export class ObservabilityEngine {
   }
 
   static getSystemHealth() {
+    // The previous version returned fixed p50/p99 nanosecond figures with
+    // no measurement behind them. Now the percentiles come from the
+    // recorded metrics, and an empty store reports NO_DATA instead of
+    // a healthy verdict.
+    const values = this.metrics.map((m) => m.value).sort((a, b) => a - b);
+    if (values.length === 0) {
+      return {
+        status: "NO_DATA",
+        uptimeSeconds: process.uptime ? process.uptime() : 0,
+        totalMetricsRecorded: 0,
+        p50LatencyNs: 0,
+        p99LatencyNs: 0,
+      };
+    }
+    const at = (p: number) => values[Math.min(values.length - 1, Math.floor(p * values.length))];
     return {
       status: "HEALTHY",
       uptimeSeconds: process.uptime ? process.uptime() : 0,
-      totalMetricsRecorded: this.metrics.length,
-      p50LatencyNs: 160,
-      p99LatencyNs: 240,
+      totalMetricsRecorded: values.length,
+      p50LatencyNs: at(0.5),
+      p99LatencyNs: at(0.99),
     };
   }
 }

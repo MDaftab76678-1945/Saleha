@@ -3,7 +3,11 @@ import { router, publicProcedure } from "../trpc";
 
 export const swarmRouter = router({
   getTopology: publicProcedure.query(async () => {
+    // Static placeholder: no swarm is queried here. The numbers below
+    // are fixed literals, not a live topology read.
     return {
+      stub: true,
+      note: "Static placeholder topology; not read from any running swarm.",
       activeAgents: 250,
       shadowCopilots: 250,
       expertPool: 500,
@@ -33,7 +37,11 @@ export const swarmRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      // Nothing is dispatched: there is no backing swarm runner behind
+      // this endpoint. The response labels itself accordingly.
       return {
+        stub: true,
+        note: "Accepted, not dispatched: no runner consumes this.",
         taskId: `task_${Date.now()}`,
         status: "DISPATCHED",
         department: input.targetDepartment,

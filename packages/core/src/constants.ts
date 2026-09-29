@@ -13,14 +13,16 @@
  * named next to it. Re-run that command before changing the number.
  */
 
-/** BaseAgent subclasses in saleha/agents/. Measured: grep -l "class.*BaseAgent" saleha/agents/*.py | wc -l */
-export const AGENT_COUNT = 27;
+/** BaseAgent subclasses in saleha/agents/ (29 measured 2026-09-30; the old
+pattern also matched `class BaseAgent:` itself, overcounting by one).
+Measured: grep -l "class.*(.*BaseAgent" saleha/agents/*.py | wc -l */
+export const AGENT_COUNT = 29;
 
 /** Persona specs in saleha/skills/agent_*.md. Measured: ls saleha/skills/agent_*.md | wc -l */
 export const PERSONA_COUNT = 30;
 
-/** Registered CLI subcommands. Measured: python -c "from saleha.cli.commands import cli; print(len(cli.commands))" */
-export const CLI_COMMAND_COUNT = 166;
+/** Registered CLI subcommands. Measured 171 on 2026-09-30: python -c "from saleha.cli.commands import cli; print(len(cli.commands))" */
+export const CLI_COMMAND_COUNT = 171;
 
 export const HYPERBOLIC_DIM = 16;
 export const CURVATURE_C = 1.0;

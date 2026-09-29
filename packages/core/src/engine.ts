@@ -22,14 +22,14 @@ export class SalehaCoreEngine {
   }
 
   async verifyAST(code: string, language: string): Promise<GammaReport> {
-    console.log(`[SalehaCore] Dispatching AST verify for ${language}...`);
-    return {
-      passed: true,
-      violations: [],
-      executionTimeMs: 0,
-      sandboxOutput: 'Verified',
-      sandboxExitCode: 0
-    };
+    // No verifier exists on this side: the previous version returned
+    // passed:true with empty violations for any input. Fail loudly
+    // instead -- like runInSandbox below -- so no caller can mistake
+    // this for a clean bill of health. Real verification lives in the
+    // Python backend (saleha/core/verification/).
+    throw new Error(
+      `AST verification is not implemented in the web client (asked for ${language}, ${code.length} chars).`
+    );
   }
 
   async runInSandbox(code: string, language: 'python' | 'javascript' | 'rust'): Promise<any> {
