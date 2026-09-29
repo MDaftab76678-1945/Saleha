@@ -253,7 +253,7 @@ def make_receipt(root_dir: str = ".", base: str = "HEAD", test_command: Optional
 
     # Head run, recorded in the anchored ledger as it happens.
     from saleha.core.platform.intent_kernel import default_anchor_path
-    from saleha.core.work_ledger import WorkLedger
+    from saleha.core.verification.work_ledger import WorkLedger
     ledger = WorkLedger(ledger_path or os.path.join(root, ".saleha", "work.jsonl"), root_dir=root,
                         anchor_path=anchor_path or default_anchor_path())
     t0 = time.time()

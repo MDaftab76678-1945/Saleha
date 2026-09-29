@@ -343,6 +343,8 @@ _MOD_TO_SUBPACKAGE = {
     "full_duplex_voice": "voice", "speech": "voice", "voice_assistant": "voice",
     "voice_engine": "voice", "voice_live": "voice",
     "dag_engine": "workflow",
+    "proof_receipt": "verification", "silicon_scanner": "security",
+    "tourist_solver": "loop", "work_ledger": "verification",
 }
 
 

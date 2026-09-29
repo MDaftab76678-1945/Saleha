@@ -239,7 +239,7 @@ class ASTSecurityScanner:
 
     def _scan_verilog(self, code: str, filename: str) -> List[SecurityVulnerability]:
         """Scans Verilog / SystemVerilog hardware description files using SiliconCopilot scanner."""
-        from saleha.core.silicon_scanner import silicon_scanner
+        from saleha.core.security.silicon_scanner import silicon_scanner
         silicon_vulns = silicon_scanner.scan_verilog(code, filename=filename)
         return [
             SecurityVulnerability(

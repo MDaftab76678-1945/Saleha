@@ -168,7 +168,7 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
     # On failure it restores the file and the full agent below takes over.
     # SALEHA_TOURIST_FIRST=0 turns it off.
     if write and os.environ.get('SALEHA_TOURIST_FIRST', '1') != '0':
-        import saleha.core.tourist_solver as _ts
+        import saleha.core.loop.tourist_solver as _ts
         if _ts.understand(root_dir)[0] is not None:
             # An explicit --model is used for every call; --timeout bounds
             # the fast path too, instead of it running on its own clock.
@@ -243,7 +243,7 @@ def tourist_cmd(goal: str, root_dir: str, stress: bool, cloud: bool, as_json: bo
     """
     from dataclasses import asdict
 
-    import saleha.core.tourist_solver as ts
+    import saleha.core.loop.tourist_solver as ts
 
     r = ts.solve(goal, root_dir, stress=stress, deep_model=ts.CLOUD_MODEL if cloud else None,
                  on_event=None if as_json else (lambda m: console.print(f'[dim]{m}[/]')))

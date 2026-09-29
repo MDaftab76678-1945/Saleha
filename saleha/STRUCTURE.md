@@ -72,10 +72,10 @@ skills/`. The full module -> category map is `_MOD_TO_SUBPACKAGE` in
 New category packages have empty `__init__.py` files (no eager imports), so
 they cannot close an import cycle.
 
-Four modules are still flat -- `proof_receipt`, `silicon_scanner`,
-`tourist_solver`, `work_ledger` -- because another agent had uncommitted edits
-in them at the time; they belong in `verification/`, `security/`, `loop/`
-and `verification/`.
+The last four flat modules landed after that -- `proof_receipt` and
+`work_ledger` in `verification/`, `silicon_scanner` in `security/` and
+`tourist_solver` in `loop/`. Nothing flat remains
+under `saleha/core/` except `__init__.py`.
 
 **A real trap the migration exposed, fixed in `saleha/core/__init__.py` and
 each affected category `__init__.py`:** several category packages

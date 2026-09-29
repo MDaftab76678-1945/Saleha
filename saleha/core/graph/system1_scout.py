@@ -338,7 +338,7 @@ class System1Scout:
 
     @staticmethod
     def _module_of(rel_path: str) -> str:
-        """saleha/core/work_ledger.py -> saleha.core.work_ledger"""
+        """saleha/core/verification/work_ledger.py -> saleha.core.verification.work_ledger"""
         norm = rel_path.replace("\\", "/")
         return norm[:-3].replace("/", ".") if norm.endswith(".py") else norm
 

@@ -587,7 +587,7 @@ def receipt_cmd(root_dir: str, base: str, test_cmd: Optional[str], timeout: floa
     Example: saleha receipt --base HEAD~1
     """
 
-    import saleha.core.proof_receipt as pr
+    import saleha.core.verification.proof_receipt as pr
 
     argv = _split_command(test_cmd) if test_cmd else None
     r = pr.make_receipt(root_dir, base=base, test_command=argv, timeout=timeout)
@@ -629,7 +629,7 @@ def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as
     Example: saleha verify-work .saleha/work.jsonl --dir .
     """
     from saleha.core.platform.intent_kernel import default_anchor_path
-    from saleha.core.work_ledger import WorkLedger
+    from saleha.core.verification.work_ledger import WorkLedger
 
     if anchor is None and os.path.exists(default_anchor_path()):
         anchor = default_anchor_path()

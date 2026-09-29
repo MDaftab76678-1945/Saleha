@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from saleha.cli.commands import cli
 from saleha.core import intent_kernel
-from saleha.core.work_ledger import WorkLedger, _canonical, _sha256
+from saleha.core.verification.work_ledger import WorkLedger, _canonical, _sha256
 
 _HAS_IK = intent_kernel.find_ik() is not None
 

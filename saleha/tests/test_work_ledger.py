@@ -1,5 +1,5 @@
 """
-Tests for the verifiable work ledger (saleha/core/work_ledger.py).
+Tests for the verifiable work ledger (saleha/core/verification/work_ledger.py).
 
 The property under test is not "the log is written correctly" -- it is that
 a stranger holding only the ledger file and the repo can re-establish, or
@@ -20,7 +20,7 @@ import unittest
 from unittest import mock
 
 from saleha.core import work_ledger
-from saleha.core.work_ledger import (
+from saleha.core.verification.work_ledger import (
     RECHECKABLE,
     ClaimKind,
     Verdict,

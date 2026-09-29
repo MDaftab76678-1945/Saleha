@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 FAST_MODEL = os.environ.get("SALEHA_TOURIST_FAST", "qwen2.5-coder:3b")
-DEEP_MODEL = os.environ.get("SALEHA_TOURIST_DEEP", "qwen3:8b")
+DEEP_MODEL = os.environ.get("SALEHA_TOURIST_DEEP", "qwen3.5:4b")
 # Escalation target when the caller allows cloud (saleha tourist --cloud):
 # Claude through the Claude Code CLI, on the user's own subscription.
 CLOUD_MODEL = os.environ.get("SALEHA_TOURIST_CLOUD", "claude-code:sonnet")
