@@ -2353,7 +2353,7 @@ answer that `SelfHealingEngine` sandboxed, called PASSED and cached; the
 LoRA training script printing "Simulated Dry-Run ... 100% Validated"; the
 vault replacing an unreadable salt (secrets lost for good). Detail:
 `NOTEBOOK_IMPORT.md`, "Pass 148" and "Pass 149". **Lessons:** (1) a blanket
-emoji strip turned `'❓' in log` into `'' in log`; when removing "decorative"
+emoji strip turned an emoji membership test (`'<emoji>' in log`) into `'' in log`; when removing "decorative"
 characters first check whether the string is data another line searches for.
 (2) Never edit source while the suite runs -- `inspect.getsource` tests failed
 from line-number drift I caused. (3) Every fabrication this pass was again
