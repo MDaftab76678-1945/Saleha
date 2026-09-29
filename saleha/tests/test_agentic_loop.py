@@ -2078,6 +2078,36 @@ class ReproduceAndEscapeTests(unittest.TestCase):
             with open(os.path.join(root, "calc.py")) as f:
                 self.assertIn("print('a\\nb')", f.read())
 
+    def test_a_failed_search_names_the_closest_real_lines(self) -> None:
+        # Measured on agent_bench (pager_off_by_one, qwen2.5-coder:3b): the
+        # model read the buggy line, then sent it back with the `+ 1`
+        # dropped. The bare "could not match" left it guessing for the rest
+        # of its budget. The failure must name the real line verbatim, and
+        # copying that line must recover the patch.
+        body = ("def page(items, number, size):\n    start = number * size\n"
+                "    return items[start:start + size + 1]\n")
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            with open(os.path.join(root, "pager.py"), "w") as f:
+                f.write(body)
+            loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True)
+            obs = loop._tool_patch_file("pager.py", "return items[start:start + size]",
+                                        "return items[start:start + size]")
+            self.assertTrue(obs.startswith("patch failed"), obs)
+            self.assertIn("    return items[start:start + size + 1]", obs)
+            fixed = loop._tool_patch_file("pager.py", "    return items[start:start + size + 1]",
+                                          "    return items[start:start + size]")
+            self.assertTrue(fixed.startswith("successfully patched"), fixed)
+            with open(os.path.join(root, "pager.py")) as f:
+                self.assertIn("return items[start:start + size]\n", f.read())
+
+    def test_a_search_with_no_close_match_says_only_that_it_failed(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            self._repo(root)
+            loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True)
+            obs = loop._tool_patch_file("calc.py", "text that is not in the file", "x")
+            self.assertTrue(obs.startswith("patch failed"), obs)
+            self.assertNotIn("Closest real lines", obs)
+
 
 class StaleBytecodeTests(unittest.TestCase):
     """A same-size edit in the same second must not run the old compiled code."""

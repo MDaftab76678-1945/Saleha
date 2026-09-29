@@ -26,6 +26,7 @@ Security:
 from __future__ import annotations
 
 import contextlib
+import difflib
 import hashlib
 import json
 import os
@@ -300,6 +301,41 @@ _REPAIR_GOAL_RE = re.compile(
 def _looks_like_a_repair_goal(goal: str) -> bool:
     """True when the goal asks for a change on disk, not just an answer."""
     return bool(_REPAIR_GOAL_RE.search(goal or ""))
+
+
+def _close_lines_hint(content: str, search: str, limit: int = 6) -> str:
+    """Closest real file lines to a failed patch search block.
+
+    Measured on agent_bench (qwen2.5-coder:3b, pager_off_by_one): the model
+    read the buggy line, then sent a search block with the `+ 1` dropped;
+    the bare "could not match" left it guessing for the rest of its budget.
+    Naming the closest real lines lets the next call copy them verbatim
+    instead of re-reading the file and misquoting it again.
+    """
+    numbered = list(enumerate(content.splitlines(), start=1))
+    if not numbered:
+        return ""
+    picked: List[str] = []
+    used = set()
+    for raw in search.splitlines():
+        needle = raw.strip()
+        if not needle:
+            continue
+        for match in difflib.get_close_matches(
+                needle, [ln for _, ln in numbered], n=2, cutoff=0.6):
+            for num, ln in numbered:
+                if ln == match and num not in used:
+                    used.add(num)
+                    picked.append(f"  {num}: {ln}")
+                    break
+            if len(picked) >= limit:
+                break
+        if len(picked) >= limit:
+            break
+    if not picked:
+        return ""
+    return ("\nClosest real lines in the file (copy `search` verbatim from "
+            "these, including indentation):\n" + "\n".join(picked))
 
 
 def _find_goal_relevant_outline_entry(outline_lines: List[str], goal: str) -> Optional[str]:
@@ -1315,7 +1351,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 ok, patched, err = SmartPatcher.apply_search_replace(
                     old_content, search.replace("\\n", "\n"), fixed_replace)
             if not ok:
-                return f"patch failed: {err}"
+                return f"patch failed: {err}" + _close_lines_hint(old_content, search)
             # A patch that leaves a .py file syntactically broken must not
             # be reported as a success -- measured live (pass 140): the
             # exact-match path in apply_search_replace splices a multi-line
