@@ -1,0 +1,234 @@
+"""
+Unit tests for Specialized Orchestrators and New Agent Personas in Saleha v2.6.0
+"""
+
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock
+
+from saleha.core.devops.cloud_infra_orchestrator import CloudInfraOrchestrator, CloudInfraPlan
+from saleha.core.platform.fast_inference import InferenceResult
+from saleha.core.project.multirepo_orchestrator import MultiRepoOrchestrator, MultiRepoSyncPlan
+from saleha.core.research.silicon_circuit_orchestrator import (
+    SiliconCircuitDesign,
+    SiliconCircuitOrchestrator,
+)
+from saleha.core.swarm.debate_consensus_orchestrator import (
+    DebateConsensusOrchestrator,
+    DebateVerdict,
+)
+
+
+class SpecializedOrchestratorsTests(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.cloud = CloudInfraOrchestrator()
+        self.multirepo = MultiRepoOrchestrator()
+        self.silicon = SiliconCircuitOrchestrator()
+        # The debate orchestrator now makes real model calls (it used to
+        # return f-string templates and a hardcoded 0.948 confidence). Inject
+        # a fake engine so this stays a unit test and does not need Ollama.
+        fake = MagicMock()
+        fake.run.side_effect = lambda req, **kw: InferenceResult(
+            success=True,
+            content="## Decision" + chr(10) + "Adopt ClickHouse for the event log.",
+            tag=req.tag)
+        fake.run_batch.side_effect = lambda reqs, **kw: [
+            InferenceResult(success=True, content="critique of " + r.tag, tag=r.tag)
+            for r in reqs]
+        self.debate = DebateConsensusOrchestrator(inference=fake)
+
+    def test_cloud_infra_orchestrator(self) -> None:
+        plan: CloudInfraPlan = self.cloud.plan_and_generate_infra(
+            goal="Deploy Scalable Redis Cluster on AWS",
+            cloud_provider="aws",
+            high_availability=True
+        )
+        self.assertIn("terraform {", plan.terraform_code)
+        self.assertIn("apiVersion: apps/v1", plan.kubernetes_manifests)
+        self.assertIn("replicaCount: 3", plan.helm_values)
+        self.assertGreater(plan.finops_estimated_monthly_cost, 0)
+        self.assertEqual(plan.cloud_provider, "aws")
+        # `assertGreaterEqual(plan.security_score, 90)` used to be here. It
+        # pinned a hardcoded 96 that came from no analysis of anything -- the
+        # same shape of trap as the other tests that asserted fabricated
+        # values. There is no score now, and the plan says it is a template.
+        self.assertIsNone(plan.security_score)
+        self.assertTrue(plan.is_template)
+        self.assertTrue(plan.caveats)
+
+    def test_cloud_plan_is_marked_as_a_template_not_a_design(self) -> None:
+        """
+        Measured: two unrelated goals produce byte-identical k8s manifests,
+        helm values, IAM policy and CI/CD workflow. The Terraform differs only
+        where the goal string is echoed.
+        """
+        a = self.cloud.plan_and_generate_infra(goal="Multi-region Postgres")
+        b = self.cloud.plan_and_generate_infra(goal="Write a haiku about frogs")
+        self.assertEqual(a.kubernetes_manifests, b.kubernetes_manifests)
+        self.assertEqual(a.iam_policy_json, b.iam_policy_json)
+        self.assertTrue(a.is_template)
+
+    def test_non_aws_provider_is_reported_not_silently_wrong(self) -> None:
+        """
+        The Terraform is AWS whatever provider is asked for -- S3 backend,
+        us-east-1, terraform-aws-modules/vpc/aws -- and `hashicorp/gcp` is not
+        even a real provider address. It cannot `terraform init`.
+        """
+        plan = self.cloud.plan_and_generate_infra(goal="x", cloud_provider="gcp")
+        self.assertTrue(plan.provider_mismatch)
+        self.assertIn("AWS", plan.provider_mismatch)
+        self.assertTrue(plan.terraform_code.startswith("# WARNING"))
+
+    def test_aws_provider_has_no_mismatch_warning(self) -> None:
+        plan = self.cloud.plan_and_generate_infra(goal="x", cloud_provider="aws")
+        self.assertEqual(plan.provider_mismatch, "")
+        self.assertFalse(plan.terraform_code.startswith("# WARNING"))
+
+    def test_multirepo_orchestrator(self) -> None:
+        repos = ["payments-api", "web-frontend", "notification-worker"]
+        plan: MultiRepoSyncPlan = self.multirepo.plan_multirepo_sync(
+            goal="Add UUID idempotency keys to payment requests",
+            repos=repos
+        )
+        self.assertEqual(len(plan.affected_repos), 3)
+        self.assertIn("payments-api", plan.transforms)
+        self.assertIn("web-frontend", plan.transforms)
+        self.assertTrue(len(plan.migration_order) == 3)
+        # `assertTrue(plan.is_atomic)` used to be here, pinning a claim this
+        # module cannot make -- nothing can make changes across independent
+        # repositories atomic. The field is gone.
+        self.assertFalse(hasattr(plan, "is_atomic"))
+        self.assertTrue(plan.is_template)
+
+    def test_multirepo_pr_body_does_not_tick_unrun_checks(self) -> None:
+        """
+        The body used to end with three ticked boxes -- "AST compatibility
+        verified", "End-to-end integration tests passing" -- for checks that
+        exist nowhere in the module. Same defect as /autopr, once per repo.
+        """
+        plan = self.multirepo.plan_multirepo_sync(goal="g", repos=["api", "web"])
+        for transform in plan.transforms.values():
+            self.assertNotIn("[x]", transform.pr_body)
+            self.assertIn("[ ]", transform.pr_body)
+            self.assertIn("No repository was", transform.pr_body)
+
+    def test_multirepo_does_not_claim_to_have_read_the_repos(self) -> None:
+        """The file list is guessed from the repo name; the diff is fixed."""
+        a = self.multirepo.plan_multirepo_sync(goal="Rename a button colour",
+                                               repos=["payments-api"])
+        b = self.multirepo.plan_multirepo_sync(goal="Add UUID keys",
+                                               repos=["payments-api"])
+        self.assertEqual(a.transforms["payments-api"].example_diff,
+                         b.transforms["payments-api"].example_diff)
+        self.assertTrue(a.caveats)
+
+    def test_silicon_circuit_orchestrator(self) -> None:
+        design: SiliconCircuitDesign = self.silicon.synthesize_hardware_circuit(
+            spec_goal="Design 32-bit pipelined ALU with arithmetic overflow flag",
+            module_name="alu_core"
+        )
+        self.assertEqual(design.module_name, "saleha_alu_core")
+        self.assertIn("module saleha_alu_core", design.verilog_rtl)
+        self.assertIn("tb_saleha_alu_core", design.testbench_sv)
+        self.assertIn("create_clock", design.timing_constraints_sdc)
+        # These three assertions used to pin literals: 184 LUTs, 450 MHz and
+        # an unconditional True, none of which came from a synthesis tool --
+        # and the 450 contradicted the 400 MHz the SDC file asks for.
+        self.assertIsNone(design.estimated_lut_count)
+        self.assertIsNone(design.is_synthesizable)
+        self.assertTrue(design.is_template)
+
+    def test_silicon_returns_the_same_alu_for_any_specification(self) -> None:
+        """
+        Measured: a UART receiver request and a ripple-carry adder request
+        differ by one comment line. The UART gets an ALU with no receiver, no
+        baud logic and no start bit.
+        """
+        a = self.silicon.synthesize_hardware_circuit("4-bit ripple carry adder",
+                                                     module_name="m")
+        b = self.silicon.synthesize_hardware_circuit("UART receiver with parity",
+                                                     module_name="m")
+        self.assertEqual(a.testbench_sv, b.testbench_sv)
+        self.assertNotIn("baud", b.verilog_rtl.lower())
+        self.assertTrue(b.caveats)
+
+    def test_silicon_sdc_target_matches_the_sdc_file(self) -> None:
+        """The reported figure must agree with the file actually emitted."""
+        d = self.silicon.synthesize_hardware_circuit("x")
+        self.assertIn("2.50", d.timing_constraints_sdc)
+        self.assertEqual(d.sdc_target_freq_mhz, 400.0)
+
+    def test_silicon_does_not_crash_on_a_spec_with_no_usable_words(self) -> None:
+        """`spec_goal.lower().split()[0]` raised IndexError on an empty or
+        whitespace-only spec -- reachable from the CLI, which takes any
+        string."""
+        for spec in ("", "   ", "!!!", "###"):
+            with self.subTest(spec=spec):
+                design = self.silicon.synthesize_hardware_circuit(spec_goal=spec)
+                self.assertTrue(design.module_name.startswith("saleha_"))
+
+    def test_silicon_module_names_are_legal_verilog_identifiers(self) -> None:
+        """A Verilog identifier cannot start with a digit, so "4-bit counter"
+        must not produce a module named `saleha_4_bit`-style leading digit
+        after the prefix is stripped by any downstream consumer."""
+        for spec in ("4-bit counter", "12345", "32-bit", "8b10b encoder"):
+            with self.subTest(spec=spec):
+                bare = self.silicon.synthesize_hardware_circuit(
+                    spec_goal=spec).module_name.replace("saleha_", "", 1)
+                self.assertFalse(bare[0].isdigit(), f"{bare!r} starts with a digit")
+
+    def test_silicon_distinguishes_specs_that_share_a_first_word(self) -> None:
+        """Naming from word one alone collapsed every UART spec to
+        `saleha_uart`, so a transmitter and a receiver written to the same
+        output directory overwrote each other."""
+        tx = self.silicon.synthesize_hardware_circuit("UART transmitter at 115200 baud")
+        rx = self.silicon.synthesize_hardware_circuit("UART receiver with parity")
+        self.assertNotEqual(tx.module_name, rx.module_name)
+
+    def test_silicon_skips_filler_words_when_naming(self) -> None:
+        """"the AXI bridge" used to become `saleha_the`."""
+        design = self.silicon.synthesize_hardware_circuit("the AXI bridge")
+        self.assertNotIn("_the", design.module_name)
+        self.assertIn("axi", design.module_name)
+
+    def test_debate_consensus_orchestrator(self) -> None:
+        verdict: DebateVerdict = self.debate.conduct_architectural_debate(
+            topic="PostgreSQL vs ClickHouse for 10M events/sec logging",
+            options=["ClickHouse Columnar", "PostgreSQL TimescaleDB"],
+            num_rounds=2
+        )
+        self.assertEqual(verdict.rounds_conducted, 2)
+        self.assertEqual(len(verdict.rounds), 2)
+        self.assertIn("Architecture Decision Record", verdict.adr_markdown)
+        # Confidence is now measured participation, not the old 0.948 constant:
+        # all 8 persona slots answered, so it is exactly 1.0.
+        self.assertEqual(verdict.elo_confidence_score, 1.0)
+        self.assertFalse(verdict.degraded)
+        self.assertGreaterEqual(len(verdict.key_tradeoffs), 1)
+
+    def test_new_agent_persona_files_exist_and_valid(self) -> None:
+        skills_dir = Path(__file__).resolve().parents[3] / "saleha" / "skills"
+        new_personas = [
+            "agent_silicon_architect.md",
+            "agent_cloud_resilience.md",
+            "agent_quantum_symbolic.md",
+            "agent_p2p_swarm_coordinator.md",
+            "agent_neuro_optimizer.md",
+            "agent_zero_day_hunter.md",
+            "agent_spatial_3d_engine.md",
+            "agent_embedded_firmware.md",
+            "agent_finops_token_economist.md",
+            "agent_semantic_data_pipeline.md",
+        ]
+        for persona_file in new_personas:
+            p = skills_dir / persona_file
+            self.assertTrue(p.exists(), f"Persona file missing: {persona_file}")
+            content = p.read_text(encoding="utf-8")
+            self.assertTrue(content.startswith("---"), f"Invalid YAML frontmatter in {persona_file}")
+            self.assertIn("allowed_tools:", content)
+            self.assertIn("goals:", content)
+
+
+if __name__ == "__main__":
+    unittest.main()

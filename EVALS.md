@@ -24,8 +24,8 @@ Fabricated scores and unmeasured passes are strictly forbidden in this repositor
 | --- | --- | --- | --- |
 | **Speed & Throughput** | `scripts/benchmark_ollama_speed.py` | Local Ollama prompt eval & token/s | Tokens / Second |
 | **Artificial Analysis** | `scripts/evaluate_artificial_analysis_suite.py` | Real reasoning & syntax accuracy | Pass@1 on live tasks |
-| **Multi-Agent Emergence** | `saleha/tests/test_emergence_detector.py` | Agent message bus & coordination | Real message logs |
-| **SMT Contract Logic** | `saleha/tests/test_formal_smt_verifier.py` | Z3 constraint proof satisfaction | UNSAT / SAT proofs |
+| **Multi-Agent Emergence** | `saleha/tests/core_swarm/test_emergence_detector.py` | Agent message bus & coordination | Real message logs |
+| **SMT Contract Logic** | `saleha/tests/core_verification/test_formal_smt_verifier.py` | Z3 constraint proof satisfaction | UNSAT / SAT proofs |
 
 ---
 

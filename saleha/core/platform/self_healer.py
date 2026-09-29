@@ -14,8 +14,8 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from saleha.core.graph.codebase_indexer import SmartPatcher
 from saleha.core.platform.git_native import git_engine
+
 
 
 @dataclass
@@ -198,6 +198,11 @@ Rules:
             return False, "", f"LLM error: {resp.error_message}"
 
         patch_text = resp.content or ""
+        # Local import: saleha.core.graph.codebase_indexer imports
+        # saleha.core.platform.path_utils, which runs this package's
+        # __init__ -- a module-level import here is a circular import
+        # (same layering fix as pass 139 and issue_resolver.py).
+        from saleha.core.graph.codebase_indexer import SmartPatcher
         applied, patched_content, err = SmartPatcher.apply_aider_diff(content, patch_text)
         if applied:
             return True, patched_content, abs_file
