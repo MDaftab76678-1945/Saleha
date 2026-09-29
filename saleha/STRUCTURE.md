@@ -15,7 +15,7 @@ stays accurate forever.
 | `saleha/server/` | The stdlib HTTP server (`web_server.py`) serving `/api/*` and the bundled web Studio. |
 | `saleha/tools/` | **Not** where the agent's function-calling tools live (see below) -- the real ToolForge registry (`ast_inspector.py`, `release_manager.py`, `base.py`'s `tool_registry`), used by `tool_forge.py`/`agentic_loop.py`. |
 | `saleha/harness/` | A *different* thing from `saleha/core/harness/` (see collisions below): SWE-bench harness helpers (`benchmarks.py`, `swe_bench_harness.py`, `reporter.py`). |
-| `saleha/sandbox/` | Standalone sandboxing/AST-security scripts, separate from `saleha/core/harness/sandbox_runner.py` and `saleha/core/hardened_sandbox.py`. |
+| `saleha/sandbox/` | Standalone sandboxing/AST-security scripts, separate from `saleha/core/harness/sandbox_runner.py` and `saleha/core/sandbox/hardened_sandbox.py`. |
 | `saleha/skills/` | Markdown persona/skill definitions (`agent_*.md`), unrelated to `souls/` at the repo root. |
 | `saleha/specs/` | Reference specs and one-off generator scripts; not imported by the running app. |
 | `saleha/experimental/` | Exactly what it says -- `aionx/`, `jarvis/`, not wired into the CLI or server. |
@@ -25,7 +25,7 @@ stays accurate forever.
 ## Where the agent's actual tools are
 
 The LLM-facing function-calling tools (`web_fetch`, etc.) are registered in
-**`saleha/core/tool_calling.py`**'s `ToolRegistry` / `global_tool_registry` --
+**`saleha/core/skills/tool_calling.py`**'s `ToolRegistry` / `global_tool_registry` --
 **not** in `saleha/tools/`. `saleha/tools/` is the ToolForge registry (see above).
 
 ## The `saleha/core/<category>/` subpackages -- migration completed (pass 139, 144, 145)
@@ -64,9 +64,18 @@ whole repo (~450 real references) was rewritten to the new dotted path.
 | `vision/` | `headless_browser_renderer`, `visual_layout_auditor` |
 | `workflow/` | `bft_consensus_node`, `dsl`, `nodes`, `self_healing_node`, `triggers`, `verified_sandbox_node`, `workflow_engine` |
 
-All other `saleha/core/*.py` files remain flat -- they were
-never assigned to a category by any prior pass, and inventing new categories
-for them was a separate, larger design decision not attempted here.
+**2026-09-29: the remaining 183 flat modules were moved into categories**,
+eleven existing ones plus fourteen new: `sandbox/ security/ review/ docs/
+devops/ editing/ training/ research/ voice/ github/ ui/ project/ plugins/
+skills/`. The full module -> category map is `_MOD_TO_SUBPACKAGE` in
+`saleha/core/__init__.py`; `ls saleha/core/<category>/` shows what is in each.
+New category packages have empty `__init__.py` files (no eager imports), so
+they cannot close an import cycle.
+
+Four modules are still flat -- `proof_receipt`, `silicon_scanner`,
+`tourist_solver`, `work_ledger` -- because another agent had uncommitted edits
+in them at the time; they belong in `verification/`, `security/`, `loop/`
+and `verification/`.
 
 **A real trap the migration exposed, fixed in `saleha/core/__init__.py` and
 each affected category `__init__.py`:** several category packages
@@ -108,7 +117,7 @@ callers already used them.
 - `saleha/harness/` (SWE-bench helpers) vs. `saleha/core/harness/` (the real
   approval-gate/sandbox/test-runner implementation, see above) -- different
   things.
-- `saleha/tools/` (the real ToolForge registry) vs. `saleha/core/tool_calling.py`
+- `saleha/tools/` (the real ToolForge registry) vs. `saleha/core/skills/tool_calling.py`
   (the LLM tool-calling dispatcher that uses it) -- different things, not
   competing.
 - Root `tools/` (one standalone script, `code_quality_auditor.py`, invoked as

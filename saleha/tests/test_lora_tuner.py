@@ -9,8 +9,8 @@ import tempfile
 import unittest
 import unittest.mock
 
-from saleha.core.lora_tuner import LoRATuner, TuningConfig
-from saleha.core.training_collector import TrainingCollector, TrainingSample
+from saleha.core.training.lora_tuner import LoRATuner, TuningConfig
+from saleha.core.training.training_collector import TrainingCollector, TrainingSample
 
 
 class TrainingCollectorTests(unittest.TestCase):
@@ -189,7 +189,7 @@ class LlamaCppGgufFixTests(unittest.TestCase):
         -> None. Patches expanduser too, since this dev machine has a real
         checkout installed at the default path (that's the point of the
         fix) -- this test must still pass regardless of that."""
-        from saleha.core.lora_tuner import _find_llama_cpp_converter
+        from saleha.core.training.lora_tuner import _find_llama_cpp_converter
         tmp = tempfile.mkdtemp()
         try:
             os.environ["SALEHA_LLAMA_CPP_DIR"] = os.path.join(tmp, "does_not_exist")
@@ -199,7 +199,7 @@ class LlamaCppGgufFixTests(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_env_var_checkout_is_discovered(self) -> None:
-        from saleha.core.lora_tuner import _find_llama_cpp_converter
+        from saleha.core.training.lora_tuner import _find_llama_cpp_converter
         tmp = tempfile.mkdtemp()
         try:
             script_path = os.path.join(tmp, "convert_hf_to_gguf.py")
@@ -214,7 +214,7 @@ class LlamaCppGgufFixTests(unittest.TestCase):
         """A configured-but-broken converter must fail soft (None), so
         register_with_ollama() falls back to the direct-safetensors path
         instead of crashing the whole deployment."""
-        from saleha.core.lora_tuner import _convert_to_gguf_via_llama_cpp
+        from saleha.core.training.lora_tuner import _convert_to_gguf_via_llama_cpp
         tmp = tempfile.mkdtemp()
         try:
             broken_script = os.path.join(tmp, "convert_hf_to_gguf.py")

@@ -8,16 +8,16 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from saleha.core.hyperbolic_engine import (
+from saleha.core.editing.multi_file_auto_repair import (
+    BiDirectionalDependencyGraph,
+    MultiFileAutoRepairEngine,
+)
+from saleha.core.research.hyperbolic_engine import (
     HYPERBOLIC_DIM,
     HyperbolicVector,
     MultiAttractorLandscape,
 )
-from saleha.core.multi_file_auto_repair import (
-    BiDirectionalDependencyGraph,
-    MultiFileAutoRepairEngine,
-)
-from saleha.core.prewarmed_sandbox_pool import PreWarmedSandboxPool
+from saleha.core.sandbox.prewarmed_sandbox_pool import PreWarmedSandboxPool
 
 
 class TestMultiAttractorLandscape:
@@ -262,7 +262,7 @@ class TestMultiFileTwoPhaseCommit:
 
     def test_the_old_fabricated_message_is_gone(self) -> None:
         """`2PC Atomic Commit` claimed a property the code did not have."""
-        import saleha.core.multi_file_auto_repair as module
+        import saleha.core.editing.multi_file_auto_repair as module
         source = Path(module.__file__).read_text(encoding="utf-8")
         code_lines = [ln for ln in source.splitlines()
                       if "2PC Atomic Commit:" in ln and "Successfully healed" in ln]

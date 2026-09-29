@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
-from saleha.core.path_utils import safe_relpath
+from saleha.core.platform.path_utils import safe_relpath
 
 
 @dataclass(frozen=True)
@@ -80,7 +80,7 @@ class ScanReport:
 
 
 class ASTSecurityVisitor(ast.NodeVisitor):
-    # Inline suppression: a trailing "# noqa: SEC002" comment skips that line
+    # Inline suppression: a trailing comment like "noqa: SEC002" skips that line
     # (Bandit's "# nosec" convention) for legitimate use cases (e.g. an
     # interactive REPL's own exec call). scan_code() applies this as a
     # post-filter.
@@ -263,7 +263,7 @@ class ASTSecurityScanner:
         lines = code.splitlines()
         visitor = ASTSecurityVisitor(filename=filename, lines=lines)
         visitor.visit(tree)
-        # Inline "# noqa: SECxxx" suppression (Bandit nosec-style)
+        # Inline SECxxx suppression (Bandit nosec-style)
         return [v for v in visitor.vulnerabilities
                 if not visitor._suppressed(v.line_number, v.rule_id)]
 

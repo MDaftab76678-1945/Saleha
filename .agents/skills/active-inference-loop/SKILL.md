@@ -28,5 +28,5 @@ No model is called.
 Run an active inference cycle on a target task:
 
 ```bash
-python .agents/skills/active-inference-loop/scripts/run_inference_loop.py --target saleha/core/math_logic.py --goal "Preserve score range [0.0, 10.0]"
+python .agents/skills/active-inference-loop/scripts/run_inference_loop.py --target saleha/core/research/math_logic.py --goal "Preserve score range [0.0, 10.0]"
 ```

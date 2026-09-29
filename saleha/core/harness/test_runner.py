@@ -400,7 +400,7 @@ class TestRunner:
     def _validate_segment(self, label: str, segment: str) -> Optional[str]:
         if not segment or not segment.strip():
             return None
-        from saleha.core.safety_patterns import _check_blocked_imports, check_dangerous
+        from saleha.core.security.safety_patterns import _check_blocked_imports, check_dangerous
 
         danger = check_dangerous(segment)
         if danger:

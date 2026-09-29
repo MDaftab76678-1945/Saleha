@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.load_tester import load_tester
+from saleha.core.devops.load_tester import load_tester
 
 
 class LoadTesterTests(unittest.TestCase):

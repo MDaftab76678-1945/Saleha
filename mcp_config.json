@@ -220,7 +220,7 @@
       "command": "C:\\Python314\\python.exe",
       "args": [
         "-m",
-        "saleha.core.mcp_engine",
+        "saleha.core.platform.mcp_engine",
         "serve"
       ]
     }

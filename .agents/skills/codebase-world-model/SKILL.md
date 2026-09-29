@@ -37,5 +37,5 @@ predictive network.
 Simulate the latent impact of a proposed change:
 
 ```bash
-python .agents/skills/codebase-world-model/scripts/latent_world_model.py --target saleha/core/math_logic.py --code "x = x + 1"
+python .agents/skills/codebase-world-model/scripts/latent_world_model.py --target saleha/core/research/math_logic.py --code "x = x + 1"
 ```

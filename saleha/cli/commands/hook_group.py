@@ -24,7 +24,7 @@ def hook_install_cmd():
     
     Example: saleha hook install
     """
-    from saleha.core.git_hooks import git_hook_manager
+    from saleha.core.git.git_hooks import git_hook_manager
     ok, msg = git_hook_manager.install_hooks()
     if ok:
         console.print(f'[bold green]✅ {msg}[/]')
@@ -38,7 +38,7 @@ def hook_uninstall_cmd():
     
     Example: saleha hook uninstall
     """
-    from saleha.core.git_hooks import git_hook_manager
+    from saleha.core.git.git_hooks import git_hook_manager
     ok, msg = git_hook_manager.uninstall_hooks()
     console.print(f'[yellow]{msg}[/]')
 
@@ -49,7 +49,7 @@ def hook_run_cmd():
     
     Example: saleha hook run
     """
-    from saleha.core.git_hooks import git_hook_manager
+    from saleha.core.git.git_hooks import git_hook_manager
     passed, errors = git_hook_manager.run_pre_commit_check()
     if passed:
         console.print('[bold green]✅ Pre-commit verification passed. 0 syntax errors or secret leaks.[/]')

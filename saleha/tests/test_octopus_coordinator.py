@@ -6,15 +6,15 @@ import unittest
 from unittest.mock import patch
 
 from saleha.core.harness.code_executor import ExecutionResult
-from saleha.core.octopus_coordinator import (
+from saleha.core.swarm.agent_message_bus import AgentMessageBus
+from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
+from saleha.core.swarm.octopus_coordinator import (
     ArmBrainOutput,
     ArmBrainRole,
     OctopusCoordinator,
     OctopusExecutionResult,
     SynapticBlackboard,
 )
-from saleha.core.swarm.agent_message_bus import AgentMessageBus
-from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.tests.swarm_stubs import GOOD_CODE, stub_agents
 
 

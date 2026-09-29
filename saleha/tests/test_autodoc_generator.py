@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.autodoc_generator import autodoc_generator
+from saleha.core.docs.autodoc_generator import autodoc_generator
 
 
 class AutoDocGeneratorTests(unittest.TestCase):

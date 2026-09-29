@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from saleha.core.task_history import TaskHistory
+from saleha.core.memory.task_history import TaskHistory
 
 
 class TaskHistoryTests(unittest.TestCase):

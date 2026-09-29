@@ -4,7 +4,7 @@ Saleha Release Manifest Generator CLI.
 Generates a manifest recording the actual, measured state of a release:
 - Real pytest run against saleha/tests/, real pass/fail counts.
 - A SHA3-derived key fingerprint from pqc_guard.Sha3VaultGuard (NOT
-  post-quantum cryptography -- see saleha/core/pqc_guard.py docstring;
+  post-quantum cryptography -- see saleha/core/security/pqc_guard.py docstring;
   this is a content fingerprint, not a signature scheme, and nothing here
   claims to sign the release).
 
@@ -29,7 +29,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from saleha import __version__
-from saleha.core.pqc_guard import sha3_vault_guard
+from saleha.core.security.pqc_guard import sha3_vault_guard
 
 console = Console()
 

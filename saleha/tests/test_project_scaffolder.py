@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.project_scaffolder import TEMPLATES, ProjectScaffolder
+from saleha.core.project.project_scaffolder import TEMPLATES, ProjectScaffolder
 
 # The express check runs `npm install` (tens of seconds, network). Off by
 # default like the GPU training tests; set SALEHA_RUN_SLOW_TESTS=1 to run it.

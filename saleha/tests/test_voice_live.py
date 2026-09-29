@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.voice_live import VoiceLiveAssistant
+from saleha.core.voice.voice_live import VoiceLiveAssistant
 
 
 class VoiceLiveAssistantTests(unittest.TestCase):

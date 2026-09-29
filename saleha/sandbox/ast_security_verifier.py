@@ -8,7 +8,7 @@ way, so all of these audited clean: `import os`, `from os import system`,
 `import os as o; o.system(...)`, `import ctypes.util`, `__import__('ctypes')`,
 `subprocess.run([...])`, `shutil.rmtree(...)`, `f = eval`.
 
-Imports and escapes now come from `saleha.core.safety_patterns`, the same
+Imports and escapes now come from `saleha.core.security.safety_patterns`, the same
 policy `CodeExecutor` enforces before running code, so the gate and the
 executor cannot disagree about what is dangerous.
 
@@ -20,7 +20,11 @@ computed at runtime from non-literals is not resolved. A clean audit means
 import ast
 from typing import List, Tuple
 
-from saleha.core.safety_patterns import BLOCKED_IMPORTS, BlockedConstruct, find_blocked_constructs
+from saleha.core.security.safety_patterns import (
+    BLOCKED_IMPORTS,
+    BlockedConstruct,
+    find_blocked_constructs,
+)
 
 
 def _audit_message(finding: BlockedConstruct) -> str:

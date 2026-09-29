@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.self_healing import SelfHealingEngine
+from saleha.core.loop.self_healing import SelfHealingEngine
 
 
 class SelfHealingEngineTests(unittest.TestCase):
@@ -67,13 +67,13 @@ class SelfHealingEngineTests(unittest.TestCase):
     def test_extract_traceback_frames(self) -> None:
         tb = """
 Traceback (most recent call last):
-  File "saleha/core/math_logic.py", line 42, in compute_ratio
+  File "saleha/core/research/math_logic.py", line 42, in compute_ratio
     return a / b
 ZeroDivisionError: division by zero
 """
         frames = self.engine.extract_traceback_frames(tb)
         self.assertEqual(len(frames), 1)
-        self.assertEqual(frames[0]["file"], "saleha/core/math_logic.py")
+        self.assertEqual(frames[0]["file"], "saleha/core/research/math_logic.py")
         self.assertEqual(frames[0]["line"], 42)
         self.assertEqual(frames[0]["symbol"], "compute_ratio")
         self.assertEqual(frames[0]["code_line"], "return a / b")

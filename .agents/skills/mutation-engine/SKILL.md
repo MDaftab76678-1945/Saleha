@@ -27,5 +27,5 @@ It executes the test suite against each mutant. If a mutant causes the test suit
 Run mutation analysis against a target module:
 
 ```bash
-python .agents/skills/mutation-engine/scripts/run_mutation_test.py --target saleha/core/math_logic.py --test-cmd "python -m pytest saleha/tests/test_math_logic.py -q"
+python .agents/skills/mutation-engine/scripts/run_mutation_test.py --target saleha/core/research/math_logic.py --test-cmd "python -m pytest saleha/tests/test_math_logic.py -q"
 ```

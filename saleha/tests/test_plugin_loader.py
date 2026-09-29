@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.plugin_loader import PluginLoader
+from saleha.core.plugins.plugin_loader import PluginLoader
 
 
 class PluginLoaderTests(unittest.TestCase):

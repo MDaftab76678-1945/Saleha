@@ -3,7 +3,7 @@ Unit & Integration Tests for Next-Gen Multi-Model Failover Router and salehatop 
 
 The SWEBenchHarnessTests class that lived here asserted `resolved == True` for
 saleha/harness/swe_bench_harness.py, whose tasks were `assert True` and never ran;
-the module was deleted in pass 158 (the real one is saleha/core/swe_bench_harness.py).
+the module was deleted in pass 158 (the real one is saleha/core/harness/swe_bench_harness.py).
 """
 
 import unittest

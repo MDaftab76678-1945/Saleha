@@ -5,12 +5,12 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.fast_inference import FastInference, InferenceResult
 from saleha.core.harness.code_executor import CodeExecutor
-from saleha.core.local_supremacy import (
+from saleha.core.loop.local_supremacy import (
     LocalSupremacyEngine,
     SupremacyResult,
 )
+from saleha.core.platform.fast_inference import FastInference, InferenceResult
 
 
 class LocalSupremacyTests(unittest.TestCase):

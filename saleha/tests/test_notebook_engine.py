@@ -8,7 +8,7 @@ from saleha.agents.notebook_architect import (
     notebook_architect,
 )
 from saleha.cli.chat_session import SwarmChatSession
-from saleha.core.notebook_engine import (
+from saleha.core.ui.notebook_engine import (
     NotebookCell,
     SalehaNotebookEngine,
 )

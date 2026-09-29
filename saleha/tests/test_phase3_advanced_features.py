@@ -4,9 +4,9 @@ Unit and integration tests for Phase 3: Multimodal Ingress, Wasm Micro-Plugin Ru
 
 import time
 
-from saleha.core.saleha_multimodal import SalehaMultimodalHub
-from saleha.core.saleha_wasm_runtime import SalehaWasmRuntime, WASIPermission
-from saleha.core.saleha_watchdog import SalehaHardwareWatchdog
+from saleha.core.daemons.saleha_watchdog import SalehaHardwareWatchdog
+from saleha.core.sandbox.saleha_wasm_runtime import SalehaWasmRuntime, WASIPermission
+from saleha.core.vision.saleha_multimodal import SalehaMultimodalHub
 
 
 class TestSalehaMultimodalHub:

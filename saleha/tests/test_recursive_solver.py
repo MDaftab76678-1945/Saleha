@@ -61,7 +61,7 @@ import json as _json
 from typing import Any
 from unittest.mock import MagicMock
 
-from saleha.core.fast_inference import InferenceResult
+from saleha.core.platform.fast_inference import InferenceResult
 
 
 def _engine(payloads: Any) -> Any:

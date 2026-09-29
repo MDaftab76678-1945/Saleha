@@ -11,7 +11,7 @@ import unittest
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.octopus_coordinator import (
+from saleha.core.swarm.octopus_coordinator import (
     OctopusCoordinator,
     OctopusExecutionResult,
 )

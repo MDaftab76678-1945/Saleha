@@ -1,5 +1,5 @@
 """
-Tests for the cross-file repository graph (saleha/core/repo_graph.py).
+Tests for the cross-file repository graph (saleha/core/graph/repo_graph.py).
 
 The real gap this closes: our own CodebaseDependencyGraph answered
 get_impacted_files("agentic_loop.py") with [] on this very repo, while six
@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from saleha.core.repo_graph import (
+from saleha.core.graph.repo_graph import (
     CODE_SUFFIXES,
     DEFAULT_EXCLUDES,
     RepoGraph,
@@ -226,7 +226,7 @@ class RealSalehaRepoTests(unittest.TestCase):
         files = [p for p in g.discover_files()
                  if str(p).startswith((core, cli)) and p.suffix == ".py"]
         g.build(files=files)
-        importers = g.importers_of("saleha/core/agentic_loop.py")
+        importers = g.importers_of("saleha/core/loop/agentic_loop.py")
         # core_agentic.py genuinely imports AgentLoop; our old graph said [].
         self.assertTrue(
             any(p.endswith("core_agentic.py") for p in importers),

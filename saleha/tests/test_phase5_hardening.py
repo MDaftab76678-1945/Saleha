@@ -8,9 +8,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from saleha.core.incremental_ast_cache import IncrementalASTCache
-from saleha.core.multi_file_auto_repair import MultiFileAutoRepairEngine
-from saleha.core.windows_job_sandbox import WindowsJobSandbox
+from saleha.core.editing.multi_file_auto_repair import MultiFileAutoRepairEngine
+from saleha.core.graph.incremental_ast_cache import IncrementalASTCache
+from saleha.core.sandbox.windows_job_sandbox import WindowsJobSandbox
 
 
 class TestIncrementalASTCache:

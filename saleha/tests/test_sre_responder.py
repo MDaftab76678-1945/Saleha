@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.sre_responder import sre_responder
+from saleha.core.devops.sre_responder import sre_responder
 
 
 class SREResponderTests(unittest.TestCase):

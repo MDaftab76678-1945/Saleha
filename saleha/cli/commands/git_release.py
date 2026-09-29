@@ -136,7 +136,7 @@ def undo(hard, as_json):
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def pr_review_cmd(base_branch, output_file, as_json):
     """Analyze Git PR diff, run SAST security scan, and generate review comments."""
-    from saleha.core.pr_reviewer import pr_reviewer
+    from saleha.core.github.pr_reviewer import pr_reviewer
     diff_text = pr_reviewer.get_git_diff(base_branch=base_branch)
     report = pr_reviewer.review_diff(diff_text, pr_title=f'Branch diff against {base_branch}')
     if as_json:
@@ -178,7 +178,7 @@ def changelog_cmd(version, write_file):
     
     Example: saleha changelog --version 1.5.0 --write
     """
-    from saleha.core.changelog_generator import changelog_generator
+    from saleha.core.docs.changelog_generator import changelog_generator
     notes = changelog_generator.generate_release_notes(version=version)
     console.print(Markdown(notes))
     if write_file:
@@ -194,7 +194,7 @@ def snapshot_cmd(paths: tuple, label: str) -> None:
 
     Example: saleha snapshot pyproject.toml saleha/core/
     """
-    from saleha.core.time_machine import time_machine
+    from saleha.core.git.time_machine import time_machine
     target_paths = list(paths) or ['pyproject.toml']
     snap = time_machine.create_snapshot(target_paths, label=label)
     console.print(
@@ -210,7 +210,7 @@ def rollback_cmd(snapshot_id: Optional[str]) -> None:
 
     Example: saleha rollback
     """
-    from saleha.core.time_machine import time_machine
+    from saleha.core.git.time_machine import time_machine
     success, msg = time_machine.rollback(snapshot_id)
     color = 'green' if success else 'red'
     console.print(f'[bold {color}]{msg}[/bold {color}]')

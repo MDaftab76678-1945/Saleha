@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.task_scheduler import TaskSchedulerEngine, cron_matches
+from saleha.core.daemons.task_scheduler import TaskSchedulerEngine, cron_matches
 
 
 class TaskSchedulerTests(unittest.TestCase):

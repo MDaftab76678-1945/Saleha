@@ -75,7 +75,7 @@ def exec_code(filepath, lang, timeout, as_json):
     Example JS: saleha exec server.js
     Example Go: saleha exec main.go
     """
-    from saleha.core.polyglot_executor import polyglot_executor
+    from saleha.core.polyglot.polyglot_executor import polyglot_executor
     if not os.path.isfile(filepath):
         console.print(f"[bold red]Error:[/] File '{filepath}' not found.")
         raise click.exceptions.Exit(1)
@@ -101,7 +101,7 @@ def exec_code(filepath, lang, timeout, as_json):
 def sidecar_cmd(host, port, open_browser):
     """Launch the floating desktop AI companion daemon on localhost:7890."""
     console.print(Panel(f'[bold cyan]URL:[/] http://{host}:{port}\n[bold cyan]Service:[/] Floating Desktop Sidecar Companion\n[dim]Press Ctrl+C in terminal to stop daemon[/]', title='[bold green]🪟 Saleha Desktop Sidecar Active[/]', border_style='green'))
-    from saleha.core.sidecar_daemon import sidecar_daemon
+    from saleha.core.daemons.sidecar_daemon import sidecar_daemon
     sidecar_daemon.run(host=host, port=port, open_browser=open_browser)
 
 @cli.command(name='watch')
@@ -113,7 +113,7 @@ def watch_cmd(directory, debounce):
     
     Example: saleha watch ./src
     """
-    from saleha.core.repo_watcher import RepoWatcher
+    from saleha.core.ui.repo_watcher import RepoWatcher
     watcher = RepoWatcher(root_dir=directory, poll_interval=0.5, debounce_sec=debounce)
     watcher.initialize()
     console.print(Panel(f'[bold cyan]Watching Workspace:[/] {os.path.abspath(directory)}\n[dim]Live AST indexer active. Save any file in your IDE to see instant blast-radius traces.[/]\n[dim]Press Ctrl+C to stop watching.[/]', title='[bold green]👁️ Saleha Live Repo Watcher[/]', border_style='green'))
@@ -144,7 +144,7 @@ def sandbox_cmd(script_path, timeout, memory, json_output):
     
     Example: saleha sandbox script.py --timeout 10
     """
-    from saleha.core.hardened_sandbox import hardened_sandbox
+    from saleha.core.sandbox.hardened_sandbox import hardened_sandbox
     if not os.path.isfile(script_path):
         if json_output:
             click.echo(json.dumps({'success': False, 'error': f'File not found: {script_path}', 'output': ''}))
@@ -156,7 +156,7 @@ def sandbox_cmd(script_path, timeout, memory, json_output):
     try:
         res = hardened_sandbox.execute_code(code, timeout=timeout, memory_limit=memory)
     except Exception as ex:
-        from saleha.core.hardened_sandbox import HardenedExecutionResult
+        from saleha.core.sandbox.hardened_sandbox import HardenedExecutionResult
         res = HardenedExecutionResult(success=False, output='', error=str(ex), sandbox_tier='fallback')
     if json_output:
         click.echo(json.dumps({'success': res.success, 'output': res.output, 'error': res.error, 'sandbox_tier': res.sandbox_tier}))

@@ -11,7 +11,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.change_impact import ChangeImpactAnalyzer, ImpactReport
+from saleha.core.graph.change_impact import ChangeImpactAnalyzer, ImpactReport
 
 
 class TestChangeImpactAnalyzer(unittest.TestCase):

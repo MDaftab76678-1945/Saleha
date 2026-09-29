@@ -253,8 +253,8 @@ class TTCTrajectorySolver:
                 ))
             return out
 
-        from saleha.core.fast_inference import FastInference, InferenceRequest
-        from saleha.core.parallel_solver import extract_code
+        from saleha.core.loop.parallel_solver import extract_code
+        from saleha.core.platform.fast_inference import FastInference, InferenceRequest
 
         strategies = list(self.DEFAULT_STRATEGIES)[:num_candidates]
         while len(strategies) < num_candidates:

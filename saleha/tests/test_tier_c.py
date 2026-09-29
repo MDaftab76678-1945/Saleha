@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from saleha.agents.coder import CoderAgent
-from saleha.core.multi_file_editor import MultiFileEditor
+from saleha.core.editing.multi_file_editor import MultiFileEditor
 
 
 def _coder_returning(payload: str) -> Any:

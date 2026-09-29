@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.docker_sandbox import DockerSandboxRunner, is_docker_available
+from saleha.core.sandbox.docker_sandbox import DockerSandboxRunner, is_docker_available
 
 
 class DockerSandboxTests(unittest.TestCase):
@@ -10,16 +10,16 @@ class DockerSandboxTests(unittest.TestCase):
             self.assertFalse(is_docker_available())
 
     def test_docker_fallback_to_venv_when_unavailable(self):
-        with patch("saleha.core.docker_sandbox.is_docker_available", return_value=False):
+        with patch("saleha.core.sandbox.docker_sandbox.is_docker_available", return_value=False):
             runner = DockerSandboxRunner(fallback_to_venv=True)
             res = runner.run_code("print('fallback ok')", language="python")
             self.assertTrue(res.success)
             self.assertIn("fallback ok", res.output)
 
     def test_docker_fallback_to_polyglot_when_unavailable(self):
-        with patch("saleha.core.docker_sandbox.is_docker_available", return_value=False), \
-             patch("saleha.core.polyglot_executor.polyglot_executor.execute") as mock_poly:
-            from saleha.core.polyglot_executor import PolyglotExecutionResult
+        with patch("saleha.core.sandbox.docker_sandbox.is_docker_available", return_value=False), \
+             patch("saleha.core.polyglot.polyglot_executor.polyglot_executor.execute") as mock_poly:
+            from saleha.core.polyglot.polyglot_executor import PolyglotExecutionResult
             mock_poly.return_value = PolyglotExecutionResult(
                 success=True, language="javascript", output="polyglot js output"
             )
@@ -29,8 +29,8 @@ class DockerSandboxTests(unittest.TestCase):
             self.assertIn("polyglot js output", res.output)
 
     def test_docker_execution_mock(self):
-        with patch("saleha.core.docker_sandbox.is_docker_available", return_value=True), \
-             patch("saleha.core.docker_sandbox.subprocess.run") as mock_run:
+        with patch("saleha.core.sandbox.docker_sandbox.is_docker_available", return_value=True), \
+             patch("saleha.core.sandbox.docker_sandbox.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="container output", stderr="")
             runner = DockerSandboxRunner()
             res = runner.run_code("console.log('node');", language="javascript")

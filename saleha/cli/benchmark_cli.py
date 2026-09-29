@@ -22,7 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from saleha import __version__
-from saleha.core.polyglot_executor import polyglot_executor
+from saleha.core.polyglot.polyglot_executor import polyglot_executor
 from saleha.core.swarm.saleha_swarm_topology import LockFreeMailbox, SwarmMessage
 from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
@@ -48,7 +48,7 @@ def benchmark_cmd(iterations: int):
     metrics.append(("SPSC Queue Throughput", f"{spsc_ops:,.0f} ops/sec", f"{(spsc_time/iterations)*1e6:.3f} μs/op", f"{iterations:,} send+receive pairs"))
 
     # 2. Poincaré Hyperbolic Distance Latency
-    from saleha.core.hyperbolic_engine import HyperbolicVector
+    from saleha.core.research.hyperbolic_engine import HyperbolicVector
     vec_u = HyperbolicVector([0.1] * 16)
     vec_v = HyperbolicVector([0.2] * 16)
     t0 = time.perf_counter()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.code_migrator import CodeMigrator
+from saleha.core.editing.code_migrator import CodeMigrator
 
 
 class CodeMigratorTests(unittest.TestCase):

@@ -53,7 +53,7 @@ def context_board_cmd():
     
     Example: saleha context-board
     """
-    from saleha.core.context_board import global_context_board
+    from saleha.core.swarm.context_board import global_context_board
     console.print(Panel('[bold magenta]📋 Saleha Swarm Context Blackboard[/bold magenta]', border_style='magenta'))
     console.print(Markdown(global_context_board.export_markdown()))
 

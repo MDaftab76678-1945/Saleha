@@ -14,7 +14,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
-from saleha.core.agent_contracts import (
+from saleha.core.memory.semantic_memory_cache import semantic_memory
+from saleha.core.security.merkle_provenance import merkle_provenance_ledger
+from saleha.core.swarm.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
     FinOpsOutputContract,
@@ -22,8 +24,6 @@ from saleha.core.agent_contracts import (
     ReviewerOutputContract,
     SecurityOutputContract,
 )
-from saleha.core.memory.semantic_memory_cache import semantic_memory
-from saleha.core.merkle_provenance import merkle_provenance_ledger
 from saleha.core.swarm.agent_message_bus import (
     ADRGeneratedEvent,
     CodeSynthesizedEvent,
@@ -54,12 +54,30 @@ REPAIR_PROMPT = (
 # qwen2.5-coder:3b 2 of 34; ~50 s per 8B try against ~11 s. Small samples.
 ESCALATION_MODEL = "qwen3:8b"
 
+# Context the escalation model runs with. A repair prompt is a task, one
+# solution and its brute-force version -- a few thousand chars -- but Ollama
+# loads qwen3:8b with its full 40960 window, which on this 6 GB GPU puts 63%
+# of it on the CPU. Measured, same prompt, cold load: 40960 -> 9.0 s load,
+# 10.2 tokens/s; 8192 -> 6.5 s load, 15.1 tokens/s. A longer prompt is
+# trimmed visibly by the context budget guard, never cut silently.
+ESCALATION_CONTEXT = 8192
+
 
 class RepairTier(NamedTuple):
     model: str
     tries: int
     at_once: int
     no_thinking: bool = False  # sent as Ollama `think: false`; reasoning models only
+    context_window: Optional[int] = None  # Ollama `num_ctx`; None keeps the model's own
+
+
+def _local_context(model: str) -> Optional[int]:
+    """ESCALATION_CONTEXT for a local Ollama model with a bigger window, else None."""
+    from saleha.core.platform.context_budget import context_window_for
+
+    if ":" not in model or model.startswith(("claude-code", "gemini")):
+        return None  # a cloud model: num_ctx means nothing there
+    return ESCALATION_CONTEXT if context_window_for(model) > ESCALATION_CONTEXT else None
 
 
 @dataclass
@@ -248,7 +266,8 @@ class SwarmPipelineEngine:
             # small GPU. Thinking off: qwen3:8b with it on did not answer a
             # repair prompt within the 300 s timeout on this box.
             tiers.append(RepairTier(bigger, self.ESCALATION_ATTEMPTS, 1,
-                                    no_thinking=is_reasoning_model(bigger)))
+                                    no_thinking=is_reasoning_model(bigger),
+                                    context_window=_local_context(bigger)))
         return tiers
 
     def _repair_with_counterexample(self, goal: str, code: str, test_code: str,
@@ -281,7 +300,8 @@ class SwarmPipelineEngine:
         def source_for(tier: RepairTier) -> Callable[[int], str]:
             def source(_: int) -> str:
                 # One agent per call: attempts run on separate threads.
-                fix = CoderAgent(model=tier.model).generate_code(prompt, disable_reasoning=tier.no_thinking)
+                fix = CoderAgent(model=tier.model, context_window=tier.context_window).generate_code(
+                    prompt, disable_reasoning=tier.no_thinking)
                 if not (fix.success and fix.code.strip()):
                     raise NoCandidate(fix.error or "the model returned no code")
                 return fix.code
@@ -309,6 +329,11 @@ class SwarmPipelineEngine:
         for tier in self._repair_tiers():
             search = VerifiedSearch(source_for(tier), verifier, budget=tier.tries, concurrency=tier.at_once,
                                     known=known).run()
+            for o in search.outcomes:
+                # A duplicate is the model handing back code already judged
+                # wrong; a try whose model or check never ran is no verdict.
+                if o.outcome is not Outcome.DID_NOT_RUN:
+                    _record_verdict(tier.model, o.outcome is Outcome.PASSED, o.seconds)
             attempts += search.attempted
             reports.append(f"{tier.model}: {search.summary()}")
             if search.winner:
@@ -376,6 +401,8 @@ class SwarmPipelineEngine:
         tests_passed = False
         tests_ran = False
         savings_pct = 0.0
+        coder_model = ""
+        coder_seconds = 0.0
 
         for idx, role in enumerate(role_sequence, start=1):
             stage_id = f"stage_{idx}_{role.lower()}"
@@ -411,6 +438,7 @@ class SwarmPipelineEngine:
                 from saleha.agents.coder import CoderAgent
                 agent = CoderAgent(model=self._resolve_model("coder"))
                 resp = agent.generate_code(goal)
+                coder_model, coder_seconds = resp.model_used, time.time() - stage_start
                 if resp.success and resp.code.strip():
                     source_code = resp.code
                     code_generated = True
@@ -493,6 +521,11 @@ class SwarmPipelineEngine:
                     # its blind spots; a concrete input where the code differs
                     # from a brute-force version overrides their pass.
                     oracle = self._oracle_check(goal, source_code) if tests_passed else None
+                    # Only the brute-force comparison counts as a verdict on
+                    # the coder's first answer: its own tests share its blind
+                    # spots, and a failing one may be the test's fault.
+                    if oracle and (oracle["supported"] or oracle["mismatch"]):
+                        _record_verdict(coder_model, bool(oracle["supported"]), coder_seconds)
                     if oracle and oracle["mismatch"]:
                         tests_passed = False
                         repair = self._repair_with_counterexample(goal, source_code, suite.test_code, oracle)
@@ -749,6 +782,15 @@ class SwarmPipelineEngine:
 
         # Unfinished: run the whole pipeline again under the same id.
         return self.execute_swarm(goal=cp.goal, execution_id=cp.execution_id, callback=callback)
+
+
+def _record_verdict(model: str, passed: bool, seconds: float) -> None:
+    """Teach the router how `model`'s output fared against a check it did not write."""
+    from saleha.core.platform.smart_router import smart_router
+
+    # Best-effort: the record is an observation of the pipeline, not a step in it.
+    with contextlib.suppress(Exception):
+        smart_router.record_verdict(model, passed, seconds)
 
 
 def _overall_success(code_generated: bool, security_checked: bool, is_secure: bool,

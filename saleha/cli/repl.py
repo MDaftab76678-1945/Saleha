@@ -16,12 +16,12 @@ from rich.table import Table
 
 from saleha import __version__
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 from saleha.core.graph.codebase_indexer import CodebaseIndexer
 from saleha.core.harness.sandbox_runner import SandboxRunner
 from saleha.core.memory.memory_store import memory_store
+from saleha.core.platform.agent_profile_loader import ProfileAgent, profile_registry
+from saleha.core.skills.tool_calling import global_tool_registry
 from saleha.core.telemetry.session_tracer import session_tracer
-from saleha.core.tool_calling import global_tool_registry
 from saleha.core.verification.quality_guard import quality_guard
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 from saleha.core.verification.ttc_solver import ttc_solver
@@ -224,7 +224,7 @@ class SalehaREPL:
         if cmd == "/pr":
             goal = arg or "Automated Pull Request from Session"
             console.print(f"[bold cyan]🚀 Synthesizing Autonomous Pull Request for:[/] [bold yellow]{goal}[/]")
-            from saleha.core.pr_generator import PRGenerator
+            from saleha.core.github.pr_generator import PRGenerator
             generator = PRGenerator(model=self.model)
             from saleha.core.platform.git_native import git_engine
             stat = git_engine.get_status_summary()
@@ -280,13 +280,13 @@ class SalehaREPL:
             return True
 
         if cmd == "/debt":
-            from saleha.core.tech_debt_analyzer import tech_debt_analyzer
+            from saleha.core.review.tech_debt_analyzer import tech_debt_analyzer
             rep = tech_debt_analyzer.analyze_workspace()
             console.print(f"[cyan]Technical Debt:[/] {rep.total_functions_analyzed} functions, Avg Cyclomatic: {rep.average_cyclomatic}, Hotspots: {rep.hotspots_count}")
             return True
 
         if cmd == "/threat":
-            from saleha.core.threat_modeler import threat_modeler
+            from saleha.core.security.threat_modeler import threat_modeler
             rep = threat_modeler.analyze_workspace()
             console.print(
                 f"[cyan]STRIDE checklist:[/] {rep.files_scanned} file(s) scanned, "

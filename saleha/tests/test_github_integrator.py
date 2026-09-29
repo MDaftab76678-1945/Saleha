@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.github_integrator import GitHubIntegrator, GitHubPRResult
-from saleha.core.pr_generator import PRGenerator
+from saleha.core.github.github_integrator import GitHubIntegrator, GitHubPRResult
+from saleha.core.github.pr_generator import PRGenerator
 
 
 class GitHubIntegratorTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class GitHubIntegratorTests(unittest.TestCase):
     def test_pr_generator_with_remote_push_mock(self):
         gen = PRGenerator()
         with patch.object(gen.orchestrator, "run_team_workflow") as mock_wf, \
-             patch("saleha.core.pr_generator.GitHubIntegrator") as mock_gh_cls:
+             patch("saleha.core.github.pr_generator.GitHubIntegrator") as mock_gh_cls:
             mock_wf.return_value = MagicMock(
                 success=True, code="def main(): pass", test_code="def test(): pass",
                 design="Design LLD", prd="PRD Spec", security_report="Clean",

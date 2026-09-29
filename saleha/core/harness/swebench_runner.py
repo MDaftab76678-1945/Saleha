@@ -5,7 +5,7 @@ Runs an end-to-end resolution attempt (plan -> generate -> test) against a
 benchmark instance and checks whether the *actual generated code* satisfies
 the instance's test assertion.
 
-This is not the official SWE-bench harness -- see saleha/core/swe_bench_runner.py
+This is not the official SWE-bench harness -- see saleha/core/harness/swe_bench_runner.py
 (underscore between "swe" and "bench") for the module that produces standard
 predictions.jsonl for the real SWE-bench evaluation pipeline, and is explicit
 about that gap in its own docstring. This module is a smaller, in-process

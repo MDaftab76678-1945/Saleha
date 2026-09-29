@@ -46,7 +46,7 @@ chain = [
 formal = [
     "z3-solver>=4.12"
 ]
-# Cross-file repository graph (saleha.core.repo_graph / `saleha impact`).
+# Cross-file repository graph (saleha.core.graph.repo_graph / `saleha impact`).
 # Code extraction is fully local -- no API key, nothing leaves the machine.
 repograph = [
     "graphifyy>=0.9.55"

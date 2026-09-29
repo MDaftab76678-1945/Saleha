@@ -1,7 +1,7 @@
 import unittest
 
-from saleha.core.skill_base import Skill, SkillResult
-from saleha.core.skill_registry import SkillRegistry
+from saleha.core.skills.skill_base import Skill, SkillResult
+from saleha.core.skills.skill_registry import SkillRegistry
 
 
 class ExampleSkill(Skill):

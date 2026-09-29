@@ -27,7 +27,7 @@ def skill_group():
 @click.option('--limit', '-l', default=25, help='Number of skills to display')
 def skill_list_cmd(domain: Optional[str], limit: int):
     """List registered skills across 25 specialized domains."""
-    from saleha.core.skill_catalog import skill_catalog
+    from saleha.core.skills.skill_catalog import skill_catalog
     skills = skill_catalog.list_skills(domain=domain, limit=limit)
     stats = skill_catalog.get_stats()
     table = Table(title=f"🧠 Saleha AgentSkills Catalog ({stats['total_skills']} Total Skills across {stats['total_domains']} Domains)", border_style='cyan')
@@ -46,7 +46,7 @@ def skill_list_cmd(domain: Optional[str], limit: int):
 @click.option('--limit', '-l', default=10, help='Maximum search results')
 def skill_search_cmd(query: str, domain: Optional[str], limit: int):
     """Sub-millisecond keyword and semantic search across 1,000+ skills."""
-    from saleha.core.skill_catalog import skill_catalog
+    from saleha.core.skills.skill_catalog import skill_catalog
     results = skill_catalog.search_skills(query, domain=domain, limit=limit)
     if not results:
         console.print(f"[bold yellow]No skills found matching '{query}'.[/bold yellow]")
@@ -63,7 +63,7 @@ def skill_search_cmd(query: str, domain: Optional[str], limit: int):
 @click.argument('skill_name')
 def skill_info_cmd(skill_name: str):
     """Display full AgentSkills specification and schema for a skill."""
-    from saleha.core.skill_catalog import skill_catalog
+    from saleha.core.skills.skill_catalog import skill_catalog
     skill = skill_catalog.get_skill(skill_name)
     if not skill:
         console.print(f"[bold red]❌ Skill '{skill_name}' not found.[/bold red]")
@@ -75,7 +75,7 @@ def skill_info_cmd(skill_name: str):
 @click.option('--task', '-t', default='Execute standard skill routine', help='Task input description')
 def skill_run_cmd(skill_name: str, task: str):
     """Execute a registered AgentSkill directly."""
-    from saleha.core.skill_catalog import skill_catalog
+    from saleha.core.skills.skill_catalog import skill_catalog
     res = skill_catalog.execute_skill(skill_name, {'task': task})
     if res.get('success'):
         console.print(Panel(json.dumps(res, indent=2), title=f"✅ Skill '{skill_name}' Execution Output", border_style='green'))
@@ -85,7 +85,7 @@ def skill_run_cmd(skill_name: str, task: str):
 @skill_group.command(name='stats')
 def skill_stats_cmd():
     """Display statistical breakdown of the 1,000+ skill catalog."""
-    from saleha.core.skill_catalog import skill_catalog
+    from saleha.core.skills.skill_catalog import skill_catalog
     stats = skill_catalog.get_stats()
     table = Table(title='📊 Saleha 1,000+ AgentSkills Domain Distribution', border_style='blue')
     table.add_column('Domain Name', style='bold cyan')

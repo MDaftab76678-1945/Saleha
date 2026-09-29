@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.vault import EncryptedVault
+from saleha.core.security.vault import EncryptedVault
 
 
 class VaultTests(unittest.TestCase):

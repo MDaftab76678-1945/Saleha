@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.formal_verifier import FormalProofReport, FormalVerifier
+from saleha.core.verification.formal_verifier import FormalProofReport, FormalVerifier
 
 
 class TestFormalVerifier(unittest.TestCase):

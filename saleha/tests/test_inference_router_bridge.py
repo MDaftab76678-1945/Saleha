@@ -1,4 +1,4 @@
-"""Unit tests for saleha.core.inference_router_bridge.RustInferenceRouterBridge.
+"""Unit tests for saleha.core.platform.inference_router_bridge.RustInferenceRouterBridge.
 
 Two code paths, and exactly one of them is live on any given machine:
 
@@ -19,7 +19,7 @@ is what stops this file from being one.
 
 import unittest
 
-from saleha.core.inference_router_bridge import (
+from saleha.core.platform.inference_router_bridge import (
     _EXT_AVAILABLE,
     RustInferenceRouterBridge,
     RustInferenceRouterUnavailable,

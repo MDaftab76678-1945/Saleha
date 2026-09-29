@@ -12,9 +12,9 @@ import ast
 import unittest
 
 from saleha.cli.chat_session import SwarmChatSession
-from saleha.core.mcts_search_engine import MCTSExecutionResult, MCTSSearchEngine
-from saleha.core.self_evolving_loop import EvolvingBufferStats, SelfEvolvingLoop
-from saleha.core.speculative_accelerator import SpeculativeAccelerator
+from saleha.core.loop.mcts_search_engine import MCTSExecutionResult, MCTSSearchEngine
+from saleha.core.loop.self_evolving_loop import EvolvingBufferStats, SelfEvolvingLoop
+from saleha.core.platform.speculative_accelerator import SpeculativeAccelerator
 
 
 class TestUltimateFrontierSuite(unittest.TestCase):

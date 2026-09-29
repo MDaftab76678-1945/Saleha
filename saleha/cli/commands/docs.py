@@ -26,7 +26,7 @@ def doc_cmd(package, symbol, as_json):
     """Look up verified API signatures from local offline documentation cache."""
     from dataclasses import asdict
 
-    from saleha.core.doc_researcher import doc_researcher
+    from saleha.core.docs.doc_researcher import doc_researcher
     if symbol:
         sig = doc_researcher.lookup(package, symbol)
         if as_json:
@@ -59,7 +59,7 @@ def doc_cmd(package, symbol, as_json):
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def autodoc_cmd(path, output_dir, as_json):
     """Generate Markdown API docs and Mermaid architecture diagrams from AST."""
-    from saleha.core.autodoc_generator import autodoc_generator
+    from saleha.core.docs.autodoc_generator import autodoc_generator
     res = autodoc_generator.generate_docs_for_directory(root_dir=path)
     if as_json:
         click.echo(json.dumps({'total_modules': res.total_modules, 'total_classes': res.total_classes, 'total_functions': res.total_functions, 'mermaid_diagram': res.mermaid_diagram, 'markdown_docs_preview': res.markdown_docs[:300]}, ensure_ascii=True))
@@ -84,7 +84,7 @@ def docs_cmd(build_site, output):
     
     Example: saleha docs --output docs/site/index.html
     """
-    from saleha.core.docs_generator import docs_generator
+    from saleha.core.docs.docs_generator import docs_generator
     console.print('[bold cyan]Building Saleha static documentation website...[/]')
     out_p = docs_generator.build_docs_site(output_path=output)
     console.print(f'[bold green]Documentation built at:[/] [cyan]{out_p}[/]\n')

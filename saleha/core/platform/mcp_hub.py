@@ -94,7 +94,7 @@ class UniversalMCPHub:
         saleha_executable = sys.executable
         servers_map["saleha"] = {
             "command": saleha_executable,
-            "args": ["-m", "saleha.core.mcp_engine", "serve"]
+            "args": ["-m", "saleha.core.platform.mcp_engine", "serve"]
         }
 
         config_data: Dict[str, Any] = {}

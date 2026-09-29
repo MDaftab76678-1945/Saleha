@@ -9,17 +9,27 @@ by running things rather than reading claims:
      If they pass either way, they do not guard the change: a green suite
      proves nothing about it. (Measured in this repo: agents shipped patches
      the tests never exercised, under a green tick.)
-  3. Were the tests weakened -- asserts deleted, tests removed, skips added?
-  4. The head test run is recorded in the WorkLedger, anchored in the Rust
+  3. Is that failure the missing change, and not a clean checkout that cannot
+     run the suite at all? The base run happens in a fresh git worktree,
+     which lacks every git-ignored file (config, node_modules, build output).
+     A test that imports one fails there whatever the change is: measured,
+     a comment-only edit came back PROVEN because the base run died on
+     `ModuleNotFoundError: local_cfg`. So when the base run fails, the change
+     is applied to a clean checkout as a control; if that fails too, the base
+     failure proves nothing.
+  4. Were the tests weakened -- asserts deleted, tests removed, skips added?
+  5. The head test run is recorded in the WorkLedger, anchored in the Rust
      intent kernel outside the repo, so the receipt can be re-checked later
      and cannot be quietly edited.
 
 Verdicts, kept distinct on purpose:
-  PROVEN        tests pass now, fail without the change, no weakening
+  PROVEN        tests pass now, fail without the change, the control passes,
+                no weakening
   UNPROVEN      tests pass, but they would pass without the change too,
                 or the tests were weakened
   FAILING       tests fail with the change
-  NOT_CHECKED   nothing could be run (no git, no test command, no change)
+  NOT_CHECKED   nothing could be run, or the clean checkout cannot run the
+                suite (no git, no test command, no change, missing files)
 """
 
 from __future__ import annotations
@@ -65,6 +75,10 @@ class Receipt:
     test_command: List[str] = field(default_factory=list)
     head_run: Optional[TestRun] = None
     base_run: Optional[TestRun] = None
+    # The whole change applied to a clean checkout of `base`. Run only when
+    # base_run failed: it separates "fails without the change" from "a clean
+    # checkout cannot run the suite".
+    control_run: Optional[TestRun] = None
     weakening: List[str] = field(default_factory=list)
     # Race/deadlock patterns in the changed Python files. Warnings only: a
     # race rarely fails a test run, so tests cannot be the judge here, and a
@@ -116,6 +130,19 @@ def _run_tests(argv: List[str], cwd: str, timeout: float) -> TestRun:
     return TestRun(True, p.returncode == 0, p.returncode, tail[-800:], round(time.time() - t0, 1))
 
 
+_CAUSE_RE = re.compile(r"ModuleNotFoundError|ImportError|FileNotFoundError|Cannot find module"
+                       r"|not found|No such file", re.IGNORECASE)
+
+
+def _cause(tail: str) -> str:
+    """The line of a failed run's output that names what was missing, else its last line.
+
+    Explanation for a reason string only: it never decides a verdict.
+    """
+    lines = [ln.strip() for ln in tail.splitlines() if ln.strip()]
+    return next((ln for ln in lines if _CAUSE_RE.search(ln)), lines[-1] if lines else "no output")[:160]
+
+
 def _base_text(root: str, base: str, rel: str) -> Optional[str]:
     r = _git(root, "show", f"{base}:{rel}")
     return r.stdout if r.returncode == 0 else None
@@ -155,12 +182,16 @@ def _weakening(root: str, base: str, test_files: List[str]) -> List[str]:
 
 
 def _run_at_base(root: str, base: str, changed: List[str], argv: List[str],
-                 timeout: float) -> TestRun:
+                 timeout: float, with_source_changes: bool = False) -> TestRun:
     """The NEW tests against the OLD source, in a throwaway git worktree.
 
     Test files (changed or new) are copied over from the working tree; source
     files stay as they were at `base`. The user's working tree is never
     touched.
+
+    `with_source_changes=True` copies the source changes over too, so the
+    worktree holds the whole change: the control run, same clean checkout,
+    the only difference from the base run being the source change.
     """
     tmp = tempfile.mkdtemp(prefix="saleha-receipt-")
     work = os.path.join(tmp, "base")
@@ -169,14 +200,16 @@ def _run_at_base(root: str, base: str, changed: List[str], argv: List[str],
         if add.returncode != 0:
             return TestRun(False, False, None, f"git worktree failed: {add.stderr.strip()[-300:]}", 0.0)
         for rel in changed:
-            if not _is_test_path(rel):
+            if not (with_source_changes or _is_test_path(rel)):
                 continue
             src = Path(root, rel)
             dst = Path(work, rel)
             if src.is_file():
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(src, dst)
-            elif dst.exists():
+            elif dst.is_file() or dst.is_symlink():
+                # Deleted in the working tree. A directory here is a submodule
+                # entry, which unlink() would crash on.
                 dst.unlink()
         return _run_tests(argv, work, timeout)
     finally:
@@ -219,7 +252,7 @@ def make_receipt(root_dir: str = ".", base: str = "HEAD", test_command: Optional
                             for p, why in conc.skipped.items()]
 
     # Head run, recorded in the anchored ledger as it happens.
-    from saleha.core.intent_kernel import default_anchor_path
+    from saleha.core.platform.intent_kernel import default_anchor_path
     from saleha.core.work_ledger import WorkLedger
     ledger = WorkLedger(ledger_path or os.path.join(root, ".saleha", "work.jsonl"), root_dir=root,
                         anchor_path=anchor_path or default_anchor_path())
@@ -243,15 +276,34 @@ def make_receipt(root_dir: str = ".", base: str = "HEAD", test_command: Optional
     if not receipt.base_run.ran:
         receipt.verdict = NOT_CHECKED
         receipt.reason = f"could not run tests without the change: {receipt.base_run.tail}"
-    elif receipt.base_run.passed:
+        return receipt
+    if receipt.base_run.passed:
         receipt.verdict = UNPROVEN
         receipt.reason = ("tests pass with AND without the change -- they do not guard it")
+        return receipt
+
+    # The base run failed. That only shows the tests guard the change when the
+    # missing change is the reason, so run the change in the same kind of clean
+    # checkout: if the suite cannot pass there either, the checkout is what is
+    # broken (a git-ignored file the tests need), not the code without the change.
+    control = receipt.control_run = _run_at_base(root, base, changed, list(argv), timeout,
+                                                  with_source_changes=True)
+    if not control.ran:
+        receipt.verdict = NOT_CHECKED
+        receipt.reason = f"could not run the change in a clean checkout of {base}: {control.tail}"
+    elif not control.passed:
+        receipt.verdict = NOT_CHECKED
+        receipt.reason = (f"the tests also fail in a clean checkout of {base} with the change applied "
+                          f"({_cause(control.tail)}), so their failure without the change cannot be "
+                          "blamed on the missing change; they may need files git does not track "
+                          "(config, node_modules, build output)")
     elif receipt.weakening:
         receipt.verdict = UNPROVEN
         receipt.reason = "tests guard the change, but they were weakened: " + "; ".join(receipt.weakening)
     else:
         receipt.verdict = PROVEN
-        receipt.reason = "tests pass with the change and fail without it; no weakening found"
+        receipt.reason = ("tests pass with the change and fail without it, in the same clean "
+                          "checkout; no weakening found")
     return receipt
 
 
@@ -263,6 +315,8 @@ def render_markdown(r: Receipt) -> str:
             return f"- {label}: could not run ({run.tail})"
         return f"- {label}: {'PASS' if run.passed else 'FAIL'} ({run.seconds}s)"
 
+    control = ([run_line("Same tests with the change, in a clean checkout of the base (control)", r.control_run)]
+               if r.control_run is not None else [])
     lines = [
         f"# Proof receipt: {r.verdict}",
         "",
@@ -274,6 +328,7 @@ def render_markdown(r: Receipt) -> str:
         f"- Test command: `{' '.join(r.test_command)}`" if r.test_command else "- Test command: none",
         run_line("Tests with the change", r.head_run),
         run_line("Same tests without the change", r.base_run),
+        *control,
         f"- Test weakening: {'; '.join(r.weakening) if r.weakening else 'none found'}",
         f"- Concurrency warnings: {'; '.join(r.concurrency) if r.concurrency else 'none found'}",
         f"- Ledger entry: `{r.ledger_entry[:16]}`" if r.ledger_entry else "- Ledger entry: none",

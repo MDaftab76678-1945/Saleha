@@ -32,10 +32,10 @@ parses from each profile's frontmatter.
 | --- | --- | --- | --- |
 | sandbox jail | `saleha/sandbox/sandbox_jail.py` | Subprocess execution with Windows timeout | Isolated Subprocess |
 | AST verifier | `saleha/sandbox/ast_security_verifier.py` | Static AST audit of imports & syscalls | Deterministic Python AST |
-| math engine | `saleha/core/math_logic.py` | Complexity estimation (0.0 to 10.0) | Regex & Weighted Scoring |
+| math engine | `saleha/core/research/math_logic.py` | Complexity estimation (0.0 to 10.0) | Regex & Weighted Scoring |
 | SMT verifier | `saleha/core/verification/formal_smt_verifier.py` | Mathematical & logical constraint proofs | Z3 Theorem Solver |
 | BM25 search | `saleha/core/rag/bm25.py` | Lexical indexing and relevant code retrieval | Lexical Inverted Index |
-| AST cache | `saleha/core/incremental_ast_cache.py` | Cache AST parses to detect change impact | AST Dependency Graph |
+| AST cache | `saleha/core/graph/incremental_ast_cache.py` | Cache AST parses to detect change impact | AST Dependency Graph |
 
 ---
 
@@ -95,7 +95,7 @@ In addition to static personas, Saleha executes autonomous workflow skills locat
 To prevent hallucinations on consumer-grade local hardware:
 
 Context windows below are the registered values in
-`saleha/core/context_budget.py`, which `ContextBudgetGuard` uses to size
+`saleha/core/platform/context_budget.py`, which `ContextBudgetGuard` uses to size
 prompts. Do not quote numbers that are not in that registry.
 
 - **Fast Tier (`qwen2.5-coder:3b`):** 32768-token context. Used for surgical unit test generation, regex extraction, and single-function patches.
@@ -137,5 +137,5 @@ When an agent identifies a missing capability (e.g., a custom dependency checker
 
 ### 5.5 Self-Design & Complexity Refactoring
 
-- Agents periodically audit repository complexity using `saleha/core/math_logic.py` and `radon`.
+- Agents periodically audit repository complexity using `saleha/core/research/math_logic.py` and `radon`.
 - Functions exceeding cyclomatic complexity 10.0 are automatically staged for AST-safe modularization into smaller, testable sub-functions.

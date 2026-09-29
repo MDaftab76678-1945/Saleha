@@ -2,14 +2,14 @@
 
 Covers real model-backed rollout generation and the group-relative-advantage
 arithmetic. Does not assert on training/deployment claims -- the module
-performs neither (see saleha/core/grpo_reasoning_trainer.py docstring).
+performs neither (see saleha/core/training/grpo_reasoning_trainer.py docstring).
 """
 
 import os
 import tempfile
 import unittest
 
-from saleha.core.grpo_reasoning_trainer import (
+from saleha.core.training.grpo_reasoning_trainer import (
     GRPOReasoningTrainer,
     GRPORollout,
     GRPOTrainingStepResult,

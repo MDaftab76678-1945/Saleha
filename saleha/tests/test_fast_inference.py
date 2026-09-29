@@ -20,13 +20,7 @@ from unittest.mock import MagicMock, patch
 import requests
 from aiohttp import web
 
-from saleha.core.fast_inference import (
-    FastInference,
-    InferenceRequest,
-    InferenceResult,
-    PromptCache,
-)
-from saleha.core.parallel_solver import (
+from saleha.core.loop.parallel_solver import (
     Candidate,
     ParallelSolver,
     extract_code,
@@ -37,6 +31,12 @@ from saleha.core.platform.circuit_breaker import (
     BreakerSnapshot,
     CircuitBreaker,
     shared_breaker,
+)
+from saleha.core.platform.fast_inference import (
+    FastInference,
+    InferenceRequest,
+    InferenceResult,
+    PromptCache,
 )
 from saleha.tests.fake_ollama import FakeOllama
 
@@ -198,7 +198,7 @@ class BatchTests(unittest.TestCase):
         reqs = [InferenceRequest(prompt=f"p{i}", model="m", tag=f"t{i}")
                 for i in range(4)]
         with patch("requests.post", return_value=self._resp()), \
-             patch("saleha.core.fast_inference.HAVE_AIOHTTP", False):
+             patch("saleha.core.platform.fast_inference.HAVE_AIOHTTP", False):
             results = fi.run_batch(reqs)
         self.assertEqual([r.tag for r in results], ["t0", "t1", "t2", "t3"])
 
@@ -207,7 +207,7 @@ class BatchTests(unittest.TestCase):
         fi = FastInference(cache=PromptCache())
         reqs = [InferenceRequest(prompt=f"p{i}", model="m") for i in range(3)]
         with patch("requests.post", return_value=self._resp("v")), \
-             patch("saleha.core.fast_inference.HAVE_AIOHTTP", False):
+             patch("saleha.core.platform.fast_inference.HAVE_AIOHTTP", False):
             results = fi.run_batch(reqs)
         self.assertEqual(len(results), 3)
         self.assertTrue(all(r.success for r in results))
@@ -343,7 +343,7 @@ class RealServerBatchTests(unittest.TestCase):
         self.assertEqual(fi.stats()["base_url"], server.url)
 
     def test_missing_optional_dependency_is_detected(self) -> None:
-        from saleha.core.fast_inference import _have
+        from saleha.core.platform.fast_inference import _have
         self.assertFalse(_have("saleha_no_such_module_for_this_test"))
         self.assertTrue(_have("json"))
 

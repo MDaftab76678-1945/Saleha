@@ -215,33 +215,33 @@ class VectorStoreLazyIndexTests(unittest.TestCase):
 
 class EnsureImagePreflightTests(unittest.TestCase):
     def setUp(self) -> None:
-        from saleha.core.execution_policy import _reset_probe_cache
+        from saleha.core.sandbox.execution_policy import _reset_probe_cache
         _reset_probe_cache()
 
     def tearDown(self) -> None:
-        from saleha.core.execution_policy import _reset_probe_cache
+        from saleha.core.sandbox.execution_policy import _reset_probe_cache
         _reset_probe_cache()
         os.environ.pop("SALEHA_DOCKER_AUTO_PULL", None)
 
     def test_returns_false_when_docker_unavailable(self) -> None:
-        from saleha.core.execution_policy import ensure_image
-        with patch("saleha.core.execution_policy.docker_available", return_value=False):
+        from saleha.core.sandbox.execution_policy import ensure_image
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=False):
             ok, msg = ensure_image("python:3.12-slim")
         self.assertFalse(ok)
 
     def test_skips_pull_when_image_present(self) -> None:
-        from saleha.core.execution_policy import ensure_image
-        with patch("saleha.core.execution_policy.docker_available", return_value=True), \
-             patch("saleha.core.execution_policy.image_present", return_value=True):
+        from saleha.core.sandbox.execution_policy import ensure_image
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=True), \
+             patch("saleha.core.sandbox.execution_policy.image_present", return_value=True):
             ok, msg = ensure_image("python:3.12-slim")
         self.assertTrue(ok)
         self.assertIn("already present", msg)
 
     def test_auto_pull_disabled_env(self) -> None:
-        from saleha.core.execution_policy import ensure_image
+        from saleha.core.sandbox.execution_policy import ensure_image
         env = {"SALEHA_DOCKER_AUTO_PULL": "0"}
-        with patch("saleha.core.execution_policy.docker_available", return_value=True), \
-             patch("saleha.core.execution_policy.image_present", return_value=False), \
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=True), \
+             patch("saleha.core.sandbox.execution_policy.image_present", return_value=False), \
              patch.dict(os.environ, env):
             ok, msg = ensure_image("python:3.12-slim")
         self.assertFalse(ok)

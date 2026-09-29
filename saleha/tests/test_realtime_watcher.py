@@ -8,8 +8,8 @@ import tempfile
 import time
 import unittest
 
-from saleha.core.inline_suggester import InlineSuggester
-from saleha.core.realtime_watcher import RealtimeWatcher
+from saleha.core.ui.inline_suggester import InlineSuggester
+from saleha.core.ui.realtime_watcher import RealtimeWatcher
 
 CLEAN_PY = '''
 from __future__ import annotations

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.pr_generator import PRGenerator, PRResult
+from saleha.core.github.pr_generator import PRGenerator, PRResult
 from saleha.core.swarm.team_orchestrator import TeamResult
 
 

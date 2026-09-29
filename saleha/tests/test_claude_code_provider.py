@@ -9,7 +9,7 @@ import unittest
 from typing import Any, List
 from unittest.mock import patch
 
-from saleha.core.context_budget import context_window_for
+from saleha.core.platform.context_budget import context_window_for
 from saleha.core.platform.model_provider import (
     ClaudeCodeProvider,
     FallbackChainProvider,

@@ -27,9 +27,9 @@ REPO_ROOT = str(Path(__file__).resolve().parents[2])
 CWD_SENSITIVE_MODULES = [
     "saleha.core.swarm.swarm_checkpoint_store",
     "saleha.core.loop.tot_orchestrator",
-    "saleha.core.plugin_loader",
-    "saleha.core.plugin_manifest",
-    "saleha.core.dpo_dataset_engine",
+    "saleha.core.plugins.plugin_loader",
+    "saleha.core.plugins.plugin_manifest",
+    "saleha.core.training.dpo_dataset_engine",
 ]
 
 
@@ -73,7 +73,7 @@ def test_import_does_not_execute_plugins_from_cwd() -> None:
         )
 
         code = ("import sys; sys.path.insert(0, %r); "
-                "import saleha.core.plugin_loader" % REPO_ROOT)
+                "import saleha.core.plugins.plugin_loader" % REPO_ROOT)
         proc = _run_in_clean_cwd(code, td)
 
         assert proc.returncode == 0, proc.stderr[-400:]
@@ -98,7 +98,7 @@ def test_plugins_still_load_when_explicitly_requested() -> None:
 
         code = (
             "import sys; sys.path.insert(0, %r)\n"
-            "from saleha.core.plugin_loader import PluginLoader\n"
+            "from saleha.core.plugins.plugin_loader import PluginLoader\n"
             "pl = PluginLoader(plugin_dirs=[%r])\n"
             "print([p.name + '|' + p.version for p in pl.list_plugins()])\n"
             "print(pl.trigger_event('on_task_start'))\n"
@@ -125,7 +125,7 @@ def test_plugin_dirs_env_var_opts_a_directory_back_in() -> None:
 
         code = (
             "import sys; sys.path.insert(0, %r)\n"
-            "from saleha.core.plugin_loader import plugin_loader\n"
+            "from saleha.core.plugins.plugin_loader import plugin_loader\n"
             "print([p.name for p in plugin_loader.list_plugins()])\n"
             "print(plugin_loader.trigger_event('on_task_start'))\n"
         ) % REPO_ROOT

@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.evaluator import BenchmarkTask, ModelBenchmarkEvaluator
+from saleha.core.harness.evaluator import BenchmarkTask, ModelBenchmarkEvaluator
 
 
 class EvaluatorTests(unittest.TestCase):

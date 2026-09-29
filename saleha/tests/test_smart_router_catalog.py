@@ -103,6 +103,7 @@ class ColdStartScoringTests(unittest.TestCase):
     def setUp(self) -> None:
         self.router = SmartRouter()
         self.router.model_performance.clear()
+        self.router.verified.clear()
 
     def test_an_unused_model_is_not_scored_as_a_failing_one(self) -> None:
         fresh = self.router._score_model("qwen3:8b", "design a system", 6.0)
@@ -118,38 +119,97 @@ class ColdStartScoringTests(unittest.TestCase):
 
     def test_a_proven_model_still_outranks_an_untried_one_all_else_equal(self) -> None:
         """The prior must let a new model compete, not displace a good one."""
-        self.router.model_performance["qwen2.5-coder:3b"] = {
-            "success_count": 100, "fail_count": 0, "total_time": 100.0, "uses": 100,
-        }
+        self.router.verified["qwen2.5-coder:3b"] = {"passed": 9, "failed": 1, "seconds": 100.0}
+        self.router.verified["qwen3:8b"] = {"passed": 1, "failed": 9, "seconds": 100.0}
         proven = self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0)
         untried = self.router._score_model("qwen3.5:4b", "xyzzy", 3.0)
         self.assertGreater(proven, untried)
 
 
-class SpeedScoreIsBoundedTests(unittest.TestCase):
+class VerifiedQualityTests(unittest.TestCase):
+    """Routing quality comes from outputs a check judged, never from 'the model answered'."""
 
     def setUp(self) -> None:
         self.router = SmartRouter()
         self.router.model_performance.clear()
+        self.router.verified.clear()
 
-    def test_a_zero_average_time_cannot_dominate_every_other_signal(self) -> None:
-        """219 uses at avg_time 0.0000s scored 12,346,136 before this bound."""
-        self.router.model_performance["qwen3.5:4b"] = {
-            "success_count": 219, "fail_count": 0, "total_time": 0.0, "uses": 219,
-        }
-        score = self.router._score_model("qwen3.5:4b", "xyzzy", 3.0)
-        self.assertLess(score, 200.0, "the speed term is still effectively unbounded")
+    def test_answering_is_not_working(self) -> None:
+        """94% 'success' was the share of calls that returned any text."""
+        before = self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0)
+        for _ in range(100):
+            self.router.record_result("xyzzy", 3.0, "qwen2.5-coder:3b", 0.001, True)
+        self.assertEqual(self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0), before)
 
-    def test_a_genuinely_fast_model_still_earns_the_full_nudge(self) -> None:
-        self.router.model_performance["qwen2.5-coder:3b"] = {
-            "success_count": 10, "fail_count": 0, "total_time": 5.0, "uses": 10,
-        }
-        fast = self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0)
-        self.router.model_performance["qwen2.5-coder:3b"] = {
-            "success_count": 10, "fail_count": 0, "total_time": 300.0, "uses": 10,
-        }
-        slow = self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0)
-        self.assertGreater(fast, slow)
+    def test_failed_verdicts_lower_the_score(self) -> None:
+        before = self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0)
+        self.router.verified["qwen2.5-coder:3b"] = {"passed": 2, "failed": 32, "seconds": 374.0}
+        self.assertLess(self.router._score_model("qwen2.5-coder:3b", "xyzzy", 3.0), before)
+
+    def test_a_fast_small_model_can_beat_a_slow_one_that_passes_more_per_try(self) -> None:
+        """Per second, 2/34 at 11 s beats 4/22 at 50 s -- the measured pass-172 pair."""
+        self.router.verified["qwen2.5-coder:3b"] = {"passed": 2, "failed": 32, "seconds": 34 * 11.0}
+        self.router.verified["qwen3:8b"] = {"passed": 4, "failed": 18, "seconds": 22 * 50.0}
+        small = self.router.verified_quality("qwen2.5-coder:3b")
+        big = self.router.verified_quality("qwen3:8b")
+        self.assertLess(small["pass_rate"], big["pass_rate"])
+        self.assertGreater(small["quality"], big["quality"])
+
+    def test_an_untried_model_is_pulled_toward_what_has_been_seen(self) -> None:
+        self.router.verified["qwen2.5-coder:3b"] = {"passed": 1, "failed": 9, "seconds": 100.0}
+        untried = self.router.verified_quality("qwen3.5:4b")["pass_rate"]
+        self.assertLess(untried, SmartRouter._UNTRIED_SUCCESS_PRIOR)
+        self.assertGreater(untried, 0.1)
+
+    def test_an_incumbent_that_keeps_failing_does_not_bury_the_untried(self) -> None:
+        """Measured: qwen2.5-coder:3b went 0 for 6 on a real LIS repair."""
+        self.router.verified["qwen2.5-coder:3b"] = {"passed": 0, "failed": 6, "seconds": 99.0}
+        untried = self.router.verified_quality("qwen3:8b")["quality"]
+        self.assertGreater(untried, 0.0)
+        self.assertGreater(untried, self.router.verified_quality("qwen2.5-coder:3b")["quality"])
+
+    def test_a_mock_or_unnamed_model_is_never_recorded(self) -> None:
+        for name in ("mock", "auto", "", "  "):
+            self.router.record_verdict(name, True, 1.0)
+        self.assertEqual(self.router.verified, {})
+
+
+class VerdictPersistenceTests(unittest.TestCase):
+
+    def test_verdicts_survive_a_reload_and_are_not_overwritten_by_another_router(self) -> None:
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            path = os.path.join(tmp, "history.json")
+            a, b = SmartRouter(history_file=path), SmartRouter(history_file=path)
+            a.record_verdict("qwen3:8b", True, 50.0)
+            b.record_verdict("qwen3:8b", False, 40.0)  # b loaded before a wrote
+            stale = SmartRouter(history_file=os.path.join(tmp, "empty.json"))
+            stale.history_file = path  # loaded nothing, then saves on every call
+            stale.record_result("x", 1.0, "qwen2.5-coder:3b", 1.0, True)
+            self.assertEqual(SmartRouter(history_file=path).verified["qwen3:8b"],
+                             {"passed": 1, "failed": 1, "seconds": 90.0})
+
+    def test_the_test_suite_never_writes_the_default_history_file(self) -> None:
+        """345 mock qwen2.5-coder:7b calls at 0.00 s reached the real file this way."""
+        import os
+        from unittest.mock import patch
+
+        router = SmartRouter()  # default path; conftest sets SALEHA_TEST_MODE=1
+        self.assertEqual(os.environ.get("SALEHA_TEST_MODE"), "1")
+        with patch("builtins.open", side_effect=AssertionError("history written")):
+            router.record_result("x", 1.0, "qwen2.5-coder:3b", 1.0, True)
+            router.record_verdict("qwen2.5-coder:3b", True, 1.0)
+
+    def test_a_malformed_verified_section_is_dropped_not_trusted(self) -> None:
+        from saleha.core.platform.smart_router import _clean_verified
+
+        self.assertEqual(_clean_verified({"a": {"passed": -5, "failed": 0, "seconds": 1},
+                                          "b": {"passed": "x"}, "c": "junk",
+                                          "d": {"passed": 1, "failed": 2, "seconds": 3}}),
+                         {"d": {"passed": 1, "failed": 2, "seconds": 3.0}})
+        self.assertEqual(_clean_verified(None), {})
 
 
 if __name__ == "__main__":

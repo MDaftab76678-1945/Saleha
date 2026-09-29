@@ -15,7 +15,7 @@ It used to catch only `URLError` from Ollama, so:
   vLLM connection error, hiding the real cause.
 
 It also ignored `OLLAMA_HOST` and defaulted to `qwen2.5-coder:7b`, which is not
-installed here. The host now comes from `saleha.core.ollama_endpoint`.
+installed here. The host now comes from `saleha.core.platform.ollama_endpoint`.
 """
 
 import asyncio
@@ -24,7 +24,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
 
-from saleha.core.ollama_endpoint import normalize_ollama_url, ollama_base_url
+from saleha.core.platform.ollama_endpoint import normalize_ollama_url, ollama_base_url
 
 DEFAULT_MODEL = "qwen2.5-coder:3b"
 

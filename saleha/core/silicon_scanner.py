@@ -54,7 +54,7 @@ class SiliconScanner:
             if sline.startswith("//") or sline.startswith("/*"):
                 continue
 
-            # Inline suppression check (# noqa: SECxxx or // nosec)
+            # Inline suppression check (e.g. SECxxx suppression or // nosec)
             if "// nosec" in line or "// noqa" in line:
                 continue
 

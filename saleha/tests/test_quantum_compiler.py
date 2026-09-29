@@ -13,7 +13,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from saleha.core.quantum_compiler import (
+from saleha.core.research.quantum_compiler import (
     MULTI_QUBIT_GATES,
     QuantumCompiler,
     QuantumStateVector,

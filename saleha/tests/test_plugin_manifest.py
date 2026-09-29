@@ -1,5 +1,9 @@
 
-from saleha.core.plugin_manifest import PluginAgentSpec, PluginManifestEngine, SalehaPluginManifest
+from saleha.core.plugins.plugin_manifest import (
+    PluginAgentSpec,
+    PluginManifestEngine,
+    SalehaPluginManifest,
+)
 
 
 def test_plugin_agent_spec():

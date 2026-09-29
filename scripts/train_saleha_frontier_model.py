@@ -11,7 +11,7 @@ honestly reports what it could not do:
 - Deployment + benchmark: real GGUF conversion via `ollama create` and real
   sandboxed Pass@1 evaluation, not invented scores.
 
-See saleha/core/frontier_trainer.py for the full contract.
+See saleha/core/training/frontier_trainer.py for the full contract.
 """
 
 import sys
@@ -26,7 +26,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from saleha.core.frontier_trainer import FrontierTrainer
+from saleha.core.training.frontier_trainer import FrontierTrainer
 
 
 def main():

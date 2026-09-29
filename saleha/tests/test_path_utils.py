@@ -1,10 +1,10 @@
-"""Unit tests for saleha.core.path_utils. Had no test coverage before this
+"""Unit tests for saleha.core.platform.path_utils. Had no test coverage before this
 file (found during a test-coverage sweep of saleha/core/)."""
 
 import os
 import unittest
 
-from saleha.core.path_utils import posix_basename, safe_relpath
+from saleha.core.platform.path_utils import posix_basename, safe_relpath
 
 
 class SafeRelpathTests(unittest.TestCase):

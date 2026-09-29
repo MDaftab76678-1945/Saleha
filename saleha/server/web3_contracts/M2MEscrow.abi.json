@@ -1,5 +1,5 @@
 {
-  "_comment": "Hand-authored ABI mirror of contracts/M2MEscrow.sol, used as a fallback when Hardhat has not been compiled (no contracts/artifacts/ present). If contracts/artifacts/contracts/M2MEscrow.sol/M2MEscrow.json exists (produced by `npx hardhat compile` in contracts/), saleha.core.mukti_chain_bridge prefers that real, generated ABI over this file. Keep this in sync with M2MEscrow.sol if the contract's external interface changes.",
+  "_comment": "Hand-authored ABI mirror of contracts/M2MEscrow.sol, used as a fallback when Hardhat has not been compiled (no contracts/artifacts/ present). If contracts/artifacts/contracts/M2MEscrow.sol/M2MEscrow.json exists (produced by `npx hardhat compile` in contracts/), saleha.core.research.mukti_chain_bridge prefers that real, generated ABI over this file. Keep this in sync with M2MEscrow.sol if the contract's external interface changes.",
   "contractName": "M2MEscrow",
   "abi": [
     {

@@ -276,7 +276,7 @@ class AgentLoopTests(unittest.TestCase):
         # end-of-string, taking a perfectly valid tool_call with it, so the
         # loop saw an empty reply and burned a parse-retry. A reasoning model
         # that omits the closer is a normal occurrence, not an error.
-        from saleha.core.structured_reasoner import StructuredReasoner
+        from saleha.core.loop.structured_reasoner import StructuredReasoner
 
         call = ('```tool_call\n{"tool": "read_file", "args": '
                 '{"path": "x.py", "start_line": 160, "end_line": 228}}\n```')
@@ -293,7 +293,7 @@ class AgentLoopTests(unittest.TestCase):
             self.assertNotIn("never closes", clean)
 
     def test_closed_reasoning_tag_still_strips_and_keeps_the_call(self) -> None:
-        from saleha.core.structured_reasoner import StructuredReasoner
+        from saleha.core.loop.structured_reasoner import StructuredReasoner
 
         raw = ('<think>short thought</think>\n'
                '```tool_call\n{"tool": "list_dir", "args": {"path": "."}}\n```')
@@ -1113,7 +1113,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("def charge", res.steps[0].observation)
 
     def test_parse_retry_does_not_leave_evidence_ledger_inconsistent(self) -> None:
-        from saleha.core.task_evidence import EvidenceKind, TaskState
+        from saleha.core.verification.task_evidence import EvidenceKind, TaskState
         agent = ScriptedAgent(["all prose"] * 5)
         loop = AgentLoop(agent=agent, root_dir=self.root, max_parse_retries=2,
                          require_evidence=True,
@@ -1130,7 +1130,7 @@ class AgentLoopTests(unittest.TestCase):
     def test_evidence_gate_rejects_finish_with_no_real_work(self) -> None:
         """require_evidence=True: finish() must be refused until the tools
         actually observed the required fact, then accepted once they have."""
-        from saleha.core.task_evidence import EvidenceKind, TaskState
+        from saleha.core.verification.task_evidence import EvidenceKind, TaskState
         agent = ScriptedAgent([
             _finish("I already fixed it"),          # pure claim, no work
             _tool_call("read_file", path="app.py"),  # real observation
@@ -1153,7 +1153,7 @@ class AgentLoopTests(unittest.TestCase):
     def test_evidence_gate_never_accepts_without_the_required_kind(self) -> None:
         """A model that only ever searches cannot satisfy a FILE_READ
         requirement, so the run honestly exhausts max_steps."""
-        from saleha.core.task_evidence import EvidenceKind, TaskState
+        from saleha.core.verification.task_evidence import EvidenceKind, TaskState
         agent = ScriptedAgent([
             _tool_call("list_dir", path="."),
             _finish("done"),
@@ -1171,7 +1171,7 @@ class AgentLoopTests(unittest.TestCase):
 
     def test_failed_tool_call_produces_no_evidence(self) -> None:
         """A tool that errored proves nothing and must not count as work."""
-        from saleha.core.task_evidence import EvidenceKind
+        from saleha.core.verification.task_evidence import EvidenceKind
         agent = ScriptedAgent([
             _tool_call("read_file", bad_arg="x"),   # wrong kwarg -> TypeError
             _finish("done anyway"),
@@ -1193,7 +1193,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(len(reads), 1)
 
     def test_write_evidence_moves_state_to_implementing(self) -> None:
-        from saleha.core.task_evidence import EvidenceKind, TaskState
+        from saleha.core.verification.task_evidence import EvidenceKind, TaskState
         agent = ScriptedAgent([
             _tool_call("write_file", path="new.py", content="x = 1\n"),
             _finish("wrote it"),
@@ -1211,7 +1211,7 @@ class AgentLoopTests(unittest.TestCase):
 
     def test_budget_stops_a_runaway_loop(self) -> None:
         """max_tool_calls must actually halt the run, not just be advisory."""
-        from saleha.core.task_evidence import EvidenceKind, ResourceBudget, TaskState
+        from saleha.core.verification.task_evidence import EvidenceKind, ResourceBudget, TaskState
         agent = ScriptedAgent([_tool_call("list_dir", path=".")] * 10)
         loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=10,
                          require_evidence=True,
@@ -1475,7 +1475,7 @@ class RunTestsToolTests(unittest.TestCase):
 
     # ---- the evidence gate -----------------------------------------
     def _run_with_evidence(self, script: list) -> LoopResult:
-        from saleha.core.task_evidence import EvidenceKind
+        from saleha.core.verification.task_evidence import EvidenceKind
 
         loop = AgentLoop(
             agent=ScriptedAgent(script),
@@ -1961,7 +1961,7 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
         ])
         with patch_gate(approve_result=True), \
                 patch.dict(os.environ, {"SALEHA_FORGE_OUTSIDE": ""}), \
-                patch("saleha.core.tool_forge.ToolForge.forge_tool") as forged:
+                patch("saleha.core.skills.tool_forge.ToolForge.forge_tool") as forged:
             res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True).run(
                 "forge dummy tool")
         self.assertIn("works on another folder", res.steps[0].observation)
@@ -1982,7 +1982,7 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
     def test_forge_tool_success_and_immediate_invocation_turn(self) -> None:
         from unittest.mock import patch
 
-        from saleha.core.tool_forge import ToolForgeResult
+        from saleha.core.skills.tool_forge import ToolForgeResult
         from saleha.tools.base import BaseTool, ToolResult, tool_registry
 
         class MockForgedTool(BaseTool):
@@ -2004,7 +2004,7 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
 
         with patch_gate(approve_result=True), \
              patch.dict(os.environ, {"SALEHA_FORGE_OUTSIDE": "1"}), \
-             patch("saleha.core.tool_forge.ToolForge.forge_tool", return_value=mock_forge_res):
+             patch("saleha.core.skills.tool_forge.ToolForge.forge_tool", return_value=mock_forge_res):
             tool_registry.register(MockForgedTool())
 
             agent = ScriptedAgent([
@@ -2019,6 +2019,261 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
             self.assertIn("successfully forged", res.steps[0].observation)
             self.assertEqual(res.steps[1].action, "synthesized_calculator")
             self.assertIn('"result": 50', res.steps[1].observation)
+
+
+class OutlineHintPathTests(unittest.TestCase):
+    def test_a_backslash_path_does_not_crash_the_outline_hint(self) -> None:
+        """`report\\stats.py` in the rewritten hint was read by re as the escape
+        `\\s` and raised, ending a real qwen3:8b run at step 0."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            os.makedirs(os.path.join(root, "report"))
+            with open(os.path.join(root, "report", "stats.py"), "w") as f:
+                f.write("def mean(v):\n    return sum(v) / len(v)\n\n\ndef median(v):\n    return v[0]\n")
+            agent = ScriptedAgent([_tool_call("get_file_outline", path="report\\stats.py"), _finish("ok")])
+            res = AgentLoop(agent=agent, root_dir=root, max_steps=2).run("why is median wrong")
+        self.assertEqual(res.steps[0].action, "get_file_outline")
+        self.assertIn("report\\stats.py with start_line", res.steps[0].observation)
+
+
+class ReproduceAndEscapeTests(unittest.TestCase):
+    def _repo(self, root: str) -> None:
+        os.makedirs(os.path.join(root, "tests"))
+        with open(os.path.join(root, "calc.py"), "w") as f:
+            f.write("def double(x):\n    y = x\n    return y + 1\n")
+        with open(os.path.join(root, "tests", "test_calc.py"), "w") as f:
+            f.write("from calc import double\n\ndef test_double():\n    assert double(3) == 6\n")
+
+    def test_the_failing_test_is_shown_before_step_one(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            self._repo(root)
+            agent = ScriptedAgent([_tool_call("list_dir", path=".")])
+            AgentLoop(agent=agent, root_dir=root, max_steps=1, allow_write=True,
+                      reproduce_first=True).run("fix double")
+            plain = ScriptedAgent([_tool_call("list_dir", path=".")])
+            AgentLoop(agent=plain, root_dir=root, max_steps=1, allow_write=True,
+                      reproduce_first=False).run("fix double")
+        self.assertIn("## Test run before any change\nFAILED", agent.prompts[0])
+        self.assertNotIn("## Test run before any change", plain.prompts[0])
+
+    def test_a_literal_backslash_n_search_matches_when_lenient(self) -> None:
+        search = "y = x\\n    return y + 1"  # what the model wrote: backslash + n
+        for lenient, expected in ((False, "patch failed"), (True, "successfully patched")):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+                self._repo(root)
+                loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True,
+                                 lenient_escapes=lenient)
+                obs = loop._tool_patch_file("calc.py", search, "y = x\\n    return y * 2")
+                with open(os.path.join(root, "calc.py")) as f:
+                    body = f.read()
+            with self.subTest(lenient=lenient):
+                self.assertTrue(obs.startswith(expected), obs)
+                self.assertEqual("return y * 2" in body, lenient)
+
+    def test_a_real_escape_in_the_replace_text_is_kept(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            self._repo(root)
+            loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True, lenient_escapes=True)
+            loop._tool_patch_file("calc.py", "y = x\\n    return y + 1",
+                                  "y = x\n    print('a\\nb')\n    return y * 2")
+            with open(os.path.join(root, "calc.py")) as f:
+                self.assertIn("print('a\\nb')", f.read())
+
+
+class StaleBytecodeTests(unittest.TestCase):
+    """A same-size edit in the same second must not run the old compiled code."""
+
+    def _repo(self, root: str, newline: str = "\n") -> str:
+        os.makedirs(os.path.join(root, "tests"))
+        path = os.path.join(root, "calc.py")
+        with open(path, "w", encoding="utf-8", newline=newline) as f:
+            f.write("def f():\n    return 1 + 1\n")
+        with open(os.path.join(root, "tests", "test_calc.py"), "w") as f:
+            f.write("from calc import f\n\ndef test_f():\n    assert f() == 0\n")
+        return path
+
+    def test_a_same_size_fix_is_seen_by_the_next_test_run(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            path = self._repo(root)
+            loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True)
+            self.assertTrue(loop._tool_run_tests().startswith("FAILED"))  # compiles calc.py
+            old = os.stat(path).st_mtime
+            obs = loop._tool_patch_file("calc.py", "return 1 + 1", "return 1 - 1")
+            self.assertTrue(obs.startswith("successfully patched"), obs)
+            os.utime(path, (old, old))  # same whole second as the compile, deterministically
+            self.assertTrue(loop._tool_run_tests().startswith("PASSED"))
+
+    def test_without_dropping_the_cache_the_old_code_runs(self) -> None:
+        """The teeth: with the cache left alone, the fixed file still fails."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            path = self._repo(root)
+            loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True)
+            self.assertTrue(loop._tool_run_tests().startswith("FAILED"))
+            old = os.stat(path).st_mtime
+            with patch("saleha.core.loop.agentic_loop._drop_bytecode"):
+                loop._tool_patch_file("calc.py", "return 1 + 1", "return 1 - 1")
+            os.utime(path, (old, old))
+            self.assertTrue(loop._tool_run_tests().startswith("FAILED"))
+
+    def test_patch_keeps_the_files_line_endings(self) -> None:
+        for newline in ("\n", "\r\n"):
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+                path = self._repo(root, newline=newline)
+                loop = AgentLoop(agent=ScriptedAgent([]), root_dir=root, allow_write=True)
+                loop._tool_patch_file("calc.py", "return 1 + 1", "return 1 - 1")
+                with open(path, "rb") as f:
+                    data = f.read()
+            with self.subTest(newline=repr(newline)):
+                self.assertEqual(data, f"def f():{newline}    return 1 - 1{newline}".encode())
+
+
+class PatchSearchTests(unittest.TestCase):
+    """patch_candidates: alternatives are kept only on a real FAILED -> PASSED test run."""
+
+    WRONG = _tool_call("patch_file", path="calc.py", search="return y + 1", replace="return y + 2")
+    RIGHT = _tool_call("patch_file", path="calc.py", search="return y + 1", replace="return y * 2")
+
+    def _run(self, replies: list, expect: int = 6, candidates: int = 3,
+             temperature: Optional[float] = None) -> "tuple[str, Any, Any]":
+        temps: list = []
+
+        class Recording(ScriptedAgent):
+            def think(self, prompt: str, *a: Any, **k: Any) -> AgentResponse:
+                temps.append(getattr(self, "temperature", None))
+                return super().think(prompt, *a, **k)
+
+        agent = Recording(replies)
+        if temperature is not None:
+            setattr(agent, "temperature", temperature)  # noqa: B010 -- ScriptedAgent declares no such field
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            os.makedirs(os.path.join(root, "tests"))
+            with open(os.path.join(root, "calc.py"), "w") as f:
+                f.write("def double(x):\n    y = x\n    return y + 1\n")
+            with open(os.path.join(root, "tests", "test_calc.py"), "w") as f:
+                f.write(f"from calc import double\n\ndef test_double():\n    assert double(3) == {expect}\n")
+            res = AgentLoop(agent=agent, root_dir=root, max_steps=1, allow_write=True,
+                            patch_candidates=candidates).run("fix double")
+            with open(os.path.join(root, "calc.py")) as f:
+                body = f.read()
+        self.temps = temps
+        self.agent = agent
+        return body, res, agent
+
+    def test_a_candidate_that_turns_the_tests_green_replaces_a_wrong_patch(self) -> None:
+        body, res, agent = self._run(
+            [self.WRONG, _tool_call("list_dir", path="."), self.WRONG, self.RIGHT], temperature=0.1)
+        self.assertIn("return y * 2", body)
+        self.assertIn("turned the tests from FAILED to PASSED", res.steps[0].observation)
+        self.assertIn('"replace": "return y * 2"', res.steps[0].args_preview)
+        # Candidates were sampled hotter; the agent's own setting came back.
+        self.assertEqual(self.temps, [0.1, 0.8, 0.8, 0.8])
+        self.assertEqual(getattr(agent, "temperature"), 0.1)  # noqa: B009
+
+    def test_no_search_when_the_tests_already_pass(self) -> None:
+        """With nothing failing there is nothing to select with -- a no-op must not win."""
+        body, res, _ = self._run([self.WRONG, self.RIGHT], expect=4)
+        self.assertIn("return y + 2", body)
+        self.assertEqual(len(self.temps), 1)
+        self.assertNotIn("[saleha]", res.steps[0].observation)
+
+    def test_when_nothing_passes_the_models_own_patch_stays_and_the_note_says_so(self) -> None:
+        # (y + 3 would pass: double(3) == 6 either way -- one input is a weak test.)
+        other = _tool_call("patch_file", path="calc.py", search="return y + 1", replace="return y - 1")
+        body, res, agent = self._run([self.WRONG, other, "no block here"], candidates=2)
+        self.assertIn("return y + 2", body)
+        self.assertNotIn("y - 1", body)
+        self.assertIn("2 alternative patch(es) were also tried", res.steps[0].observation)
+        self.assertFalse(hasattr(agent, "temperature"))
+
+    def test_off_by_default(self) -> None:
+        loop = AgentLoop(agent=ScriptedAgent([]), root_dir=".")
+        self.assertEqual(loop.patch_candidates, 0)
+
+
+class CompactedHistoryTests(unittest.TestCase):
+    """Steps that scroll out of the recent window stay in the prompt as one line each."""
+
+    def test_an_old_step_is_still_visible_after_it_leaves_the_window(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            with open(os.path.join(root, "app.py"), "w") as f:
+                f.write("def charge(amount):\n    return amount * 2\n")
+            calls = [_tool_call("read_file", path="app.py", start_line=1, end_line=n) for n in range(1, 9)]
+            agent = ScriptedAgent(calls + [_finish("done")])
+            loop = AgentLoop(agent=agent, root_dir=root, max_steps=9)
+            loop.run("understand billing")
+        last = agent.prompts[-1]
+        earlier, _, recent = last.partition("## Action-Observation History")
+        # Step 1 is out of the 6-step window: before this it was gone entirely.
+        self.assertIn("## Earlier steps", earlier)
+        self.assertIn("[step 1] read_file", earlier)
+        self.assertNotIn("[step 1]", recent)
+
+    def test_compaction_is_bounded_and_says_what_it_dropped(self) -> None:
+        from saleha.core.loop.agentic_loop import _compact_steps
+
+        parts = [f"[step {i}] read_file({{'path': 'f{i}.py'}})\nOBSERVATION: line one\nline two" for i in range(1, 60)]
+        text = _compact_steps(parts, 1200)
+        self.assertLessEqual(len(text), 1200 + 40)
+        self.assertTrue(text.startswith("("), text[:60])
+        self.assertIn("older step(s) not shown", text)
+        self.assertIn("[step 59] read_file", text)
+        self.assertNotIn("line two", text)
+        self.assertEqual(_compact_steps([], 1200), "")
+
+
+class ProgressChecklistTests(unittest.TestCase):
+    """The repair checklist is ticked by tool results, never by the model's words."""
+
+    def test_boxes_follow_real_state(self) -> None:
+        from saleha.core.loop.agentic_loop import _progress_checklist
+
+        empty = _progress_checklist([], [], False, None)
+        self.assertEqual(empty.count("[ ]"), 5)
+        self.assertIn("NEXT: Read the source code", empty)
+        failed = _progress_checklist(["a.py"], ["tests/t.py"], True, False)
+        self.assertIn("[x] 4.", failed)
+        self.assertIn("[ ] 5.", failed)
+        self.assertIn("Tests FAILED after your latest patch", failed)
+        done = _progress_checklist(["a.py"], ["tests/t.py"], True, True)
+        self.assertEqual(done.count("[x]"), 5)
+        self.assertNotIn("NEXT", done)
+
+    def test_a_claimed_fix_ticks_nothing_and_a_landed_patch_does(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            with open(os.path.join(root, "app.py"), "w") as f:
+                f.write("def charge(amount):\n    return amount * 2\n")
+            agent = ScriptedAgent([
+                "I fixed the bug in app.py and the tests pass.",
+                _tool_call("read_file", path="app.py"),
+                _tool_call("patch_file", path="app.py", search="amount * 2", replace="amount * 3"),
+                _tool_call("list_dir", path="."),
+            ])
+            AgentLoop(agent=agent, root_dir=root, max_steps=4, allow_write=True).run("fix the charge bug")
+        after_claim, after_read, after_patch = agent.prompts[1], agent.prompts[2], agent.prompts[3]
+        # "I fixed the bug ... tests pass" ticked nothing.
+        self.assertIn("[ ] 1. Read the source code", after_claim)
+        self.assertIn("[ ] 3. Patch", after_claim)
+        self.assertIn("[x] 1. Read the source code the goal is about (read: app.py)", after_read)
+        self.assertIn("[ ] 3. Patch", after_read)
+        self.assertIn("[x] 3. Patch", after_patch)
+
+    def test_project_notes_reach_the_prompt_capped(self) -> None:
+        from saleha.core.loop.agentic_loop import _PROJECT_NOTES_CHARS, _project_notes
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            self.assertEqual(_project_notes(root), "")
+            with open(os.path.join(root, "SALEHA.md"), "w", encoding="utf-8") as f:
+                f.write("Run tests with: pytest tests/\n" + "x" * 5000)
+            agent = ScriptedAgent([_tool_call("list_dir", path="."), _finish("ok")])
+            AgentLoop(agent=agent, root_dir=root, max_steps=2).run("describe the repo")
+        self.assertIn("## Project notes (from SALEHA.md in this repo)\nRun tests with: pytest tests/", agent.prompts[0])
+        self.assertIn(f"SALEHA.md cut at {_PROJECT_NOTES_CHARS} chars", agent.prompts[0])
+        self.assertLess(agent.prompts[0].count("x"), _PROJECT_NOTES_CHARS + 200)
+
+    def test_not_shown_for_a_read_only_goal(self) -> None:
+        agent = ScriptedAgent([_tool_call("list_dir", path="."), _finish("ok")])
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            AgentLoop(agent=agent, root_dir=root, max_steps=2).run("describe the repo")
+        self.assertNotIn("## Progress", agent.prompts[0])
 
 
 if __name__ == "__main__":

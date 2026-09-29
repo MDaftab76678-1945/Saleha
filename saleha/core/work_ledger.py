@@ -70,6 +70,9 @@ from typing import Any, Dict, List, Optional, Tuple
 LEDGER_VERSION = 1
 GENESIS = "genesis"
 
+# An untracked file bigger than this is fingerprinted by size and mtime, not read.
+_CONTENT_HASH_LIMIT = 16 * 1024 * 1024
+
 
 class ClaimKind(str, Enum):
     """What sort of statement is being recorded."""
@@ -204,23 +207,71 @@ class WorkLedger:
         self._entries.append(entry)
 
     # -- repo fingerprint ----------------------------------------------
+    def _git_bytes(self, *args: str, timeout: float = 30) -> Optional[bytes]:
+        """stdout of a git command run in the repo; None when git could not answer."""
+        try:
+            p = subprocess.run(["git", *args], cwd=self.root, capture_output=True,
+                               timeout=timeout)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return p.stdout if p.returncode == 0 else None
+
+    def _dirty_fingerprint(self) -> Optional[str]:
+        """
+        What separates the working tree from HEAD, by content.
+
+        `git status --porcelain` reads " M app.py" for every edit to app.py, so
+        two different edits -- or two different new files -- fingerprinted the
+        same (probed). The diff of tracked files and the bytes of untracked
+        ones are hashed too. The ledger's own files (`.saleha/`, and the ledger
+        itself when it sits in the repo) are left out, or each entry would
+        change the fingerprint of the next. None when git could not answer, so
+        a failure is never read as a clean tree.
+        """
+        skip = [":(exclude).saleha"]
+        try:
+            ledger_rel = os.path.relpath(self.path, self.root).replace(os.sep, "/")
+        except ValueError:  # ledger on another drive
+            ledger_rel = ""
+        if ledger_rel and not ledger_rel.startswith(("../", ".saleha/")):
+            skip.append(f":(exclude,literal){ledger_rel}")
+        scope = ["--", ".", *skip]
+
+        status = self._git_bytes("status", "--porcelain", "-z", *scope)
+        diff = self._git_bytes("diff", "HEAD", "--binary", *scope, timeout=60)
+        untracked = self._git_bytes("ls-files", "--others", "--exclude-standard", "-z", *scope)
+        if status is None or diff is None or untracked is None:
+            return None
+        h = hashlib.sha256(status + b"\0diff\0" + diff)
+        for rel in sorted(p for p in untracked.split(b"\0") if p):
+            h.update(b"\0file\0" + rel + b"\0")
+            full = os.path.join(self.root, os.fsdecode(rel))
+            try:
+                st = os.stat(full)
+                if st.st_size > _CONTENT_HASH_LIMIT:
+                    # A model file or a dataset that git does not ignore: read
+                    # in full on every claim it would stall every record. Size
+                    # and mtime stand in for its content.
+                    h.update(f"big:{st.st_size}:{st.st_mtime_ns}".encode())
+                    continue
+                with open(full, "rb") as fh:
+                    h.update(hashlib.file_digest(fh, "sha256").digest())
+            except OSError:
+                h.update(b"unreadable")
+        return h.hexdigest()[:16]
+
     def tree_digest(self) -> str:
         """
         Fingerprint of the working tree, tying a claim to the code it was
-        made about. Uses git when available; falls back to hashing source
-        files so this still works outside a repo.
+        made about. Uses git when available (HEAD plus a content hash of
+        whatever differs from it); falls back to hashing source files so this
+        still works outside a repo.
         """
-        try:
-            head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root,
-                                  capture_output=True, text=True, timeout=15)
-            if head.returncode == 0:
-                dirty = subprocess.run(["git", "status", "--porcelain"],
-                                       cwd=self.root, capture_output=True,
-                                       text=True, timeout=30)
-                # A dirty tree must not masquerade as its commit.
-                return f"git:{head.stdout.strip()}:{_sha256(dirty.stdout)[:16]}"
-        except (OSError, subprocess.SubprocessError):
-            pass
+        head = self._git_bytes("rev-parse", "HEAD", timeout=15)
+        if head is not None:
+            dirty = self._dirty_fingerprint()
+            if dirty is not None:
+                return f"git:{head.decode('ascii', 'replace').strip()}:{dirty}"
 
         h = hashlib.sha256()
         skip = {".git", "__pycache__", "node_modules", ".venv",
@@ -264,7 +315,7 @@ class WorkLedger:
         self.anchor_note = ""
         if not self.anchor_path:
             return
-        from saleha.core.intent_kernel import append_event
+        from saleha.core.platform.intent_kernel import append_event
         res = append_event(self.anchor_path, mission=self.path, event="work_ledger.entry",
                            input_data={"seq": entry.seq, "hash": entry.hash},
                            output_data={"actor": entry.actor})
@@ -286,7 +337,7 @@ class WorkLedger:
         """
         if not self.anchor_path:
             return None, "no external anchor configured"
-        from saleha.core.intent_kernel import read_events, verify_ledger
+        from saleha.core.platform.intent_kernel import read_events, verify_ledger
         kernel = verify_ledger(self.anchor_path)
         if not kernel["available"]:
             return None, kernel["detail"]

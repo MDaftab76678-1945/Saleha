@@ -12,7 +12,7 @@ Fabricated scores and unmeasured passes are strictly forbidden in this repositor
 ## 1. The Core Honesty Protocol (No Fake Greens)
 
 1. **Every Score Must Be Measured:** Never print hand-typed literals or hardcoded percentages as benchmark results (eradicated in Pass 20 and Pass 28).
-2. **Real Sandbox Execution:** A generated code candidate is only scored as PASS if it runs in a sandboxed subprocess (`saleha/core/windows_job_sandbox.py`, `saleha/sandbox/sandbox_jail.py`), exits code 0, and its tests ran to the end.
+2. **Real Sandbox Execution:** A generated code candidate is only scored as PASS if it runs in a sandboxed subprocess (`saleha/core/sandbox/windows_job_sandbox.py`, `saleha/sandbox/sandbox_jail.py`), exits code 0, and its tests ran to the end.
 3. **No Test Pinning:** Tests must never assert hardcoded mock scores (`assert score == 93.3`). Tests must assert the physical outcome of the execution.
 4. **Isolate Memory Caches:** When comparing Model A and Model B, the orchestrator must swap in an ephemeral, throwaway `MemoryStore` so Model B cannot replay Model A's cached solution.
 

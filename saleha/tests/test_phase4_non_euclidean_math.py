@@ -9,8 +9,12 @@ from saleha.core.cognitive.padic_ultrametric import (
     PadicValuationNode,
     p_adic_valuation,
 )
-from saleha.core.hyperbolic_engine import HYPERBOLIC_DIM, HyperbolicVector, SAMHAttractorController
-from saleha.core.sheaf_consensus import SheafCohomologyConsensus
+from saleha.core.research.hyperbolic_engine import (
+    HYPERBOLIC_DIM,
+    HyperbolicVector,
+    SAMHAttractorController,
+)
+from saleha.core.research.sheaf_consensus import SheafCohomologyConsensus
 from saleha.core.telemetry.latency_histogram import NanosecondLatencyHistogram
 
 

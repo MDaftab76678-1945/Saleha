@@ -240,7 +240,7 @@ class CallerStagingTests(unittest.TestCase):
     def test_refactorer_passes_the_files_it_rewrote(self) -> None:
         import inspect
 
-        from saleha.core.multi_file_refactorer import MultiFileRefactorer
+        from saleha.core.editing.multi_file_refactorer import MultiFileRefactorer
         src = inspect.getsource(MultiFileRefactorer)
         self.assertIn("files=modified_list", src)
 

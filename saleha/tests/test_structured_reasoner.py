@@ -4,8 +4,8 @@ Unit tests for Saleha Structured Reasoning & XML Tool Calling Engine.
 
 import unittest
 
-from saleha.core.structured_reasoner import StructuredReasoner, structured_reasoner
-from saleha.core.tool_calling import ToolDispatcher
+from saleha.core.loop.structured_reasoner import StructuredReasoner, structured_reasoner
+from saleha.core.skills.tool_calling import ToolDispatcher
 
 
 class TestStructuredReasoner(unittest.TestCase):

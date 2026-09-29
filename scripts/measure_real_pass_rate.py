@@ -12,7 +12,7 @@ real prompt, a real test that fails on wrong code -- verified before the run
 ## Where the engine lives now
 
 The tasks and the runner used to be defined in this file. They now live in
-`saleha/core/real_task_bench.py`, because `pyproject.toml` ships only
+`saleha/core/harness/real_task_bench.py`, because `pyproject.toml` ships only
 `saleha*` and `scripts/` is not a package -- so this measurement was
 unreachable from the installed package and from every CLI command, while the
 fabricated harnesses were the ones wired up. Keeping a second copy here would
@@ -44,7 +44,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from saleha.core.real_task_bench import (  # noqa: E402
+from saleha.core.harness.real_task_bench import (  # noqa: E402
     DEFAULT_MODEL,
     TASKS,
     run_benchmark,

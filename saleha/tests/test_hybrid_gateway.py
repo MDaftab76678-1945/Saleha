@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from saleha.core.hybrid_gateway import GatewayResponse, HybridModelGateway
+from saleha.core.platform.hybrid_gateway import GatewayResponse, HybridModelGateway
 
 
 class HybridGatewayTests(unittest.TestCase):

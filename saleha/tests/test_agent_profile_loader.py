@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.agent_profile_loader import AgentProfileRegistry, profile_registry
+from saleha.core.platform.agent_profile_loader import AgentProfileRegistry, profile_registry
 
 
 class AgentProfileLoaderTests(unittest.TestCase):

@@ -7,7 +7,7 @@ Mass/Weight, Digital Storage, and Speed without LLM calls.
 
 import re
 
-from saleha.core.skill_base import Skill, SkillResult
+from saleha.core.skills.skill_base import Skill, SkillResult
 
 
 class UnitConverterSkill(Skill):

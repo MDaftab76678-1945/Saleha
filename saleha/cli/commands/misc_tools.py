@@ -293,7 +293,7 @@ def history(limit: int, failed_only: bool, as_json: bool) -> None:
     Example: saleha history -n 20
     Example: saleha history --failed-only
     """
-    from saleha.core.task_history import TaskHistory
+    from saleha.core.memory.task_history import TaskHistory
     hist = TaskHistory()
     records = hist.failed_tasks() if failed_only else hist.recent(limit)
     if not records:
@@ -355,7 +355,7 @@ def metrics(tail: int, as_json: bool) -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def plugins_cmd(as_json: bool) -> None:
     """List loaded dynamic plugins and lifecycle event hooks."""
-    from saleha.core.plugin_loader import plugin_loader
+    from saleha.core.plugins.plugin_loader import plugin_loader
     plugins = plugin_loader.list_plugins()
     if as_json:
         payload = [{'name': p.name, 'version': p.version, 'description': p.description, 'file': p.file_path, 'hooks': p.hooks_registered} for p in plugins]
@@ -380,7 +380,7 @@ def plugins_cmd(as_json: bool) -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def fuzz_cmd(func_name: str, mutations: int, as_json: bool) -> None:
     """Execute automated security mutation fuzzing against code functions."""
-    from saleha.core.api_fuzzer import api_fuzzer
+    from saleha.core.security.api_fuzzer import api_fuzzer
     mock_code = f"def {func_name}(val):\n    if len(str(val)) > 100:\n        raise ValueError('Buffer overflow attempt')\n    return {{'status': 'ok'}}"
     report = api_fuzzer.fuzz_function(code=mock_code, func_name=func_name, mutations=mutations)
     if as_json:
@@ -407,7 +407,7 @@ def fuzz_cmd(func_name: str, mutations: int, as_json: bool) -> None:
 def loadtest_cmd(url: str, concurrency: int, requests: int, dry_run: bool,
                  as_json: bool) -> None:
     """Execute high-concurrency API load testing and percentile benchmarks."""
-    from saleha.core.load_tester import load_tester
+    from saleha.core.devops.load_tester import load_tester
     with Progress(SpinnerColumn(), TextColumn(f"[cyan]Executing load test against '{url}' ({requests} requests, {concurrency} workers)..."), console=console) as progress:
         progress.add_task('loadtest', total=None)
         res = load_tester.run_load_test(url=url, concurrency=concurrency, total_requests=requests, dry_run=dry_run)
@@ -598,7 +598,7 @@ def chaos_cmd(iterations: int) -> None:
     
     Example: saleha chaos --iterations 10
     """
-    from saleha.core.chaos_engine import chaos_engine
+    from saleha.core.devops.chaos_engine import chaos_engine
     console.print(f'[bold cyan]💥 Running Chaos Fault Injection Probe ({iterations} iterations)...[/]')
 
     def mock_target_flow() -> bool:
@@ -619,7 +619,7 @@ def mock_cmd(port: int) -> None:
     
     Example: saleha mock --port 8080
     """
-    from saleha.core.mock_server import mock_server
+    from saleha.core.devops.mock_server import mock_server
     console.print(f'[bold cyan]🎭 Synthetic Mock API Server initialized on port:[/] [green]{port}[/]')
     routes = mock_server.list_routes()
     table = Table(title='🎭 Active Synthetic Mock Endpoints', show_header=True, header_style='bold magenta', expand=True)
@@ -638,7 +638,7 @@ def init_cmd(force: bool) -> None:
     
     Example: saleha init
     """
-    from saleha.core.project_initializer import project_initializer
+    from saleha.core.project.project_initializer import project_initializer
     console.print('[bold cyan]🪄 Initializing Saleha AI for current workspace...[/]')
     res = project_initializer.initialize_workspace(force=force)
     console.print('\n[bold green]✅ Project Initialized Successfully![/]')
@@ -655,7 +655,7 @@ def pull_cmd(model_name: str, benchmark: bool) -> None:
     
     Example: saleha pull recommended --benchmark
     """
-    from saleha.core.model_manager import RECOMMENDED_MODELS, model_manager
+    from saleha.core.platform.model_manager import RECOMMENDED_MODELS, model_manager
     targets = [RECOMMENDED_MODELS['fast'], RECOMMENDED_MODELS['reasoning']] if model_name == 'recommended' else [model_name]
     for m in targets:
         console.print(f'[bold cyan]📥 Pulling model:[/] [yellow]{m}[/]...')
@@ -679,7 +679,7 @@ def tune_cmd(model: str, epochs: int, name: str = 'saleha-custom') -> None:
     
     Example: saleha tune --model qwen2.5-coder:3b --epochs 3
     """
-    from saleha.core.lora_tuner import TuningConfig, lora_tuner
+    from saleha.core.training.lora_tuner import TuningConfig, lora_tuner
     out_name = name or 'saleha-custom'
     cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=out_name)
     console.print(f'[bold cyan]🚀 Starting Local LoRA Fine-Tuning on {model}...[/]')
@@ -840,7 +840,7 @@ def workspace_group() -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def workspace_status_cmd(path: str, as_json: bool) -> None:
     """Audit branch status and uncommitted changes across all workspace repos."""
-    from saleha.core.workspace_coordinator import workspace_coordinator
+    from saleha.core.project.workspace_coordinator import workspace_coordinator
     statuses = workspace_coordinator.get_workspace_status(root_dir=path)
     if as_json:
         click.echo(json.dumps([s.__dict__ for s in statuses], ensure_ascii=True))
@@ -866,7 +866,7 @@ def sre_group() -> None:
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def sre_analyze_cmd(log_or_file: str, as_json: bool) -> None:
     """Analyze production stacktrace and synthesize emergency hotfix patch."""
-    from saleha.core.sre_responder import sre_responder
+    from saleha.core.devops.sre_responder import sre_responder
     content = log_or_file
     if os.path.isfile(log_or_file):
         with open(log_or_file, 'r', encoding='utf-8', errors='ignore') as f:
@@ -897,7 +897,7 @@ def refactor_rename_cmd(old_symbol: str, new_symbol: str, no_commit: bool) -> No
     
     Example: saleha refactor rename SmartRouter NextGenRouter
     """
-    from saleha.core.multi_file_refactorer import multi_file_refactorer
+    from saleha.core.editing.multi_file_refactorer import multi_file_refactorer
     console.print(f'[bold cyan]🔄 Planning atomic multi-file rename:[/] [yellow]{old_symbol}[/] -> [green]{new_symbol}[/]')
     res = multi_file_refactorer.rename_symbol(old_symbol, new_symbol, auto_commit=not no_commit)
     if res.success:
@@ -952,7 +952,7 @@ def env_list_cmd() -> None:
     
     Example: saleha env list
     """
-    from saleha.core.env_sync import env_sync
+    from saleha.core.devops.env_sync import env_sync
     secrets = env_sync.get_vault_env()
     console.print(f'[bold cyan]🔐 Vault Environment Variables ({len(secrets)} active):[/]')
     for k in secrets:

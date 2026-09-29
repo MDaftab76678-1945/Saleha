@@ -22,7 +22,7 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 
-# Shared with saleha.core.dpo_dataset_engine.MIN_DPO_PAIRS.
+# Shared with saleha.core.training.dpo_dataset_engine.MIN_DPO_PAIRS.
 MIN_TRAINING_SAMPLES = 20
 
 if hasattr(sys.stdout, "reconfigure"):

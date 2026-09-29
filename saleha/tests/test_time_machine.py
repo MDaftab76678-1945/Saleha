@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.time_machine import CodebaseSnapshot, TimeMachine
+from saleha.core.git.time_machine import CodebaseSnapshot, TimeMachine
 
 
 class TestTimeMachine(unittest.TestCase):

@@ -2,7 +2,7 @@
 wapas 'thin' ho gayi (goals/constraints/tools/routing missing)."""
 import unittest
 
-from saleha.core.agent_profile_loader import profile_registry
+from saleha.core.platform.agent_profile_loader import profile_registry
 
 
 class ProfileQualityGateTests(unittest.TestCase):

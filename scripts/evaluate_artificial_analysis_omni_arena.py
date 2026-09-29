@@ -41,7 +41,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from saleha.core.omni_arena_engine import omni_arena_engine
+from saleha.core.research.omni_arena_engine import omni_arena_engine
 
 
 def main() -> int:

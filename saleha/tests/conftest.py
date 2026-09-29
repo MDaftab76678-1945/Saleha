@@ -25,11 +25,32 @@ that branch reliably reached instead of reachable only by accident.
 """
 
 import os
+import tempfile
 from typing import Iterator
 
 import pytest
 
 os.environ.setdefault("SALEHA_TEST_MODE", "1")
+
+# A throwaway home for the whole run, set before any saleha module computes
+# its ~/.saleha path at import. Without it the suite wrote its fixtures into
+# the user's real history: measured 2026-09-29, ~/.saleha/metrics.jsonl held
+# 1951 "fake-model", 467 "m" and 465 "resumed-session" runs against 31 real
+# qwen2.5-coder:3b ones, and `saleha metrics` / `saleha stats` reported them
+# as the user's own. Git still reads the real global config, so tests that
+# commit keep their identity.
+_real_home = os.path.expanduser("~")
+_real_gitconfig = os.path.join(_real_home, ".gitconfig")
+if os.path.exists(_real_gitconfig):
+    os.environ.setdefault("GIT_CONFIG_GLOBAL", _real_gitconfig)
+# Toolchains found through the home folder: rustup lost its default toolchain
+# under the temporary home ("no default is configured") and a real rustc test
+# failed for a reason that had nothing to do with the code under test.
+for _var, _dirname in (("RUSTUP_HOME", ".rustup"), ("CARGO_HOME", ".cargo")):
+    if os.path.isdir(os.path.join(_real_home, _dirname)):
+        os.environ.setdefault(_var, os.path.join(_real_home, _dirname))
+_test_home = tempfile.mkdtemp(prefix="saleha-test-home-")
+os.environ["HOME"] = os.environ["USERPROFILE"] = _test_home
 
 
 # Environment variables that change how code is executed, and therefore what

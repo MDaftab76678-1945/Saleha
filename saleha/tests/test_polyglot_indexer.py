@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.polyglot_indexer import PolyglotIndexer
+from saleha.core.polyglot.polyglot_indexer import PolyglotIndexer
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 

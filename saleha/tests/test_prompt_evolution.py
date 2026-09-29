@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.fast_inference import InferenceResult
-from saleha.core.prompt_evolution import (
+from saleha.core.platform.fast_inference import InferenceResult
+from saleha.core.training.prompt_evolution import (
     MIN_TASKS_FOR_TRUST,
     EvolutionTask,
     Genome,
@@ -54,13 +54,11 @@ class _Engine:
         return out
 
 
-def _verify(code, task):
-    namespace = {}
-    try:
-        exec(code, namespace)          # noqa: S102 - the point of the test
-        return namespace["add"](2, 3) == 5
-    except Exception:
-        return False
+def _verify(code: str, task: object) -> bool:
+    # Runs the candidate in its own process rather than exec() in this one.
+    from saleha.core.harness.real_task_bench import run_in_subprocess
+    ok, _ = run_in_subprocess(code, "assert add(2, 3) == 5")
+    return ok
 
 
 def _tasks(n=6):
@@ -77,7 +75,7 @@ def _evolver(**kwargs):
 
 
 class FitnessIsRealTests(unittest.TestCase):
-    def test_fitness_is_the_fraction_of_tasks_that_pass(self):
+    def test_fitness_is_the_fraction_of_tasks_that_pass(self) -> None:
         evolver = _evolver()
         failing = Genome("g", "You are a coder.")
         evolver.evaluate(failing, _tasks(4))
@@ -89,19 +87,19 @@ class FitnessIsRealTests(unittest.TestCase):
         self.assertEqual(passing.fitness, 1.0)
         self.assertEqual((passing.passed, passing.total), (4, 4))
 
-    def test_a_better_prompt_scores_higher(self):
+    def test_a_better_prompt_scores_higher(self) -> None:
         evolver = _evolver()
         worse = evolver.evaluate(Genome("a", "base"), _tasks())
         better = evolver.evaluate(
             Genome("b", "base", directives=[MARKER]), _tasks())
         self.assertGreater(better.fitness, worse.fitness)
 
-    def test_no_tasks_means_zero_not_a_lucky_number(self):
+    def test_no_tasks_means_zero_not_a_lucky_number(self) -> None:
         genome = _evolver().evaluate(Genome("g", "base"), [])
         self.assertEqual(genome.fitness, 0.0)
         self.assertEqual(genome.total, 0)
 
-    def test_a_crashing_verifier_fails_only_that_task(self):
+    def test_a_crashing_verifier_fails_only_that_task(self) -> None:
         def flaky(code, task):
             if task.task_id == "t0":
                 raise RuntimeError("sandbox died")
@@ -112,7 +110,7 @@ class FitnessIsRealTests(unittest.TestCase):
             Genome("g", "base", directives=[MARKER]), _tasks(4))
         self.assertEqual(genome.passed, 3)      # 3 of 4, not 0
 
-    def test_failed_generation_does_not_count_as_a_pass(self):
+    def test_failed_generation_does_not_count_as_a_pass(self) -> None:
         class Dead:
             def run_batch(self, requests, **kwargs):
                 return [InferenceResult(success=False, error="refused",
@@ -126,7 +124,7 @@ class FitnessIsRealTests(unittest.TestCase):
 class ReproducibilityTests(unittest.TestCase):
     """The random-fitness version gives a different winner every run."""
 
-    def test_the_same_inputs_give_the_same_result(self):
+    def test_the_same_inputs_give_the_same_result(self) -> None:
         outcomes = set()
         for _ in range(3):
             result = _evolver().evolve("You are a coder.", _tasks(),
@@ -135,7 +133,7 @@ class ReproducibilityTests(unittest.TestCase):
                           result.improvement))
         self.assertEqual(len(outcomes), 1)
 
-    def test_a_different_seed_can_explore_differently(self):
+    def test_a_different_seed_can_explore_differently(self) -> None:
         one = _evolver(seed=1)
         two = _evolver(seed=999)
         a = one.mutate(Genome("s", "base"), 1, 1)
@@ -143,7 +141,7 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertIsInstance(a.directives, list)
         self.assertIsInstance(b.directives, list)
 
-    def test_tournament_selection_breaks_ties_deterministically(self):
+    def test_tournament_selection_breaks_ties_deterministically(self) -> None:
         evolver = _evolver()
         pool = [Genome("a", "p", fitness=0.5), Genome("b", "p", fitness=0.5)]
         picks = {evolver._select(pool).genome_id for _ in range(20)}
@@ -151,31 +149,31 @@ class ReproducibilityTests(unittest.TestCase):
 
 
 class EvolutionOutcomeTests(unittest.TestCase):
-    def test_evolution_finds_the_directive_that_works(self):
+    def test_evolution_finds_the_directive_that_works(self) -> None:
         result = _evolver().evolve("You are a coder.", _tasks(),
                                    generations=2)
         self.assertEqual(result.seed_fitness, 0.0)
         self.assertEqual(result.best.fitness, 1.0)
         self.assertEqual(result.improvement, 1.0)
 
-    def test_history_records_every_generation(self):
+    def test_history_records_every_generation(self) -> None:
         result = _evolver().evolve("base", _tasks(), generations=3)
         self.assertEqual(len(result.history), 3)
         self.assertEqual([h.generation for h in result.history], [1, 2, 3])
 
-    def test_best_fitness_never_regresses(self):
+    def test_best_fitness_never_regresses(self) -> None:
         """Elitism must carry the best genome forward."""
         result = _evolver().evolve("base", _tasks(), generations=3)
         bests = [h.best_fitness for h in result.history]
-        for earlier, later in zip(bests, bests[1:]):
+        for earlier, later in zip(bests, bests[1:], strict=False):  # pairs; lengths differ by one
             self.assertGreaterEqual(later, earlier)
 
-    def test_a_small_task_set_is_reported_as_untrustworthy(self):
+    def test_a_small_task_set_is_reported_as_untrustworthy(self) -> None:
         result = _evolver().evolve("base", _tasks(2), generations=1)
         self.assertFalse(result.trustworthy)
         self.assertIn("NOT TRUSTWORTHY", result.describe())
 
-    def test_a_large_enough_task_set_is_trusted(self):
+    def test_a_large_enough_task_set_is_trusted(self) -> None:
         result = _evolver().evolve("base", _tasks(MIN_TASKS_FOR_TRUST),
                                    generations=1)
         self.assertTrue(result.trustworthy)
@@ -183,7 +181,7 @@ class EvolutionOutcomeTests(unittest.TestCase):
 
 
 class CachingTests(unittest.TestCase):
-    def test_an_unchanged_genome_is_not_re_evaluated(self):
+    def test_an_unchanged_genome_is_not_re_evaluated(self) -> None:
         evolver = _evolver()
         genome = Genome("g", "base", directives=[MARKER])
         evolver.evaluate(genome, _tasks(3))
@@ -192,18 +190,18 @@ class CachingTests(unittest.TestCase):
         self.assertEqual(evolver.evaluations, before)
         self.assertEqual(evolver.cache_hits, 1)
 
-    def test_temperature_is_part_of_the_identity(self):
+    def test_temperature_is_part_of_the_identity(self) -> None:
         cold = Genome("a", "base", temperature=0.0)
         warm = Genome("b", "base", temperature=0.8)
         self.assertNotEqual(cold.fingerprint(), warm.fingerprint())
 
-    def test_directives_are_part_of_the_identity(self):
+    def test_directives_are_part_of_the_identity(self) -> None:
         self.assertNotEqual(Genome("a", "base").fingerprint(),
                             Genome("b", "base", directives=["x"]).fingerprint())
 
 
 class GeneticOperatorTests(unittest.TestCase):
-    def test_crossover_merges_both_parents(self):
+    def test_crossover_merges_both_parents(self) -> None:
         evolver = _evolver()
         child = evolver.crossover(
             Genome("a", "base", directives=["one"]),
@@ -211,21 +209,21 @@ class GeneticOperatorTests(unittest.TestCase):
         self.assertIn("one", child.directives)
         self.assertIn("two", child.directives)
 
-    def test_crossover_does_not_duplicate_shared_directives(self):
+    def test_crossover_does_not_duplicate_shared_directives(self) -> None:
         evolver = _evolver()
         child = evolver.crossover(
             Genome("a", "base", directives=["same"]),
             Genome("b", "base", directives=["same"]), 1, 1)
         self.assertEqual(child.directives.count("same"), 1)
 
-    def test_mutation_changes_something(self):
+    def test_mutation_changes_something(self) -> None:
         evolver = _evolver()
         parent = Genome("p", "base", directives=["one"])
         child = evolver.mutate(parent, 1, 1)
         self.assertTrue(child.directives != parent.directives
                         or child.temperature != parent.temperature)
 
-    def test_temperature_stays_in_range(self):
+    def test_temperature_stays_in_range(self) -> None:
         evolver = _evolver()
         genome = Genome("p", "base", temperature=0.85)
         for _ in range(30):
@@ -233,32 +231,32 @@ class GeneticOperatorTests(unittest.TestCase):
             self.assertGreaterEqual(genome.temperature, 0.0)
             self.assertLessEqual(genome.temperature, 0.9)
 
-    def test_directives_are_capped(self):
+    def test_directives_are_capped(self) -> None:
         evolver = _evolver()
         genome = Genome("p", "base")
         for _ in range(40):
             genome = evolver.mutate(genome, 1, 1)
             self.assertLessEqual(len(genome.directives), 5)
 
-    def test_render_includes_the_directives(self):
+    def test_render_includes_the_directives(self) -> None:
         rendered = Genome("g", "You are a coder.", directives=["Be brief."]).render()
         self.assertIn("You are a coder.", rendered)
         self.assertIn("Be brief.", rendered)
 
-    def test_render_of_a_bare_genome_is_the_prompt(self):
+    def test_render_of_a_bare_genome_is_the_prompt(self) -> None:
         self.assertEqual(Genome("g", "just this").render(), "just this")
 
 
 class ExtractCodeTests(unittest.TestCase):
-    def test_prefers_the_largest_block(self):
+    def test_prefers_the_largest_block(self) -> None:
         text = ("```python\nprint(add(1,2))\n```\n"
                 "```python\ndef add(a, b):\n    return a + b\n```")
         self.assertIn("def add", extract_code(text))
 
-    def test_unfenced_reply_is_returned(self):
+    def test_unfenced_reply_is_returned(self) -> None:
         self.assertEqual(extract_code("def f(): pass"), "def f(): pass")
 
-    def test_empty_is_empty(self):
+    def test_empty_is_empty(self) -> None:
         self.assertEqual(extract_code(""), "")
 
 

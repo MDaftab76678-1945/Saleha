@@ -9,7 +9,7 @@ passing no matter how broken the executor became.
 
 import unittest
 
-from saleha.core.swe_bench_harness import SandboxSelfCheck, SWEBenchTask
+from saleha.core.harness.swe_bench_harness import SandboxSelfCheck, SWEBenchTask
 
 GOOD = SWEBenchTask(
     instance_id="SELFCHECK-OK",

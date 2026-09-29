@@ -45,7 +45,7 @@ def migrate_cmd(target_path, source_fw, target_fw, inplace):
     
     Example: saleha migrate app.py --from flask --to fastapi
     """
-    from saleha.core.code_migrator import code_migrator
+    from saleha.core.editing.code_migrator import code_migrator
     if not os.path.isfile(target_path):
         console.print(f'[bold red]Error:[/] Target file not found: {target_path}')
         return
@@ -71,7 +71,7 @@ def generate_infra_cmd(name: str, port: int):
     
     Example: saleha generate-infra --name api-service --port 8000
     """
-    from saleha.core.infra_generator import infra_generator
+    from saleha.core.devops.infra_generator import infra_generator
     b = infra_generator.generate_infrastructure(name, port)
     console.print(Panel(f'[bold blue]🏗️ Infrastructure-as-Code Generated for {name}[/bold blue]', border_style='blue'))
     console.print(f"Synthesized: {', '.join(b.files.keys())}")
@@ -83,7 +83,7 @@ def generate_infra_cmd(name: str, port: int):
 @click.option('--output-dir', '-o', default=None, help='Directory to save generated IaC manifests')
 def cloud_plan_cmd(goal: str, provider: str, ha: bool, output_dir: Optional[str]):
     """Autonomously synthesize Terraform, Kubernetes manifests, Helm values & IAM security policies."""
-    from saleha.core.cloud_infra_orchestrator import cloud_infra_orchestrator
+    from saleha.core.devops.cloud_infra_orchestrator import cloud_infra_orchestrator
     console.print(f'[bold cyan]☁️ Synthesizing Enterprise Cloud Architecture for:[/] [white]{goal}[/]')
     plan = cloud_infra_orchestrator.plan_and_generate_infra(goal=goal, cloud_provider=provider, high_availability=ha)
     if output_dir:
@@ -116,7 +116,7 @@ def cloud_plan_cmd(goal: str, provider: str, ha: bool, output_dir: Optional[str]
 @click.option('--output-dir', '-o', default=None, help='Directory to save synthesizable Verilog & testbench')
 def silicon_build_cmd(goal: str, name: Optional[str], output_dir: Optional[str]):
     """Synthesize synthesizable Verilog / SystemVerilog RTL, self-checking testbenches & SDC timing."""
-    from saleha.core.silicon_circuit_orchestrator import silicon_circuit_orchestrator
+    from saleha.core.research.silicon_circuit_orchestrator import silicon_circuit_orchestrator
     console.print(f'[bold yellow]⚡ Synthesizing Silicon Hardware Circuit for:[/] [white]{goal}[/]')
     design = silicon_circuit_orchestrator.synthesize_hardware_circuit(spec_goal=goal, module_name=name)
     if output_dir:

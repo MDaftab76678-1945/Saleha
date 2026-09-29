@@ -15,9 +15,9 @@ from pathlib import Path
 import yaml
 
 import saleha
-from saleha.core.benchmark_reporter import BenchmarkRun
-from saleha.core.swe_bench_exporter import SWEBenchExporter
-from saleha.core.swe_leaderboard import TaskResult
+from saleha.core.harness.benchmark_reporter import BenchmarkRun
+from saleha.core.harness.swe_bench_exporter import SWEBenchExporter
+from saleha.core.harness.swe_leaderboard import TaskResult
 
 
 class EcosystemIntegrationTests(unittest.TestCase):

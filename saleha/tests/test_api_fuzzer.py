@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.api_fuzzer import api_fuzzer
+from saleha.core.security.api_fuzzer import api_fuzzer
 
 
 class APIFuzzerTests(unittest.TestCase):

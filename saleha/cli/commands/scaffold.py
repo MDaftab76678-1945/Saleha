@@ -26,7 +26,7 @@ def new_cmd(stack: str, name: str, into: str, force: bool) -> None:
 
     Example: saleha new fastapi orders-api
     """
-    from saleha.core.project_scaffolder import TEMPLATES, project_scaffolder
+    from saleha.core.project.project_scaffolder import TEMPLATES, project_scaffolder
 
     if stack.lower() not in TEMPLATES:
         console.print(

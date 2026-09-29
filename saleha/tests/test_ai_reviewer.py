@@ -7,8 +7,8 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.ai_reviewer import AICodeReviewer
-from saleha.core.review_reporter import ReviewReporter
+from saleha.core.review.ai_reviewer import AICodeReviewer
+from saleha.core.review.review_reporter import ReviewReporter
 
 SQL_INJECTION_CODE = '''
 import sqlite3

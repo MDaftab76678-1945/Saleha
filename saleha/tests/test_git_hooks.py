@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.git_hooks import GitHookManager
+from saleha.core.git.git_hooks import GitHookManager
 
 
 class GitHookManagerTests(unittest.TestCase):

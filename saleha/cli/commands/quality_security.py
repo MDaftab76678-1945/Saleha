@@ -128,7 +128,7 @@ def review_cmd(target_file_or_dir: Any, ensemble: Any, min_confidence: Any) -> N
     Example: saleha review saleha/core/agentic_loop.py --ensemble
     """
     if ensemble:
-        from saleha.core.ensemble_reviewer import ensemble_reviewer
+        from saleha.core.review.ensemble_reviewer import ensemble_reviewer
         content = ''
         if os.path.isfile(target_file_or_dir):
             with open(target_file_or_dir, 'r', encoding='utf-8', errors='replace') as f:
@@ -157,7 +157,7 @@ def threat_cmd(output: Any, target_dir: Any) -> None:
 
     Example: saleha threat --output docs/threat_model.md
     """
-    from saleha.core.threat_modeler import threat_modeler
+    from saleha.core.security.threat_modeler import threat_modeler
     console.print(f'[bold cyan]Checking STRIDE mitigations in {target_dir}...[/]')
     rep = threat_modeler.analyze_workspace(target_dir)
     if rep.files_scanned == 0:
@@ -178,7 +178,7 @@ def debt_cmd(threshold: Any, target_dir: Any) -> None:
     
     Example: saleha debt --threshold 10
     """
-    from saleha.core.tech_debt_analyzer import tech_debt_analyzer
+    from saleha.core.review.tech_debt_analyzer import tech_debt_analyzer
     console.print(f'[bold cyan]📉 Auditing codebase Technical Debt & Cognitive Complexity for:[/] [yellow]{target_dir}[/]')
     rep = tech_debt_analyzer.analyze_workspace(root_dir=target_dir, threshold=threshold)
     console.print(f'\n[bold white]Functions Analyzed:[/] {rep.total_functions_analyzed} | [bold white]Average Cyclomatic:[/] {rep.average_cyclomatic} | [bold white]Hotspots Flagged:[/] [yellow]{rep.hotspots_count}[/]\n')
@@ -223,8 +223,8 @@ def review_ai_cmd(path: Any, html: Any, out: Any) -> None:
 
     Example: saleha review-ai . --html
     """
-    from saleha.core.ai_reviewer import ai_reviewer
-    from saleha.core.review_reporter import review_reporter
+    from saleha.core.review.ai_reviewer import ai_reviewer
+    from saleha.core.review.review_reporter import review_reporter
     if os.path.isfile(path):
         with open(path, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
@@ -258,7 +258,7 @@ def redteam_cmd(path: str, model: str) -> None:
     
     Example: saleha redteam saleha/core/security_scanner.py
     """
-    from saleha.core.red_team_engine import RedTeamEngine
+    from saleha.core.security.red_team_engine import RedTeamEngine
     if not os.path.exists(path):
         console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
         return
@@ -288,7 +288,7 @@ def constitutional_check_cmd(path: str) -> None:
     
     Example: saleha constitutional-check saleha/core/security_scanner.py
     """
-    from saleha.core.constitutional_guard import constitutional_guard
+    from saleha.core.security.constitutional_guard import constitutional_guard
     if not os.path.exists(path):
         console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
         return
@@ -305,7 +305,7 @@ def godel_utility_cmd() -> None:
     
     Example: saleha godel-utility
     """
-    from saleha.core.godel_utility import godel_utility_engine, measure_current_state
+    from saleha.core.research.godel_utility import godel_utility_engine, measure_current_state
     # This used to build both states from literals -- SystemStateUtility(0.92,
     # 0.88, 1.0, 0.75) vs (0.96, 0.94, 1.0, 0.82) -- and print "AUTHORIZED"
     # about a refactoring that did not exist. The engine's maths was fine; the
@@ -344,7 +344,7 @@ def emergence_check_cmd(clear: Any) -> None:
 
     Example: saleha emergence-check
     """
-    from saleha.core.emergence_detector import emergence_detector
+    from saleha.core.swarm.emergence_detector import emergence_detector
 
     if clear:
         emergence_detector.clear(wipe_persisted=True)
@@ -378,7 +378,7 @@ def merkle_audit_cmd() -> None:
 
     Example: saleha merkle-audit
     """
-    from saleha.core.merkle_provenance import merkle_provenance_ledger
+    from saleha.core.security.merkle_provenance import merkle_provenance_ledger
     ok, msg = merkle_provenance_ledger.verify_integrity()
     col = 'green' if ok else 'red'
     console.print(Panel(f'[bold {col}]🌳 Cryptographic Merkle Audit Trail[/bold {col}]\n{msg}', border_style=col))
@@ -408,7 +408,7 @@ def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
     import json as json_mod
     from datetime import datetime, timezone
 
-    from saleha.core.merkle_provenance import merkle_provenance_ledger
+    from saleha.core.security.merkle_provenance import merkle_provenance_ledger
 
     leaves = merkle_provenance_ledger.leaves
     if not leaves:
@@ -483,7 +483,7 @@ def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) 
     Example: saleha quadratic-vote "Adopt async event sourcing" \\
         --vote CoderAgent:3 --vote SecurityAgent:2 --vote ReviewerAgent:-1
     """
-    from saleha.core.quadratic_voting import QuadraticVotingEngine
+    from saleha.core.swarm.quadratic_voting import QuadraticVotingEngine
 
     parsed: list[tuple[str, int]] = []
     for raw in votes:
@@ -578,8 +578,10 @@ def receipt_cmd(root_dir: str, base: str, test_cmd: Optional[str], timeout: floa
     Proof receipt: is the current change actually proven by its tests?
 
     Runs the tests with the change, then the same tests against the code as
-    it was at --base (in a throwaway git worktree), checks the tests were not
-    weakened, and records the run in the anchored work ledger.
+    it was at --base (in a throwaway git worktree). When they fail there, the
+    change is also run in a clean checkout, so a checkout that cannot run the
+    suite (a git-ignored file the tests need) is not mistaken for proof. Checks
+    the tests were not weakened, and records the run in the anchored work ledger.
     Exit code 0 only for PROVEN.
 
     Example: saleha receipt --base HEAD~1
@@ -626,7 +628,7 @@ def verify_work_cmd(ledger: Any, root_dir: Any, chain_only: Any, expect: Any, as
 
     Example: saleha verify-work .saleha/work.jsonl --dir .
     """
-    from saleha.core.intent_kernel import default_anchor_path
+    from saleha.core.platform.intent_kernel import default_anchor_path
     from saleha.core.work_ledger import WorkLedger
 
     if anchor is None and os.path.exists(default_anchor_path()):

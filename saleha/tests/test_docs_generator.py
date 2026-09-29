@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.docs_generator import DocsGenerator
+from saleha.core.docs.docs_generator import DocsGenerator
 
 
 class DocsGeneratorTests(unittest.TestCase):

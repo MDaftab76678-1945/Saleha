@@ -61,13 +61,30 @@ class BaseAgent:
         # Sampling temperature for think(); None keeps the provider default.
         # Was only ever set ad hoc via setattr/getattr.
         self.temperature: Optional[float] = kwargs.get("temperature")
+        # Context window to run the model with (Ollama `num_ctx`); None keeps
+        # the model's own. Smaller loads faster and keeps more of the model on
+        # the GPU: qwen3:8b on this 6 GB box at 40960 ran 63% on the CPU at
+        # 10.2 tokens/s, at 8192 36% and 15.1 tokens/s. The context budget
+        # guard trims against this window, so a prompt never overflows it
+        # silently.
+        self.context_window: Optional[int] = kwargs.get("context_window")
 
         # Agent Personal Computer (AgentPC): Dedicated workspace, hardware sandbox & blackbox
-        from saleha.core.agent_pc import get_agent_pc
+        from saleha.core.sandbox.agent_pc import get_agent_pc
         self.pc = get_agent_pc(
             agent_role=self.role,
             base_dir=kwargs.get("pc_workspace_dir"),
         )
+
+    def _options(self) -> Optional[dict]:
+        """Provider options this agent sets; None leaves every default."""
+        options: dict = {}
+        temp = getattr(self, "temperature", None)
+        if temp is not None:
+            options["temperature"] = temp
+        if getattr(self, "context_window", None):
+            options["num_ctx"] = self.context_window
+        return options or None
 
     def _record_tokens(self, provider_result) -> int:
         used = int(getattr(provider_result, "tokens_used", 0) or 0)
@@ -101,10 +118,11 @@ class BaseAgent:
         # Trimming is visible in the prompt and recorded on the response.
         context_trimmed_chars = 0
         try:
-            from saleha.core.context_budget import fit
+            from saleha.core.platform.context_budget import fit
 
             fitted, budget = fit(full_prompt, selected_model,
-                                 reserve_output_tokens=1024)
+                                 reserve_output_tokens=1024,
+                                 window=getattr(self, "context_window", None))
             if budget.trimmed:
                 context_trimmed_chars = budget.trimmed_chars
                 print(f"  [{self.role}] Prompt exceeded the context budget; "
@@ -116,10 +134,8 @@ class BaseAgent:
             # guard: fall through with the original prompt.
             context_trimmed_chars = 0
 
-        temp = getattr(self, "temperature", None)
-        options = {"temperature": temp} if temp is not None else None
         provider_result = self.provider.generate(
-            model=selected_model, prompt=full_prompt, options=options,
+            model=selected_model, prompt=full_prompt, options=self._options(),
             disable_reasoning=disable_reasoning)
         response_time = provider_result.response_time or (time.time() - start_time)
 
@@ -130,18 +146,20 @@ class BaseAgent:
             )
 
         tokens_used = self._record_tokens(provider_result)
-        self.pc.blackbox.record(
-            event_type="THINK",
-            stage="LLM_INFERENCE",
-            payload={
-                "task_id": unique_task_id,
-                "model_used": selected_model,
-                "success": provider_result.success,
-                "response_time": response_time,
-                "tokens_used": tokens_used,
-            },
-            status="SUCCESS" if provider_result.success else "FAILED",
-        )
+        pc = getattr(self, "pc", None)
+        if pc and getattr(pc, "blackbox", None):
+            pc.blackbox.record(
+                event_type="THINK",
+                stage="LLM_INFERENCE",
+                payload={
+                    "task_id": unique_task_id,
+                    "model_used": selected_model,
+                    "success": provider_result.success,
+                    "response_time": response_time,
+                    "tokens_used": tokens_used,
+                },
+                status="SUCCESS" if provider_result.success else "FAILED",
+            )
 
         if provider_result.success:
             return AgentResponse(
@@ -189,16 +207,11 @@ class BaseAgent:
 
         stream_fn = getattr(self.provider, "stream_generate", None)
         if callable(stream_fn):
-            stream_temp = getattr(self, "temperature", None)
-            stream_opts = {"temperature": stream_temp} if stream_temp is not None else None
             provider_result = stream_fn(model=selected_model, prompt=full_prompt,
-                                        callback=on_token, options=stream_opts)
+                                        callback=on_token, options=self._options())
         else:
-            # Profile-set temperature ho to provider options me jao (v1.4 wiring);
-            # warna provider apne defaults use karta hai.
-            temp = getattr(self, "temperature", None)
-            options = {"temperature": temp} if temp is not None else None
-            provider_result = self.provider.generate(model=selected_model, prompt=full_prompt, options=options)
+            provider_result = self.provider.generate(model=selected_model, prompt=full_prompt,
+                                                     options=self._options())
 
         response_time = provider_result.response_time or (time.time() - start_time)
 

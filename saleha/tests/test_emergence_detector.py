@@ -19,7 +19,7 @@ import os
 import tempfile
 import unittest
 
-from saleha.core.emergence_detector import (
+from saleha.core.swarm.emergence_detector import (
     EmergenceDetector,
     EmergenceHealthReport,
     SwarmMessageEvent,
@@ -232,7 +232,7 @@ class OrchestratorWiringTests(unittest.TestCase):
 
     def test_shared_singleton_persists(self) -> None:
         """Without this the CLI reads an empty in-memory history."""
-        from saleha.core.emergence_detector import emergence_detector
+        from saleha.core.swarm.emergence_detector import emergence_detector
         self.assertTrue(emergence_detector.persist)
 
 

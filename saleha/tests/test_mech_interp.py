@@ -16,7 +16,7 @@ from __future__ import annotations
 import textwrap
 import unittest
 
-from saleha.core.mech_interp import (
+from saleha.core.research.mech_interp import (
     CONTROL_FLOW,
     CORE_LOGIC,
     ERROR_GUARD,
@@ -354,7 +354,7 @@ class CompatibilityTests(unittest.TestCase):
 
     def test_legacy_names_still_resolve(self) -> None:
         """Existing callers import MechInterpEngine / mech_interp_engine."""
-        from saleha.core.mech_interp import mech_interp_engine
+        from saleha.core.research.mech_interp import mech_interp_engine
         self.assertIs(MechInterpEngine, CodeStructureEngine)
         rep = mech_interp_engine.explain_code("x = 1\n", "legacy.py")
         self.assertIsInstance(rep, MechInterpReport)

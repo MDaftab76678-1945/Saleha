@@ -1,4 +1,4 @@
-"""Unit tests for saleha.core.project_builder.ProjectBuilder.
+"""Unit tests for saleha.core.project.project_builder.ProjectBuilder.
 
 ProjectBuilder itself had no test coverage before this file (found during a
 test-coverage sweep of saleha/core/). These target the deterministic parsing
@@ -9,7 +9,7 @@ in test_cli_debug.py, which stub out ProjectBuilder entirely.
 
 import unittest
 
-from saleha.core.project_builder import (
+from saleha.core.project.project_builder import (
     FileResult,
     FileSpec,
     ProjectBuilder,

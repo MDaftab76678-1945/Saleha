@@ -41,7 +41,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from saleha.core.training_collector import training_collector, TrainingSample
+from saleha.core.training.training_collector import training_collector, TrainingSample
 
 
 SEED_TEMPLATES: List[Tuple[str, str, str]] = [

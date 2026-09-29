@@ -25,7 +25,7 @@ def vault_group():
 @click.option('--desc', default='', help='Description for this secret')
 def vault_set_cmd(key, value, desc):
     """Store or update an encrypted secret in the vault."""
-    from saleha.core.vault import vault
+    from saleha.core.security.vault import vault
     ok = vault.set_secret(key, value, description=desc)
     if ok:
         console.print(f"[bold green]🔐 Secret '{key}' stored securely in encrypted vault.[/]")
@@ -36,7 +36,7 @@ def vault_set_cmd(key, value, desc):
 @click.argument('key')
 def vault_get_cmd(key):
     """Retrieve and decrypt a secret value from the vault."""
-    from saleha.core.vault import vault
+    from saleha.core.security.vault import vault
     val = vault.get_secret(key)
     if val is not None:
         click.echo(val)
@@ -48,7 +48,7 @@ def vault_get_cmd(key):
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def vault_list_cmd(as_json):
     """List all stored secrets with masked previews and timestamps."""
-    from saleha.core.vault import vault
+    from saleha.core.security.vault import vault
     secrets_list = vault.list_secrets()
     if as_json:
         payload = [{'key': s.key, 'preview': s.preview, 'created_at': s.created_at, 'updated_at': s.updated_at, 'description': s.description} for s in secrets_list]
@@ -71,7 +71,7 @@ def vault_list_cmd(as_json):
 @click.argument('key')
 def vault_delete_cmd(key):
     """Delete a secret from the vault."""
-    from saleha.core.vault import vault
+    from saleha.core.security.vault import vault
     ok = vault.delete_secret(key)
     if ok:
         console.print(f"[bold green]🗑️ Secret '{key}' deleted from vault.[/]")
@@ -81,7 +81,7 @@ def vault_delete_cmd(key):
 @vault_group.command(name='export')
 def vault_export_cmd():
     """Inject all vault secrets into the current environment session."""
-    from saleha.core.vault import vault
+    from saleha.core.security.vault import vault
     exported = vault.export_to_env()
     console.print(f'[bold green]✅ Exported {len(exported)} secret(s) to environment.[/]')
 

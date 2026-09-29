@@ -6,9 +6,9 @@ import os
 import shutil
 import tempfile
 
-from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
-from saleha.core.gamma_critic_sandbox import GammaSandboxEngine
 from saleha.core.memory.tri_tier_memory import TriTierMemoryEngine
+from saleha.core.research.doom_workspace_engine import DoomWorkspaceEngine
+from saleha.core.sandbox.gamma_critic_sandbox import GammaSandboxEngine
 from saleha.core.swarm.saleha_swarm_topology import AgentRole, SalehaSwarmTopology
 
 

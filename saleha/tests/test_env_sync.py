@@ -6,7 +6,7 @@ import sys
 import unittest
 from unittest.mock import MagicMock
 
-from saleha.core.env_sync import EnvSyncBridge
+from saleha.core.devops.env_sync import EnvSyncBridge
 
 
 class EnvSyncTests(unittest.TestCase):

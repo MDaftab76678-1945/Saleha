@@ -15,10 +15,10 @@ import unittest
 from typing import Any, List
 from unittest.mock import MagicMock
 
-from saleha.core.debate_consensus_orchestrator import (
+from saleha.core.platform.fast_inference import InferenceResult
+from saleha.core.swarm.debate_consensus_orchestrator import (
     DebateConsensusOrchestrator,
 )
-from saleha.core.fast_inference import InferenceResult
 
 
 def _engine(single: str = "reply", batch_ok: bool = True,

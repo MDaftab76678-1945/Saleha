@@ -28,7 +28,7 @@ def self_improve() -> None:
 def self_improve_run(cycles: int = 1, max_repairs: int = 2) -> None:
     """Runs autonomous self-improvement test generation cycles."""
     if cycles > 1:
-        from saleha.core.self_improve import SelfImproveResult, run_self_improvement_batch
+        from saleha.core.loop.self_improve import SelfImproveResult, run_self_improvement_batch
 
         def on_cycle(idx: int, total: int, res: SelfImproveResult) -> None:
             color = "green" if res.status == "committed" else "yellow"
@@ -44,7 +44,7 @@ def self_improve_run(cycles: int = 1, max_repairs: int = 2) -> None:
         committed = sum(1 for r in results if r.status == "committed")
         console.print(f"\n[bold]Batch completed:[/] {committed}/{len(results)} module tests committed.")
     else:
-        from saleha.core.self_improve import run_self_improvement_cycle
+        from saleha.core.loop.self_improve import run_self_improvement_cycle
         result = run_self_improvement_cycle(max_repairs=max_repairs)
         color = "green" if result.status == "committed" else "yellow"
         console.print(f"[bold {color}]{result.status}[/] — {result.module or '(none)'}")
@@ -58,7 +58,7 @@ def self_improve_run(cycles: int = 1, max_repairs: int = 2) -> None:
 @self_improve.command(name="status")
 def self_improve_status() -> None:
     """Displays current self-improvement test coverage and audit stats."""
-    from saleha.core.self_improve import get_self_improvement_status
+    from saleha.core.loop.self_improve import get_self_improvement_status
 
     status = get_self_improvement_status()
 
@@ -93,7 +93,7 @@ def self_improve_status() -> None:
 @click.option("--limit", default=20, type=int, help="Number of recent log entries to show.")
 def self_improve_log(limit: int = 20) -> None:
     """Displays recent audit log entries from self-improvement engine."""
-    from saleha.core.self_improve import read_log
+    from saleha.core.loop.self_improve import read_log
     entries = read_log(limit)
     if not entries:
         console.print("[dim]No self-improvement logs recorded yet.[/dim]")

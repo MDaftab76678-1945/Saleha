@@ -1,5 +1,5 @@
 
-from saleha.core.dynamic_lora_router import DynamicLoRARouter
+from saleha.core.training.dynamic_lora_router import DynamicLoRARouter
 
 
 def test_route_and_switch():

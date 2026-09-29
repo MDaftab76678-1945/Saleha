@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from saleha.core.collab import (
+from saleha.core.platform.collab import (
     MAX_DOC_CHARS,
     ROOM_TTL_SEC,
     CollabError,

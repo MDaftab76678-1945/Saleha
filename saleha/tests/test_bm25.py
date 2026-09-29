@@ -243,11 +243,13 @@ class RealCorpusTests(unittest.TestCase):
         import os
         index = BM25Index()
         core = os.path.join("saleha", "core")
-        for name in sorted(os.listdir(core)):
-            if name.endswith(".py"):
-                index.add(name, io.open(os.path.join(core, name),
-                                        encoding="utf-8",
-                                        errors="ignore").read())
+        # Modules live in category subfolders, so walk them all.
+        for dirpath, _, names in sorted(os.walk(core)):
+            for name in sorted(names):
+                if name.endswith(".py"):
+                    index.add(name, io.open(os.path.join(dirpath, name),
+                                            encoding="utf-8",
+                                            errors="ignore").read())
         self.assertGreater(index.size, 50)
         top = [r.doc_id for r in index.search("context window budget", top_k=3)]
         self.assertIn("context_budget.py", top)

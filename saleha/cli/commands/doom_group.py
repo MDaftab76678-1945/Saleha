@@ -35,7 +35,7 @@ def doom_dev_cmd(path: str, no_auto_commit: bool, no_heal: bool) -> None:
     
     Example: saleha doom dev .
     """
-    from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
+    from saleha.core.research.doom_workspace_engine import DoomWorkspaceEngine
     engine = DoomWorkspaceEngine(workspace_dir=path, auto_heal=not no_heal, auto_git_commit=not no_auto_commit)
     console.print(Panel(f"[bold cyan]DooM Autonomous Workspace Active[/]\n • Target Path: [yellow]{engine.workspace_dir}[/]\n • Gamma AST Sandbox: [green]ENABLED[/] [dim](one static AST check, not a guarantee)[/]\n • Auto-Heal Loop: [green]{('ENABLED' if not no_heal else 'DISABLED')}[/]\n • Git Auto-Commit: [green]{('ENABLED' if not no_auto_commit else 'DISABLED')}[/]\n\n[dim]Listening for file saves (Ctrl+S). Save any source file to trigger auto-verify & heal...[/]", title='DooM Workspace Controller', border_style='cyan'))
     console.print('[dim]Press Ctrl+C to exit workspace loop.[/]')
@@ -58,7 +58,7 @@ def doom_audit_cmd(path: str) -> None:
     
     Example: saleha doom audit .
     """
-    from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
+    from saleha.core.research.doom_workspace_engine import DoomWorkspaceEngine
     engine = DoomWorkspaceEngine(workspace_dir=path)
     console.print(f'[bold cyan]Running Gamma Deterministic AST Audit on:[/] {path}...\n')
     res = engine.run_full_audit(path)
@@ -163,7 +163,7 @@ def doom_voice_cmd(command: str) -> None:
     
     Example: saleha doom voice "Saleha, fix the memory leak in buffer.c"
     """
-    from saleha.core.saleha_multimodal import SalehaMultimodalHub
+    from saleha.core.vision.saleha_multimodal import SalehaMultimodalHub
     hub = SalehaMultimodalHub()
     res = hub.fuse_inputs(voice_command=command)
     console.print(Panel(f'[bold cyan]Saleha Local Voice Ingress[/]\n • Voice Command (text in, no audio captured): [bold green]"{res.voice_intent}"[/]\n • Active Screen Target: [yellow]{res.active_window}[/] [dim](sample value, not a real window)[/]\n • Fusion Latency: [dim]{res.latency_ms:.2f} ms[/]\n\n[dim]Built the fused multimodal prompt below. Nothing was dispatched to an agent.[/]\n[white]{res.fused_prompt}[/]', title='Voice-to-Code Pipeline', border_style='cyan'))
@@ -175,7 +175,7 @@ def doom_screen_cmd() -> None:
     
     Example: saleha doom screen
     """
-    from saleha.core.saleha_multimodal import SalehaMultimodalHub
+    from saleha.core.vision.saleha_multimodal import SalehaMultimodalHub
     hub = SalehaMultimodalHub()
     res = hub.fuse_inputs()
     console.print(Panel(f'[bold cyan]Screen Context Fusion[/]\n • Target Window: [bold yellow]{res.active_window}[/]\n • Screen Error Context:\n[red]{res.screen_error_context}[/]\n\n[dim]No screen was captured and no OCR ran -- these are this engine\'s built-in sample values. No patch was generated.[/]', title='Screen Context Ingress (sample data)', border_style='yellow'))
@@ -189,7 +189,7 @@ def doom_wasm_cmd(plugin_name: str, func_name: str) -> None:
     
     Example: saleha doom wasm crypto_tools.wasm rust_sha3_digest
     """
-    from saleha.core.saleha_wasm_runtime import SalehaWasmRuntime
+    from saleha.core.sandbox.saleha_wasm_runtime import SalehaWasmRuntime
     runtime = SalehaWasmRuntime()
     res = runtime.invoke_plugin(plugin_name, func_name, 'sample_data_payload')
     if res.success:
@@ -204,7 +204,7 @@ def doom_watchdog_cmd() -> None:
     
     Example: saleha doom watchdog
     """
-    from saleha.core.saleha_watchdog import SalehaHardwareWatchdog
+    from saleha.core.daemons.saleha_watchdog import SalehaHardwareWatchdog
     dog = SalehaHardwareWatchdog()
     dog.register_worker(0, 'Saleha-Agent-01 (Kernel)')
     dog.register_worker(1, 'Saleha-Agent-05 (Systems)')
@@ -220,7 +220,7 @@ def doom_hyperbolic_cmd() -> None:
     
     Example: saleha doom hyperbolic
     """
-    from saleha.core.hyperbolic_engine import HyperbolicVector, SAMHAttractorController
+    from saleha.core.research.hyperbolic_engine import HyperbolicVector, SAMHAttractorController
     u = HyperbolicVector.from_bytes(b'KERNEL_TASK_01')
     v = HyperbolicVector.from_bytes(b'SECURITY_LOCK_')
     sum_uv = u.mobius_addition(v)
@@ -252,7 +252,7 @@ def doom_sheaf_cmd() -> None:
     
     Example: saleha doom sheaf
     """
-    from saleha.core.sheaf_consensus import SheafCohomologyConsensus
+    from saleha.core.research.sheaf_consensus import SheafCohomologyConsensus
     from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology
 
     # Derive independently-reported pairwise overlaps from real per-agent

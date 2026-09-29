@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.conflict_resolver import ConflictResolver
+from saleha.core.git.conflict_resolver import ConflictResolver
 
 
 class ConflictResolverTests(unittest.TestCase):

@@ -13,7 +13,7 @@ import ast
 from dataclasses import dataclass
 from typing import List, Optional
 
-from saleha.core.safety_patterns import check_dangerous
+from saleha.core.security.safety_patterns import check_dangerous
 
 
 @dataclass
@@ -109,7 +109,7 @@ class TesterAgent:
             # There is no test runner for other languages here: the program
             # is executed, its test suite is not. That used to be reported as
             # "1 test passed" whenever the program exited 0.
-            from saleha.core.polyglot_executor import PolyglotExecutor
+            from saleha.core.polyglot.polyglot_executor import PolyglotExecutor
             poly_exec = PolyglotExecutor(timeout=timeout)
             exec_res = poly_exec.execute(code, language=language)
             failures = []

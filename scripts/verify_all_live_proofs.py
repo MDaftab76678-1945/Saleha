@@ -46,7 +46,7 @@ from rich.table import Table
 from rich.panel import Panel
 
 from saleha.core.verification.formal_smt_verifier import formal_smt_verifier
-from saleha.core.spics_fuzz_engine import spics_fuzz_engine
+from saleha.core.security.spics_fuzz_engine import spics_fuzz_engine
 from saleha.core.graph.hypergraph_indexer import hypergraph_indexer
 
 DATASET_FILES = [

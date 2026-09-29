@@ -5,7 +5,7 @@ import unittest
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from saleha.core.session_store import SessionState, SessionStore
+from saleha.core.memory.session_store import SessionState, SessionStore
 from saleha.orchestrator import SalehaOrchestrator
 
 
@@ -71,7 +71,7 @@ class ResumeFlowTests(unittest.TestCase):
 
     def test_resume_skips_planning_and_completes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            import saleha.core.session_store as ss_module
+            import saleha.core.memory.session_store as ss_module
             store = SessionStore(os.path.join(tmp, "s.json"))
             store.save(SessionState(
                 goal="interrupted task",
@@ -98,7 +98,7 @@ class ResumeFlowTests(unittest.TestCase):
 
     def test_resume_without_session_fails_gracefully(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            import saleha.core.session_store as ss_module
+            import saleha.core.memory.session_store as ss_module
             store = SessionStore(os.path.join(tmp, "empty.json"))
             orch = SalehaOrchestrator(model="m")
             with patch.object(ss_module, "session_store", store):
@@ -109,7 +109,7 @@ class ResumeFlowTests(unittest.TestCase):
     def test_normal_run_writes_checkpoint_and_completes_it(self) -> None:
         """Non-resume flow bhi checkpoints likhta hai (crash recovery ke liye)."""
         with tempfile.TemporaryDirectory() as tmp:
-            import saleha.core.session_store as ss_module
+            import saleha.core.memory.session_store as ss_module
             store = SessionStore(os.path.join(tmp, "s.json"))
 
             orch = self._orchestrator()

@@ -64,7 +64,7 @@ def graph_cmd(output: Any, target_dir: Any) -> None:
     
     Example: saleha graph --output docs/architecture_graph.html
     """
-    from saleha.core.graph_visualizer import ArchitectureGraphVisualizer
+    from saleha.core.ui.graph_visualizer import ArchitectureGraphVisualizer
     console.print(f'[bold cyan]🗺️ Generating interactive architecture graph visualizer for:[/] [yellow]{target_dir}[/]')
     vis = ArchitectureGraphVisualizer(root_dir=target_dir)
     out_p = vis.render_html(output_path=output)
@@ -171,7 +171,7 @@ def learn_cmd(skill_goal: Any, name: Any) -> None:
     
     Example: saleha learn "optimize postgres connection pool and vacuum"
     """
-    from saleha.core.skill_synthesizer import skill_synthesizer
+    from saleha.core.skills.skill_synthesizer import skill_synthesizer
     console.print(f'[bold cyan]🧠 Distilling continuous learning skill for:[/] [yellow]{skill_goal}[/]')
     skill = skill_synthesizer.distill_from_execution(task_goal=skill_goal, execution_trace=f'Task pattern: {skill_goal}', skill_name=name)
     saved_path = skill_synthesizer.save_skill(skill)
@@ -210,8 +210,8 @@ def diff_preview_cmd(file_path: Any, new_file_path: Any) -> None:
     
     Example: saleha diff-preview old.py new.py
     """
-    from saleha.core.change_impact import change_impact
-    from saleha.core.diff_engine import diff_engine
+    from saleha.core.editing.diff_engine import diff_engine
+    from saleha.core.graph.change_impact import change_impact
     with open(file_path, 'r', encoding='utf-8') as f:
         old_code = f.read()
     with open(new_file_path, 'r', encoding='utf-8') as f:
@@ -239,7 +239,7 @@ def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
 
     Example: saleha impact saleha/core/agentic_loop.py
     """
-    from saleha.core.repo_graph import RepoGraph, graphify_available
+    from saleha.core.graph.repo_graph import RepoGraph, graphify_available
 
     if not graphify_available():
         msg = ("cross-file graph needs the optional 'graphifyy' package "

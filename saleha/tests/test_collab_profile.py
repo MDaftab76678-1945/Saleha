@@ -4,7 +4,7 @@ import unittest
 import urllib.request
 from typing import Any, Dict
 
-from saleha.core.collab import CollabError, CollabStore
+from saleha.core.platform.collab import CollabError, CollabStore
 
 
 class CollabStoreTests(unittest.TestCase):

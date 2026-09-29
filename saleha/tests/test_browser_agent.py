@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.browser_agent import BrowserAgent, BrowserInspectionReport
+from saleha.core.vision.browser_agent import BrowserAgent, BrowserInspectionReport
 
 
 class TestBrowserAgent(unittest.TestCase):

@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from saleha.core import real_task_bench as bench
-from saleha.core.real_task_bench import Task
+from saleha.core.harness.real_task_bench import Task
 
 SOLVER = "qwen2.5-coder:3b"
 WRITER = "qwen3:8b"
@@ -448,7 +448,7 @@ def run_protocol(solver_model: str = SOLVER, writer_model: str = WRITER, samples
                  ledger: Optional[LessonLedger] = None) -> Dict[str, Any]:
     """Harvest, screen and trial. With `ledger`, the screen's proven lessons
     are added and saved -- only those, whatever the trial says."""
-    from saleha.core.hard_task_bench import HELDOUT, TRAIN, tasks_for
+    from saleha.core.harness.hard_task_bench import HELDOUT, TRAIN, tasks_for
 
     started = time.time()
     train: List[Task] = list(tasks_for(TRAIN))

@@ -19,7 +19,7 @@ This brief describes the product as it exists in the codebase, not a target stat
   2. **Breadth of tooling in one codebase** — codebase indexing/patching, sandboxed execution, a static security scanner, RAG/memory, and a persona ("souls") system are all implemented and testable in the same package, rather than requiring separate plugins.
   3. **A real (if young) multi-surface story** — a CLI/TUI, a REST/SSE server, a Next.js web client, and a Tauri desktop client that all share the same Python backend.
   4. **Souls persona system** — versioned, schema-validated persona packages (`souls/*/soul.json`) that let a team give agents a consistent voice, temperature/tool profile, and set of stylistic constraints — a genuinely useful and unusual feature among comparable tools.
-  5. **Zero-leak local secret vault** — `saleha/core/vault.py` stores API keys and other secrets in a locally encrypted store (PBKDF2-HMAC-SHA256), so credentials used by the agent never need to leave the machine.
+  5. **Zero-leak local secret vault** — `saleha/core/security/vault.py` stores API keys and other secrets in a locally encrypted store (PBKDF2-HMAC-SHA256), so credentials used by the agent never need to leave the machine.
 
 We do not currently have a distributed/Byzantine-fault-tolerant swarm, formally verified code generation, or a hyperbolic-manifold reasoning system as shipped, working differentiators — see [ARCHITECTURE.md](ARCHITECTURE.md) for what the "swarm"/"consensus"/"formal verification" modules actually do versus their naming.
 

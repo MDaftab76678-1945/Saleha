@@ -9,8 +9,8 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.frontier_trainer import FrontierTrainer, TrainingRunReport
-from saleha.core.training_collector import TrainingCollector
+from saleha.core.training.frontier_trainer import FrontierTrainer, TrainingRunReport
+from saleha.core.training.training_collector import TrainingCollector
 
 
 class TestFrontierTrainer(unittest.TestCase):

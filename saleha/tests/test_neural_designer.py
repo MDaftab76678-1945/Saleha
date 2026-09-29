@@ -2,7 +2,11 @@
 
 import unittest
 
-from saleha.core.neural_designer import NeuralArchitectureSpec, NeuralDesigner, NeuralModelReport
+from saleha.core.research.neural_designer import (
+    NeuralArchitectureSpec,
+    NeuralDesigner,
+    NeuralModelReport,
+)
 
 
 class TestNeuralDesigner(unittest.TestCase):

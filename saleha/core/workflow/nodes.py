@@ -82,7 +82,7 @@ def run_code_isolated(
     restricted_builtins: bool = False,
 ) -> Dict[str, Any]:
     """Runs a node snippet in a job-object subprocess; `inputs`/`outputs` travel as JSON."""
-    from saleha.core.windows_job_sandbox import WindowsJobSandbox
+    from saleha.core.sandbox.windows_job_sandbox import WindowsJobSandbox
 
     marker = "__saleha_node_outputs__" + secrets.token_hex(8)
     builtins_expr = (

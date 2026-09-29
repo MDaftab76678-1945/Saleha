@@ -74,7 +74,7 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
     Example: saleha benchmark-model -m qwen2.5-coder:3b
     Example dry run: saleha benchmark-model --dry-run
     """
-    from saleha.core.evaluator import evaluator
+    from saleha.core.harness.evaluator import evaluator
     with Progress(SpinnerColumn(), TextColumn(f"[cyan]Benchmarking model '{model}'..."), console=console) as progress:
         progress.add_task('bench', total=None)
         score = evaluator.run_benchmark(model=model, limit=limit, dry_run=dry_run)
@@ -174,8 +174,8 @@ def benchmark_local_cmd(model: str, limit: int, preflight: bool) -> None:
 
     Example: saleha benchmark-local -m qwen2.5-coder:3b
     """
-    from saleha.core.real_task_bench import DEFAULT_MODEL
-    from saleha.core.swe_leaderboard import local_benchmark
+    from saleha.core.harness.real_task_bench import DEFAULT_MODEL
+    from saleha.core.harness.swe_leaderboard import local_benchmark
 
     if preflight:
         pre = local_benchmark.preflight()
@@ -218,8 +218,8 @@ def benchmark_public_cmd() -> None:
 
     Example: saleha benchmark-public
     """
-    from saleha.core.real_task_bench import scored_swebench_availability
-    from saleha.core.swe_leaderboard import local_benchmark
+    from saleha.core.harness.real_task_bench import scored_swebench_availability
+    from saleha.core.harness.swe_leaderboard import local_benchmark
 
     console.print(local_benchmark.leaderboard_text())
     available, detail = scored_swebench_availability()
@@ -242,9 +242,9 @@ def swe_export_cmd(output: str, scorecard: str, model: str) -> None:
 
     Example: saleha swe-export -o dist/all_preds.jsonl
     """
-    from saleha.core.real_task_bench import DEFAULT_MODEL
-    from saleha.core.swe_bench_exporter import SWEBenchExporter
-    from saleha.core.swe_leaderboard import local_benchmark
+    from saleha.core.harness.real_task_bench import DEFAULT_MODEL
+    from saleha.core.harness.swe_bench_exporter import SWEBenchExporter
+    from saleha.core.harness.swe_leaderboard import local_benchmark
 
     chosen = model or DEFAULT_MODEL
     console.print(f'[cyan]Running local benchmark for[/] [yellow]{chosen}[/][cyan]...[/]')
@@ -291,7 +291,7 @@ def resolve_issue_cmd(issue_ref: str, branch: str, auto_pr: bool, test_command: 
     """
     import shlex
 
-    from saleha.core.issue_resolver import issue_resolver
+    from saleha.core.github.issue_resolver import issue_resolver
     console.print(f'[bold cyan]Preparing fix branch for:[/] [yellow]{issue_ref}[/]')
 
     res = issue_resolver.resolve_issue(
@@ -359,7 +359,7 @@ def test_ui_cmd(path: str) -> None:
     
     Example: saleha test-ui index.html
     """
-    from saleha.core.browser_agent import browser_agent
+    from saleha.core.vision.browser_agent import browser_agent
     rep = browser_agent.inspect_file(path)
     col = 'green' if rep.is_ui_valid else 'yellow'
     console.print(Panel(f'[bold {col}]🌐 Headless Browser DOM & UI Audit: {path}[/bold {col}]\n{rep.summary}', border_style=col))

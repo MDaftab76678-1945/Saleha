@@ -7,8 +7,8 @@ look like a hard task.
 
 import unittest
 
-from saleha.core.hard_task_bench import HARD_TASKS, HELDOUT, TRAIN, tasks_for
-from saleha.core.real_task_bench import run_in_subprocess, verify_tests_can_fail
+from saleha.core.harness.hard_task_bench import HARD_TASKS, HELDOUT, TRAIN, tasks_for
+from saleha.core.harness.real_task_bench import run_in_subprocess, verify_tests_can_fail
 
 REFERENCES = {
     "edit_distance": '''

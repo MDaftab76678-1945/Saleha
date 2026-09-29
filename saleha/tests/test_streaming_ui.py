@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from saleha.core.platform.model_provider import MockProvider
-from saleha.core.streaming_ui import StreamRenderer
+from saleha.core.ui.streaming_ui import StreamRenderer
 
 
 class StreamingUiTests(unittest.TestCase):
@@ -13,7 +13,7 @@ class StreamingUiTests(unittest.TestCase):
         # exercises the real code path (Rich Live rendering included) against
         # a provider that now genuinely implements stream_generate.
         mock_provider = MockProvider("def add(a, b):\n    return a + b")
-        with patch("saleha.core.streaming_ui.default_provider", mock_provider):
+        with patch("saleha.core.ui.streaming_ui.default_provider", mock_provider):
             renderer = StreamRenderer()
             result = renderer.stream_to_terminal(model="mock", prompt="write add()")
 
@@ -25,7 +25,7 @@ class StreamingUiTests(unittest.TestCase):
                 from saleha.core.platform.model_provider import ProviderResponse
                 return ProviderResponse(success=False, content="", error_message="offline")
 
-        with patch("saleha.core.streaming_ui.default_provider", FailingProvider()):
+        with patch("saleha.core.ui.streaming_ui.default_provider", FailingProvider()):
             renderer = StreamRenderer()
             result = renderer.stream_to_terminal(model="mock", prompt="write add()")
 

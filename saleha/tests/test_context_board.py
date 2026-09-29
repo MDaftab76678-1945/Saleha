@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.context_board import BoardEntry, ContextBoard
+from saleha.core.swarm.context_board import BoardEntry, ContextBoard
 
 
 class TestContextBoard(unittest.TestCase):

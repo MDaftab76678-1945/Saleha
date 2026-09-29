@@ -1,5 +1,5 @@
 """
-Unit tests for IncrementalASTCache in saleha/core/incremental_ast_cache.py.
+Unit tests for IncrementalASTCache in saleha/core/graph/incremental_ast_cache.py.
 
 Verifies:
 1. Initial cache miss and correct SHA256 / mtime indexing.
@@ -17,7 +17,7 @@ import time
 import unittest
 from pathlib import Path
 
-from saleha.core.incremental_ast_cache import IncrementalASTCache
+from saleha.core.graph.incremental_ast_cache import IncrementalASTCache
 
 
 class IncrementalASTCacheTests(unittest.TestCase):

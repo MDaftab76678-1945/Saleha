@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.websocket_bridge import StreamEvent, WebSocketBridge
+from saleha.core.platform.websocket_bridge import StreamEvent, WebSocketBridge
 
 
 class TestWebSocketBridge(unittest.TestCase):

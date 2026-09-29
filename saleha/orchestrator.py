@@ -23,15 +23,15 @@ from saleha.agents.debugger import DebuggerAgent
 from saleha.agents.planner import PlannerAgent, PlanResult
 from saleha.agents.reviewer import ReviewerAgent, ReviewResult
 from saleha.agents.tester import TesterAgent, TestResult
-from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.harness.verdict import NOTHING_TO_VERIFY, Verified
+from saleha.core.loop.self_healing import HealingResult, SelfHealingEngine
 from saleha.core.memory.memory_store import memory_store
+from saleha.core.memory.task_history import TaskHistory
+from saleha.core.platform.agent_profile_loader import profile_registry
 from saleha.core.platform.git_native import git_engine
-from saleha.core.self_healing import HealingResult, SelfHealingEngine
-from saleha.core.skill_registry import load_builtin_skills
-from saleha.core.skill_registry import registry as skill_registry
-from saleha.core.task_history import TaskHistory
+from saleha.core.skills.skill_registry import load_builtin_skills
+from saleha.core.skills.skill_registry import registry as skill_registry
 from saleha.core.telemetry.stats_tracker import StatsTracker
 
 load_builtin_skills()
@@ -142,7 +142,7 @@ class SalehaOrchestrator:
         log = ""
         current_code_result: Optional[CodeResult] = None
         try:
-            from saleha.core.parallel_solver import ParallelSolver
+            from saleha.core.loop.parallel_solver import ParallelSolver
             solver = ParallelSolver(model=self.model, candidates=self.parallel_candidates)
             par = solver.solve_with_executor(
                 goal=user_goal + profile_context,
@@ -228,10 +228,10 @@ class SalehaOrchestrator:
     def _arbitrate_assertion(self, user_goal: str, code: str, error: str, language: str) -> str:
         """When the code fails one of its own asserts, says whether an
         independent model answer blames the test or the implementation.
-        Empty when it cannot tell. See `saleha/core/test_arbiter.py`."""
+        Empty when it cannot tell. See `saleha/core/harness/test_arbiter.py`."""
         if language != "python":
             return ""
-        from saleha.core.test_arbiter import arbitrate_failure
+        from saleha.core.harness.test_arbiter import arbitrate_failure
 
         def run(snippet: str) -> Tuple[bool, str]:
             res = self.verifier.execute(snippet, language="python")
@@ -325,7 +325,7 @@ class SalehaOrchestrator:
         self.last_code = current_code
         checkpoint("completed")
         try:
-            from saleha.core.plugin_loader import plugin_loader as _pl2
+            from saleha.core.plugins.plugin_loader import plugin_loader as _pl2
             _pl2.trigger_event("on_test_complete", result="passed" if tested else "ran_without_tests",
                                goal=user_goal)
         except Exception:
@@ -360,7 +360,7 @@ class SalehaOrchestrator:
         measures nothing about the model under test, and without it a second
         run of the same model replayed every task the first one solved.
         """
-        from saleha.core.session_store import SessionState, session_store
+        from saleha.core.memory.session_store import SessionState, session_store
         from saleha.core.telemetry.metrics import metrics_tracker
         _run_start = time.time()
 
@@ -423,7 +423,7 @@ class SalehaOrchestrator:
         if not resumed:
             # Plugin hooks: on_task_start
             try:
-                from saleha.core.plugin_loader import plugin_loader as _pl
+                from saleha.core.plugins.plugin_loader import plugin_loader as _pl
                 _pl.trigger_event("on_task_start", goal=user_goal)
             except Exception:
                 pass
@@ -697,7 +697,7 @@ class SalehaOrchestrator:
         # Plugin hook: on_code_generated. External plugins receive real
         # pipeline events (the loader existed before but never fired).
         try:
-            from saleha.core.plugin_loader import plugin_loader
+            from saleha.core.plugins.plugin_loader import plugin_loader
             plugin_loader.trigger_event("on_code_generated", code=current_code, goal=user_goal)
         except Exception:
             pass

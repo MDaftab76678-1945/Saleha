@@ -23,7 +23,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.syntax import Syntax
 
-from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
+from saleha.core.research.doom_workspace_engine import DoomWorkspaceEngine
 
 console = Console(safe_box=True, legacy_windows=False)
 

@@ -23,8 +23,8 @@ import unittest
 from typing import Any
 from unittest.mock import patch
 
-from saleha.core.diff_engine import DiffHunk, DiffResult
-from saleha.core.issue_resolver import GitHubIssue, IssueResolver
+from saleha.core.editing.diff_engine import DiffHunk, DiffResult
+from saleha.core.github.issue_resolver import GitHubIssue, IssueResolver
 
 
 def _temp_git_repo() -> str:
@@ -79,7 +79,7 @@ class IssueParsingTests(unittest.TestCase):
         data: title "Bug fix: Issue #N", a body it made up, and a github.com
         URL that pointed nowhere. Callers had no way to tell.
         """
-        with patch("saleha.core.issue_resolver.subprocess.run",
+        with patch("saleha.core.github.issue_resolver.subprocess.run",
                    side_effect=FileNotFoundError()):
             issue = self.resolver.fetch_issue("7")
         assert issue is not None
@@ -162,7 +162,7 @@ class ResolvePipelineTests(unittest.TestCase):
         name regardless, so a total failure to branch looked like success.
         """
         resolver = IssueResolver(cwd=self.repo)
-        with patch("saleha.core.issue_resolver.subprocess.run") as run:
+        with patch("saleha.core.github.issue_resolver.subprocess.run") as run:
             run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=1, stdout="", stderr="fatal: nope")
             res = resolver.resolve_issue("5", branch_name="bad")
@@ -241,7 +241,7 @@ class FabricationRegressionTests(unittest.TestCase):
     """The specific strings and names that must never come back."""
 
     def test_the_undefined_name_is_gone(self) -> None:
-        import saleha.core.issue_resolver as module
+        import saleha.core.github.issue_resolver as module
         with open(module.__file__, encoding="utf-8") as f:
             source = f.read()
         # It survives in the module docstring, which explains the defect.
@@ -251,7 +251,7 @@ class FabricationRegressionTests(unittest.TestCase):
     def test_the_hardcoded_test_string_is_gone(self) -> None:
         import ast
 
-        import saleha.core.issue_resolver as module
+        import saleha.core.github.issue_resolver as module
         with open(module.__file__, encoding="utf-8") as f:
             tree = ast.parse(f.read())
         docstrings = set()

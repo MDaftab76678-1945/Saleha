@@ -1,5 +1,5 @@
 
-from saleha.core.agent_contracts import (
+from saleha.core.swarm.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
     DataEngineerOutputContract,

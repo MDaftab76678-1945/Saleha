@@ -21,7 +21,7 @@ def hub_group():
 @hub_group.command(name='list')
 def hub_list_cmd():
     """List available plugins in the Saleha Hub registry."""
-    from saleha.core.plugin_hub import plugin_hub
+    from saleha.core.plugins.plugin_hub import plugin_hub
     plugins = plugin_hub.list_available_hub_plugins()
     table = Table(title='🧩 Saleha Hub: Community Plugins Catalog', border_style='cyan')
     table.add_column('Plugin Name', style='bold white')
@@ -36,7 +36,7 @@ def hub_list_cmd():
 @click.argument('plugin_name', required=True)
 def hub_install_cmd(plugin_name: str):
     """Install a community plugin from the Hub."""
-    from saleha.core.plugin_hub import plugin_hub
+    from saleha.core.plugins.plugin_hub import plugin_hub
     ok = plugin_hub.install_plugin(plugin_name)
     if ok:
         console.print(f"[bold green]✅ Plugin '{plugin_name}' installed and active![/bold green]")

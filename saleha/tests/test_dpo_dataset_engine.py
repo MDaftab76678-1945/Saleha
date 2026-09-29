@@ -12,12 +12,12 @@ import sqlite3
 import tempfile
 import unittest
 
-from saleha.core.dpo_dataset_engine import (
+from saleha.core.training.dpo_dataset_engine import (
     MIN_DPO_PAIRS,
     POLYGLOT_DPO_TEMPLATES,
     SalehaDPODatasetEngine,
 )
-from saleha.core.lora_tuner import LoRATuner
+from saleha.core.training.lora_tuner import LoRATuner
 
 
 class TestDPODatasetEngine(unittest.TestCase):

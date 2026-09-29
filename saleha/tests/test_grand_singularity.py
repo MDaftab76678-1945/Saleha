@@ -12,14 +12,14 @@ Master Test Suite for Saleha Grand Unified Singularity:
 
 import unittest
 
-from saleha.core.doom_vault import doom_vault_engine
-from saleha.core.full_duplex_voice import full_duplex_voice
-from saleha.core.iot_domotics import iot_domotics_engine
-from saleha.core.mukti_economy import mukti_economy_engine
-from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
-from saleha.core.sentinel_rs import sentinel_rs_engine
-from saleha.core.unimax_bridge import unimax_bridge_engine
-from saleha.core.vision_liveness import EyeLandmarks, vision_liveness_engine
+from saleha.core.research.doom_vault import doom_vault_engine
+from saleha.core.research.iot_domotics import iot_domotics_engine
+from saleha.core.research.mukti_economy import mukti_economy_engine
+from saleha.core.research.nexus_mobile_bridge import nexus_mobile_bridge
+from saleha.core.research.unimax_bridge import unimax_bridge_engine
+from saleha.core.security.sentinel_rs import sentinel_rs_engine
+from saleha.core.vision.vision_liveness import EyeLandmarks, vision_liveness_engine
+from saleha.core.voice.full_duplex_voice import full_duplex_voice
 
 
 class GrandSingularityTests(unittest.TestCase):

@@ -46,7 +46,7 @@ def _load_mutation_runner() -> Any:
 
 
 @cli.command("autonomous")
-@click.argument("target_file", default="saleha/core/math_logic.py")
+@click.argument("target_file", default="saleha/core/research/math_logic.py")
 @click.option("--line", "-l", type=int, default=None, help="Target line for CPG backward slicing.")
 @click.option("--test-cmd", "-c", default=None, help="Optional test verification command.")
 @click.option("--mutation", "-m", is_flag=True, help="Run mutation test suite verification.")

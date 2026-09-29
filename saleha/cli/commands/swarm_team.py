@@ -82,7 +82,7 @@ def team(goal: Any, model: Any, output_dir: Any, debate: Any, max_attempts: Any,
 @click.option('--rounds', '-r', default=2, help='Number of dialectic debate rounds')
 def debate_cmd(topic: str, rounds: int) -> None:
     """Execute game-theoretic multi-agent council debate (Advocate, Devil's Advocate, Security, FinOps, Arbiter)."""
-    from saleha.core.debate_consensus_orchestrator import debate_orchestrator
+    from saleha.core.swarm.debate_consensus_orchestrator import debate_orchestrator
     console.print(f'[bold purple]⚖️ Conducting Multi-Agent Architectural Debate on:[/] [white]{topic}[/]')
     verdict = debate_orchestrator.conduct_architectural_debate(topic=topic, num_rounds=rounds)
     for rnd in verdict.rounds:
@@ -107,7 +107,7 @@ def council_cmd(problem: Any) -> None:
 
     Example: saleha council "Design a high-throughput distributed caching layer"
     """
-    from saleha.core.agent_council import agent_council
+    from saleha.core.swarm.agent_council import agent_council
     console.print(f'[bold cyan]👥 Assembling Multi-Agent Architectural Council for:[/] [yellow]{problem}[/]\n')
     res = agent_council.debate_and_synthesize(problem)
 
@@ -143,7 +143,7 @@ def resolve_conflicts_cmd(path: Any, auto_stage: Any) -> None:
     
     Example: saleha resolve-conflicts . --auto-stage
     """
-    from saleha.core.conflict_resolver import conflict_resolver
+    from saleha.core.git.conflict_resolver import conflict_resolver
     console.print(f'[bold cyan]🔀 Scanning for Git merge conflicts in:[/] [yellow]{os.path.abspath(path)}[/]')
     files_to_check = []
     if os.path.isfile(path):
@@ -234,7 +234,7 @@ def multirepo_cmd(goal: str, repos: str) -> None:
     No repository is read. File names are guessed from the repo name and the
     ordering is a heuristic on those names, not a dependency graph.
     """
-    from saleha.core.multirepo_orchestrator import multirepo_orchestrator
+    from saleha.core.project.multirepo_orchestrator import multirepo_orchestrator
     repo_list = [r.strip() for r in repos.split(',') if r.strip()]
     console.print(f'[bold magenta]Multi-repo checklist for {len(repo_list)} repositories[/]')
     plan = multirepo_orchestrator.plan_multirepo_sync(goal=goal, repos=repo_list)

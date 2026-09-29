@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.mcp_engine import MCPClient, MCPServer
+from saleha.core.platform.mcp_engine import MCPClient, MCPServer
 
 
 class MCPEngineTests(unittest.TestCase):

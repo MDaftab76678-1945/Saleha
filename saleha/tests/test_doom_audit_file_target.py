@@ -18,8 +18,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from saleha.core.doom_workspace_engine import DoomWorkspaceEngine
-from saleha.core.incremental_ast_cache import IncrementalASTCache
+from saleha.core.graph.incremental_ast_cache import IncrementalASTCache
+from saleha.core.research.doom_workspace_engine import DoomWorkspaceEngine
 
 
 class DoomAuditFileTargetTests(unittest.TestCase):

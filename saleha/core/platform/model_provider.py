@@ -29,7 +29,6 @@ from typing import Callable, List, Optional
 
 import requests
 
-from saleha.core.ollama_endpoint import ollama_base_url
 from saleha.core.platform.circuit_breaker import (
     Admission,
     CircuitBreaker,
@@ -38,6 +37,7 @@ from saleha.core.platform.circuit_breaker import (
     classify_status,
     shared_breaker,
 )
+from saleha.core.platform.ollama_endpoint import ollama_base_url
 
 
 @dataclass

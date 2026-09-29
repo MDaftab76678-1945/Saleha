@@ -6,9 +6,9 @@
 
 import unittest
 
-from saleha.core.dynamic_lora_router import DynamicLoRARouter
 from saleha.core.graph.hypergraph_indexer import HypergraphIndexer, HypergraphIndexStats
-from saleha.core.spics_fuzz_engine import FuzzPropertyResult, SPICSFuzzEngine
+from saleha.core.security.spics_fuzz_engine import FuzzPropertyResult, SPICSFuzzEngine
+from saleha.core.training.dynamic_lora_router import DynamicLoRARouter
 
 
 class TestNextGenHyperSuite(unittest.TestCase):

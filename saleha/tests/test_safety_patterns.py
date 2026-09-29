@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import List
 
-from saleha.core.safety_patterns import (
+from saleha.core.security.safety_patterns import (
     BLOCKED_IMPORTS,
     DangerPattern,
     check_all_dangerous,

@@ -19,7 +19,7 @@ macOS".
 The jail itself is real and unchanged. What is new is that the module imports
 everywhere and says plainly where it can run, so a caller can check
 `HardenedSandbox.is_available()` instead of discovering the platform limit
-through a traceback. On Windows, use `saleha.core.windows_job_sandbox`.
+through a traceback. On Windows, use `saleha.core.sandbox.windows_job_sandbox`.
 
 ## What the jail enforces, and what it does not
 
@@ -84,7 +84,7 @@ class HardenedSandbox:
             f"the POSIX process jail needs the `resource` module and fork "
             f"(this is {sys.platform}). rlimits cannot be applied here, so "
             f"the memory, CPU and process ceilings would not be enforced. "
-            f"Use saleha.core.windows_job_sandbox on Windows."
+            f"Use saleha.core.sandbox.windows_job_sandbox on Windows."
         )
 
     def _set_security_rlimits(self):  # pragma: no cover - runs post-fork

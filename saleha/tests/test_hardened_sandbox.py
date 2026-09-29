@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.hardened_sandbox import HardenedSandboxEngine
+from saleha.core.sandbox.hardened_sandbox import HardenedSandboxEngine
 
 
 class HardenedSandboxTests(unittest.TestCase):

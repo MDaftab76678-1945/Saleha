@@ -10,7 +10,7 @@ list.
 
 import unittest
 
-from saleha.core.constitutional_guard import ConstitutionalAuditReport, ConstitutionalGuard
+from saleha.core.security.constitutional_guard import ConstitutionalAuditReport, ConstitutionalGuard
 
 
 class TestConstitutionalGuard(unittest.TestCase):
@@ -72,7 +72,7 @@ class TestConstitutionalGuard(unittest.TestCase):
     def test_docstring_rule_count_matches_the_implementation(self) -> None:
         """The docstring listed five rules; there were four, and two of the
         five listed (sockets, obfuscated payloads) had no pattern at all."""
-        import saleha.core.constitutional_guard as mod
+        import saleha.core.security.constitutional_guard as mod
         self.assertEqual(len(self.guard.CONSTITUTIONAL_RULES), 4)
         self.assertIn("four", (mod.__doc__ or "").lower())
 

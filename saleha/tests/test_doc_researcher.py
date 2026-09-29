@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.doc_researcher import DocResearcher
+from saleha.core.docs.doc_researcher import DocResearcher
 
 
 class DocResearcherTests(unittest.TestCase):

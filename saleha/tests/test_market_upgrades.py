@@ -15,19 +15,19 @@ import unittest
 from typing import Any, Dict, List, Tuple
 from unittest.mock import MagicMock, patch
 
-from saleha.core.execution_policy import (
+from saleha.core.harness.code_executor import CodeExecutor, _check_blocked_imports
+from saleha.core.platform.hybrid_gateway import HybridModelGateway
+from saleha.core.platform.smart_router import (
+    SmartRouter,
+    get_default_history_path,
+)
+from saleha.core.sandbox.execution_policy import (
     _reset_probe_cache,
     build_docker_command,
     get_sandbox_mode,
     resolve_backend,
 )
-from saleha.core.harness.code_executor import CodeExecutor, _check_blocked_imports
-from saleha.core.hybrid_gateway import HybridModelGateway
-from saleha.core.platform.smart_router import (
-    SmartRouter,
-    get_default_history_path,
-)
-from saleha.core.safety_patterns import _check_blocked_imports as sp_check_imports
+from saleha.core.security.safety_patterns import _check_blocked_imports as sp_check_imports
 
 
 class SmartRouter2026Tests(unittest.TestCase):
@@ -174,14 +174,14 @@ class ExecutionPolicyTests(unittest.TestCase):
 
     def test_require_docker_fail_closed_when_no_daemon(self) -> None:
         os.environ["SALEHA_SANDBOX"] = "require-docker"
-        with patch("saleha.core.execution_policy.docker_available", return_value=False):
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=False):
             backend, reason = resolve_backend()
         self.assertEqual(backend, "none")
         self.assertIn("fail-closed", reason.lower())
 
     def test_docker_mode_degrades_with_warning_reason(self) -> None:
         os.environ["SALEHA_SANDBOX"] = "docker"
-        with patch("saleha.core.execution_policy.docker_available", return_value=False):
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=False):
             backend, reason = resolve_backend()
         self.assertEqual(backend, "subprocess")
         self.assertIn("degraded", reason.lower())
@@ -199,7 +199,7 @@ class ExecutionPolicyTests(unittest.TestCase):
     def test_executor_refuses_execution_in_strict_mode_without_daemon(self) -> None:
         os.environ["SALEHA_SANDBOX"] = "require-docker"
         try:
-            with patch("saleha.core.execution_policy.docker_available", return_value=False):
+            with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=False):
                 result = CodeExecutor(timeout=5, audit=False).execute("print('hi')")
             self.assertFalse(result.success)
             self.assertTrue(result.blocked)
@@ -247,7 +247,7 @@ class ReviewerFailClosedTests(unittest.TestCase):
 
 class WebFetchGuardTests(unittest.TestCase):
     def setUp(self) -> None:
-        from saleha.core.tool_calling import global_tool_registry
+        from saleha.core.skills.tool_calling import global_tool_registry
         self.registry = global_tool_registry
 
     def test_file_scheme_rejected(self) -> None:
@@ -310,7 +310,7 @@ class ProfileRoleRoutingTests(unittest.TestCase):
     """v1.4: llm_routing metadata now has a real routing/temperature effect."""
 
     def test_role_complexity_floors(self) -> None:
-        from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
+        from saleha.core.platform.agent_profile_loader import ProfileAgent, profile_registry
 
         def load(profile_id: str) -> ProfileAgent:
             profile = profile_registry.get(profile_id)
@@ -339,7 +339,7 @@ class ProfileRoleRoutingTests(unittest.TestCase):
         self.assertEqual(captured["options"], {"temperature": 0.15})
 
     def test_sde_profile_reads_routing_temperature(self) -> None:
-        from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
+        from saleha.core.platform.agent_profile_loader import ProfileAgent, profile_registry
 
         sde = profile_registry.get("agent_sde")
         assert sde is not None, "profile agent_sde missing"

@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.debugger_repl import StatefulREPL
+from saleha.core.loop.debugger_repl import StatefulREPL
 
 
 class StatefulREPLTests(unittest.TestCase):

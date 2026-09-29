@@ -5,7 +5,7 @@ import unittest
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.workspace_coordinator import workspace_coordinator
+from saleha.core.project.workspace_coordinator import workspace_coordinator
 
 
 class WorkspaceCoordinatorTests(unittest.TestCase):

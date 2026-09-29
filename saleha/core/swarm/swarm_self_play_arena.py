@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 
 from saleha.agents.coder import CoderAgent
 from saleha.core.cognitive.neuro_symbolic_engine import neuro_symbolic_engine
-from saleha.core.spics_fuzz_engine import spics_fuzz_engine
+from saleha.core.security.spics_fuzz_engine import spics_fuzz_engine
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 

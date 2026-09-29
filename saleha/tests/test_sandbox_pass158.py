@@ -13,8 +13,8 @@ from typing import Any, Dict
 from unittest import mock
 
 from saleha.core.harness.code_executor import CodeExecutor
-from saleha.core.ollama_endpoint import normalize_ollama_url
-from saleha.core.safety_patterns import check_dangerous
+from saleha.core.platform.ollama_endpoint import normalize_ollama_url
+from saleha.core.security.safety_patterns import check_dangerous
 from saleha.sandbox.ast_security_verifier import ASTContractAuditor
 from saleha.sandbox.local_llm_driver import LocalLLMDriver
 from saleha.sandbox.v5_production_core import SwarmGenesisRegistry, task_key

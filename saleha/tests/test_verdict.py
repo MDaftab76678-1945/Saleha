@@ -17,7 +17,7 @@ from saleha.core.harness.verdict import (
     judge_suite_output,
     open_run,
 )
-from saleha.core.polyglot_executor import PolyglotExecutionResult
+from saleha.core.polyglot.polyglot_executor import PolyglotExecutionResult
 
 CODE = "def add(a, b):\n    return a + b\n"
 TESTS = (
@@ -112,7 +112,7 @@ class PolyglotTesterTests(unittest.TestCase):
         from saleha.agents.tester import TesterAgent
 
         ok = PolyglotExecutionResult(success=True, language="javascript", output="5\n")
-        with patch("saleha.core.polyglot_executor.PolyglotExecutor.execute", return_value=ok):
+        with patch("saleha.core.polyglot.polyglot_executor.PolyglotExecutor.execute", return_value=ok):
             res = TesterAgent().run_suite("console.log(2 + 3);", test_code="// tests",
                                           language="javascript")
         self.assertFalse(res.passed)
@@ -145,7 +145,7 @@ class OrchestratorRecordsOnlyProvenTests(unittest.TestCase):
         with patch("saleha.core.memory.memory_store.memory_store.remember",
                    side_effect=lambda **kw: seen.update(kw) or MagicMock()), \
              patch("saleha.core.memory.memory_store.memory_store.recall", return_value=None), \
-             patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+             patch("saleha.core.skills.skill_registry.registry.find_skill", return_value=None):
             res = orch.execute_task(goal, use_context=False, generate_tests=True)
         return res, seen
 
@@ -162,7 +162,7 @@ class OrchestratorRecordsOnlyProvenTests(unittest.TestCase):
         ok = PolyglotExecutionResult(success=True, language="javascript", output="5\n")
         orch.verifier.execute = MagicMock(return_value=MagicMock(
             success=True, blocked=False, output="5\n", error=""))
-        with patch("saleha.core.polyglot_executor.PolyglotExecutor.execute", return_value=ok):
+        with patch("saleha.core.polyglot.polyglot_executor.PolyglotExecutor.execute", return_value=ok):
             res, seen = self._run(orch, "write add in javascript")
         self.assertTrue(res.success, res.log)
         self.assertFalse(res.tests_passed)

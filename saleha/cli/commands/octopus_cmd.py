@@ -27,8 +27,8 @@ from saleha.cli.commands import cli, console
 @click.option("--json", "as_json", is_flag=True, help="Print machine-readable JSON execution payload")
 def octopus_cmd(goal: str, model: str, workers: int, timeout: float, supremacy: bool, as_json: bool) -> None:
     """Execute goal using the 9-Brain Octopus Multi-Agent Coordination Engine."""
-    from saleha.core.octopus_coordinator import ArmBrainOutput, OctopusCoordinator
     from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
+    from saleha.core.swarm.octopus_coordinator import ArmBrainOutput, OctopusCoordinator
 
     coordinator = OctopusCoordinator(
         model=model,

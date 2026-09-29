@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.graph_visualizer import ArchitectureGraphVisualizer
+from saleha.core.ui.graph_visualizer import ArchitectureGraphVisualizer
 
 
 class GraphVisualizerTests(unittest.TestCase):

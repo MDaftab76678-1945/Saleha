@@ -18,9 +18,9 @@ from typing import Any, List, Optional, Tuple
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
 from saleha.core.harness.code_executor import CodeExecutor
 from saleha.core.memory.memory_store import memory_store
+from saleha.core.platform.agent_profile_loader import ProfileAgent, profile_registry
 
 
 @dataclass
@@ -109,7 +109,7 @@ Include:
         Returns (security_critique, performance_critique). A critic that fails
         yields an explicit "unavailable" marker, never a reassuring default.
         """
-        from saleha.core.fast_inference import (
+        from saleha.core.platform.fast_inference import (
             FastInference,
             InferenceRequest,
         )

@@ -1,11 +1,11 @@
-"""Unit tests for saleha.core.tool_forge module."""
+"""Unit tests for saleha.core.skills.tool_forge module."""
 
 import os
 import subprocess
 import tempfile
 from typing import List
 
-from saleha.core.tool_forge import (
+from saleha.core.skills.tool_forge import (
     BUILTIN_TOOL_CATALOG,
     ToolForge,
     ToolForgeResult,

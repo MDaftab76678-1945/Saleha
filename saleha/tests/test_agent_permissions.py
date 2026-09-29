@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.agent_permissions import (
+from saleha.core.security.agent_permissions import (
     AgentCapabilityToken,
     FilesystemPolicy,
     PolicyEnforcementEngine,

@@ -9,11 +9,11 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from saleha.core.ephemeral_container_runner import (
+from saleha.core.harness.sandbox_runner import SandboxResult
+from saleha.core.sandbox.ephemeral_container_runner import (
     ContainerExecutionResult,
     EphemeralContainerRunner,
 )
-from saleha.core.harness.sandbox_runner import SandboxResult
 
 
 class TestEphemeralContainerRunner(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestEphemeralContainerRunner(unittest.TestCase):
         )
 
         with patch.object(self.runner, "_is_docker_available", return_value=True), \
-             patch("saleha.core.ephemeral_container_runner.subprocess.run", return_value=mock_proc), \
+             patch("saleha.core.sandbox.ephemeral_container_runner.subprocess.run", return_value=mock_proc), \
              patch.object(self.runner.fallback_runner, "run_in_sandbox", return_value=fallback_res):
             res: ContainerExecutionResult = self.runner.run_code("print('fallback_after_infra_error')", timeout_sec=5.0)
             self.assertTrue(res.success)
@@ -73,7 +73,7 @@ class TestEphemeralContainerRunner(unittest.TestCase):
         mock_proc.stderr = ""
 
         with patch.object(self.runner, "_is_docker_available", return_value=True), \
-             patch("saleha.core.ephemeral_container_runner.subprocess.run", return_value=mock_proc):
+             patch("saleha.core.sandbox.ephemeral_container_runner.subprocess.run", return_value=mock_proc):
             res: ContainerExecutionResult = self.runner.run_code("print('container_ok')", timeout_sec=5.0)
             self.assertTrue(res.success)
             self.assertEqual(res.exit_code, 0)

@@ -35,7 +35,7 @@ def cognitive_cmd(path: str) -> None:
     
     Example: saleha cognitive saleha/core/security_scanner.py
     """
-    from saleha.core.cognitive_engine import CognitiveEngine
+    from saleha.core.cognitive.cognitive_engine import CognitiveEngine
     if not os.path.exists(path):
         console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
         return
@@ -83,7 +83,7 @@ def optimize_prompts_cmd(role: str) -> None:
     
     Example: saleha optimize-prompts --role CoderAgent
     """
-    from saleha.core.prompt_optimizer import prompt_optimizer, recent_real_errors
+    from saleha.core.training.prompt_optimizer import prompt_optimizer, recent_real_errors
     console.print(Panel(f'[bold magenta]🧬 Saleha Auto-Curriculum Prompt Optimizer: {role}[/bold magenta]', border_style='magenta'))
     # This used to pass a hardcoded failure list -- literally
     # ['IndexError in test suite'] -- so it "self-optimized" against an error
@@ -121,7 +121,7 @@ def design_model_cmd(name: str, d_model: int, n_layers: int, n_heads: int,
       saleha design-model Small --d-model 256 --layers 4
       saleha design-model Large --d-model 4096 --layers 32 --heads 32
     """
-    from saleha.core.neural_designer import (
+    from saleha.core.research.neural_designer import (
         InvalidArchitectureError,
         NeuralArchitectureSpec,
         neural_designer,
@@ -164,7 +164,7 @@ def generate_app_cmd(name: str, desc: str, out: str) -> None:
     
     Example: saleha generate-app MyDashboard
     """
-    from saleha.core.htmx_generator import htmx_generator
+    from saleha.core.project.htmx_generator import htmx_generator
     pkg = htmx_generator.generate_app(app_name=name, description=desc)
     htmx_generator.write_to_disk(out, pkg)
     console.print(f"[bold green]✅ HTMX App '{name}' generated in '{out}'![/bold green]")
@@ -181,7 +181,7 @@ def quantum_sim_cmd(gates: str) -> None:
 
     Example: saleha quantum-sim --gates H,X,H
     """
-    from saleha.core.quantum_compiler import quantum_compiler
+    from saleha.core.research.quantum_compiler import quantum_compiler
     gate_list = [g.strip() for g in gates.split(',') if g.strip()]
     res = quantum_compiler.simulate_circuit(gate_list)
     colour = 'magenta' if res.all_gates_applied else 'yellow'
@@ -238,7 +238,7 @@ def explain_code_cmd(path: str) -> None:
 
     Example: saleha explain-code saleha/core/security_scanner.py
     """
-    from saleha.core.mech_interp import code_structure_engine
+    from saleha.core.research.mech_interp import code_structure_engine
     if not os.path.exists(path):
         console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
         return

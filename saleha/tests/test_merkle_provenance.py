@@ -5,7 +5,7 @@ import unittest
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.merkle_provenance import MerkleAuditLeaf, MerkleProvenanceLedger
+from saleha.core.security.merkle_provenance import MerkleAuditLeaf, MerkleProvenanceLedger
 
 
 class TestMerkleProvenance(unittest.TestCase):
@@ -46,7 +46,7 @@ class MerkleSwarmWiringTests(unittest.TestCase):
     def test_execute_swarm_records_one_leaf_per_stage(self) -> None:
         import os
         os.environ["SALEHA_TEST_MODE"] = "1"
-        from saleha.core.merkle_provenance import merkle_provenance_ledger
+        from saleha.core.security.merkle_provenance import merkle_provenance_ledger
         from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
 
         before = len(merkle_provenance_ledger.leaves)

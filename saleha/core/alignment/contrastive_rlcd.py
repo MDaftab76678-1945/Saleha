@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from saleha.core.alignment.verifiable_rewards import RLAIFAuditor, RLHVRVerifier
-from saleha.core.dpo_dataset_engine import DPOPreferencePair
+from saleha.core.training.dpo_dataset_engine import DPOPreferencePair
 
 
 @dataclass

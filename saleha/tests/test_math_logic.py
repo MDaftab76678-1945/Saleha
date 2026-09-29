@@ -1,5 +1,5 @@
 """
-Tests for Saleha Core MathLogicEngine (saleha/core/math_logic.py).
+Tests for Saleha Core MathLogicEngine (saleha/core/research/math_logic.py).
 
 Verifies bilingual complexity estimation, keyword scoring, file extension
 weights, word-count penalties, threshold-based recommendations, suggested
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.math_logic import (
+from saleha.core.research.math_logic import (
     CRITICAL_COMPLEXITY,
     MAX_SAFE_COMPLEXITY,
     ComplexityResult,

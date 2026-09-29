@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from saleha import __version__
-from saleha.core.polyglot_indexer import PolyglotIndexer
+from saleha.core.polyglot.polyglot_indexer import PolyglotIndexer
 from saleha.core.verification.security_scanner import ASTSecurityScanner, ScanReport
 
 

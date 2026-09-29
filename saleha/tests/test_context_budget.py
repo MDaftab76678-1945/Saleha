@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.context_budget import (
+from saleha.core.platform.context_budget import (
     DEFAULT_CONTEXT_WINDOW,
     BudgetCheck,
     chars_budget_for,
@@ -240,11 +240,33 @@ class AgentIntegrationTests(unittest.TestCase):
             tokens_used=1, error_message="")
         agent = BaseAgent(role="Test", model=MODEL, provider=provider)
 
-        with patch("saleha.core.context_budget.fit",
+        with patch("saleha.core.platform.context_budget.fit",
                    side_effect=RuntimeError("guard exploded")):
             resp = agent.think("hello")
         self.assertTrue(resp.success)
         self.assertEqual(resp.context_trimmed_chars, 0)
+
+    def test_a_set_context_window_is_sent_and_trimmed_against(self) -> None:
+        """A prompt that fits the model's window but not the num_ctx the call
+        runs with must be trimmed visibly, not cut silently by Ollama."""
+        from unittest.mock import MagicMock
+
+        from saleha.agents.base_agent import BaseAgent
+
+        provider = MagicMock()
+        provider.generate.return_value = MagicMock(
+            success=True, content="ok", response_time=0.1,
+            tokens_used=1, error_message="")
+        prompt = "BEGIN\n" + ("x" * 40_000) + "\nEND"  # ~11K tokens: fits 32768, not 8192
+
+        BaseAgent(role="Test", model=MODEL, provider=provider).think(prompt)
+        self.assertNotIn("num_ctx", provider.generate.call_args.kwargs["options"] or {})
+
+        resp = BaseAgent(role="Test", model=MODEL, provider=provider, context_window=8192).think(prompt)
+        kwargs = provider.generate.call_args.kwargs
+        self.assertEqual(kwargs["options"], {"num_ctx": 8192})
+        self.assertGreater(resp.context_trimmed_chars, 0)
+        self.assertIn("END", kwargs["prompt"])
 
 
 if __name__ == "__main__":

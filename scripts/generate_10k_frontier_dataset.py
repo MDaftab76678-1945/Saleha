@@ -1,7 +1,7 @@
 """
 Saleha: exports the curated DPO / SFT dataset.
 
-Writes the hand-written pairs from saleha/core/dpo_dataset_engine.py to:
+Writes the hand-written pairs from saleha/core/training/dpo_dataset_engine.py to:
 1. datasets/saleha_dpo_pairs.jsonl (DPO pairs)
 2. datasets/saleha_sft_10k.jsonl (ShareGPT format)
 3. datasets/saleha_sft_10k_alpaca.json (Alpaca format)
@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from saleha.core.dpo_dataset_engine import MIN_DPO_PAIRS, SalehaDPODatasetEngine  # noqa: E402
+from saleha.core.training.dpo_dataset_engine import MIN_DPO_PAIRS, SalehaDPODatasetEngine  # noqa: E402
 
 
 def main() -> int:

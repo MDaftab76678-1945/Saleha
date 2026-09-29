@@ -22,7 +22,7 @@ def user():
 @click.option('--password', default=None, help='Prompted for securely if omitted')
 def user_create(username, is_admin, password):
     """Create an account. Run this once to bootstrap the first admin."""
-    from saleha.core.user_store import ROLE_ADMIN, ROLE_USER, UserStoreError, user_store
+    from saleha.core.platform.user_store import ROLE_ADMIN, ROLE_USER, UserStoreError, user_store
     if password is None:
         password = click.prompt('Password', hide_input=True, confirmation_prompt=True)
     try:
@@ -35,7 +35,7 @@ def user_create(username, is_admin, password):
 @user.command(name='list')
 def user_list():
     """List accounts."""
-    from saleha.core.user_store import user_store
+    from saleha.core.platform.user_store import user_store
     accounts = user_store.list_users()
     if not accounts:
         console.print('[dim]No accounts yet. Create one with: saleha user create <name> --admin[/]')
@@ -50,7 +50,7 @@ def user_list():
 @click.option('--password', default=None, help='Prompted for securely if omitted')
 def user_passwd(username, password):
     """Change an account's password. Signs that account out everywhere."""
-    from saleha.core.user_store import UserStoreError, user_store
+    from saleha.core.platform.user_store import UserStoreError, user_store
     if password is None:
         password = click.prompt('New password', hide_input=True, confirmation_prompt=True)
     try:
@@ -65,7 +65,7 @@ def user_passwd(username, password):
 @click.confirmation_option(prompt='Delete this account?')
 def user_delete(username):
     """Delete an account."""
-    from saleha.core.user_store import UserStoreError, user_store
+    from saleha.core.platform.user_store import UserStoreError, user_store
     try:
         user_store.delete_user(username)
     except UserStoreError as err:

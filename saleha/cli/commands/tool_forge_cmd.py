@@ -1,6 +1,6 @@
 """CLI: `saleha tools` & `saleha forge-tool` -- autonomous tool creation and registry inspection.
 
-Wires the existing `saleha.core.tool_forge.ToolForge` engine (model
+Wires the existing `saleha.core.skills.tool_forge.ToolForge` engine (model
 generation, QualityGuard + AST structural checks, isolated pytest run,
 git commit) and `saleha.tools.base.tool_registry` to the CLI.
 """
@@ -15,7 +15,7 @@ from saleha.cli.commands import cli, console
 
 
 def _execute_forge(name: str, description: str, params: Tuple[str, ...], domain: str, no_commit: bool) -> None:
-    from saleha.core.tool_forge import ToolForge, ToolSpecification
+    from saleha.core.skills.tool_forge import ToolForge, ToolSpecification
 
     parameters: Dict[str, Any] = {"type": "object", "properties": {}}
     properties: Dict[str, Any] = {}

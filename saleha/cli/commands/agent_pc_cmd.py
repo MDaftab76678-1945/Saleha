@@ -22,7 +22,7 @@ def pc_group() -> None:
 @pc_group.command("status")
 def pc_status_cmd() -> None:
     """Lists operational status of all Agent Personal Computers."""
-    from saleha.core.agent_pc import list_active_agent_pcs
+    from saleha.core.sandbox.agent_pc import list_active_agent_pcs
 
     pcs = list_active_agent_pcs()
     if not pcs:
@@ -58,7 +58,7 @@ def pc_status_cmd() -> None:
 @click.argument("agent_role")
 def pc_inspect_cmd(agent_role: str) -> None:
     """Inspects an agent's personal computer, workspace files, and flight log."""
-    from saleha.core.agent_pc import get_agent_pc
+    from saleha.core.sandbox.agent_pc import get_agent_pc
 
     pc = get_agent_pc(agent_role)
     summary = pc.get_pc_summary()
@@ -120,7 +120,7 @@ def pc_inspect_cmd(agent_role: str) -> None:
 @click.option("--limit", "-n", type=int, default=20, help="Number of flight events to replay.")
 def pc_replay_cmd(agent_role: str, limit: int) -> None:
     """Replays deterministic blackbox execution trace for an agent."""
-    from saleha.core.agent_pc import get_agent_pc
+    from saleha.core.sandbox.agent_pc import get_agent_pc
 
     pc = get_agent_pc(agent_role)
     trace = pc.blackbox.replay(limit=limit)
@@ -143,7 +143,7 @@ def pc_replay_cmd(agent_role: str, limit: int) -> None:
 @click.option("--all-data", is_flag=True, help="Also remove checkpoints and scratchpad.")
 def pc_clean_cmd(agent_role: str, all_data: bool) -> None:
     """Cleans an agent's personal computer workspace."""
-    from saleha.core.agent_pc import get_agent_pc
+    from saleha.core.sandbox.agent_pc import get_agent_pc
 
     pc = get_agent_pc(agent_role)
     count = pc.workspace.clear_workspace(preserve_metadata=not all_data)

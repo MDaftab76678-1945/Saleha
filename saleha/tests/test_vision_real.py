@@ -7,12 +7,12 @@ import unittest
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from saleha.core.vision_backend import (
+from saleha.core.vision.vision_backend import (
     find_vision_model,
     generate_code_from_image,
     load_image_b64,
 )
-from saleha.core.vision_coder import VisionCoder
+from saleha.core.vision.vision_coder import VisionCoder
 
 
 class LoadImageTests(unittest.TestCase):
@@ -81,14 +81,14 @@ class GenerateFromImageTests(unittest.TestCase):
         self.assertIn("screenshot", sent["prompt"].lower())
 
     def test_no_vision_model_returns_none(self) -> None:
-        with patch("saleha.core.vision_backend.find_vision_model", return_value=None):
+        with patch("saleha.core.vision.vision_backend.find_vision_model", return_value=None):
             code, model = generate_code_from_image("abc", "spec", "sys")
         self.assertIsNone(code)
         self.assertEqual(model, "")
 
     def test_http_failure_returns_none_not_crash(self) -> None:
         import requests as _req
-        with patch("saleha.core.vision_backend.find_vision_model",
+        with patch("saleha.core.vision.vision_backend.find_vision_model",
                    return_value="llava:13b"), \
              patch("requests.post", side_effect=_req.ConnectionError("down")):
             code, model = generate_code_from_image("abc", "spec", "sys")
@@ -98,8 +98,8 @@ class GenerateFromImageTests(unittest.TestCase):
 class VisionCoderIntegrationTests(unittest.TestCase):
     def test_image_source_uses_vision_path(self) -> None:
         vc = VisionCoder(model="m")
-        with patch("saleha.core.vision_backend.generate_code_from_image") as gen, \
-             patch("saleha.core.vision_backend.load_image_b64",
+        with patch("saleha.core.vision.vision_backend.generate_code_from_image") as gen, \
+             patch("saleha.core.vision.vision_backend.load_image_b64",
                    return_value=("QUJD", "file:shot.png")):
             gen.return_value = ("export default function Hero() { return null; }", "llava:13b")
             res = vc.synthesize_ui("hero banner", framework="react",
@@ -111,9 +111,9 @@ class VisionCoderIntegrationTests(unittest.TestCase):
 
     def test_vision_fail_falls_back_to_template(self) -> None:
         vc = VisionCoder(model="m")
-        with patch("saleha.core.vision_backend.generate_code_from_image",
+        with patch("saleha.core.vision.vision_backend.generate_code_from_image",
                    return_value=(None, "")), \
-             patch("saleha.core.vision_backend.load_image_b64",
+             patch("saleha.core.vision.vision_backend.load_image_b64",
                    return_value=("QUJD", "file:shot.png")), \
              patch.object(vc.orchestrator, "execute_task",
                           side_effect=AssertionError("no LLM fallback expected here")):

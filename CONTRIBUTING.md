@@ -26,7 +26,7 @@ ollama pull qwen2.5-coder:3b               # the primary local coder model
    ```
 
 3. **No new mandatory dependencies.** Heavy capabilities go into extras with graceful fallback.
-4. **Security posture:** code execution must respect sandbox policies (`saleha/core/harness/sandbox_runner.py`) and the rule-based audit in `saleha/core/constitutional_guard.py`.
+4. **Security posture:** code execution must respect sandbox policies (`saleha/core/harness/sandbox_runner.py`) and the rule-based audit in `saleha/core/security/constitutional_guard.py`.
    The commit gate `python .agents/scripts/preflight_lint.py` must pass.
 5. **CHANGELOG.md** — add a line under `Unreleased`.
 

@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.polyglot_executor import PolyglotExecutor
+from saleha.core.polyglot.polyglot_executor import PolyglotExecutor
 
 
 class PolyglotExecutorTests(unittest.TestCase):

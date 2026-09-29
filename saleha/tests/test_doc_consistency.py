@@ -100,7 +100,7 @@ class ContextWindowTests(unittest.TestCase):
     def test_documented_windows_match_the_registry(self) -> None:
         """AGENTSKILLS.md claimed 2048/4096; the registry says 32768/40960.
         An agent following the doc would prune to 6% of the real window."""
-        from saleha.core.context_budget import KNOWN_CONTEXT_WINDOWS
+        from saleha.core.platform.context_budget import KNOWN_CONTEXT_WINDOWS
 
         doc = _read("AGENTSKILLS.md")
         # Only inspect lines that name a model and a number together.
@@ -152,7 +152,7 @@ class InstalledModelClaimTests(unittest.TestCase):
     def test_docs_do_not_cite_unknown_models(self) -> None:
         """.saleharules was generated with reasoning_flagship='deepseek-r1:8b',
         a model that is not installed and never was (it is 7b)."""
-        from saleha.core.context_budget import KNOWN_CONTEXT_WINDOWS
+        from saleha.core.platform.context_budget import KNOWN_CONTEXT_WINDOWS
 
         known = set(KNOWN_CONTEXT_WINDOWS) | {
             "nomic-embed-text", "gemma4:31b-cloud", "qwen3.5:4b",

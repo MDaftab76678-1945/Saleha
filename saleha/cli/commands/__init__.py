@@ -40,30 +40,30 @@ if TYPE_CHECKING:
     from saleha.cli.dashboard import run_live_dashboard
     from saleha.cli.repl import start_repl
     from saleha.cli.tui_canvas import start_tui_canvas
-    from saleha.core.agent_profile_loader import profile_registry
-    from saleha.core.cloud_deployer import cloud_deployer
-    from saleha.core.dag_engine import TaskDAG, TaskNode
-    from saleha.core.db_optimizer import db_optimizer
-    from saleha.core.docker_sandbox import DockerSandboxRunner
+    from saleha.core.db.db_optimizer import db_optimizer
+    from saleha.core.devops.cloud_deployer import cloud_deployer
+    from saleha.core.github.pr_generator import PRGenerator
     from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
     from saleha.core.harness.sandbox_runner import SandboxRunner
-    from saleha.core.hybrid_gateway import gateway as hybrid_gateway
+    from saleha.core.harness.swe_bench_harness import sandbox_self_check
     from saleha.core.loop.agentic_loop import AgentLoop
     from saleha.core.loop.deliberation_engine import DeliberationEngine
-    from saleha.core.mcp_engine import MCPServer
     from saleha.core.memory.memory_store import memory_store
+    from saleha.core.platform.agent_profile_loader import profile_registry
+    from saleha.core.platform.hybrid_gateway import gateway as hybrid_gateway
     from saleha.core.platform.lsp_engine import lsp_engine
+    from saleha.core.platform.mcp_engine import MCPServer
     from saleha.core.platform.smart_router import SmartRouter
-    from saleha.core.polyglot_indexer import PolyglotIndexer
-    from saleha.core.pr_generator import PRGenerator
-    from saleha.core.project_builder import ProjectBuilder
-    from saleha.core.repo_watcher import repo_watcher
-    from saleha.core.skill_registry import load_builtin_skills
-    from saleha.core.skill_registry import registry as skill_registry
+    from saleha.core.polyglot.polyglot_indexer import PolyglotIndexer
+    from saleha.core.project.project_builder import ProjectBuilder
+    from saleha.core.sandbox.docker_sandbox import DockerSandboxRunner
+    from saleha.core.skills.skill_registry import load_builtin_skills
+    from saleha.core.skills.skill_registry import registry as skill_registry
+    from saleha.core.skills.tool_calling import global_tool_registry
     from saleha.core.swarm.team_orchestrator import TeamOrchestrator
-    from saleha.core.swe_bench_harness import sandbox_self_check
-    from saleha.core.tool_calling import global_tool_registry
+    from saleha.core.ui.repo_watcher import repo_watcher
     from saleha.core.verification.security_scanner import ASTSecurityScanner
+    from saleha.core.workflow.dag_engine import TaskDAG, TaskNode
     from saleha.orchestrator import SalehaOrchestrator
     from saleha.server.web_server import run_web_studio
 
@@ -86,37 +86,37 @@ _LAZY_IMPORT_MAP = {
     "TesterAgent": ("saleha.agents.tester", "TesterAgent"),
     "DebuggerAgent": ("saleha.agents.debugger", "DebuggerAgent"),
     "SalehaOrchestrator": ("saleha.orchestrator", "SalehaOrchestrator"),
-    "ProjectBuilder": ("saleha.core.project_builder", "ProjectBuilder"),
+    "ProjectBuilder": ("saleha.core.project.project_builder", "ProjectBuilder"),
     "TeamOrchestrator": ("saleha.core.swarm.team_orchestrator", "TeamOrchestrator"),
-    "skill_registry": ("saleha.core.skill_registry", "registry"),
-    "load_builtin_skills": ("saleha.core.skill_registry", "load_builtin_skills"),
-    "profile_registry": ("saleha.core.agent_profile_loader", "profile_registry"),
+    "skill_registry": ("saleha.core.skills.skill_registry", "registry"),
+    "load_builtin_skills": ("saleha.core.skills.skill_registry", "load_builtin_skills"),
+    "profile_registry": ("saleha.core.platform.agent_profile_loader", "profile_registry"),
     "memory_store": ("saleha.core.memory.memory_store", "memory_store"),
     "CodebaseIndexer": ("saleha.core.graph.codebase_indexer", "CodebaseIndexer"),
     "SmartPatcher": ("saleha.core.graph.codebase_indexer", "SmartPatcher"),
     "DeliberationEngine": ("saleha.core.loop.deliberation_engine", "DeliberationEngine"),
-    "global_tool_registry": ("saleha.core.tool_calling", "global_tool_registry"),
+    "global_tool_registry": ("saleha.core.skills.tool_calling", "global_tool_registry"),
     "SandboxRunner": ("saleha.core.harness.sandbox_runner", "SandboxRunner"),
-    "DockerSandboxRunner": ("saleha.core.docker_sandbox", "DockerSandboxRunner"),
-    "PolyglotIndexer": ("saleha.core.polyglot_indexer", "PolyglotIndexer"),
-    "PRGenerator": ("saleha.core.pr_generator", "PRGenerator"),
+    "DockerSandboxRunner": ("saleha.core.sandbox.docker_sandbox", "DockerSandboxRunner"),
+    "PolyglotIndexer": ("saleha.core.polyglot.polyglot_indexer", "PolyglotIndexer"),
+    "PRGenerator": ("saleha.core.github.pr_generator", "PRGenerator"),
     "ASTSecurityScanner": ("saleha.core.verification.security_scanner", "ASTSecurityScanner"),
-    "TaskDAG": ("saleha.core.dag_engine", "TaskDAG"),
-    "TaskNode": ("saleha.core.dag_engine", "TaskNode"),
-    "MCPServer": ("saleha.core.mcp_engine", "MCPServer"),
+    "TaskDAG": ("saleha.core.workflow.dag_engine", "TaskDAG"),
+    "TaskNode": ("saleha.core.workflow.dag_engine", "TaskNode"),
+    "MCPServer": ("saleha.core.platform.mcp_engine", "MCPServer"),
     "PRReviewBot": ("saleha.ci.bot", "PRReviewBot"),
-    "hybrid_gateway": ("saleha.core.hybrid_gateway", "gateway"),
+    "hybrid_gateway": ("saleha.core.platform.hybrid_gateway", "gateway"),
     "run_web_studio": ("saleha.server.web_server", "run_web_studio"),
     "start_repl": ("saleha.cli.repl", "start_repl"),
     "start_tui_canvas": ("saleha.cli.tui_canvas", "start_tui_canvas"),
     "render_dashboard": ("saleha.cli.dashboard", "render_dashboard"),
     "run_live_dashboard": ("saleha.cli.dashboard", "run_live_dashboard"),
     "AgentLoop": ("saleha.core.loop.agentic_loop", "AgentLoop"),
-    "repo_watcher": ("saleha.core.repo_watcher", "repo_watcher"),
-    "sandbox_self_check": ("saleha.core.swe_bench_harness", "sandbox_self_check"),
+    "repo_watcher": ("saleha.core.ui.repo_watcher", "repo_watcher"),
+    "sandbox_self_check": ("saleha.core.harness.swe_bench_harness", "sandbox_self_check"),
     "lsp_engine": ("saleha.core.platform.lsp_engine", "lsp_engine"),
-    "cloud_deployer": ("saleha.core.cloud_deployer", "cloud_deployer"),
-    "db_optimizer": ("saleha.core.db_optimizer", "db_optimizer"),
+    "cloud_deployer": ("saleha.core.devops.cloud_deployer", "cloud_deployer"),
+    "db_optimizer": ("saleha.core.db.db_optimizer", "db_optimizer"),
 }
 
 

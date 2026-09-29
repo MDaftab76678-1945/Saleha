@@ -106,7 +106,7 @@ def align_rlaif_cmd(code_file: str) -> None:
 @click.argument("code_file", type=click.Path(exists=True))
 def align_prm_cmd(code_file: str) -> None:
     """Decomposes code into logical steps and scores each with the Process Reward Model."""
-    from saleha.core.prm_mcts_engine import ProcessRewardModel
+    from saleha.core.alignment.prm_mcts_engine import ProcessRewardModel
 
     code = Path(code_file).read_text(encoding="utf-8")
     prm = ProcessRewardModel()

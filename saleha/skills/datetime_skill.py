@@ -11,7 +11,7 @@ Instant, deterministic date and time calculations without calling an LLM:
 import re
 from datetime import datetime, timezone
 
-from saleha.core.skill_base import Skill, SkillResult
+from saleha.core.skills.skill_base import Skill, SkillResult
 
 
 class DateTimeSkill(Skill):

@@ -1,5 +1,5 @@
 
-from saleha.core.iot_domotics import FocusEnvironmentState, IoTDomoticsEngine
+from saleha.core.research.iot_domotics import FocusEnvironmentState, IoTDomoticsEngine
 
 
 def test_focus_environment_state():

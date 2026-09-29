@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from saleha.core.prompt_optimizer import PromptOptimizationRecord, PromptOptimizer
+from saleha.core.training.prompt_optimizer import PromptOptimizationRecord, PromptOptimizer
 
 
 class TestPromptOptimizer(unittest.TestCase):
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
 from unittest.mock import MagicMock, patch
 
-from saleha.core.prompt_optimizer import recent_real_errors
+from saleha.core.training.prompt_optimizer import recent_real_errors
 
 
 def _opt(tmp_path: Path) -> Any:
@@ -105,7 +105,7 @@ def test_recent_real_errors_reads_history() -> None:
         MagicMock(success=False, error="IndexError: list index out of range"),
         MagicMock(success=False, error="TypeError: bad operand"),
     ]
-    with patch("saleha.core.task_history.TaskHistory", return_value=fake):
+    with patch("saleha.core.memory.task_history.TaskHistory", return_value=fake):
         errs = recent_real_errors()
     assert "IndexError: list index out of range" in errs
     assert len(errs) == 2                      # the successful run is excluded
@@ -117,14 +117,14 @@ def test_recent_real_errors_is_most_recent_first() -> None:
         MagicMock(success=False, error="older"),
         MagicMock(success=False, error="newer"),
     ]
-    with patch("saleha.core.task_history.TaskHistory", return_value=fake):
+    with patch("saleha.core.memory.task_history.TaskHistory", return_value=fake):
         assert recent_real_errors()[0] == "newer"
 
 
 def test_recent_real_errors_deduplicates() -> None:
     fake = MagicMock()
     fake.all.return_value = [MagicMock(success=False, error="same")] * 5
-    with patch("saleha.core.task_history.TaskHistory", return_value=fake):
+    with patch("saleha.core.memory.task_history.TaskHistory", return_value=fake):
         assert recent_real_errors() == ["same"]
 
 
@@ -134,7 +134,7 @@ def test_recent_real_errors_skips_blank_messages() -> None:
         MagicMock(success=False, error="   "),
         MagicMock(success=False, error="real failure"),
     ]
-    with patch("saleha.core.task_history.TaskHistory", return_value=fake):
+    with patch("saleha.core.memory.task_history.TaskHistory", return_value=fake):
         assert recent_real_errors() == ["real failure"]
 
 
@@ -143,7 +143,7 @@ def test_recent_real_errors_honours_limit() -> None:
     fake.all.return_value = [
         MagicMock(success=False, error=f"err {i}") for i in range(50)
     ]
-    with patch("saleha.core.task_history.TaskHistory", return_value=fake):
+    with patch("saleha.core.memory.task_history.TaskHistory", return_value=fake):
         assert len(recent_real_errors(limit=3)) == 3
 
 
@@ -152,5 +152,5 @@ def test_unreadable_history_returns_empty_not_a_fake_error() -> None:
     replaced with an invented example -- that was the original bug."""
     fake = MagicMock()
     fake.all.side_effect = OSError("history unreadable")
-    with patch("saleha.core.task_history.TaskHistory", return_value=fake):
+    with patch("saleha.core.memory.task_history.TaskHistory", return_value=fake):
         assert recent_real_errors() == []

@@ -5,7 +5,7 @@ import tempfile
 import time
 import unittest
 
-from saleha.core.repo_watcher import RepoWatcher
+from saleha.core.ui.repo_watcher import RepoWatcher
 
 
 class RepoWatcherTests(unittest.TestCase):

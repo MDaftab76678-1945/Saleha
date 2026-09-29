@@ -1,11 +1,11 @@
-"""Tests for saleha.core.training_collector."""
+"""Tests for saleha.core.training.training_collector."""
 import json
 import os
 import shutil
 import tempfile
 import unittest
 
-from saleha.core.training_collector import TrainingCollector
+from saleha.core.training.training_collector import TrainingCollector
 
 
 class TrainingCollectorTests(unittest.TestCase):

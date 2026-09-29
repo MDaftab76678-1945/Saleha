@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.plugin_hub import SalehaPluginHub
+from saleha.core.plugins.plugin_hub import SalehaPluginHub
 
 
 class TestPluginHub(unittest.TestCase):

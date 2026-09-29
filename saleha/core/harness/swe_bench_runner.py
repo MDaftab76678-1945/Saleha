@@ -1,0 +1,221 @@
+"""
+Saleha Core: SWE-bench Lite Prediction Generator
+
+HONEST SCOPE NOTE:
+A full SWE-bench evaluation needs: (a) dataset instances, (b) each
+instance's repo checked out at base_commit, (c) a model patch, (d) a
+test run through the official Docker harness. This module does not run
+(d) itself -- that is `swebench.harness.run_evaluation` (the real,
+official package; see NOTEBOOK_IMPORT.md, "Pass 92" for a verified
+end-to-end run through it). What this module delivers is the part
+Saleha itself is responsible for, and that is officially verifiable
+once handed off:
+
+  1. Instance -> Saleha prompt building (problem statement + hints)
+  2. A real `AgentLoop` run against a real repo checkout -> a real
+     `git diff` of whatever the agent actually changed
+  3. Writing the standard SWE-bench **predictions.jsonl** format:
+     {"instance_id", "model_name_or_path", "model_patch"}
+     -- this file is what `swebench.harness.run_evaluation` (or sb-cli)
+        consumes to produce an official score.
+
+Each instance must supply a real `local_repo_dir` (a real checkout of
+`repo` at `base_commit`) to get a non-empty patch attempt. An instance
+with no `local_repo_dir`, or one where the agent made no real edit,
+gets an honest empty patch -- the official harness scores an empty
+patch as unresolved, not a fabricated success.
+"""
+
+from __future__ import annotations
+
+import difflib
+import json
+import os
+import subprocess
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Iterator, List, Optional
+
+
+@dataclass
+class SWEBenchPrediction:
+    instance_id: str
+    model_name_or_path: str
+    model_patch: str
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+    def to_record(self) -> Dict[str, str]:
+        """Official SWE-bench predictions.jsonl record format."""
+        return {
+            "instance_id": self.instance_id,
+            "model_name_or_path": self.model_name_or_path,
+            "model_patch": self.model_patch,
+        }
+
+
+def build_prompt(problem_statement: str, hints_text: str = "",
+                 max_chars: int = 6000) -> str:
+    """Instance problem statement -> Saleha coder prompt."""
+    parts = [f"Fix the following issue in the repository.\n\n{problem_statement[:max_chars]}"]
+    if hints_text and hints_text.strip():
+        parts.append(f"\nAdditional hints:\n{hints_text[:2000]}")
+    parts.append(
+        "\nReturn ONLY the complete updated content of the files you change, "
+        "each in its own ```python block with a header line '### FILE: <path>'."
+    )
+    return "\n".join(parts)
+
+
+def build_agent_goal(problem_statement: str, hints_text: str = "",
+                     max_chars: int = 6000) -> str:
+    """
+    Instance -> goal for AgentLoop, which edits files through its tools.
+
+    `build_prompt` ends by asking for whole files in ```python blocks. That
+    is the single-shot coder's format; the agent loop replies only in
+    tool_call blocks, so the same text told the agent to answer in a form its
+    own parser rejects. "Fix" keeps the loop's repair-goal gates armed.
+    """
+    parts = [f"Fix the following issue in this repository by editing its source code "
+             f"(not its tests).\n\n{problem_statement[:max_chars]}"]
+    if hints_text and hints_text.strip():
+        parts.append(f"\nAdditional hints:\n{hints_text[:2000]}")
+    return "\n".join(parts)
+
+
+def synth_newfile_patch(final_code: str, filename: str = "saleha_solution.py") -> str:
+    """Converts final code into a single new-file unified diff (format-valid)."""
+    diff = difflib.unified_diff(
+        [], final_code.splitlines(keepends=True),
+        fromfile="/dev/null", tofile=f"/dev/null -> {filename}",
+    )
+    return "".join(diff)
+
+
+def real_diff_from_repo(local_repo_dir: str, changed_files: Dict[str, str]) -> str:
+    """Generates a real unified diff of ORIGINAL vs NEW if a repo checkout is
+    provided (changed_files = {rel_path: new_full_content})."""
+    patches = []
+    for rel, new_content in changed_files.items():
+        old_path = os.path.join(local_repo_dir, rel)
+        old_lines: List[str] = []
+        if os.path.isfile(old_path):
+            try:
+                with open(old_path, "r", encoding="utf-8", errors="replace") as f:
+                    old_lines = f.readlines()
+            except OSError:
+                pass
+        patches.append("".join(difflib.unified_diff(
+            old_lines, new_content.splitlines(keepends=True),
+            fromfile=f"a/{rel}", tofile=f"b/{rel}",
+        )))
+    return "\n".join(p for p in patches if p)
+
+
+def iter_instances(instances_path: str) -> Iterator[Dict[str, Any]]:
+    """Streams prediction input records from a JSONL file (one line per instance)."""
+    with open(instances_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(rec, dict) and rec.get("instance_id"):
+                yield rec
+
+
+def write_predictions(predictions: List[SWEBenchPrediction], out_path: str) -> int:
+    out_dir = os.path.dirname(os.path.abspath(out_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    count = 0
+    with open(out_path, "w", encoding="utf-8") as f:
+        for p in predictions:
+            f.write(json.dumps(p.to_record(), ensure_ascii=False) + "\n")
+            count += 1
+    return count
+
+
+def run_benchmark(instances_path: str, output_path: str,
+                  model: str = "auto", limit: Optional[int] = None,
+                  max_steps: int = 15, allow_write: bool = True,
+                  on_event: Optional[Callable[[Dict[str, Any]], Any]] = None,
+                  timeout_sec: float = 300.0) -> Dict[str, Any]:
+    """
+    Full loop: instances read -> real multi-file AgentLoop run against a
+    real repo checkout -> predictions write.
+
+    REAL BUG FIXED (2026-09-06): this used to call
+    `SalehaOrchestrator.execute_task()` (a single-prompt-to-code generator
+    with no repo access) and then, even when a real `local_repo_dir` was
+    given, hardcoded the changed filename as "saleha_solution.py" --
+    meaning the "real diff" path could only ever add an unrelated new file,
+    never fix the actual buggy file(s) in the repo. That made a correct
+    model response structurally impossible to score, independent of model
+    quality.
+
+    Now: each instance MUST supply a real `local_repo_dir` (a real checkout
+    of `repo` at `base_commit`) to get a non-empty patch attempt. Saleha's
+    real `AgentLoop` (the same machinery behind `saleha agent`/`saleha
+    run`) explores and edits that real repo with the actual problem
+    statement as its goal -- no gold-patch info, no assumed filename. The
+    patch is a real `git diff` of whatever the agent actually changed. An
+    instance with no `local_repo_dir` gets an honest empty patch (the
+    official SWE-bench harness scores an empty patch as unresolved, not a
+    fabricated success) instead of a fake new-file diff.
+    """
+    from saleha.agents.base_agent import BaseAgent
+    from saleha.core.loop.agentic_loop import AgentLoop
+
+    predictions: List[SWEBenchPrediction] = []
+    skipped = 0
+
+    for i, inst in enumerate(iter_instances(instances_path)):
+        if limit and i >= limit:
+            break
+
+        local_repo = inst.get("local_repo_dir")
+        patch = ""
+        attempts = 0
+        if not local_repo or not os.path.isdir(local_repo):
+            # Official format: empty patch is recorded as well (score 0) --
+            # no repo means no real fix is possible, so this is honest, not
+            # a bug to work around with a fabricated diff.
+            skipped += 1
+        else:
+            goal = build_agent_goal(inst.get("problem_statement", ""),
+                                    inst.get("hints_text", ""))
+            agent = BaseAgent(role="SWE-bench Solver", model=model)
+            loop = AgentLoop(agent=agent, root_dir=local_repo,
+                             max_steps=max_steps, allow_write=allow_write,
+                             timeout_sec=timeout_sec)
+            result = loop.run(goal)
+            attempts = len(result.steps)
+            try:
+                # utf-8 explicitly: the cp1252 default can fail on a diff with
+                # non-ASCII text and the patch would silently read as empty.
+                proc = subprocess.run(["git", "diff"], cwd=local_repo,
+                                      capture_output=True, text=True, encoding="utf-8",
+                                      errors="replace", timeout=60)
+                patch = proc.stdout if proc.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                patch = ""
+            if not patch.strip():
+                skipped += 1
+
+        pred = SWEBenchPrediction(
+            instance_id=inst["instance_id"],
+            model_name_or_path=model,
+            model_patch=patch,
+            meta={"attempts": attempts},
+        )
+        predictions.append(pred)
+        if on_event:
+            on_event({"instance_id": inst["instance_id"], "index": i + 1,
+                      "success": bool(patch.strip())})
+
+    written = write_predictions(predictions, output_path)
+    return {"total": len(predictions), "written": written,
+            "empty_patches": skipped, "output": output_path}

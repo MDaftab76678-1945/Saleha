@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 
 from saleha.agents.base_agent import AgentResponse, BaseAgent
-from saleha.core.self_healing import SelfHealingEngine
 
 
 @dataclass
@@ -21,6 +20,9 @@ class DebuggerAgent(BaseAgent):
 
 	def __init__(self, model: str = "auto", provider=None):
 		super().__init__(role="Debugger", model=model, provider=provider)
+		# Function-local: saleha.core.loop's __init__ imports the deliberation
+		# engine, which imports this module -- a module-level import is a cycle.
+		from saleha.core.loop.self_healing import SelfHealingEngine
 		self.healing_engine = SelfHealingEngine()
 
 	def debug_code(self, task: str, code: str, error_log: str) -> DebugResult:

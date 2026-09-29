@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.infra_generator import InfraGenerator, InfrastructureBundle
+from saleha.core.devops.infra_generator import InfraGenerator, InfrastructureBundle
 
 
 class TestInfraGenerator(unittest.TestCase):

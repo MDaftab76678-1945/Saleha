@@ -4,7 +4,7 @@ Process-level sandboxing pulled in from the v5 engine (see NOTEBOOK_IMPORT.md).
 Platform note, because it is easy to get wrong: `sandbox_jail.HardenedSandbox`
 is **POSIX only**. It applies rlimits between fork and exec, which Windows has
 no equivalent for. Check `HardenedSandbox.is_available()` before using it, or
-use `saleha.core.windows_job_sandbox` instead.
+use `saleha.core.sandbox.windows_job_sandbox` instead.
 
 `ast_security_verifier.ASTContractAuditor` is pure AST work and runs anywhere.
 

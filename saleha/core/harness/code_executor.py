@@ -27,11 +27,11 @@ import tempfile
 from dataclasses import dataclass
 from typing import Optional
 
-from saleha.core.execution_policy import build_docker_command, ensure_image, resolve_backend
-from saleha.core.safety_patterns import (
+from saleha.core.sandbox.execution_policy import build_docker_command, ensure_image, resolve_backend
+from saleha.core.security.safety_patterns import (
     _check_blocked_imports as _sp_check_blocked_imports,
 )
-from saleha.core.safety_patterns import (
+from saleha.core.security.safety_patterns import (
     check_dangerous,
 )
 from saleha.core.telemetry.audit_log import AuditLog
@@ -102,7 +102,7 @@ class CodeExecutor:
         effective_timeout = timeout if timeout is not None else self.timeout
 
         if language != "python":
-            from saleha.core.polyglot_executor import PolyglotExecutor
+            from saleha.core.polyglot.polyglot_executor import PolyglotExecutor
             poly = PolyglotExecutor(timeout=effective_timeout)
             res = poly.execute(code, language=language)
             return ExecutionResult(

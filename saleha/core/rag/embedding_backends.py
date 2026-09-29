@@ -19,11 +19,11 @@ import urllib.error
 import urllib.request
 from typing import List, Optional
 
-from saleha.core.ollama_endpoint import normalize_ollama_url, ollama_base_url
+from saleha.core.platform.ollama_endpoint import normalize_ollama_url, ollama_base_url
 
 
 def _normalize_ollama_url(raw_url: str) -> str:
-    """Normalizes an Ollama endpoint URL (shared rules: saleha.core.ollama_endpoint)."""
+    """Normalizes an Ollama endpoint URL (shared rules: saleha.core.platform.ollama_endpoint)."""
     return normalize_ollama_url(raw_url)
 
 

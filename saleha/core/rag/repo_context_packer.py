@@ -32,8 +32,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from saleha.core.context_budget import chars_budget_for
-from saleha.core.path_utils import safe_relpath
+from saleha.core.platform.context_budget import chars_budget_for
+from saleha.core.platform.path_utils import safe_relpath
 
 # Standard directories to skip during scanning
 SKIP_DIRS: Set[str] = {

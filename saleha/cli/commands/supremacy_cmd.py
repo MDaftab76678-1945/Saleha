@@ -39,7 +39,7 @@ def supremacy_cmd(
     as_json: bool,
 ) -> None:
     """Amplify local small models to beat large single-shot models via Test-Time Compute."""
-    from saleha.core.local_supremacy import CandidateEvaluation, LocalSupremacyEngine
+    from saleha.core.loop.local_supremacy import CandidateEvaluation, LocalSupremacyEngine
 
     # Resolve test suite if provided as a file path
     test_suite = tests

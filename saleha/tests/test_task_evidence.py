@@ -1,5 +1,5 @@
 """
-Tests for evidence-based task completion (saleha/core/task_evidence.py).
+Tests for evidence-based task completion (saleha/core/verification/task_evidence.py).
 
 These cover the real bug this system exists to prevent: an agent declaring
 a task finished without having actually done or verified the work --
@@ -16,7 +16,7 @@ import tempfile
 import time
 import unittest
 
-from saleha.core.task_evidence import (
+from saleha.core.verification.task_evidence import (
     BudgetExceeded,
     Evidence,
     EvidenceKind,

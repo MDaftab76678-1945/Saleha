@@ -11,7 +11,7 @@ from saleha.agents.screen_copilot import (
     screen_copilot,
 )
 from saleha.cli.chat_session import SwarmChatSession
-from saleha.core.mcp_server import SalehaMCPServer
+from saleha.core.platform.mcp_server import SalehaMCPServer
 from saleha.core.swarm.swarm_cluster_node import SwarmClusterNode
 
 

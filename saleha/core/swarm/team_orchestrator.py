@@ -20,9 +20,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.debugger import DebuggerAgent
-from saleha.core.emergence_detector import emergence_detector
 from saleha.core.harness.code_executor import CodeExecutor
-from saleha.core.task_history import TaskHistory
+from saleha.core.memory.task_history import TaskHistory
+from saleha.core.swarm.emergence_detector import emergence_detector
 from saleha.core.telemetry.stats_tracker import StatsTracker
 
 
@@ -76,7 +76,7 @@ class TeamOrchestrator:
         explicit marker, never a reassuring default -- a missing security
         review must not read as a clean one.
         """
-        from saleha.core.fast_inference import (
+        from saleha.core.platform.fast_inference import (
             FastInference,
             InferenceRequest,
         )
@@ -106,10 +106,10 @@ class TeamOrchestrator:
         return out[0], out[1]
 
     def _get_agent(self, profile_id: str, default_role_name: str) -> BaseAgent:
-        # Lazy import: saleha.core.agent_profile_loader imports saleha.agents,
+        # Lazy import: saleha.core.platform.agent_profile_loader imports saleha.agents,
         # whose __init__ imports issue_resolver -> this package -- a circular
         # import if this ran at module-load time.
-        from saleha.core.agent_profile_loader import ProfileAgent, profile_registry
+        from saleha.core.platform.agent_profile_loader import ProfileAgent, profile_registry
 
         profile = profile_registry.get(profile_id)
         if profile:

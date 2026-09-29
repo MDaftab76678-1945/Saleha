@@ -1,7 +1,7 @@
 # Saleha AI — Model Context Protocol (MCP) Specification
 
 > **Checked against the code 2026-09-23.** `saleha mcp serve` starts the stdio
-> JSON-RPC server (`saleha/core/mcp_engine.py`); `saleha mcp list/export/connect`
+> JSON-RPC server (`saleha/core/platform/mcp_engine.py`); `saleha mcp list/export/connect`
 > manage external servers (`saleha/core/platform/mcp_hub.py`). The tools the
 > server really exposes are the `name=` entries in `mcp_engine.py`
 > (`saleha_team_swarm`, `saleha_dag_execute`, `saleha_sast_scan`,

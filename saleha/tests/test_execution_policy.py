@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
-from saleha.core.execution_policy import (
+from saleha.core.sandbox.execution_policy import (
     ExecutionPolicy,
     PolicyDecision,
     _reset_probe_cache,
@@ -86,25 +86,25 @@ def test_resolve_backend_modes_with_mock() -> None:
 
         # 2. Docker mode when Docker is DOWN -> degrade to subprocess
         os.environ["SALEHA_SANDBOX"] = "docker"
-        with patch("saleha.core.execution_policy.docker_available", return_value=False):
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=False):
             backend, reason = resolve_backend()
             assert backend == "subprocess"
             assert "degraded" in reason
 
         # 3. Docker mode when Docker is UP -> docker
-        with patch("saleha.core.execution_policy.docker_available", return_value=True):
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=True):
             backend, reason = resolve_backend()
             assert backend == "docker"
 
         # 4. Require-docker mode when Docker is DOWN -> fail closed ('none')
         os.environ["SALEHA_SANDBOX"] = "require-docker"
-        with patch("saleha.core.execution_policy.docker_available", return_value=False):
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=False):
             backend, reason = resolve_backend()
             assert backend == "none"
             assert "refused" in reason
 
         # 5. Require-docker mode when Docker is UP -> docker
-        with patch("saleha.core.execution_policy.docker_available", return_value=True):
+        with patch("saleha.core.sandbox.execution_policy.docker_available", return_value=True):
             backend, reason = resolve_backend()
             assert backend == "docker"
     finally:

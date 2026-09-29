@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 
 from saleha.agents.base_agent import AgentResponse, BaseAgent
-from saleha.core.notebook_engine import NotebookCell, NotebookDocument, notebook_engine
+from saleha.core.ui.notebook_engine import NotebookCell, NotebookDocument, notebook_engine
 
 
 @dataclass

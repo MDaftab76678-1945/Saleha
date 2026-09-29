@@ -136,7 +136,7 @@ class RecursiveSolver:
         """
         import json
 
-        from saleha.core.fast_inference import (
+        from saleha.core.platform.fast_inference import (
             FastInference,
             InferenceRequest,
         )

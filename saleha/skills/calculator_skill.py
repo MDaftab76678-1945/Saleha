@@ -16,7 +16,7 @@ import ast
 import operator
 import re
 
-from saleha.core.skill_base import Skill, SkillResult
+from saleha.core.skills.skill_base import Skill, SkillResult
 
 # Safe operators only -- eval() bilkul use nahi karte (security risk),
 # iske bajaye ek chhota safe expression evaluator likha hai.

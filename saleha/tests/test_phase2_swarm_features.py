@@ -4,7 +4,7 @@ Unit and integration tests for Phase 2: Live TUI Dashboard, Sandboxed MCP Client
 
 
 from saleha.cli.salehatop import SalehaTopDashboard
-from saleha.core.sandboxed_mcp_client import SandboxedMCPClient
+from saleha.core.platform.sandboxed_mcp_client import SandboxedMCPClient
 from saleha.core.swarm.p2p_mesh import MeshNodeHeartbeat, P2PMeshNode
 
 

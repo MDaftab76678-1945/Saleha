@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.browser_runner import BrowserResult, BrowserRunner, _SimpleDOMParser
+from saleha.core.vision.browser_runner import BrowserResult, BrowserRunner, _SimpleDOMParser
 
 
 class BrowserRunnerTests(unittest.TestCase):

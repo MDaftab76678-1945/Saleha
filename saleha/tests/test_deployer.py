@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.deployer import cloud_deployer
+from saleha.core.devops.deployer import cloud_deployer
 
 
 class DeployerTests(unittest.TestCase):

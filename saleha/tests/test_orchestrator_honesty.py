@@ -24,7 +24,7 @@ import unittest
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from saleha.core.fast_inference import InferenceResult
+from saleha.core.platform.fast_inference import InferenceResult
 
 
 def _engine(ok: bool = True, content: str = "real critique text") -> Any:
@@ -196,7 +196,7 @@ class SalehaOrchestratorVerificationTests(unittest.TestCase):
 
     def _run(self, orch: Any) -> Any:
         with patch("saleha.core.memory.memory_store.memory_store.recall", return_value=None), \
-             patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+             patch("saleha.core.skills.skill_registry.registry.find_skill", return_value=None):
             return orch.execute_task("do a thing", use_context=False)
 
     def test_unapproved_broken_code_is_not_reported_as_success(self) -> None:
@@ -233,7 +233,7 @@ class SalehaOrchestratorVerificationTests(unittest.TestCase):
         cached = MagicMock(code=self.WORKING, model="fake-model", hit_count=3)
         orch = SalehaOrchestrator(model="fake-model")
         with patch("saleha.core.memory.memory_store.memory_store.recall", return_value=cached), \
-             patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+             patch("saleha.core.skills.skill_registry.registry.find_skill", return_value=None):
             res = orch.execute_task("do a thing", use_context=False)
         self.assertTrue(res.success)
         self.assertFalse(res.verified)
@@ -280,7 +280,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
         with patch("saleha.core.memory.memory_store.memory_store.remember",
                    side_effect=lambda **kw: seen.update(kw) or MagicMock()), \
              patch("saleha.core.memory.memory_store.memory_store.recall", return_value=None), \
-             patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+             patch("saleha.core.skills.skill_registry.registry.find_skill", return_value=None):
             orch.execute_task("goal", use_context=False, generate_tests=False)
         self.assertEqual(seen.get("source_type"), "ran_without_error")
 
@@ -290,7 +290,7 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
         from saleha.orchestrator import SalehaOrchestrator
         orch = SalehaOrchestrator(model="fake-model")
         with patch("saleha.core.memory.memory_store.memory_store.recall", return_value=entry), \
-             patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+             patch("saleha.core.skills.skill_registry.registry.find_skill", return_value=None):
             res = orch.execute_task("goal", use_context=False)
         self.assertTrue(res.success)
         self.assertFalse(res.verified)
@@ -306,10 +306,10 @@ class SalehaOrchestratorBookkeepingTests(unittest.TestCase):
         """
         orch = self._orch(self.BLOCKED)
         states = []
-        with patch("saleha.core.session_store.session_store.save",
+        with patch("saleha.core.memory.session_store.session_store.save",
                    side_effect=lambda st: states.append(st.status)), \
              patch("saleha.core.memory.memory_store.memory_store.recall", return_value=None), \
-             patch("saleha.core.skill_registry.registry.find_skill", return_value=None):
+             patch("saleha.core.skills.skill_registry.registry.find_skill", return_value=None):
             res = orch.execute_task("goal", use_context=False)
         self.assertFalse(res.success)
         self.assertEqual(states[-1], "failed")

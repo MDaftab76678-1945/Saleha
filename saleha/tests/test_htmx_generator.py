@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.htmx_generator import HTMXAppPackage, HTMXGenerator
+from saleha.core.project.htmx_generator import HTMXAppPackage, HTMXGenerator
 
 
 class TestHTMXGenerator(unittest.TestCase):

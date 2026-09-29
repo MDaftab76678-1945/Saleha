@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from saleha.core.sandbox.windows_job_sandbox import SandboxRunResult, WindowsJobSandbox
 from saleha.core.verification.formal_smt_verifier import FormalProofContract, FormalSMTVerifier
-from saleha.core.windows_job_sandbox import SandboxRunResult, WindowsJobSandbox
 from saleha.sandbox.ast_security_verifier import ASTContractAuditor
 
 _COMPLETION_MARKER_PREFIX = "__saleha_run_complete__"

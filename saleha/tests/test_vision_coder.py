@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-from saleha.core.vision_coder import VisionCoder, vision_coder
+from saleha.core.vision.vision_coder import VisionCoder, vision_coder
 
 
 class VisionCoderTests(unittest.TestCase):

@@ -41,7 +41,7 @@ def browser(url, selector, screenshot, timeout, as_json):
     Example with DOM check: saleha browser http://localhost:3000 -s "#root" -s "button"
     Example with screenshot: saleha browser http://localhost:8000 --screenshot ./app.png
     """
-    from saleha.core.browser_runner import browser_runner
+    from saleha.core.vision.browser_runner import browser_runner
     with Progress(SpinnerColumn(), TextColumn(f'[cyan]Navigating to {url}...'), console=console) as progress:
         progress.add_task('browser', total=None)
         res = browser_runner.navigate(url=url, expected_selectors=list(selector), capture_screenshot=bool(screenshot), screenshot_path=screenshot, timeout=timeout)
@@ -62,7 +62,7 @@ def server_cmd(port, dry_run):
     
     Example: saleha server --port 8000
     """
-    from saleha.core.distributed_server import distributed_server
+    from saleha.core.swarm.distributed_server import distributed_server
     distributed_server.port = port
     console.print(f'[bold cyan]🖥️ Starting Saleha Distributed Swarm Server on:[/] [green]http://127.0.0.1:{port}[/]')
     telem = distributed_server.get_cluster_telemetry()

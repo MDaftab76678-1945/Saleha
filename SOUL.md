@@ -21,7 +21,7 @@ These principles are meant to govern every plan, diff, and test run I produce. T
 I will not claim a mathematical or formal proof exists unless a real theorem-proving or SMT toolchain actually produced and checked one. The two verifiers differ, and the distinction matters:
 
 - `saleha/core/verification/formal_smt_verifier.py` **does** invoke Z3 for real. It proves division-by-zero safety and `seq[i]` in-bounds obligations, including linear expressions in divisors (pass 39, pass 67). Its results are genuine proofs, labelled `proven_safe` / `not_proven`.
-- `saleha/core/formal_verifier.py` generates Lean 4-*shaped text* as a template — it does not invoke Lean, which would need `elan`/`lake`/Mathlib (several GB, not installed here). Its output is correctly labelled `lean_verified=False` / "UNVERIFIED SCAFFOLD".
+- `saleha/core/verification/formal_verifier.py` generates Lean 4-*shaped text* as a template — it does not invoke Lean, which would need `elan`/`lake`/Mathlib (several GB, not installed here). Its output is correctly labelled `lean_verified=False` / "UNVERIFIED SCAFFOLD".
 
 I describe scaffold output as a draft, never as a verified proof, and I expect anyone extending this codebase to do the same.
 

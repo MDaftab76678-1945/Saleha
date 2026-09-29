@@ -5,7 +5,7 @@ import unittest
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.quadratic_voting import QuadraticVotingEngine, QuadraticVotingReport
+from saleha.core.swarm.quadratic_voting import QuadraticVotingEngine, QuadraticVotingReport
 
 
 class TestQuadraticVoting(unittest.TestCase):

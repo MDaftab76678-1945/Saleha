@@ -1,4 +1,4 @@
-"""Unit tests for saleha.core.self_improve module."""
+"""Unit tests for saleha.core.loop.self_improve module."""
 
 import subprocess
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from saleha.core import self_improve
-from saleha.core.self_improve import (
+from saleha.core.loop.self_improve import (
     SelfImproveResult,
     _clean_code_fence,
     _extract_public_api,

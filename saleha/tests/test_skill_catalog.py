@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.skill_catalog import SkillCatalog, skill_catalog
+from saleha.core.skills.skill_catalog import SkillCatalog, skill_catalog
 
 
 class SkillCatalogTests(unittest.TestCase):

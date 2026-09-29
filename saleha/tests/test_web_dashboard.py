@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.web_dashboard import WebDashboardServer
+from saleha.core.ui.web_dashboard import WebDashboardServer
 
 
 class WebDashboardTests(unittest.TestCase):

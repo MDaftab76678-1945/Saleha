@@ -8,8 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.coder import CoderAgent
-from saleha.core.platform.model_provider import ProviderResponse
-from saleha.core.swe_bench_runner import (
+from saleha.core.harness.swe_bench_runner import (
     build_prompt,
     iter_instances,
     real_diff_from_repo,
@@ -17,6 +16,12 @@ from saleha.core.swe_bench_runner import (
     synth_newfile_patch,
     write_predictions,
 )
+from saleha.core.platform.model_provider import ProviderResponse
+
+
+def _read_jsonl(path: str) -> list:
+    with open(path, encoding="utf-8") as fh:
+        return [json.loads(line) for line in fh]
 
 
 class TokenAccountingTests(unittest.TestCase):
@@ -47,7 +52,8 @@ class TokenAccountingTests(unittest.TestCase):
         prov = MagicMock()
         def fake_stream(model: Any, prompt: Any, callback: Optional[Any]=None, options: Optional[Any]=None) -> Any:
             if callback:
-                callback("a"); callback("b")
+                callback("a")
+                callback("b")
             return ProviderResponse(success=True, content="ab", tokens_used=7)
         prov.stream_generate = fake_stream
         agent = BaseAgent(role="T", model="m", provider=prov)
@@ -124,7 +130,7 @@ class SWEBenchRunnerTests(unittest.TestCase):
             out_path = os.path.join(tmp, "preds.jsonl")
             report = run_benchmark(inst_path, out_path, model="fixed-model")
             self.assertEqual(report["empty_patches"], 1)
-            preds = [json.loads(l) for l in open(out_path, encoding="utf-8")]
+            preds = _read_jsonl(out_path)
             self.assertEqual(preds[0]["model_patch"], "")
 
     def test_run_benchmark_real_repo_produces_real_git_diff(self) -> None:
@@ -171,14 +177,19 @@ class SWEBenchRunnerTests(unittest.TestCase):
             self.assertEqual(report["empty_patches"], 0)
             with open(buggy_path) as f:
                 self.assertIn("a + b", f.read())  # the real file was actually changed
-            preds = [json.loads(l) for l in open(out_path, encoding="utf-8")]
+            preds = _read_jsonl(out_path)
             patch_text = preds[0]["model_patch"]
             self.assertIn("buggy.py", patch_text)  # real file, not "saleha_solution.py"
             self.assertIn("+    return a + b", patch_text)
             self.assertIn("-    return a - b", patch_text)
+            # The agent answers in tool_call blocks; its goal must not ask for
+            # whole files in ```python blocks (the single-shot coder's format).
+            first_prompt = fake_agent.think.call_args_list[0].args[0]
+            self.assertIn("Fix the following issue in this repository", first_prompt)
+            self.assertNotIn("Return ONLY the complete updated content", first_prompt)
 
     def test_write_predictions_official_format(self) -> None:
-        from saleha.core.swe_bench_runner import SWEBenchPrediction
+        from saleha.core.harness.swe_bench_runner import SWEBenchPrediction
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "preds.jsonl")
             n = write_predictions([
@@ -186,7 +197,7 @@ class SWEBenchRunnerTests(unittest.TestCase):
                 SWEBenchPrediction("repo__issue-2", "saleha-model", ""),
             ], out)
             self.assertEqual(n, 2)
-            lines = [json.loads(l) for l in open(out, encoding="utf-8")]
+            lines = _read_jsonl(out)
             self.assertEqual(set(lines[0].keys()),
                              {"instance_id", "model_name_or_path", "model_patch"})
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import ast
 
-from saleha.core.mcts_search_engine import MCTSExecutionResult, MCTSNode, MCTSSearchEngine
+from saleha.core.loop.mcts_search_engine import MCTSExecutionResult, MCTSNode, MCTSSearchEngine
 
 
 class TestMCTSSearchEngine:

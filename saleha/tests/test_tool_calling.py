@@ -7,7 +7,12 @@ import unittest
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.tool_calling import ToolCallingLoop, ToolDefinition, ToolParameter, ToolRegistry
+from saleha.core.skills.tool_calling import (
+    ToolCallingLoop,
+    ToolDefinition,
+    ToolParameter,
+    ToolRegistry,
+)
 
 
 class ToolCallingTests(unittest.TestCase):

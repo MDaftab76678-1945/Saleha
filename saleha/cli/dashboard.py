@@ -21,11 +21,11 @@ from rich.table import Table
 from rich.text import Text
 
 from saleha import __version__
-from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory.memory_store import memory_store
-from saleha.core.skill_registry import load_builtin_skills
-from saleha.core.skill_registry import registry as skill_registry
-from saleha.core.task_history import TaskHistory
+from saleha.core.memory.task_history import TaskHistory
+from saleha.core.platform.agent_profile_loader import profile_registry
+from saleha.core.skills.skill_registry import load_builtin_skills
+from saleha.core.skills.skill_registry import registry as skill_registry
 from saleha.core.telemetry.stats_tracker import StatsTracker
 
 if sys.platform == "win32":

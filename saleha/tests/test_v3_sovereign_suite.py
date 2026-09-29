@@ -9,10 +9,10 @@ from saleha.agents.voice_architect import (
     voice_architect,
 )
 from saleha.cli.chat_session import SwarmChatSession
-from saleha.core.local_inference_engine import (
+from saleha.core.platform.local_inference_engine import (
     LocalInferenceEngine,
 )
-from saleha.core.repo_orchestrator import (
+from saleha.core.project.repo_orchestrator import (
     AutonomousRepoOrchestrator,
 )
 

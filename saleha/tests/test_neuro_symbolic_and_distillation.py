@@ -11,11 +11,11 @@ from saleha.cli.chat_session import SwarmChatSession
 from saleha.core.cognitive.neuro_symbolic_engine import (
     NeuroSymbolicEngine,
 )
-from saleha.core.dataset_synthesizer import (
+from saleha.core.training.dataset_synthesizer import (
     SalehaDatasetSynthesizer,
     dataset_synthesizer,
 )
-from saleha.core.model_distillation_pipeline import (
+from saleha.core.training.model_distillation_pipeline import (
     ModelDistillationPipeline,
 )
 

@@ -1,5 +1,5 @@
 
-from saleha.core.nexus_mobile_bridge import MobileCommandResponse, NexusMobileBridge
+from saleha.core.research.nexus_mobile_bridge import MobileCommandResponse, NexusMobileBridge
 
 
 def test_process_incoming_mobile_message():

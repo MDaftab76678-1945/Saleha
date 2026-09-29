@@ -19,8 +19,8 @@ from rich.text import Text
 from rich.tree import Tree
 
 from saleha import __version__
-from saleha.core.agent_profile_loader import profile_registry
 from saleha.core.memory.memory_store import memory_store
+from saleha.core.platform.agent_profile_loader import profile_registry
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 
 
@@ -166,7 +166,7 @@ def start_tui_canvas(console: Optional[Console] = None, interactive: bool = True
             continue
 
         if user_input.startswith("/mcp"):
-            from saleha.core.mcp_engine import MCPServer
+            from saleha.core.platform.mcp_engine import MCPServer
             server = MCPServer()
             tools = [t["name"] for t in server.list_tools()]
             messages.append({"role": "assistant", "text": f"MCP Tools: {', '.join(tools)}"})

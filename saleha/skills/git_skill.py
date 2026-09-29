@@ -10,7 +10,7 @@ Provides fast local Git automation:
 
 import re
 
-from saleha.core.skill_base import Skill, SkillResult
+from saleha.core.skills.skill_base import Skill, SkillResult
 
 
 class GitSkill(Skill):

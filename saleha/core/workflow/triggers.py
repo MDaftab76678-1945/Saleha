@@ -51,7 +51,7 @@ class CronTrigger(TriggerNode):
         self.cron_expression = cron_expression
 
     def is_triggered(self, event_data: Optional[Dict[str, Any]] = None) -> bool:
-        from saleha.core.task_scheduler import cron_matches
+        from saleha.core.daemons.task_scheduler import cron_matches
         when = (event_data or {}).get("timestamp") or datetime.now()
         return cron_matches(self.cron_expression, when)
 

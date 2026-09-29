@@ -10,7 +10,12 @@ import time
 import unittest
 from typing import Any
 
-from saleha.core.agent_contracts import (
+from saleha.core.plugins.plugin_manifest import (
+    PluginAgentSpec,
+    PluginManifestEngine,
+    SalehaPluginManifest,
+)
+from saleha.core.swarm.agent_contracts import (
     ArchitectOutputContract,
     CoderOutputContract,
     FinOpsOutputContract,
@@ -18,7 +23,6 @@ from saleha.core.agent_contracts import (
     ReviewerOutputContract,
     SecurityOutputContract,
 )
-from saleha.core.plugin_manifest import PluginAgentSpec, PluginManifestEngine, SalehaPluginManifest
 from saleha.core.swarm.agent_worker_pool import AgentWorkerPool
 from saleha.core.swarm.swarm_checkpoint_store import SwarmCheckpoint, SwarmCheckpointStore
 from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine

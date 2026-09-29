@@ -207,6 +207,25 @@ class SwarmRepairTierTests(unittest.TestCase):
         self.assertIn(f"mock: no candidate passed ({E.REPAIR_ATTEMPTS} of {E.REPAIR_ATTEMPTS} tried: "
                       f"{E.REPAIR_ATTEMPTS} duplicate)", qa.payload["oracle"]["repair_search"])
 
+    def test_the_router_learns_only_from_judged_outputs(self) -> None:
+        """Each repair try the tests + brute force judged becomes a verdict; tries that never ran do not."""
+        from unittest.mock import patch
+
+        from saleha.agents.coder import CodeResult
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine as E
+
+        def verdicts(repair: Callable[[str], Any]) -> List[Tuple[str, bool]]:
+            with patch("saleha.core.platform.smart_router.smart_router.record_verdict") as rec:
+                self._run(repair)
+            return [(c.args[0], c.args[1]) for c in rec.call_args_list]
+
+        # The coder's first answer differs from the brute force: one failed
+        # verdict (model_used is "" here, which the router itself drops).
+        first = [("", False)]
+        self.assertEqual(verdicts(lambda model: CodeResult(success=True, code=FAST if model == "qwen3:8b" else BUGGY)),
+                         first + [("mock", False)] * E.REPAIR_ATTEMPTS + [("qwen3:8b", True)])
+        self.assertEqual(verdicts(lambda model: CodeResult(success=False, code="", error=self.DOWN)), first)
+
     def test_bigger_model_is_not_asked_when_the_coder_model_fixed_it(self) -> None:
         from saleha.agents.coder import CodeResult
 
@@ -218,13 +237,18 @@ class SwarmRepairTierTests(unittest.TestCase):
         import os
         from unittest.mock import patch
 
-        from saleha.core.swarm.swarm_pipeline_engine import ESCALATION_MODEL
+        from saleha.core.swarm.swarm_pipeline_engine import ESCALATION_CONTEXT, ESCALATION_MODEL
         from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine as E
 
-        first = ("mock", E.REPAIR_ATTEMPTS, E.REPAIR_CONCURRENCY, False)
+        first = ("mock", E.REPAIR_ATTEMPTS, E.REPAIR_CONCURRENCY, False, None)
+        # Thinking off for a reasoning model; its 40960 window cut to ESCALATION_CONTEXT.
         self.assertEqual(E(escalation_model="qwen3:8b")._repair_tiers(),
-                         [first, ("qwen3:8b", E.ESCALATION_ATTEMPTS, 1, True)])  # thinking off for a reasoning model
+                         [first, ("qwen3:8b", E.ESCALATION_ATTEMPTS, 1, True, ESCALATION_CONTEXT)])
         self.assertFalse(E(escalation_model="deepseek-coder:6.7b")._repair_tiers()[1].no_thinking)
+        # Never grown past the model's own window, never set for a cloud model.
+        with patch("saleha.core.platform.context_budget.context_window_for", return_value=ESCALATION_CONTEXT):
+            self.assertIsNone(E(escalation_model="qwen3:8b")._repair_tiers()[1].context_window)
+        self.assertIsNone(E(escalation_model="claude-code:sonnet")._repair_tiers()[1].context_window)
         self.assertEqual(E(escalation_model="")._repair_tiers(), [first])
         self.assertEqual(E(escalation_model="mock")._repair_tiers(), [first])
         # An explicit mock run must never reach a real model.

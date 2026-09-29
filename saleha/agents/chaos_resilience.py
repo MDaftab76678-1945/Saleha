@@ -9,7 +9,7 @@ SRE arm, `/chaos` in chat and the web API.
 
 It now returns the same circuit-breaker template (a real, usable decorator)
 with `measured=False` and no score. For an actual probe of a callable, see
-`saleha.core.chaos_engine`.
+`saleha.core.devops.chaos_engine`.
 """
 
 from __future__ import annotations

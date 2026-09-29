@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from saleha.agents.base_agent import AgentResponse
-from saleha.core.architecture_debater import ArchitectureDebater
+from saleha.core.swarm.architecture_debater import ArchitectureDebater
 
 
 class ArchitectureDebaterTests(unittest.TestCase):

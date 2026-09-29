@@ -31,7 +31,7 @@ import tempfile
 from dataclasses import dataclass
 from typing import Optional
 
-from saleha.core.safety_patterns import check_dangerous
+from saleha.core.security.safety_patterns import check_dangerous
 
 MIN_VALID_FRACTION = 0.5  # oracle must return normally on at least half the inputs
 # Budget for shrinking a counterexample (deleting items while it still fails):

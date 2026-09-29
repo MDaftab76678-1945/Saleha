@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from saleha.core.tech_debt_analyzer import TechDebtAnalyzer
+from saleha.core.review.tech_debt_analyzer import TechDebtAnalyzer
 
 
 class TechDebtAnalyzerTests(unittest.TestCase):

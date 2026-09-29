@@ -22,7 +22,7 @@ import os
 import unittest
 from typing import Any
 
-from saleha.core.agent_council import (
+from saleha.core.swarm.agent_council import (
     AgentCouncil,
     CouncilDebateResult,
     CouncilProposal,

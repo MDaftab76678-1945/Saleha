@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.voice_assistant import VoiceAssistant
+from saleha.core.voice.voice_assistant import VoiceAssistant
 
 
 class TestVoiceAssistant(unittest.TestCase):

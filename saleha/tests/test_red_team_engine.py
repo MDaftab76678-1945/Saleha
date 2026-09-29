@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.red_team_engine import RedTeamAuditReport, RedTeamEngine
+from saleha.core.security.red_team_engine import RedTeamAuditReport, RedTeamEngine
 
 
 class TestRedTeamEngine(unittest.TestCase):

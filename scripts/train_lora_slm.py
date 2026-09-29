@@ -4,7 +4,7 @@ Saleha-Coder SLM Distillation Pipeline -- environment check.
 
 This script does not train anything. It checks that the fine-tuning stack is
 installed and exits non-zero when it is not. Real LoRA training is
-saleha.core.lora_tuner.LoRATuner.
+saleha.core.training.lora_tuner.LoRATuner.
 """
 
 import sys
@@ -23,7 +23,7 @@ def run_fine_tuning() -> int:
     if missing:
         print("Missing: " + ", ".join(missing) + ". Install them before training.")
         return 1
-    print("All dependencies import. Train with saleha.core.lora_tuner.LoRATuner.")
+    print("All dependencies import. Train with saleha.core.training.lora_tuner.LoRATuner.")
     return 0
 
 

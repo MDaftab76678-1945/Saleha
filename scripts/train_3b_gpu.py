@@ -38,7 +38,7 @@ from peft import (
     TaskType,
 )
 
-# Shared with saleha.core.dpo_dataset_engine.MIN_DPO_PAIRS.
+# Shared with saleha.core.training.dpo_dataset_engine.MIN_DPO_PAIRS.
 MIN_TRAINING_SAMPLES = 20
 
 

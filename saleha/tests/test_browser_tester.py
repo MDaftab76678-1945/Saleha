@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from saleha.core.browser_tester import AutonomousBrowserTester, BrowserAction
+from saleha.core.vision.browser_tester import AutonomousBrowserTester, BrowserAction
 
 try:
     import playwright.sync_api  # noqa: F401

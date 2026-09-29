@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from saleha.agents.base_agent import AgentResponse
-from saleha.core.voice_engine import VoiceAssistantEngine
+from saleha.core.voice.voice_engine import VoiceAssistantEngine
 
 
 class VoiceEngineTests(unittest.TestCase):

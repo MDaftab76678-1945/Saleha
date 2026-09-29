@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.pr_reviewer import PRReviewer
+from saleha.core.github.pr_reviewer import PRReviewer
 
 
 class PRReviewerTests(unittest.TestCase):

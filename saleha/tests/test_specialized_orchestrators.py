@@ -6,13 +6,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from saleha.core.cloud_infra_orchestrator import CloudInfraOrchestrator, CloudInfraPlan
-from saleha.core.debate_consensus_orchestrator import DebateConsensusOrchestrator, DebateVerdict
-from saleha.core.fast_inference import InferenceResult
-from saleha.core.multirepo_orchestrator import MultiRepoOrchestrator, MultiRepoSyncPlan
-from saleha.core.silicon_circuit_orchestrator import (
+from saleha.core.devops.cloud_infra_orchestrator import CloudInfraOrchestrator, CloudInfraPlan
+from saleha.core.platform.fast_inference import InferenceResult
+from saleha.core.project.multirepo_orchestrator import MultiRepoOrchestrator, MultiRepoSyncPlan
+from saleha.core.research.silicon_circuit_orchestrator import (
     SiliconCircuitDesign,
     SiliconCircuitOrchestrator,
+)
+from saleha.core.swarm.debate_consensus_orchestrator import (
+    DebateConsensusOrchestrator,
+    DebateVerdict,
 )
 
 

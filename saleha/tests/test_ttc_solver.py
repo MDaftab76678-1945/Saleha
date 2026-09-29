@@ -6,7 +6,7 @@ Unit tests for Saleha Test-Time Compute (TTC) Multi-Trajectory Solver
 from typing import Any
 from unittest.mock import MagicMock
 
-from saleha.core.fast_inference import InferenceResult
+from saleha.core.platform.fast_inference import InferenceResult
 from saleha.core.verification.ttc_solver import (
     CandidateTrajectory,
     TTCTrajectorySolver,

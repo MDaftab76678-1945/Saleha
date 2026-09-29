@@ -6,7 +6,7 @@ call via CoderAgent) and scores them with the real AST security scanner
 and neuro-symbolic invariant scorer, then reports group-relative advantage.
 
 This does not train or deploy a model -- see
-saleha/core/grpo_reasoning_trainer.py for what is and is not implemented.
+saleha/core/training/grpo_reasoning_trainer.py for what is and is not implemented.
 """
 
 import os
@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from saleha.core.grpo_reasoning_trainer import GRPOReasoningTrainer
+from saleha.core.training.grpo_reasoning_trainer import GRPOReasoningTrainer
 
 
 def main():

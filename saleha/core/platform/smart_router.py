@@ -144,6 +144,23 @@ def get_installed_ollama_models(force_refresh: bool = False) -> Set[str]:
     return models
 
 
+def _clean_verified(raw: Any) -> Dict[str, Dict[str, float]]:
+    """The history file's "verified" section, keeping only well-formed, non-negative entries."""
+    clean: Dict[str, Dict[str, float]] = {}
+    if not isinstance(raw, dict):
+        return clean
+    for model, v in raw.items():
+        if not isinstance(v, dict):
+            continue
+        try:
+            passed, failed, seconds = int(v.get("passed", 0)), int(v.get("failed", 0)), float(v.get("seconds", 0.0))
+        except (TypeError, ValueError):
+            continue
+        if min(passed, failed, seconds) >= 0:
+            clean[str(model)] = {"passed": passed, "failed": failed, "seconds": seconds}
+    return clean
+
+
 def get_default_history_path() -> str:
     saleha_dir = os.path.join(os.path.expanduser("~"), ".saleha")
     with contextlib.suppress(OSError):
@@ -172,16 +189,35 @@ class TaskResult:
 
 
 class SmartRouter:
-    # Priors for a model with no recorded runs. Deliberately mid-range, not
-    # optimistic: the goal is that an unused model can compete on merit, not
-    # that it displaces a proven one. A model matching its keywords wins; one
-    # that does not still loses to an incumbent with a real track record.
+    """
+    Picks an installed model by keyword fit, size, and -- the largest term --
+    how often the model's output has actually passed an independent check.
+
+    That last term used to be the share of calls where Ollama returned any
+    text at all (`record_result`, fed by every `BaseAgent.think`). Measured in
+    this machine's history: qwen2.5-coder:3b at 94% "success" and 0.72 s per
+    call, while its real repair tries passed tests plus a brute-force check 2
+    times in 34 at ~11 s each; qwen2.5-coder:7b, not even installed, at 100%
+    over 345 calls averaging 0.00 s -- test-suite mock calls written into the
+    real history file. An answer that exists is not an answer that works.
+
+    Quality now comes only from `record_verdict`: an outcome some check
+    outside the model decided (tests, a brute-force comparison). A model with
+    no verdicts is scored as the average of the models that have them, so it
+    can compete without displacing a proven one. The term is pass rate times a
+    speed factor, so a small model that passes less often but tries five times
+    faster is not ranked below a big one per attempt -- small beating large
+    has to show up in the arithmetic, not only in the slogan.
+    """
+
+    # Pass-rate prior when no model has a verdict yet.
     _UNTRIED_SUCCESS_PRIOR = 0.75
-    _UNTRIED_SPEED_PRIOR = 2.0
-    # Ceiling on the speed term. 10.0 corresponds to a 1-second average, so a
-    # genuinely fast model still earns the full nudge; anything faster stops
-    # buying more advantage.
-    _MAX_SPEED_SCORE = 10.0
+    # Pseudo-observations pulling a model's pass rate toward the prior, so two
+    # lucky verdicts do not read as a 100% model.
+    _PRIOR_WEIGHT = 2.0
+    # A verified try that takes this long or less earns the full speed factor;
+    # slower tries scale down in proportion (a 60 s try earns a quarter).
+    _FAST_TRY_SECONDS = 15.0
 
     def __init__(
         self,
@@ -189,6 +225,10 @@ class SmartRouter:
         probe_runtime: bool = False,
         laya_agent: Any = None,
     ):
+        # The test suite constructs routers with the default path through
+        # every "auto" agent; persisting those mock calls is how 345 fake
+        # qwen2.5-coder:7b runs reached the real history file.
+        self._persist = history_file is not None or os.environ.get("SALEHA_TEST_MODE") != "1"
         self.history_file = history_file or get_default_history_path()
         self.probe_runtime = probe_runtime
         self.models = self._init_models()
@@ -205,6 +245,8 @@ class SmartRouter:
             "uses": 0
         })
         self.task_cache: Dict[str, str] = {}
+        # model -> {"passed": n, "failed": n, "seconds": total}, from record_verdict only.
+        self.verified: Dict[str, Dict[str, float]] = {}
         self._load_history()
 
     def _init_models(self) -> Dict[str, ModelProfile]:
@@ -315,13 +357,28 @@ class SmartRouter:
                         "uses": 0
                     }, data.get("performance", {}))
                     self.task_cache = data.get("cache", {})
+                    self.verified = _clean_verified(data.get("verified"))
             except (json.JSONDecodeError, OSError):
                 pass
 
-    def _save_history(self):
+    def _read_disk_verified(self) -> None:
+        """Take the verdicts on disk; another router may have added some since this one loaded."""
+        if os.path.exists(self.history_file):
+            with contextlib.suppress(json.JSONDecodeError, OSError, AttributeError), \
+                    open(self.history_file, encoding="utf-8") as f:
+                self.verified = _clean_verified(json.load(f).get("verified"))
+
+    def _save_history(self, verdict_added: bool = False):
+        if not self._persist:
+            return
+        if not verdict_added:
+            # Every think() saves; a router loaded before a verdict was
+            # recorded elsewhere would otherwise write the old section back.
+            self._read_disk_verified()
         data = {
             "performance": dict(self.model_performance),
             "cache": self.task_cache,
+            "verified": self.verified,
             "last_updated": time.time()
         }
         try:
@@ -389,37 +446,47 @@ class SmartRouter:
             else:
                 return self._filter_installed(["qwen2.5-coder:3b"])
 
-    def _score_model(self, model_name: str, task: str, complexity: float) -> float:
-        profile = self.models[model_name]
-        perf = self.model_performance[model_name]
-        score = 0.0
+    def _speed_factor(self, seconds_per_try: float) -> float:
+        """1.0 up to _FAST_TRY_SECONDS per verified try, falling in proportion after."""
+        return min(1.0, self._FAST_TRY_SECONDS / max(0.001, seconds_per_try))
 
-        # An unused model scored 0 here while the incumbent collected up to
-        # 40 (success) + 30 (speed), so it could never be picked no matter how
-        # well it matched -- and never being picked kept its use count at 0.
-        # Measured on this box: qwen2.5-coder:3b had 2551 uses and scored
-        # 59.47 on "design a distributed system" while matching zero of its
-        # own keywords; qwen3:8b matched two and scored 9.92. With every one
-        # of its seven keywords present it still only reached 29.92.
-        #
-        # A new model is therefore scored as average-until-observed rather
-        # than as failing. Both priors decay as real results arrive, so this
-        # only governs the first few calls.
-        if perf["uses"] > 0:
-            success_rate = perf["success_count"] / perf["uses"]
-            score += success_rate * 40.0
-            avg_time = max(0.001, perf["total_time"] / perf["uses"])
-            # Clamped at both ends. Unbounded above, this term dwarfed every
-            # other signal: qwen2.5-coder:7b sits in this machine's history
-            # with 219 uses at avg_time 0.0000s -- cached or mocked runs
-            # recorded as real timings -- scoring 12,346,136 and guaranteeing
-            # it would win every route the moment it was installed, whatever
-            # the task. Speed is worth a nudge, not a veto.
-            time_score = min(self._MAX_SPEED_SCORE, max(1.0, 10.0 / avg_time))
-            score += time_score * 3.0
+    def _verified_priors(self) -> Tuple[float, float]:
+        """
+        (pass rate, speed factor) for a model with no verdicts: every verdict
+        so far pooled, pulled toward _UNTRIED_SUCCESS_PRIOR. Not the raw
+        average -- measured, qwen2.5-coder:3b went 0 for 6 on a real repair,
+        and a raw average of 0 would score every untried model as failing too,
+        so the router could never try another arm when the incumbent keeps
+        missing.
+        """
+        judged = [v for v in self.verified.values() if v["passed"] + v["failed"] > 0]
+        if not judged:
+            return self._UNTRIED_SUCCESS_PRIOR, 1.0
+        passed = sum(v["passed"] for v in judged)
+        tries = sum(v["passed"] + v["failed"] for v in judged)
+        rate = (passed + self._UNTRIED_SUCCESS_PRIOR * self._PRIOR_WEIGHT) / (tries + self._PRIOR_WEIGHT)
+        speeds = [self._speed_factor(v["seconds"] / (v["passed"] + v["failed"])) for v in judged]
+        return rate, sum(speeds) / len(speeds)
+
+    def verified_quality(self, model_name: str) -> Dict[str, float]:
+        """Pass rate, speed factor and their product for a model, from verdicts or the priors."""
+        prior_rate, prior_speed = self._verified_priors()
+        v = self.verified.get(model_name, {"passed": 0, "failed": 0, "seconds": 0.0})
+        tries = v["passed"] + v["failed"]
+        if tries:
+            rate = (v["passed"] + prior_rate * self._PRIOR_WEIGHT) / (tries + self._PRIOR_WEIGHT)
+            speed = self._speed_factor(v["seconds"] / tries)
         else:
-            score += self._UNTRIED_SUCCESS_PRIOR * 40.0
-            score += self._UNTRIED_SPEED_PRIOR * 3.0
+            rate, speed = prior_rate, prior_speed
+        return {"tries": tries, "pass_rate": rate, "speed_factor": speed, "quality": rate * speed}
+
+    def _score_model(self, model_name: str, task: str, _complexity: float) -> float:
+        profile = self.models[model_name]
+        # Up to 40 for verified quality. A model with no verdicts gets the
+        # average of those that have them: scored as failing, a new model
+        # could never be picked, and never being picked kept it unscored
+        # (qwen3:8b once lost "design a distributed system" 9.92 to 59.47).
+        score = self.verified_quality(model_name)["quality"] * 40.0
 
         task_lower = task.lower()
         keyword_matches = sum(1 for kw in profile.best_for if kw in task_lower)
@@ -462,8 +529,31 @@ class SmartRouter:
     def select_model_for_task(self, task: str, complexity_score: float = 0.0) -> str:
         return self.select_model(task, complexity_score=complexity_score)
 
-    def record_result(self, task: str, complexity: float, model_used: str, 
+    def record_verdict(self, model: str, passed: bool, seconds: float) -> None:
+        """
+        Record one output of `model` that a check outside the model judged:
+        `passed` only when that check accepted it. Output nobody checked, or a
+        check that did not run, is not a verdict and must not be recorded.
+        """
+        name = (model or "").strip()
+        if not name or name in ("mock", "auto"):
+            return
+        # Several routers share the file (one per "auto" agent); start from
+        # what is on disk so one does not overwrite another's verdicts.
+        if self._persist:
+            self._read_disk_verified()
+        v = self.verified.setdefault(name, {"passed": 0, "failed": 0, "seconds": 0.0})
+        v["passed" if passed else "failed"] += 1
+        v["seconds"] += max(0.0, float(seconds))
+        self._save_history(verdict_added=True)
+
+    def record_result(self, task: str, complexity: float, model_used: str,
                      response_time: float, success: bool):
+        """
+        Record that a call returned (`success`: the provider gave any text).
+        Kept for usage stats only; it says nothing about whether the output
+        worked, so routing does not read it -- see `record_verdict`.
+        """
         task_hash = self._get_task_hash(task, complexity)
         
         result = TaskResult(
@@ -486,18 +576,27 @@ class SmartRouter:
         self._save_history()
 
     def get_model_stats(self, model_name: str) -> Dict:
+        """
+        `success_rate` is the share of calls that returned text, not of
+        outputs that worked; `verified_*` counts outputs an outside check
+        judged, and is what routing uses.
+        """
         perf = self.model_performance[model_name]
+        v = self.verified.get(model_name, {"passed": 0, "failed": 0, "seconds": 0.0})
+        judged = {"verified_passed": int(v["passed"]), "verified_failed": int(v["failed"])}
         if perf["uses"] == 0:
             return {
                 "uses": 0,
                 "success_rate": 0.0,
-                "avg_time": 0.0
+                "avg_time": 0.0,
+                **judged,
             }
-        
+
         return {
             "uses": perf["uses"],
             "success_rate": perf["success_count"] / perf["uses"],
-            "avg_time": perf["total_time"] / perf["uses"]
+            "avg_time": perf["total_time"] / perf["uses"],
+            **judged,
         }
 
     def classify_task_tier(self, task: str) -> Dict[str, Any]:
@@ -630,7 +729,7 @@ class SmartRouter:
         """
         base = self.classify_task_tier(task)
 
-        from saleha.core.inference_router_bridge import rust_inference_router
+        from saleha.core.platform.inference_router_bridge import rust_inference_router
 
         if not rust_inference_router.is_available():
             base["rust_available"] = False

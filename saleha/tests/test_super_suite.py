@@ -7,7 +7,7 @@ from saleha.agents.deep_researcher import DeepResearcherAgent, deep_researcher
 from saleha.agents.sheets_analyst import SheetsAnalystAgent, sheets_analyst
 from saleha.agents.slides_architect import SlidesArchitectAgent, slides_architect
 from saleha.cli.chat_session import SwarmChatSession
-from saleha.core.task_scheduler import TaskSchedulerEngine
+from saleha.core.daemons.task_scheduler import TaskSchedulerEngine
 
 
 class TestDeepResearcherAgent:

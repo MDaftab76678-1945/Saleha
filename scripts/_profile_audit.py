@@ -1,5 +1,5 @@
 """Profile quality audit: kya har profile 'rich' hai ya thin?"""
-from saleha.core.agent_profile_loader import profile_registry
+from saleha.core.platform.agent_profile_loader import profile_registry
 
 print(f"{'profile':34} {'words':>5} {'goals':>5} {'constr':>6} {'tools':>5} {'temp':>4} {'routing':>7}")
 thin_profiles = []

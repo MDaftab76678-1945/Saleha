@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass, field
 from typing import List
 
-from saleha.core.spics_fuzz_engine import spics_fuzz_engine
+from saleha.core.security.spics_fuzz_engine import spics_fuzz_engine
 
 
 @dataclass

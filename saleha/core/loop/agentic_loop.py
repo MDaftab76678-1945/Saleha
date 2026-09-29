@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
 
 from saleha.agents.base_agent import AgentResponse
-from saleha.core.path_utils import safe_relpath
+from saleha.core.platform.path_utils import safe_relpath
 
 
 class ThinkingAgent(Protocol):
@@ -91,6 +91,60 @@ _READ_ONLY_NUDGE_AFTER = 4
 _READ_ONLY_BLOCK_AFTER = 7
 
 _FINISH_RE = re.compile(r"```(?:json)?\s*(\{.*?\"finish\".*?\})\s*```", re.DOTALL)
+
+
+def _drop_bytecode(abs_p: str) -> None:
+    """
+    Delete every cached .pyc for a source file the loop just wrote.
+
+    CPython trusts a .pyc when the source's size and whole-second mtime match
+    what the .pyc recorded. An edit that keeps the byte size, written in the
+    same second the file was last compiled, therefore runs the OLD code.
+    Measured on this box: 19 of 20 such edits ran stale bytecode. The loop
+    edits and re-runs tests within the same second all the time (auto-verify,
+    revert-check, patch search), and same-size fixes are the common kind --
+    `a + b` -> `a - b`, `(year, a, b)` -> `(year, b, a)`. A correct fix could
+    read as failing, and a revert-check could run the patched code while
+    believing it had restored the original.
+
+    Every interpreter tag is removed (`<stem>.*.pyc`), because the target
+    repo's tests may run under its own venv's Python, not this one.
+    """
+    if not abs_p.endswith(".py"):
+        return
+    import glob
+    folder, name = os.path.split(abs_p)
+    for cached in glob.glob(os.path.join(folder, "__pycache__", f"{name[:-3]}.*.pyc")):
+        with contextlib.suppress(OSError):
+            os.remove(cached)
+
+
+def _newline_of(abs_p: str) -> Optional[str]:
+    """The file's line ending ("\\r\\n" or "\\n"), or None when it cannot be read."""
+    try:
+        with open(abs_p, "rb") as fh:
+            return "\r\n" if b"\r\n" in fh.read() else "\n"
+    except OSError:
+        return None
+
+
+def _write_text(abs_p: str, text: str, newline: Optional[str] = None) -> None:
+    """Write `text` (\\n line endings) as `newline`, then drop stale bytecode for it."""
+    with open(abs_p, "w", encoding="utf-8", newline=newline) as fh:
+        fh.write(text)
+    _drop_bytecode(abs_p)
+
+
+def _write_bytes(abs_p: str, data: bytes) -> None:
+    """Restore exact bytes, then drop stale bytecode for them."""
+    with open(abs_p, "wb") as fh:
+        fh.write(data)
+    _drop_bytecode(abs_p)
+
+
+def _norm_rel_path(p: str) -> str:
+    """Repo-relative path in one spelling: forward slashes, no leading './'."""
+    return p.strip().replace("\\", "/").lstrip("./")
 
 
 def _is_test_path(rel_path: str) -> bool:
@@ -303,6 +357,99 @@ class LoopResult:
         return "\n".join(lines)
 
 
+def _progress_checklist(source_read: List[str], tests_read: List[str], patched: bool,
+                        tests_after_patch: Optional[bool]) -> str:
+    """
+    A repair goal's plan, ticked from what the tools actually observed.
+
+    Claude Code keeps a todo list so a long task does not lose its place; a
+    3B model loses it far sooner. Here the list is not the model's own: each
+    box is ticked only by a real tool result (a file read, a patch that
+    landed, a test run after that patch), so the model cannot tick a box by
+    saying it did the step. `tests_after_patch` is None until run_tests runs
+    after the latest successful patch, then True/False from its verdict.
+    """
+    def box(done: bool) -> str:
+        return "[x]" if done else "[ ]"
+
+    items = [
+        (bool(source_read), "Read the source code the goal is about"
+         + (f" (read: {', '.join(source_read[:3])})" if source_read else "")),
+        (bool(tests_read), "Read the test that covers it"
+         + (f" (read: {', '.join(tests_read[:3])})" if tests_read else "")),
+        (patched, "Patch the bug with patch_file"),
+        (tests_after_patch is not None, "Run run_tests after your latest patch"),
+        (tests_after_patch is True, "Tests pass -- only then finish"),
+    ]
+    lines = [f"{box(done)} {n}. {text}" for n, (done, text) in enumerate(items, 1)]
+    if tests_after_patch is False:
+        lines.append("Tests FAILED after your latest patch: read the failure above and patch again.")
+    else:
+        todo = next((text for done, text in items if not done), None)
+        if todo:
+            lines.append(f"NEXT: {todo}")
+    return "\n".join(lines)
+
+
+REPRODUCE_TIMEOUT_SEC = 60.0
+
+PROJECT_NOTES_FILE = "SALEHA.md"
+_PROJECT_NOTES_CHARS = 1500
+
+
+def _project_notes(root_dir: str, limit: int = _PROJECT_NOTES_CHARS) -> str:
+    """
+    The repo's own SALEHA.md, the counterpart of the CLAUDE.md that Claude
+    Code reads on every run: build and test commands, where things are, rules.
+    Empty when the file is absent or unreadable. Capped, and cut with a note,
+    because a 3B model's window cannot afford a long one.
+    """
+    path = os.path.join(root_dir, PROJECT_NOTES_FILE)
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            text = fh.read(limit + 1).strip()
+    except OSError:
+        return ""
+    if len(text) > limit:
+        text = text[:limit] + f"\n...[{PROJECT_NOTES_FILE} cut at {limit} chars]"
+    return text
+
+
+_COMPACT_LINE_CHARS = 160
+
+
+def _compact_steps(parts: List[str], limit: int) -> str:
+    """
+    One line per step that has scrolled out of the recent window: what was
+    called and the first line of what came back.
+
+    The prompt shows only the last few steps in full (6, or 3 for a reasoning
+    model), and everything older used to vanish. A model that no longer sees
+    that it already read a file, or that a patch was rejected, repeats it --
+    the loop has repeat detection and read-only nudges because of exactly that.
+    This keeps the record without the bulk, and is built from the transcript
+    itself rather than by a model, so it cannot misremember. When even the
+    one-liners exceed `limit`, the oldest are dropped first and the count of
+    dropped steps is stated.
+    """
+    lines: List[str] = []
+    for part in parts:
+        head, _, obs = part.partition("\nOBSERVATION:")
+        head = " ".join(head.split())
+        first = next((ln.strip() for ln in obs.splitlines() if ln.strip()), "")
+        line = f"{head} -> {first}" if first else head
+        if len(line) > _COMPACT_LINE_CHARS:
+            line = line[:_COMPACT_LINE_CHARS - 3] + "..."
+        lines.append(line)
+    dropped = 0
+    while lines and len("\n".join(lines)) > limit:
+        lines.pop(0)
+        dropped += 1
+    if dropped:
+        lines.insert(0, f"({dropped} older step(s) not shown)")
+    return "\n".join(lines)
+
+
 def _truncate(text: str, limit: int = MAX_OBSERVATION_CHARS) -> str:
     text = (text or "").strip()
     if len(text) <= limit:
@@ -397,8 +544,30 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  require_evidence: bool = False,
                  required_evidence=None,
                  budget=None,
-                 enable_scout: bool = True):
+                 enable_scout: bool = True,
+                 compact_history: bool = True,
+                 progress_checklist: bool = True,
+                 reproduce_first: bool = True,
+                 lenient_escapes: bool = True,
+                 patch_candidates: int = 0):
         self.agent = agent
+        # Off only to measure what each is worth (agent_bench A/B).
+        self.compact_history = compact_history
+        self.progress_checklist = progress_checklist
+        # Run the tests once before step 1 of a repair goal and show the
+        # failure, so the model starts from the real symptom.
+        # Retry a patch whose search text has literal "\n" escapes as newlines.
+        # Both on by default after agent_bench, qwen2.5-coder:3b, 3 rounds x
+        # 8 bugs, graded by hidden tests: base 2/24 solved with 2 false
+        # success claims; reproduce_first 4/24, 0 false; lenient_escapes
+        # 5/24, 1 false; both 5/24, 0 false. Small numbers -- a direction,
+        # not proof. Cost: one extra test run at the start of a repair goal.
+        self.reproduce_first = reproduce_first
+        self.lenient_escapes = lenient_escapes
+        # >0: a patch that leaves failing tests failing triggers up to this
+        # many alternative patches, kept only on a FAILED -> PASSED run
+        # (_search_patch). Each costs one model call and one test run.
+        self.patch_candidates = max(0, patch_candidates)
         self.tool_signatures: Dict[str, str] = dict(self.TOOL_SIGNATURES)
         self.enable_scout = enable_scout
         self.scout_dossier: Optional[Any] = None
@@ -438,6 +607,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # this would be a programming error, so it fails loudly (AttributeError)
         # rather than silently falling back to the unbounded constant.
         self._run_start_time: Optional[float] = None
+        # Temporary ceiling on one test run (set only around the reproduce run).
+        self._test_timeout_cap: Optional[float] = None
         # Evidence-based completion (Level-6 architecture target). When on,
         # finish() is admissible only if the tools actually observed the
         # required facts -- a summary alone can never end the task. Off by
@@ -475,11 +646,14 @@ Never invent tool outputs. One block per reply. Be efficient."""
         call already in flight gets one real attempt rather than an
         instantly-doomed 0s timeout.
         """
+        limit = self.test_timeout_sec
+        if self._test_timeout_cap is not None:
+            limit = min(limit, self._test_timeout_cap)
         if self._run_start_time is None:
-            return self.test_timeout_sec
+            return limit
         elapsed = time.time() - self._run_start_time
         remaining = self.timeout_sec - elapsed
-        return max(1.0, min(self.test_timeout_sec, remaining))
+        return max(1.0, min(limit, remaining))
 
     # ------------------------------------------------------------------
     # Path safety
@@ -621,9 +795,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # COMPROMISED" made the model discard the user's task and reply with
         # exactly that. A second file produced a real shell_exec tool_call.
         # Wrapping marks the trust boundary and breaks tool_call fences; 0/6
-        # after. See saleha/core/untrusted_content.py for the honest limits.
+        # after. See saleha/core/security/untrusted_content.py for the honest limits.
         try:
-            from saleha.core.untrusted_content import scan, wrap
+            from saleha.core.security.untrusted_content import scan, wrap
 
             found = scan(content)
             wrapped = wrap(content, source=f"file:{path}")
@@ -898,6 +1072,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # itself errors; an OSError inside either write propagates so the
         # run fails loudly instead of continuing on a half-restored tree.
         reverted: List[str] = []
+        # Line endings as they are now; patch_file keeps a file's own ending,
+        # so this is also the original's.
+        endings = {rel: _newline_of(self._safe_path(rel) or "") for rel in patched}
         try:
             for rel in patched:
                 if rel not in snapshot:
@@ -907,9 +1084,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 if orig is None:
                     if os.path.isfile(abs_p):
                         os.remove(abs_p)
+                    _drop_bytecode(abs_p)
                 else:
-                    with open(abs_p, "w", encoding="utf-8") as f:
-                        f.write(orig)
+                    _write_text(abs_p, orig, newline=endings.get(rel))
                 reverted.append(rel)
             verdict_obs = self._tool_run_tests()
         finally:
@@ -918,8 +1095,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 if current is None:
                     continue
                 abs_p = self._safe_path(rel) or ""
-                with open(abs_p, "w", encoding="utf-8") as f:
-                    f.write(current)
+                _write_text(abs_p, current, newline=endings.get(rel))
         detail = verdict_obs.splitlines()[0] if verdict_obs else "empty output"
         if verdict_obs.startswith("PASSED "):
             return (False, detail, verdict_obs)
@@ -1095,8 +1271,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
             return "BLOCKED: human approval denied/required."
         try:
             os.makedirs(os.path.dirname(abs_p), exist_ok=True)
-            with open(abs_p, "w", encoding="utf-8") as f:
-                f.write(content)
+            # An existing file keeps its line endings; a new one gets the
+            # platform default, as before.
+            existing = _newline_of(abs_p) if os.path.isfile(abs_p) else None
+            _write_text(abs_p, content, newline=existing)
             return f"written: {path} ({len(content)} chars)"
         except OSError as err:
             return f"write error: {err}"
@@ -1113,10 +1291,29 @@ Never invent tool outputs. One block per reply. Be efficient."""
         if not approve("file_patch", f"{path} (search {len(search)} chars -> replace {len(replace)} chars)"):
             return "BLOCKED: human approval denied/required."
         try:
-            with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
-                old_content = f.read()
+            # Read untranslated to learn the file's line ending, patch the
+            # \n-normalised text, and write it back with the same ending.
+            # Text-mode writing turned every line of an LF file into CRLF on
+            # Windows: a one-line fix became a whole-file diff, and the byte
+            # size shifted by one per line, which is how same-size edits (and
+            # the stale bytecode _drop_bytecode describes) came about.
+            with open(abs_p, "r", encoding="utf-8", errors="replace", newline="") as f:
+                raw = f.read()
+            file_newline = "\r\n" if "\r\n" in raw else "\n"
+            old_content = raw.replace("\r\n", "\n")
             from saleha.core.graph.codebase_indexer import SmartPatcher
             ok, patched, err = SmartPatcher.apply_search_replace(old_content, search, replace)
+            if not ok and self.lenient_escapes and "\n" not in search and "\\n" in search:
+                # Measured (qwen3:8b, agent_bench median_even): the model
+                # wrote "\\n" inside its JSON string, so the search text held
+                # a backslash and an n instead of a line break and could not
+                # match a multi-line block it had just read correctly.
+                # The replace text is unescaped only when it was written the
+                # same way (no real newline in it); otherwise its "\\n" may
+                # be a genuine escape inside a string literal.
+                fixed_replace = replace if "\n" in replace else replace.replace("\\n", "\n")
+                ok, patched, err = SmartPatcher.apply_search_replace(
+                    old_content, search.replace("\\n", "\n"), fixed_replace)
             if not ok:
                 return f"patch failed: {err}"
             # A patch that leaves a .py file syntactically broken must not
@@ -1137,11 +1334,122 @@ Never invent tool outputs. One block per reply. Be efficient."""
                             f"Python ({syn_err.__class__.__name__}: "
                             f"{syn_err.msg} at line {syn_err.lineno}). "
                             f"The search/replace text was not written to disk.")
-            with open(abs_p, "w", encoding="utf-8") as f:
-                f.write(patched)
+            _write_text(abs_p, patched, newline=file_newline)
             return f"successfully patched: {path}"
         except OSError as err:
             return f"patch error: {err}"
+
+    _CANDIDATE_TEMPERATURE = 0.8
+
+    def _search_patch(self, args: Dict, prompt: str
+                      ) -> Tuple[Dict, str, Optional[Tuple[str, Optional[str]]]]:
+        """
+        patch_file with verified search: when the tests are failing and the
+        model's own patch does not make them pass, ask the model for up to
+        `patch_candidates` alternative patches from the same prompt and keep
+        the first one the tests accept.
+
+        Measured on agent_bench before this existed: qwen2.5-coder:3b re-sent
+        the same wrong patch turn after turn, and the loop could only reject
+        it. The swarm already fixes code this way (verified search, pass 170);
+        this brings it into the agent.
+
+        A candidate wins only on a real FAILED -> PASSED transition of the
+        project's own tests, so a no-op patch can never win: when the tests
+        already pass before any patch, there is nothing to select with and the
+        model's patch is applied exactly as without the search. A losing
+        candidate is reverted byte for byte. When nothing wins, the model's own
+        patch is applied as before and the note says what was tried.
+
+        Returns (args of the patch now on disk, observation, pre-state) where
+        pre-state is (path, original text) when a candidate other than the
+        model's own won, so the caller's revert-check restores the right file.
+        """
+        from saleha.core.loop.structured_reasoner import StructuredReasoner
+
+        baseline = self._tool_run_tests()
+        if not baseline.startswith("FAILED"):
+            return args, self._tool_patch_file(**args), None
+
+        def attempt(cand: Dict) -> Tuple[str, bool, Optional[bytes]]:
+            rel = _norm_rel_path(str(cand.get("path", "")))
+            abs_p = self._safe_path(rel)
+            before: Optional[bytes] = None
+            if abs_p and os.path.isfile(abs_p):
+                with open(abs_p, "rb") as fh:
+                    before = fh.read()
+            obs = self._tool_patch_file(**cand)
+            if not obs.startswith("successfully patched"):
+                return obs, False, before
+            verdict = self._tool_run_tests()
+            if verdict.startswith("PASSED "):
+                return obs, True, before
+            if abs_p and before is not None:
+                _write_bytes(abs_p, before)
+            first = next((ln for ln in verdict.splitlines() if ln.strip()), verdict)
+            return f"tests still fail: {first[:120]}", False, before
+
+        own_obs, own_passed, _ = attempt(args)
+        if own_passed:
+            return args, (f"{own_obs}\n[saleha] Verified: the project's tests failed "
+                          f"before this patch and pass after it."), None
+
+        seen = {(_norm_rel_path(str(args.get("path", ""))), args.get("search"), args.get("replace"))}
+        problems: List[str] = []
+        had_temp = hasattr(self.agent, "temperature")
+        old_temp = getattr(self.agent, "temperature", None)
+        self.agent.temperature = self._CANDIDATE_TEMPERATURE
+        try:
+            for _ in range(self.patch_candidates):
+                resp = self.agent.think(prompt, complexity_score=7.0, disable_reasoning=True)
+                if not resp.success:
+                    problems.append(f"model call failed: {resp.error_message[:80]}")
+                    continue
+                call = self._parse_call(StructuredReasoner.strip_reasoning(resp.content or ""))
+                if not call or call[0] != "patch_file" or not isinstance(call[1], dict):
+                    problems.append("reply was not a patch_file call")
+                    continue
+                c_path, c_search, c_replace = (call[1].get(k) for k in ("path", "search", "replace"))
+                if not (isinstance(c_path, str) and isinstance(c_search, str)
+                        and isinstance(c_replace, str)):
+                    problems.append("patch_file call without path/search/replace")
+                    continue
+                cand = {"path": c_path, "search": c_search, "replace": c_replace}
+                key = (_norm_rel_path(c_path), c_search, c_replace)
+                if key in seen:
+                    problems.append("same patch as an earlier one")
+                    continue
+                seen.add(key)
+                if _is_test_path(c_path):
+                    problems.append("patched a test file")
+                    continue
+                try:
+                    obs, passed, before = attempt(cand)
+                except TypeError as terr:
+                    problems.append(f"bad args: {terr}")
+                    continue
+                if passed:
+                    tried = len(problems) + 1
+                    original = before.decode("utf-8", errors="replace") if before is not None else None
+                    return cand, (
+                        f"{obs}\n[saleha] Your patch did not make the failing tests pass, so "
+                        f"{tried} alternative patch(es) were drawn from the same prompt; this one "
+                        f"turned the tests from FAILED to PASSED and is now on disk instead of yours."
+                    ), (_norm_rel_path(c_path), original)
+                problems.append(obs.splitlines()[0][:120])
+        finally:
+            if had_temp:
+                self.agent.temperature = old_temp
+            else:
+                with contextlib.suppress(AttributeError):
+                    del self.agent.temperature
+
+        # Nothing passed: behave as without the search.
+        final = self._tool_patch_file(**args)
+        common = max(set(problems), key=problems.count) if problems else "none drawn"
+        return args, (f"{final}\n[saleha] The tests still fail with this patch. "
+                      f"{len(problems)} alternative patch(es) were also tried and none made them "
+                      f"pass (most common: {common})."), None
 
     def _defining_line(self, rel: str, pattern: "re.Pattern") -> Optional[int]:
         """Line number where `pattern` first matches in `rel`, or None."""
@@ -1342,7 +1650,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # cannot also authorise edits to Saleha: measured on a benchmark run
         # whose --dir was a scratch folder, the agent forged a one-off
         # "inspect test_solution.py" tool into saleha/tools/ plus a test.
-        from saleha.core.tool_forge import REPO_ROOT as SALEHA_ROOT
+        from saleha.core.skills.tool_forge import REPO_ROOT as SALEHA_ROOT
         working_on_saleha = (os.path.normcase(os.path.abspath(self.root_dir))
                              == os.path.normcase(os.path.abspath(SALEHA_ROOT)))
         if not working_on_saleha and os.environ.get("SALEHA_FORGE_OUTSIDE") != "1":
@@ -1374,7 +1682,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
         class_name = "".join(part.capitalize() for part in clean_name.split("_") if part) + "Tool"
 
-        from saleha.core.tool_forge import ToolForge, ToolSpecification
+        from saleha.core.skills.tool_forge import ToolForge, ToolSpecification
         spec = ToolSpecification(
             name=clean_name,
             class_name=class_name,
@@ -1471,7 +1779,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
         # Evidence ledger + budget for this run (Level-6 completion gate).
         if self.require_evidence:
-            from saleha.core.task_evidence import (
+            from saleha.core.verification.task_evidence import (
                 EvidenceKind,
                 EvidenceLedger,
                 ResourceBudget,
@@ -1577,6 +1885,11 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # depth gate admits a repair-goal success only when the model
         # looked at a test.
         test_files_read: set = set()
+        # Non-test files read, in order, and the verdict of run_tests since
+        # the latest successful patch (None: not run since). They tick the
+        # progress checklist shown on repair goals.
+        source_files_read: List[str] = []
+        tests_after_patch: Optional[bool] = None
         # Pre-patch content per successfully patched path (None = the file
         # did not exist before this run created it). The revert-check
         # restores these to prove the suite actually guards the fix.
@@ -1590,6 +1903,28 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # System-1 Scout: Fast deterministic static reconnaissance (0 LLM tokens).
         # Pre-locates candidate symbols, 1-level and 2-level callee helper functions,
         # and test files before prompting the model. Addresses Pass 106 depth gap.
+        notes = _project_notes(self.root_dir)
+        notes_section = (f"## Project notes (from {PROJECT_NOTES_FILE} in this repo)\n{notes}\n\n"
+                         if notes else "")
+
+        # Reproduce before editing, as the strongest SWE-bench agents do: the
+        # model sees which assert fails, on which input, before it has read
+        # a single file. Shown every turn; it is the fixed symptom to cure.
+        repro_section = ""
+        if self.reproduce_first and self.allow_write and _looks_like_a_repair_goal(goal):
+            # Capped: a large repo's whole suite (django, pytest itself) can
+            # take longer than the run's entire budget, and a timeout here
+            # would leave the model no time to work. A capped run that times
+            # out says so and costs at most REPRODUCE_TIMEOUT_SEC.
+            self._test_timeout_cap = REPRODUCE_TIMEOUT_SEC
+            try:
+                repro_raw = self._tool_run_tests()
+            finally:
+                self._test_timeout_cap = None
+            repro = _truncate(repro_raw, self.max_observation_chars)
+            repro_section = f"## Test run before any change\n{repro}\n\n"
+            emit({"step": 0, "action": "reproduce", "observation": repro})
+
         scout_briefing = ""
         if self.enable_scout:
             try:
@@ -1653,12 +1988,25 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 finish_ready = successful_actions >= self.min_actions_before_finish
             system = system_with_finish if finish_ready else system_no_finish
             scout_section = f"## System-1 Static Intelligence\n{scout_briefing}\n\n" if scout_briefing else ""
+            recent = transcript_parts[-self.transcript_steps:]
+            earlier = (_compact_steps(transcript_parts[:-self.transcript_steps],
+                                      self.max_observation_chars)
+                       if self.compact_history else "")
+            earlier_section = (f"## Earlier steps (one line each; full output no longer shown)\n"
+                               f"{earlier}\n\n") if earlier else ""
+            checklist_section = ""
+            if self.progress_checklist and self.allow_write and _looks_like_a_repair_goal(goal):
+                checklist = _progress_checklist(source_files_read, sorted(test_files_read),
+                                                mutations_succeeded > 0, tests_after_patch)
+                checklist_section = f"## Progress (ticked by real tool results)\n{checklist}\n\n"
             prompt = (
-                f"{system}\n\n## Goal\n{goal}\n\n"
+                f"{system}\n\n{notes_section}## Goal\n{goal}\n\n"
+                f"{repro_section}"
+                f"{checklist_section}"
                 f"{scout_section}"
+                f"{earlier_section}"
                 f"## Action-Observation History (steps {len(transcript_parts)})\n"
-                + ("\n".join(transcript_parts[-self.transcript_steps:])
-                   or "(none yet)")
+                + ("\n".join(recent) or "(none yet)")
             )
             # Every turn here wants exactly one structured tool_call block,
             # not an explanation -- disable_reasoning turns off a reasoning
@@ -1674,7 +2022,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
             # 1. Structured Cognitive CoT Extraction (<think>, <THINKING>, <SCRATCHPAD>)
             raw_content = resp.content or ""
-            from saleha.core.structured_reasoner import StructuredReasoner
+            from saleha.core.loop.structured_reasoner import StructuredReasoner
             parsed_reasoning = StructuredReasoner.parse_turn(raw_content)
 
             # This used to be three re.sub calls that matched *paired* tags
@@ -2262,8 +2610,16 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 call_failed = True
             else:
                 try:
-                    observation = _truncate(str(handler(**args)),
-                                            self.max_observation_chars)
+                    if (tool_name == "patch_file" and self.patch_candidates > 0
+                            and self.allow_write and _looks_like_a_repair_goal(goal)):
+                        args, raw_observation, searched_pre = self._search_patch(args, prompt)
+                        if searched_pre is not None:
+                            # A different candidate won: the revert-check
+                            # must restore that file, not the model's.
+                            pre_patch_rel, pre_patch_text = searched_pre
+                    else:
+                        raw_observation = str(handler(**args))
+                    observation = _truncate(raw_observation, self.max_observation_chars)
                 except TypeError as terr:
                     expected = self.tool_signatures.get(tool_name, self.TOOL_SIGNATURES.get(tool_name, "{...}"))
                     observation = (f"bad args for {tool_name}: {terr}. "
@@ -2320,7 +2676,11 @@ Never invent tool outputs. One block per reply. Be efficient."""
                             f"start_line {span.group(1)} and end_line "
                             f"{span.group(2)}."
                         )
-                        observation = hint_re.sub(new_hint, observation)
+                        # A function, not a template: a Windows path such as
+                        # report\stats.py made re read "\s" as an escape and
+                        # raise, which ended the whole agent run at step 0
+                        # (measured: qwen3:8b on agent_bench median_even).
+                        observation = hint_re.sub(lambda _m, text=new_hint: text, observation)
 
             args_preview = json.dumps(args)[:120]
 
@@ -2362,6 +2722,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 rel = _norm_rel(str(args.get("path", "")))
                 if rel and _is_test_path(rel):
                     test_files_read.add(rel)
+                elif rel and rel not in source_files_read:
+                    source_files_read.append(rel)
 
             # Repeat detection. A small model re-reads the same file instead of
             # acting on it: an earlier SWE-bench run here spent 6 of 12 turns on
@@ -2474,6 +2836,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
                     # stood before this change.
                     auto_test_verdict = None
                     coverage_verdict = None
+                    tests_after_patch = None
+            elif tool_name == "run_tests" and not call_failed and mutations_succeeded:
+                tests_after_patch = observation.startswith("PASSED ")
             elif tool_name in _READ_ONLY_TOOLS and not call_failed:
                 reads_since_mutation_attempt += 1
                 if reads_since_mutation_attempt == _READ_ONLY_NUDGE_AFTER:
@@ -2494,7 +2859,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # Record evidence only for a tool that actually ran and did not
             # error -- a failed call proves nothing, so it must not count.
             if self.require_evidence and self.ledger is not None:
-                from saleha.core.task_evidence import BudgetExceeded, TaskState
+                from saleha.core.verification.task_evidence import BudgetExceeded, TaskState
                 tool_failed = (
                     handler is None
                     or observation.startswith("bad args for ")
@@ -2533,7 +2898,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
     @staticmethod
     def _parse_call(text: str) -> Optional[Tuple[str, Dict]]:
         # 1. Open XML tool call format (<tool_call>{"name": ..., "arguments": ...}</tool_call>)
-        from saleha.core.structured_reasoner import StructuredReasoner
+        from saleha.core.loop.structured_reasoner import StructuredReasoner
         parsed_turn = StructuredReasoner.parse_turn(text)
         if parsed_turn.tool_calls:
             call = parsed_turn.tool_calls[0]

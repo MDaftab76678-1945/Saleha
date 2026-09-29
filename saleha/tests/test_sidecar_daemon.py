@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import patch
 
 from saleha.agents.coder import CoderAgent
+from saleha.core.daemons.sidecar_daemon import SIDECAR_HTML, SidecarHandler
 from saleha.core.platform.model_provider import MockProvider
-from saleha.core.sidecar_daemon import SIDECAR_HTML, SidecarHandler
 
 
 class SidecarDaemonTests(unittest.TestCase):

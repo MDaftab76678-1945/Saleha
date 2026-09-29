@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from saleha.core.path_utils import safe_relpath
+from saleha.core.platform.path_utils import safe_relpath
 
 
 @dataclass

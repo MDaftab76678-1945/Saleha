@@ -6,7 +6,7 @@ Unit & Integration tests for Saleha Multi-Horizon Future Engines (Phases 1-4):
 4. WebGPU & NPU Local Hardware Accelerators
 5. Lean 4 Formal Mathematical Proof Synthesizer
 6. Spatial 3D Neural Scene & WebXR Coder
-7. SHA3 Vault Guard (NOT post-quantum -- see saleha/core/pqc_guard.py docstring)
+7. SHA3 Vault Guard (NOT post-quantum -- see saleha/core/security/pqc_guard.py docstring)
 8. Native Standalone Binary & LLVM Compiler
 """
 
@@ -17,14 +17,14 @@ import urllib.request
 from http.server import HTTPServer
 from typing import Any, Dict
 
-from saleha.core.formal_verifier import formal_verifier
-from saleha.core.native_compiler import native_compiler
-from saleha.core.pqc_guard import sha3_vault_guard as pqc_guard
-from saleha.core.spatial_coder import spatial_coder
+from saleha.core.polyglot.native_compiler import native_compiler
+from saleha.core.research.spatial_coder import spatial_coder
+from saleha.core.research.webgpu_accelerator import webgpu_accelerator
+from saleha.core.sandbox.wasm_runner import wasm_engine
+from saleha.core.security.pqc_guard import sha3_vault_guard as pqc_guard
 from saleha.core.swarm.p2p_swarm import batched_fuzzing_engine as p2p_engine
-from saleha.core.visual_diff import visual_diff_engine
-from saleha.core.wasm_runner import wasm_engine
-from saleha.core.webgpu_accelerator import webgpu_accelerator
+from saleha.core.verification.formal_verifier import formal_verifier
+from saleha.core.vision.visual_diff import visual_diff_engine
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
 
@@ -153,7 +153,7 @@ class FutureEnginesTests(unittest.TestCase):
     def test_sha3_vault_guard_roundtrip(self) -> None:
         # pqc_guard does NOT implement CRYSTALS-Kyber or any NIST PQC
         # algorithm -- it is SHA3/SHAKE-256 symmetric hashing (see
-        # saleha/core/pqc_guard.py docstring). This test verifies the real
+        # saleha/core/security/pqc_guard.py docstring). This test verifies the real
         # property it has: a genuine encrypt/decrypt round-trip, and that
         # the algorithm label is honest about not being post-quantum.
         km = pqc_guard.generate_key_material()

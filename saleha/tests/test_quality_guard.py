@@ -335,7 +335,7 @@ def test_module_level_except_name_not_falsely_undefined() -> None:
 
     ast.ExceptHandler is not an ast.stmt, so a plain `isinstance(child,
     ast.stmt)` filter over a Try node's children silently skipped every
-    handler -- found via saleha/core/inference_router_bridge.py, a real
+    handler -- found via saleha/core/platform/inference_router_bridge.py, a real
     file in this codebase, being scored CRITICAL for `str(exc)` inside
     `except ImportError as exc:` at module level.
     """

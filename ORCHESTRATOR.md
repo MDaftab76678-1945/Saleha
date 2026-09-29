@@ -84,7 +84,7 @@ When multiple domain agents propose competing implementations, or when a critic 
 | --- | --- | --- |
 | **Correctness** | Live execution in `saleha/sandbox/sandbox_jail.py`. Must exit code 0. | Fabricated `success=True` without sandbox run. |
 | **Security** | AST traversal via `ast_security_verifier.py` inspecting syscalls and imports. | Constant `COMPLIANT` string on uninspected code. |
-| **Code Simplicity** | Cyclomatic complexity via `saleha/core/math_logic.py` cross-checked with `radon`. | Arbitrary or hardcoded scores (e.g., 93.3/100). |
+| **Code Simplicity** | Cyclomatic complexity via `saleha/core/research/math_logic.py` cross-checked with `radon`. | Arbitrary or hardcoded scores (e.g., 93.3/100). |
 | **Contract Rigor** | Z3 SMT logic solving in `formal_smt_verifier.py`. | Returning mock formal passes without solver check. |
 
 ---
@@ -113,12 +113,12 @@ The orchestrator operates inside physical consumer-grade hardware limits (1 loca
 
 | Subsystem | Primary Module | Orchestrator Handshake |
 | --- | --- | --- |
-| **Clarity Gate** | `saleha/core/active_inference.py` | Halts execution if user intent has high ambiguity score. |
-| **Complexity Gate** | `saleha/core/math_logic.py` | Estimates complexity (0.0 to 10.0) from file types and keywords. |
+| **Clarity Gate** | `saleha/core/cognitive/active_inference.py` | Halts execution if user intent has high ambiguity score. |
+| **Complexity Gate** | `saleha/core/research/math_logic.py` | Estimates complexity (0.0 to 10.0) from file types and keywords. |
 | **Task Planner** | `saleha/agents/planner.py` | Generates 3-5 step plan for complex tasks. |
 | **Sandbox Jail** | `saleha/sandbox/sandbox_jail.py` | Executes subprocesses with timeout and Windows path normalization. |
 | **SMT Verifier** | `saleha/core/verification/formal_smt_verifier.py` | Proves logical assertions using Z3 solver. |
-| **AST Cache** | `saleha/core/incremental_ast_cache.py` | Re-indexes AST only for files modified in the active turn. |
+| **AST Cache** | `saleha/core/graph/incremental_ast_cache.py` | Re-indexes AST only for files modified in the active turn. |
 
 ---
 
@@ -226,7 +226,7 @@ Unlike most of section 8, these were traced end to end, not just listed.
   actual imports resolve). `packages/api` (tRPC) and `packages/db` (Prisma)
   exist but have no incoming imports found from `apps/*` yet — scaffolded,
   not wired.
-- **`contracts/`** is partially real: `saleha/core/mukti_chain_bridge.py`
+- **`contracts/`** is partially real: `saleha/core/research/mukti_chain_bridge.py`
   genuinely bridges Python to `contracts/M2MEscrow.sol` via `web3.py`, with
   a mirrored ABI at `saleha/server/web3_contracts/M2MEscrow.abi.json` and
   live endpoints in `web_server.py`. That module's own docstring documents
@@ -272,7 +272,7 @@ Unlike most of section 8, these were traced end to end, not just listed.
   ceilings only (no filesystem/network isolation), stated in its docstring.
 - `saleha/harness/` — **fixed (pass 158).** The fabricated
   `swe_bench_harness.py` was deleted; the real one is
-  `saleha/core/swe_bench_harness.py`.
+  `saleha/core/harness/swe_bench_harness.py`.
 - Fixed in pass 159: swarm/octopus placeholder code, never-called QA tests,
   True-by-default verdicts, `resume_swarm` success=True, the hardcoded
   chaos score, and four TestRunner holes. Open: model-written tests are
@@ -336,7 +336,7 @@ Traced both to their loaders — **neither is dead, and they do not compete**:
   *flavor* and sampling parameters — matches what root `SOUL.md` (section IV)
   claims of it.
 - **`saleha/skills/agent_*.md`** is loaded separately by
-  `saleha/core/agent_profile_loader.py` (parses YAML frontmatter + body),
+  `saleha/core/platform/agent_profile_loader.py` (parses YAML frontmatter + body),
   consumed by `dag_engine.py`, `deliberation_engine.py`, and `repl.py`
   (default `initial_profile="agent_sde"`). This governs *task/role* selection
   — which domain specialist handles a DAG node — not prompt styling.
@@ -359,7 +359,7 @@ one to its actual loader/caller shows five distinct, non-competing jobs:
 | `souls/` | Personas' identity/style/sampling-parameter files | `soul_engine.py`, governs prompt *flavor*, not role (see 8.4) |
 | `saleha/tools/` | The real ToolForge tool registry (`ast_inspector.py`, `release_manager.py`, `base.py`'s `tool_registry`) | `tool_forge.py`, `agentic_loop.py`, `octopus_coordinator.py` -- genuinely live production code |
 | Root `tools/` | One standalone repo-maintenance script (`code_quality_auditor.py`), unrelated to the LLM tool registry above -- name collision only | Invoked directly as `python -m tools.code_quality_auditor` (pass 44, see the `audit-history` skill) |
-| `.agents/skills/self-improve-engine/` | External automation tooling (a CLI wrapper around `saleha/core/self_improve.py`), plus `.agents/scripts/preflight_lint.py` (the pre-commit quality gate) | Not an LLM persona system at all -- coincidental "skills" name overlap with `saleha/skills/` |
+| `.agents/skills/self-improve-engine/` | External automation tooling (a CLI wrapper around `saleha/core/loop/self_improve.py`), plus `.agents/scripts/preflight_lint.py` (the pre-commit quality gate) | Not an LLM persona system at all -- coincidental "skills" name overlap with `saleha/skills/` |
 | `AGENTS.md` (root) | The shared contract every coding agent in this repo follows | Loaded by Claude Code (via `CLAUDE.md`), Gemini, Cursor; not a code path |
 | `AGENTSKILLS.md` | Capability Module Index (reframed pass 137) describing the six real implementation modules behind Saleha's tool-calling system | Documentation only, not a code path |
 | `docs/AGENT_PROFILES.md` | Static markdown mirror of the same personas `saleha/skills/agent_*.md` define | Documentation only, not a code path |
@@ -409,8 +409,8 @@ None of these is dead, and none should be moved or merged: `agent_profile_loader
   counter-cloning functions left in the script with a comment warning not
   to re-run them that way. **Currently consumed in production training:**
   `saleha_dpo_pairs.jsonl` and `saleha_sft_10k*.json(l)`, wired into
-  `saleha/core/frontier_trainer.py`, `saleha/core/lora_tuner.py`,
-  `saleha/core/dpo_dataset_engine.py`, with real tests
+  `saleha/core/training/frontier_trainer.py`, `saleha/core/training/lora_tuner.py`,
+  `saleha/core/training/dpo_dataset_engine.py`, with real tests
   (`test_dpo_dataset_engine.py`, `test_frontier_trainer.py`) — these files
   were not flagged as still-fabricated this pass, only the sovereign/omni
   lineage. **Orphaned, not consumed by `saleha/core` or `saleha/cli`:**
@@ -422,7 +422,7 @@ None of these is dead, and none should be moved or merged: `agent_profile_loader
 
 - `.agents/skills/self-improve-engine/` — **audited (pass 65). It did
   fabricate, exactly as this entry suspected.** `run_self_improve.py` is a
-  thin CLI wrapper; the logic is `saleha/core/self_improve.py`. Reading it
+  thin CLI wrapper; the logic is `saleha/core/loop/self_improve.py`. Reading it
   in full was *not* enough — it looks genuinely real (real model calls, a
   real `pytest` subprocess, real git, an honest audit log full of
   `test_failed` entries, nine real commits on `auto/self-improve`).

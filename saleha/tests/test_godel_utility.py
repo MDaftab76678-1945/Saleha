@@ -2,7 +2,11 @@
 
 import unittest
 
-from saleha.core.godel_utility import GodelProofDecision, GodelUtilityEngine, SystemStateUtility
+from saleha.core.research.godel_utility import (
+    GodelProofDecision,
+    GodelUtilityEngine,
+    SystemStateUtility,
+)
 
 
 class TestGodelUtility(unittest.TestCase):
@@ -39,7 +43,7 @@ if __name__ == "__main__":
 # exist. The engine's maths was sound; the inputs were invented.
 # ---------------------------------------------------------------------------
 
-from saleha.core.godel_utility import measure_current_state
+from saleha.core.research.godel_utility import measure_current_state
 
 
 class MeasuredStateTests(unittest.TestCase):

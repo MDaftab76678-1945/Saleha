@@ -2,7 +2,7 @@
 
 import unittest
 
-from saleha.core.db_optimizer import db_optimizer
+from saleha.core.db.db_optimizer import db_optimizer
 
 
 class DBOptimizerTests(unittest.TestCase):

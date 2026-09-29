@@ -34,7 +34,6 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Sequence, cast
 
-from saleha.core.ollama_endpoint import ollama_base_url
 from saleha.core.platform.circuit_breaker import (
     AttemptOutcome,
     CircuitBreaker,
@@ -45,6 +44,7 @@ from saleha.core.platform.circuit_breaker import (
     parse_retry_after,
     shared_breaker,
 )
+from saleha.core.platform.ollama_endpoint import ollama_base_url
 
 if TYPE_CHECKING:
     import aiohttp

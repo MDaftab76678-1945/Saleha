@@ -122,7 +122,7 @@ def audit(limit: int = 25) -> Dict[str, Any]:
 
 def history(limit: int = 20) -> Dict[str, Any]:
     """Task records written by the team orchestrator."""
-    from saleha.core.task_history import TaskHistory
+    from saleha.core.memory.task_history import TaskHistory
 
     store = TaskHistory()
     recent = [_record_to_dict(r) for r in store.recent(limit)]

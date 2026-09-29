@@ -120,7 +120,7 @@ class MasterVisionWebServerTests(unittest.TestCase):
 
     def test_post_solve_run(self) -> None:
         """POST /api/solve/run triggers autonomous IssueResolver."""
-        from saleha.core.diff_engine import DiffHunk, DiffResult
+        from saleha.core.editing.diff_engine import DiffHunk, DiffResult
 
         fake_diff = DiffResult(
             file_path="service.py",
@@ -134,8 +134,8 @@ class MasterVisionWebServerTests(unittest.TestCase):
             unified_diff="--- a/service.py\n+++ b/service.py\n@@ -1 +1 @@\n-def run(): return 1\n+def run(): return 2",
         )
 
-        with patch("saleha.core.issue_resolver.IssueResolver._run_agent_solver", return_value=fake_diff), \
-             patch("saleha.core.issue_resolver.IssueResolver.create_fix_branch", return_value=("fix/test-branch", "")):
+        with patch("saleha.core.github.issue_resolver.IssueResolver._run_agent_solver", return_value=fake_diff), \
+             patch("saleha.core.github.issue_resolver.IssueResolver.create_fix_branch", return_value=("fix/test-branch", "")):
             status, body = self._post(
                 "/api/solve/run",
                 {
@@ -152,7 +152,7 @@ class MasterVisionWebServerTests(unittest.TestCase):
 
     def test_post_tools_forge(self) -> None:
         """POST /api/tools/forge synthesizes and registers tools."""
-        from saleha.core.tool_forge import ToolForgeResult
+        from saleha.core.skills.tool_forge import ToolForgeResult
 
         fake_forge_res = ToolForgeResult(
             timestamp="2026-09-21 00:00:00",
@@ -165,7 +165,7 @@ class MasterVisionWebServerTests(unittest.TestCase):
             tests_passed=True,
         )
 
-        with patch("saleha.core.tool_forge.ToolForge.forge_tool", return_value=fake_forge_res):
+        with patch("saleha.core.skills.tool_forge.ToolForge.forge_tool", return_value=fake_forge_res):
             status, body = self._post(
                 "/api/tools/forge",
                 {

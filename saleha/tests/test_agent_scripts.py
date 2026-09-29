@@ -84,7 +84,7 @@ def test_hypergraph_impact_analysis() -> None:
 
     repo_root = Path(".").resolve()
     # Test against an existing core file
-    target = "saleha/core/math_logic.py"
+    target = "saleha/core/research/math_logic.py"
     res = mod.compute_blast_radius(target, repo_root)
 
     assert res["status"] == "success"
@@ -106,7 +106,7 @@ def test_active_inference_loop_agent() -> None:
     spec.loader.exec_module(mod)
 
     # Test with existing clean core file
-    target = Path("saleha/core/math_logic.py").resolve()
+    target = Path("saleha/core/research/math_logic.py").resolve()
     agent = mod.ActiveInferenceAgent(target, max_iterations=2)
     obs = agent.sample_observation()
     assert obs["exists"] is True
@@ -124,13 +124,13 @@ def test_self_healing_traceback_parser() -> None:
     spec.loader.exec_module(mod)
 
     mock_traceback = """Traceback (most recent call last):
-  File "saleha/core/math_logic.py", line 42, in calculate_complexity
+  File "saleha/core/research/math_logic.py", line 42, in calculate_complexity
     assert score <= 10.0
 AssertionError: Score exceeded maximum bound
 """
     frames = mod.parse_python_traceback(mock_traceback)
     assert len(frames) == 1
-    assert frames[0]["file"] == "saleha/core/math_logic.py"
+    assert frames[0]["file"] == "saleha/core/research/math_logic.py"
     assert frames[0]["line"] == 42
     assert frames[0]["function"] == "calculate_complexity"
 

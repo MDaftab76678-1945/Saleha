@@ -32,18 +32,18 @@ from saleha.agents.slides_architect import slides_architect
 from saleha.agents.vision_designer import vision_designer
 from saleha.agents.voice_architect import voice_architect
 from saleha.core.cognitive.neuro_symbolic_engine import neuro_symbolic_engine
-from saleha.core.dataset_synthesizer import dataset_synthesizer
-from saleha.core.ephemeral_container_runner import container_runner
-from saleha.core.local_inference_engine import local_inference_engine
-from saleha.core.mcp_server import saleha_mcp_server
-from saleha.core.mcts_search_engine import mcts_search_engine
-from saleha.core.model_distillation_pipeline import model_distillation_pipeline
-from saleha.core.repo_orchestrator import repo_orchestrator
-from saleha.core.self_evolving_loop import self_evolving_loop
-from saleha.core.speculative_accelerator import speculative_accelerator
+from saleha.core.daemons.task_scheduler import task_scheduler
+from saleha.core.loop.mcts_search_engine import mcts_search_engine
+from saleha.core.loop.self_evolving_loop import self_evolving_loop
+from saleha.core.platform.local_inference_engine import local_inference_engine
+from saleha.core.platform.mcp_server import saleha_mcp_server
+from saleha.core.platform.speculative_accelerator import speculative_accelerator
+from saleha.core.project.repo_orchestrator import repo_orchestrator
+from saleha.core.sandbox.ephemeral_container_runner import container_runner
 from saleha.core.swarm.swarm_cluster_node import swarm_cluster
 from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
-from saleha.core.task_scheduler import task_scheduler
+from saleha.core.training.dataset_synthesizer import dataset_synthesizer
+from saleha.core.training.model_distillation_pipeline import model_distillation_pipeline
 from saleha.tools.release_manager import release_manager
 
 

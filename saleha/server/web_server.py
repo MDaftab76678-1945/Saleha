@@ -36,31 +36,31 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional
 
 from saleha import __version__
-from saleha.core.agent_profile_loader import profile_registry
-from saleha.core.api_fuzzer import api_fuzzer
-from saleha.core.collab import CollabError, collab_store
-from saleha.core.deployer import cloud_deployer
-from saleha.core.doom_vault import doom_vault_engine
-from saleha.core.full_duplex_voice import full_duplex_voice
+from saleha.core.devops.deployer import cloud_deployer
+from saleha.core.devops.load_tester import load_tester
+from saleha.core.devops.sre_responder import sre_responder
 from saleha.core.graph.codebase_indexer import CodebaseIndexer, SmartPatcher
-from saleha.core.iot_domotics import iot_domotics_engine
-from saleha.core.load_tester import load_tester
 from saleha.core.memory.memory_store import memory_store
-from saleha.core.mukti_chain_bridge import ChainUnavailableError, mukti_chain_bridge
-from saleha.core.mukti_economy import mukti_economy_engine
-from saleha.core.nexus_mobile_bridge import nexus_mobile_bridge
-from saleha.core.polyglot_executor import polyglot_executor
+from saleha.core.platform.agent_profile_loader import profile_registry
+from saleha.core.platform.collab import CollabError, collab_store
+from saleha.core.polyglot.polyglot_executor import polyglot_executor
 from saleha.core.rag.graph_rag import graph_rag
-from saleha.core.sentinel_rs import sentinel_rs_engine
-from saleha.core.sre_responder import sre_responder
+from saleha.core.research.doom_vault import doom_vault_engine
+from saleha.core.research.iot_domotics import iot_domotics_engine
+from saleha.core.research.mukti_chain_bridge import ChainUnavailableError, mukti_chain_bridge
+from saleha.core.research.mukti_economy import mukti_economy_engine
+from saleha.core.research.nexus_mobile_bridge import nexus_mobile_bridge
+from saleha.core.research.unimax_bridge import unimax_bridge_engine
+from saleha.core.security.api_fuzzer import api_fuzzer
+from saleha.core.security.sentinel_rs import sentinel_rs_engine
+from saleha.core.security.vault import vault
+from saleha.core.skills.tool_calling import global_tool_registry
 from saleha.core.swarm.team_orchestrator import TeamOrchestrator
-from saleha.core.tool_calling import global_tool_registry
-from saleha.core.unimax_bridge import unimax_bridge_engine
-from saleha.core.vault import vault
-from saleha.core.vision_coder import vision_coder
+from saleha.core.vision.vision_coder import vision_coder
 
 # Singularity Engines
-from saleha.core.vision_liveness import EyeLandmarks, vision_liveness_engine
+from saleha.core.vision.vision_liveness import EyeLandmarks, vision_liveness_engine
+from saleha.core.voice.full_duplex_voice import full_duplex_voice
 from saleha.harness.reporter import reporter as harness_reporter
 
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB cap
@@ -1653,7 +1653,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         credential and also keeps the bootstrap path open when no accounts
         exist yet. A session token from a real account resolves to that account.
         """
-        from saleha.core.user_store import User, user_store
+        from saleha.core.platform.user_store import User, user_store
 
         provided = self._presented_token(parsed)
         if not provided:
@@ -1692,7 +1692,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         Login is not here: it has to run before the authorization check, so it
         is handled directly in do_POST.
         """
-        from saleha.core.user_store import UserStoreError, user_store
+        from saleha.core.platform.user_store import UserStoreError, user_store
 
         if path == "/api/auth/logout":
             revoked = user_store.revoke_session(self._presented_token(parsed))
@@ -1891,7 +1891,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/scheduler/list":
             from dataclasses import asdict as _asdict
 
-            from saleha.core.task_scheduler import task_scheduler
+            from saleha.core.daemons.task_scheduler import task_scheduler
             self._send_json(200, {"tasks": [_asdict(t) for t in task_scheduler.list_tasks()]})
             return
 
@@ -1982,7 +1982,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             self.end_headers()
 
-            from saleha.core.octopus_coordinator import ArmBrainOutput, OctopusCoordinator
+            from saleha.core.swarm.octopus_coordinator import ArmBrainOutput, OctopusCoordinator
 
             def _on_brain(out: ArmBrainOutput) -> None:
                 payload = json.dumps({
@@ -2049,7 +2049,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             # npu_detected/webgpu_supported/throughput are unmeasured (None):
             # see webgpu_accelerator.py's module docstring for why a plain
             # Python process cannot actually determine them.
-            from saleha.core.webgpu_accelerator import webgpu_accelerator
+            from saleha.core.research.webgpu_accelerator import webgpu_accelerator
             rep = webgpu_accelerator.detect_hardware()
             self._send_json(200, {
                 "os_name": rep.os_name,
@@ -2120,7 +2120,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/auth/users":
-            from saleha.core.user_store import user_store
+            from saleha.core.platform.user_store import user_store
 
             if not self._is_admin(parsed):
                 self._reject_forbidden()
@@ -2147,7 +2147,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
         # Login must be reachable without credentials, so it is handled before
         # the authorization check below.
         if path == "/api/auth/login":
-            from saleha.core.user_store import AuthenticationError, user_store
+            from saleha.core.platform.user_store import AuthenticationError, user_store
 
             try:
                 credentials = json.loads(body) if body else {}
@@ -2332,7 +2332,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/scheduler/trigger":
-            from saleha.core.task_scheduler import task_scheduler
+            from saleha.core.daemons.task_scheduler import task_scheduler
             task_id = payload.get("task_id", "")
             result = task_scheduler.trigger_task_now(task_id)
             if result is None:
@@ -2345,7 +2345,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             # Real tiered sandbox (docker -> subprocess), distinct from
             # /api/terminal/exec's fixed shell-command allowlist: this runs
             # arbitrary code and reports which isolation tier actually ran it.
-            from saleha.core.hardened_sandbox import HardenedSandboxEngine
+            from saleha.core.sandbox.hardened_sandbox import HardenedSandboxEngine
 
             code = payload.get("code", "")
             language = payload.get("language", "python")
@@ -2364,7 +2364,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             old_code = payload.get("old_code", "")
             new_code = payload.get("new_code", "")
             file_path = payload.get("file_path", "module.py")
-            from saleha.core.diff_engine import DiffEngine
+            from saleha.core.editing.diff_engine import DiffEngine
             de = DiffEngine()
             diff_res = de.compute_diff(file_path=file_path, old_content=old_code, new_content=new_code)
             self._send_json(200, {
@@ -2451,10 +2451,10 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
             # Previously plain string concatenation labelled a "3-Way AST
             # Merge Engine", with ast_valid/conflicts_resolved hardcoded
             # regardless of input. Routed through the real ConflictResolver
-            # (saleha/core/conflict_resolver.py): parses actual git conflict
+            # (saleha/core/git/conflict_resolver.py): parses actual git conflict
             # markers, applies AST-aware merge strategies for same-function
             # edits, and verifies the result actually parses.
-            from saleha.core.conflict_resolver import conflict_resolver
+            from saleha.core.git.conflict_resolver import conflict_resolver
 
             ours = payload.get("ours", "")
             theirs = payload.get("theirs", "")
@@ -2645,7 +2645,7 @@ still required before merging -- neither ran here."""
         if path == "/api/vision/diff":
             base_html = payload.get("base_html", "")
             curr_html = payload.get("current_html", "")
-            from saleha.core.visual_diff import visual_diff_engine
+            from saleha.core.vision.visual_diff import visual_diff_engine
             res = visual_diff_engine.compare_layouts(base_html, curr_html)
             self._send_json(200, {
                 "is_match": res.is_match,
@@ -2660,7 +2660,7 @@ still required before merging -- neither ran here."""
         if path == "/api/wasm/manifest":
             runtime = payload.get("runtime", "pyodide")
             entrypoint = payload.get("entrypoint", "main.py")
-            from saleha.core.wasm_runner import wasm_engine
+            from saleha.core.sandbox.wasm_runner import wasm_engine
             m = wasm_engine.generate_manifest(runtime=runtime, entrypoint=entrypoint)
             self._send_json(200, {
                 "runtime": m.runtime,
@@ -2695,8 +2695,11 @@ still required before merging -- neither ran here."""
         if path == "/api/formal/verify":
             func_name = payload.get("function_name", "compute_balance")
             code = payload.get("code", "def compute_balance(x, y): return x / y")
-            from saleha.core.formal_verifier import formal_verifier, lean_toolchain_available
             from saleha.core.verification.formal_smt_verifier import formal_smt_verifier
+            from saleha.core.verification.formal_verifier import (
+                formal_verifier,
+                lean_toolchain_available,
+            )
 
             lean_scaffold = formal_verifier.synthesize_proof_for_function(func_name=func_name, code=code)
             smt_result = formal_smt_verifier.verify_function_contract(code, func_name)
@@ -2725,7 +2728,7 @@ still required before merging -- neither ran here."""
 
         if path == "/api/spatial/generate":
             prompt = payload.get("prompt", "3D SaaS Revenue Dashboard")
-            from saleha.core.spatial_coder import spatial_coder
+            from saleha.core.research.spatial_coder import spatial_coder
             res = spatial_coder.synthesize_spatial_ui(prompt=prompt)
             self._send_json(200, {
                 "framework": res.framework,
@@ -2738,7 +2741,7 @@ still required before merging -- neither ran here."""
 
         if path == "/api/pqc/encrypt":
             plaintext = payload.get("plaintext", "Secret Data")
-            from saleha.core.pqc_guard import sha3_vault_guard
+            from saleha.core.security.pqc_guard import sha3_vault_guard
             km = sha3_vault_guard.generate_key_material()
             enc = sha3_vault_guard.encrypt_symmetric(plaintext, km.public_key_b64)
             self._send_json(200, {
@@ -2753,7 +2756,7 @@ still required before merging -- neither ran here."""
         if path == "/api/native/compile":
             c_code = payload.get("code", "int main() { return 0; }")
             binary_name = payload.get("binary_name", "saleha_app")
-            from saleha.core.native_compiler import native_compiler
+            from saleha.core.polyglot.native_compiler import native_compiler
             res = native_compiler.compile_c_standalone(c_code=c_code, binary_name=binary_name)
             self._send_json(200, {
                 "success": res.success,
@@ -2932,8 +2935,8 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/v2/swarm/execute":
+            from saleha.core.memory.task_history import TaskHistory
             from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
-            from saleha.core.task_history import TaskHistory
             goal = payload.get("goal", "Build a high-performance Python microservice")
             res = swarm_engine.execute_swarm(goal)
             # The swarm pipeline has its own checkpoint/semantic-memory
@@ -3042,7 +3045,7 @@ still required before merging -- neither ran here."""
             supremacy = bool(payload.get("supremacy", False))
             timeout = float(payload.get("timeout", 120.0))
 
-            from saleha.core.octopus_coordinator import OctopusCoordinator
+            from saleha.core.swarm.octopus_coordinator import OctopusCoordinator
             coordinator = OctopusCoordinator(model=model, use_supremacy=supremacy, timeout_sec=timeout)
             res = coordinator.coordinate(goal=goal)
             self._send_json(200, {
@@ -3079,7 +3082,7 @@ still required before merging -- neither ran here."""
             trajectories = int(payload.get("num_trajectories", 4))
             refinements = int(payload.get("max_refinements", 2))
 
-            from saleha.core.local_supremacy import LocalSupremacyEngine
+            from saleha.core.loop.local_supremacy import LocalSupremacyEngine
             engine = LocalSupremacyEngine(
                 model=model,
                 num_trajectories=trajectories,
@@ -3110,7 +3113,7 @@ still required before merging -- neither ran here."""
             max_steps = int(payload.get("max_steps", 15))
             autonomous = bool(payload.get("autonomous", True))
 
-            from saleha.core.issue_resolver import issue_resolver
+            from saleha.core.github.issue_resolver import issue_resolver
             res = issue_resolver.resolve_issue(
                 issue_ref=task_or_issue,
                 model=model,
@@ -3136,7 +3139,7 @@ still required before merging -- neither ran here."""
             auto_commit = bool(payload.get("auto_commit", False))
 
             if not tool_name:
-                from saleha.core.tool_forge import tool_forge
+                from saleha.core.skills.tool_forge import tool_forge
                 forge_res = tool_forge.forge_next_unbuilt_tool(auto_commit=auto_commit)
                 self._send_json(200, {
                     "tool_name": forge_res.tool_name,
@@ -3154,7 +3157,7 @@ still required before merging -- neither ran here."""
             parameters = payload.get("parameters") or {"type": "object", "properties": {}}
             domain = payload.get("domain", "general")
 
-            from saleha.core.tool_forge import ToolForge, ToolSpecification
+            from saleha.core.skills.tool_forge import ToolForge, ToolSpecification
             forge = ToolForge()
             spec = ToolSpecification(
                 name=tool_name,
@@ -3249,7 +3252,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/pc/list":
-            from saleha.core.agent_pc import list_active_agent_pcs
+            from saleha.core.sandbox.agent_pc import list_active_agent_pcs
             pcs = list_active_agent_pcs()
             self._send_json(200, {
                 "status": "success",
@@ -3259,7 +3262,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/pc/inspect":
-            from saleha.core.agent_pc import get_agent_pc
+            from saleha.core.sandbox.agent_pc import get_agent_pc
             role = payload.get("agent_role") or payload.get("role") or "coder"
             pc = get_agent_pc(role)
             summary = pc.get_pc_summary()
@@ -3270,7 +3273,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/pc/replay":
-            from saleha.core.agent_pc import get_agent_pc
+            from saleha.core.sandbox.agent_pc import get_agent_pc
             role = payload.get("agent_role") or payload.get("role") or "coder"
             limit = int(payload.get("limit", 50))
             pc = get_agent_pc(role)
@@ -3284,7 +3287,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/pc/execute":
-            from saleha.core.agent_pc import get_agent_pc
+            from saleha.core.sandbox.agent_pc import get_agent_pc
             role = payload.get("agent_role") or payload.get("role") or "coder"
             code = payload.get("code", "")
             filename = payload.get("filename", "task.py")
@@ -3304,7 +3307,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/pc/clean":
-            from saleha.core.agent_pc import get_agent_pc
+            from saleha.core.sandbox.agent_pc import get_agent_pc
             role = payload.get("agent_role") or payload.get("role") or "coder"
             all_data = bool(payload.get("all_data", False))
             pc = get_agent_pc(role)

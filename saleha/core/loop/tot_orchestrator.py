@@ -285,11 +285,11 @@ class TreeOfThoughtsOrchestrator:
         scores the same as its parent and gets pruned, which is the honest
         outcome, rather than a cosmetic edit masquerading as a repair.
         """
-        from saleha.core.fast_inference import (
+        from saleha.core.loop.parallel_solver import extract_code
+        from saleha.core.platform.fast_inference import (
             FastInference,
             InferenceRequest,
         )
-        from saleha.core.parallel_solver import extract_code
 
         name, instruction = self.BRANCH_STRATEGIES[
             branch_idx % len(self.BRANCH_STRATEGIES)]

@@ -15,7 +15,7 @@ import unittest
 import urllib.request
 from http.server import HTTPServer
 
-from saleha.core.visual_diff import visual_diff_engine
+from saleha.core.vision.visual_diff import visual_diff_engine
 from saleha.server import web_server
 from saleha.server.web_server import SalehaAPIHandler
 

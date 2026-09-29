@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.untrusted_content import (
+from saleha.core.security.untrusted_content import (
     ContentScan,
     neutralise_tool_fences,
     scan,
@@ -130,13 +130,15 @@ class NoFalseAlarmTests(unittest.TestCase):
                     "tool_calling.py", "structured_reasoner.py"}
         flagged = []
         core = os.path.join("saleha", "core")
-        for name in sorted(os.listdir(core)):
-            if not name.endswith(".py") or name in expected:
-                continue
-            body = io.open(os.path.join(core, name), encoding="utf-8",
-                           errors="ignore").read()
-            if scan(body).suspicious:
-                flagged.append(name)
+        # Modules live in category subfolders, so walk them all.
+        for dirpath, _, names in sorted(os.walk(core)):
+            for name in sorted(names):
+                if not name.endswith(".py") or name in expected:
+                    continue
+                body = io.open(os.path.join(dirpath, name), encoding="utf-8",
+                               errors="ignore").read()
+                if scan(body).suspicious:
+                    flagged.append(name)
         self.assertEqual(flagged, [], f"false positives on real source: {flagged}")
 
     def test_the_known_false_positives_are_still_only_warnings(self) -> None:

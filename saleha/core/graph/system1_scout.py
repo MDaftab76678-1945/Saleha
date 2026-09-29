@@ -382,7 +382,7 @@ class System1Scout:
             test_fns = [fn for fn in all_fns if fn.name.startswith("test")]
             if not test_fns:
                 # A source module that merely starts with "test_" (e.g.
-                # saleha/core/test_arbiter.py) is not a test file.
+                # saleha/core/harness/test_arbiter.py) is not a test file.
                 continue
 
             stem = rel_path.replace("\\", "/").rsplit("/", 1)[-1][:-3].lower()

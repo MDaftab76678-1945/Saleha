@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-from saleha.core.agent_pc import AgentPC
 from saleha.core.alignment.contrastive_rlcd import (
     RLCDGenerator,
 )
@@ -22,20 +21,21 @@ from saleha.core.alignment.preference_store import (
     DPOBatchExporter,
     RLHFStore,
 )
+from saleha.core.alignment.prm_mcts_engine import (
+    PRMMCTSEngine,
+    PRMMCTSResult,
+    ProcessRewardModel,
+)
 from saleha.core.alignment.verifiable_rewards import (
     RewardSignal,
     RLAIFAuditor,
     RLHVRVerifier,
 )
-from saleha.core.prm_mcts_engine import (
-    PRMMCTSEngine,
-    PRMMCTSResult,
-    ProcessRewardModel,
-)
-from saleha.core.self_correction import (
+from saleha.core.loop.self_correction import (
     CorrectionResult,
     VerifiedSelfCorrectionEngine,
 )
+from saleha.core.sandbox.agent_pc import AgentPC
 
 # ==============================================================================
 # 1. RLHVR & RLAIF Verifier Tests

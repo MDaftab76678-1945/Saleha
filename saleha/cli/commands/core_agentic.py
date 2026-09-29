@@ -418,7 +418,7 @@ def edit(goal: str, root_dir: str, model: str, apply: bool, as_json: bool) -> No
     Example dry-run:  saleha edit "add retry logic to API calls" --dir ./src
     Example apply:    saleha edit "rename helper.py to utils" --dir . --apply
     """
-    from saleha.core.multi_file_editor import MultiFileEditor
+    from saleha.core.editing.multi_file_editor import MultiFileEditor
     coder = _cmds.CoderAgent(model=model)
     editor = MultiFileEditor(coder_agent=coder, root_dir=root_dir)
     mode_label = '[bold red]APPLY[/]' if apply else '[bold yellow]DRY-RUN[/]'
@@ -588,7 +588,7 @@ def canvas() -> None:
 @click.option('--model', '-m', default='auto', help='Model to stream from')
 def stream_cmd(prompt: str, model: str) -> None:
     """Stream generated tokens in real-time with typewriter syntax highlighting."""
-    from saleha.core.streaming_ui import streaming_ui
+    from saleha.core.ui.streaming_ui import streaming_ui
     streaming_ui.stream_to_terminal(model=model, prompt=prompt, title='Saleha Stream')
 
 @cli.command(name='debug-repl')
@@ -598,7 +598,7 @@ def repl_cmd() -> None:
     (Pehle ye 'repl' naam se registered tha, jisne 'saleha repl --profile'
     chat alias ko silently overwrite kar diya tha -- isliye rename kiya gaya.)
     """
-    from saleha.core.debugger_repl import repl
+    from saleha.core.loop.debugger_repl import repl
     repl.interactive_loop()
 
 @cli.command(name='hud')
@@ -634,7 +634,7 @@ def watch_ai_cmd(directory: str) -> None:
     
     Example: saleha watch-ai .
     """
-    from saleha.core.realtime_watcher import RealtimeWatcher
+    from saleha.core.ui.realtime_watcher import RealtimeWatcher
     watcher = RealtimeWatcher(root_dir=directory)
     console.print(f'[bold green]👀 Saleha Watch-AI is actively monitoring:[/] [cyan]{os.path.abspath(directory)}[/]')
     console.print('[dim]Edit any .py/.js/.ts file to see real-time suggestions. Press Ctrl+C to stop.[/]')
@@ -708,7 +708,7 @@ def play_cli_cmd() -> None:
 @click.option('--timeout', default=15.0, help='Hard timeout in seconds')
 def run_container_cli_cmd(code_or_file: str, timeout: float) -> None:
     """Execute code inside isolated ephemeral Docker container with cgroup bounds."""
-    from saleha.core.ephemeral_container_runner import container_runner
+    from saleha.core.sandbox.ephemeral_container_runner import container_runner
     console.print('\n[bold cyan]🐳 Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
     res = container_runner.run_code(code_or_file, timeout_sec=timeout)
     status_color = 'green' if res.success else 'red'
@@ -740,7 +740,7 @@ def solve_cmd(goal_or_issue: str, root_dir: str, model: str, max_steps: int,
     """
     import shlex
 
-    from saleha.core.issue_resolver import IssueResolver
+    from saleha.core.github.issue_resolver import IssueResolver
 
     test_argv = shlex.split(test_command) if test_command else None
 

@@ -127,7 +127,7 @@ def test_latent_world_model_prediction() -> None:
     spec.loader.exec_module(mod)
 
     predictor = mod.LatentPredictor()
-    target_rel = "saleha/core/math_logic.py"
+    target_rel = "saleha/core/research/math_logic.py"
 
     # Simulated code that completely deletes all functions
     empty_proposal = "# Empty file without functions\nx = 1\n"

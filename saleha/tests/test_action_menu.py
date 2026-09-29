@@ -1,5 +1,5 @@
 """
-Tests for the action-menu loop (saleha/core/action_menu.py).
+Tests for the action-menu loop (saleha/core/loop/action_menu.py).
 
 The claim being tested is structural: a hallucinated path cannot be chosen
 because it is never offered, and a fabricated completion cannot be claimed
@@ -18,12 +18,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-from saleha.core.action_menu import (
+from saleha.core.loop.action_menu import (
     CHOICE_SCHEMA,
     ActionMenuLoop,
     MenuOption,
 )
-from saleha.core.task_evidence import (
+from saleha.core.verification.task_evidence import (
     EvidenceKind,
     EvidenceLedger,
     TaskState,
@@ -46,7 +46,7 @@ class ChoiceAgent:
 
 
 class MenuBuildTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp()
         with open(os.path.join(self.tmp, "billing.py"), "w") as f:
             f.write("def charge(a):\n    return a * 2\n")
@@ -58,10 +58,10 @@ class MenuBuildTests(unittest.TestCase):
         self.loop = ActionMenuLoop(agent=ChoiceAgent([]), root_dir=self.tmp,
                                    use_constrained_decoding=False)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_menu_only_contains_real_files(self):
+    def test_menu_only_contains_real_files(self) -> None:
         """The core guarantee: you cannot pick a file that doesn't exist."""
         opts = self.loop.build_menu("fix the charge bug in billing")
         paths = [o.args.get("path") for o in opts if o.tool == "read_file"]
@@ -70,22 +70,22 @@ class MenuBuildTests(unittest.TestCase):
                             f"menu offered a non-existent file: {p}")
         self.assertIn("billing.py", paths)
 
-    def test_menu_skips_build_noise(self):
+    def test_menu_skips_build_noise(self) -> None:
         opts = self.loop.build_menu("anything")
         paths = " ".join(o.args.get("path", "") for o in opts)
         self.assertNotIn("__pycache__", paths)
 
-    def test_goal_relevant_file_is_offered(self):
+    def test_goal_relevant_file_is_offered(self) -> None:
         opts = self.loop.build_menu("fix the bug in billing.py")
         labels = " ".join(o.label for o in opts)
         self.assertIn("billing.py", labels)
 
-    def test_menu_always_has_an_escape_option(self):
+    def test_menu_always_has_an_escape_option(self) -> None:
         """A menu must never be a trap when the right file isn't listed."""
         opts = self.loop.build_menu("investigate the charge calculation")
         self.assertTrue(any(o.kind == "escape" for o in opts))
 
-    def test_finish_absent_until_evidence_exists(self):
+    def test_finish_absent_until_evidence_exists(self) -> None:
         """Fabricated completion is unrepresentable, not merely rejected."""
         led = EvidenceLedger(goal="x", required={EvidenceKind.FILE_READ})
         loop = ActionMenuLoop(agent=ChoiceAgent([]), root_dir=self.tmp,
@@ -95,7 +95,7 @@ class MenuBuildTests(unittest.TestCase):
         led.record(EvidenceKind.FILE_READ, "billing.py", "test")
         self.assertTrue(any(o.tool == "finish" for o in loop.build_menu("goal")))
 
-    def test_menu_is_capped(self):
+    def test_menu_is_capped(self) -> None:
         for i in range(40):
             with open(os.path.join(self.tmp, f"mod{i}.py"), "w") as f:
                 f.write("x = 1\n")
@@ -103,29 +103,29 @@ class MenuBuildTests(unittest.TestCase):
 
 
 class ChoiceParsingTests(unittest.TestCase):
-    def test_parses_constrained_schema_reply(self):
+    def test_parses_constrained_schema_reply(self) -> None:
         self.assertEqual(ActionMenuLoop._parse_choice('{"choice": 3}', 5), 3)
 
-    def test_parses_bare_number(self):
+    def test_parses_bare_number(self) -> None:
         self.assertEqual(ActionMenuLoop._parse_choice("2", 5), 2)
 
-    def test_parses_number_inside_prose(self):
+    def test_parses_number_inside_prose(self) -> None:
         self.assertEqual(
             ActionMenuLoop._parse_choice("I think option 4 is best", 5), 4)
 
-    def test_rejects_out_of_range(self):
+    def test_rejects_out_of_range(self) -> None:
         self.assertIsNone(ActionMenuLoop._parse_choice('{"choice": 99}', 5))
 
-    def test_rejects_empty(self):
+    def test_rejects_empty(self) -> None:
         self.assertIsNone(ActionMenuLoop._parse_choice("", 5))
 
-    def test_schema_constrains_to_an_integer(self):
+    def test_schema_constrains_to_an_integer(self) -> None:
         self.assertEqual(CHOICE_SCHEMA["properties"]["choice"]["type"], "integer")
         self.assertIn("choice", CHOICE_SCHEMA["required"])
 
 
 class RunTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp()
         with open(os.path.join(self.tmp, "billing.py"), "w") as f:
             f.write("def charge(a):\n    return a * 2\n")
@@ -146,7 +146,7 @@ class RunTests(unittest.TestCase):
         self.tools = {"read_file": read_file, "list_dir": list_dir,
                       "search_repo": search_repo}
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _loop(self, choices, ledger=None, **kw):
@@ -154,13 +154,13 @@ class RunTests(unittest.TestCase):
                               tools=self.tools, ledger=ledger,
                               use_constrained_decoding=False, **kw)
 
-    def test_choice_runs_the_real_tool(self):
+    def test_choice_runs_the_real_tool(self) -> None:
         loop = self._loop([1])
         res = loop.run("read billing.py", on_event=lambda e: None)
         self.assertEqual(res.steps[0].tool, "read_file")
         self.assertIn("def charge", res.steps[0].observation)
 
-    def test_reaches_finish_and_accepts_ledger(self):
+    def test_reaches_finish_and_accepts_ledger(self) -> None:
         led = EvidenceLedger(goal="g", required={EvidenceKind.FILE_READ})
         led.transition(TaskState.ANALYZING)
         loop = self._loop([1], ledger=led)  # read first...
@@ -177,7 +177,7 @@ class RunTests(unittest.TestCase):
         self.assertTrue(led.has(EvidenceKind.FILE_READ))
         self.assertEqual(led.state, TaskState.ACCEPTED)
 
-    def test_invalid_reply_does_not_end_the_run(self):
+    def test_invalid_reply_does_not_end_the_run(self) -> None:
         """A junk reply falls back to a real action instead of dying."""
         loop = self._loop(["banana", 1])
         res = loop.run("read billing.py")
@@ -185,7 +185,7 @@ class RunTests(unittest.TestCase):
         self.assertTrue(res.steps)
         self.assertEqual(res.steps[0].tool, "read_file")
 
-    def test_max_steps_fails_honestly(self):
+    def test_max_steps_fails_honestly(self) -> None:
         led = EvidenceLedger(goal="g", required={EvidenceKind.TESTS_PASSED})
         led.transition(TaskState.ANALYZING)
         loop = self._loop([1] * 10, ledger=led, max_steps=3)
@@ -194,7 +194,7 @@ class RunTests(unittest.TestCase):
         self.assertIn("max_steps", res.error)
         self.assertEqual(led.state, TaskState.FAILED)
 
-    def test_reading_records_real_evidence_only(self):
+    def test_reading_records_real_evidence_only(self) -> None:
         led = EvidenceLedger(goal="g", required={EvidenceKind.FILE_READ})
         led.transition(TaskState.ANALYZING)
         loop = self._loop([1], ledger=led, max_steps=1)
@@ -203,7 +203,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(len(reads), 1)
         self.assertEqual(reads[0].source, "action_menu.run")
 
-    def test_tool_calls_property_excludes_finish(self):
+    def test_tool_calls_property_excludes_finish(self) -> None:
         led = EvidenceLedger(goal="g", required={EvidenceKind.FILE_READ})
         led.transition(TaskState.ANALYZING)
         loop = self._loop([1], ledger=led)
@@ -217,7 +217,7 @@ class RunTests(unittest.TestCase):
         self.assertTrue(res.success, res.error)
         self.assertNotIn("finish", res.tool_calls)
 
-    def test_menu_option_is_a_real_dataclass(self):
+    def test_menu_option_is_a_real_dataclass(self) -> None:
         o = MenuOption(label="read x", tool="read_file", args={"path": "x"})
         self.assertEqual(str(o), "read x")
         self.assertEqual(o.kind, "explore")

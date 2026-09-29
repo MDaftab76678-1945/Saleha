@@ -19,7 +19,7 @@ REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from saleha.core.self_improve import (
+from saleha.core.loop.self_improve import (
     run_self_improvement_cycle,
     read_log,
     BRANCH_NAME,

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from saleha.agents.base_agent import BaseAgent
 from saleha.agents.coder import CoderAgent
-from saleha.core.agent_pc import (
+from saleha.core.sandbox.agent_pc import (
     AgentPersonalComputer,
     clear_agent_pc_registry,
     get_agent_pc,

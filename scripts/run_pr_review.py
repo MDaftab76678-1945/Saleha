@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import sys
 
-from saleha.core.ai_reviewer import AICodeReviewer, CodeReviewReport
+from saleha.core.review.ai_reviewer import AICodeReviewer, CodeReviewReport
 
 _SKIP_DIRS = {"__pycache__", ".git", ".venv", ".venv_train", "node_modules", "dist", "build"}
 

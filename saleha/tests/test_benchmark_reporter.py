@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from saleha.core.benchmark_reporter import BenchmarkReporter, BenchmarkRun
+from saleha.core.harness.benchmark_reporter import BenchmarkReporter, BenchmarkRun
 
 
 @pytest.fixture

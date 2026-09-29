@@ -1,4 +1,4 @@
-"""Unit tests for saleha.core.mukti_chain_bridge.MuktiChainBridge. Had no
+"""Unit tests for saleha.core.research.mukti_chain_bridge.MuktiChainBridge. Had no
 test coverage before this file (found during a test-coverage sweep of
 saleha/core/).
 
@@ -12,7 +12,7 @@ report the true state of the world, not a default success.
 
 import unittest
 
-from saleha.core.mukti_chain_bridge import (
+from saleha.core.research.mukti_chain_bridge import (
     _WEB3_AVAILABLE,
     ChainUnavailableError,
     MuktiChainBridge,

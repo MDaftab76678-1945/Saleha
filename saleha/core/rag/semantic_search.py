@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from saleha.core.graph.dependency_graph import dependency_graph
-from saleha.core.path_utils import safe_relpath
+from saleha.core.platform.path_utils import safe_relpath
 
 
 @dataclass

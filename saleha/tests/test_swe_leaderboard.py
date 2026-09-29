@@ -26,11 +26,11 @@ import tempfile
 import unittest
 from unittest import mock
 
-from saleha.core.benchmark_reporter import (
+from saleha.core.harness.benchmark_reporter import (
     PUBLIC_SWEBENCH_VERIFIED_REFERENCE,
     BenchmarkReporter,
 )
-from saleha.core.real_task_bench import (
+from saleha.core.harness.real_task_bench import (
     TASKS,
     Task,
     extract_code,
@@ -38,7 +38,7 @@ from saleha.core.real_task_bench import (
     run_in_subprocess,
     verify_tests_can_fail,
 )
-from saleha.core.swe_leaderboard import LocalTaskBenchmark
+from saleha.core.harness.swe_leaderboard import LocalTaskBenchmark
 
 
 class TestsMustBeAbleToFail(unittest.TestCase):
@@ -92,7 +92,7 @@ class RealScoringTests(unittest.TestCase):
 
     def test_model_returning_wrong_code_scores_zero(self) -> None:
         task = next(t for t in TASKS if t.task_id == "safe_divide")
-        with mock.patch("saleha.core.real_task_bench.generate",
+        with mock.patch("saleha.core.harness.real_task_bench.generate",
                         return_value="```python\ndef safe_divide(a, b):\n    return a / b\n```"):
             report = run_benchmark(model="fake", tasks=[task])
         self.assertTrue(report.did_run)
@@ -102,7 +102,7 @@ class RealScoringTests(unittest.TestCase):
 
     def test_model_returning_correct_code_scores_one(self) -> None:
         task = next(t for t in TASKS if t.task_id == "safe_divide")
-        with mock.patch("saleha.core.real_task_bench.generate",
+        with mock.patch("saleha.core.harness.real_task_bench.generate",
                         return_value="```python\ndef safe_divide(a, b):\n"
                                      "    return None if b == 0 else a / b\n```"):
             report = run_benchmark(model="fake", tasks=[task])
@@ -111,7 +111,7 @@ class RealScoringTests(unittest.TestCase):
 
     def test_unreachable_model_is_a_failure_not_a_default(self) -> None:
         task = next(t for t in TASKS if t.task_id == "safe_divide")
-        with mock.patch("saleha.core.real_task_bench.generate",
+        with mock.patch("saleha.core.harness.real_task_bench.generate",
                         side_effect=OSError("connection refused")):
             report = run_benchmark(model="fake", tasks=[task])
         self.assertTrue(report.did_run)
@@ -152,8 +152,8 @@ class LocalTaskBenchmarkTests(unittest.TestCase):
 
     def test_run_records_the_real_score_not_a_default(self) -> None:
         task = next(t for t in TASKS if t.task_id == "safe_divide")
-        with mock.patch("saleha.core.real_task_bench.TASKS", [task]), \
-             mock.patch("saleha.core.real_task_bench.generate",
+        with mock.patch("saleha.core.harness.real_task_bench.TASKS", [task]), \
+             mock.patch("saleha.core.harness.real_task_bench.generate",
                         return_value="```python\ndef safe_divide(a, b):\n    return a / b\n```"):
             run = self.bench.run_suite(model="fake")
         self.assertEqual(run.suite, "local_tasks")
@@ -167,8 +167,8 @@ class LocalTaskBenchmarkTests(unittest.TestCase):
     def test_task_results_carry_the_real_generated_code(self) -> None:
         task = next(t for t in TASKS if t.task_id == "safe_divide")
         good = "```python\ndef safe_divide(a, b):\n    return None if b == 0 else a / b\n```"
-        with mock.patch("saleha.core.real_task_bench.TASKS", [task]), \
-             mock.patch("saleha.core.real_task_bench.generate", return_value=good):
+        with mock.patch("saleha.core.harness.real_task_bench.TASKS", [task]), \
+             mock.patch("saleha.core.harness.real_task_bench.generate", return_value=good):
             run = self.bench.run_suite(model="fake")
         results = self.bench.task_results(run)
         self.assertEqual(len(results), 1)

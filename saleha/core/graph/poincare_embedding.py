@@ -19,7 +19,7 @@ measures how well a trained embedding recovers the graph it was trained on,
 which compares the two geometries at the same dimension; whether that helps
 any downstream task is measured separately (``cochange_bench``).
 
-``saleha/core/hyperbolic_engine.py`` is unrelated: it places raw bytes in
+``saleha/core/research/hyperbolic_engine.py`` is unrelated: it places raw bytes in
 the ball with a fixed formula and learns nothing.
 """
 

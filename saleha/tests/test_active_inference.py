@@ -20,7 +20,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from saleha.core.active_inference import (
+from saleha.core.cognitive.active_inference import (
     Uncertainty,
     active_inference_gate,
     assess_goal,
@@ -42,7 +42,7 @@ VAGUE = [
 
 # Goals that name what to touch or what "done" means. Must pass untouched.
 SPECIFIC = [
-    "add a retry decorator to saleha/core/fast_inference.py",
+    "add a retry decorator to saleha/core/platform/fast_inference.py",
     "rename parse_config to load_config in config.py",
     "write unit tests for the PromptCache eviction path",
     "fix the off-by-one in tot_orchestrator._generate_branch_code",
@@ -85,7 +85,7 @@ class SpecificGoalsPassTests(unittest.TestCase):
                                  f"(score {u.score}, reasons {u.reasons})")
 
     def test_naming_a_file_is_enough(self) -> None:
-        self.assertFalse(assess_goal("fix saleha/core/fast_inference.py").should_ask)
+        self.assertFalse(assess_goal("fix saleha/core/platform/fast_inference.py").should_ask)
 
     def test_backticked_symbol_counts_as_a_target(self) -> None:
         self.assertFalse(assess_goal("fix the bug in `PromptCache.put`").should_ask)

@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, List
 
+from saleha.core.harness.real_task_bench import Task
 from saleha.core.memory.lesson_ledger import (
     PLACEBOS,
     Evidence,
@@ -21,7 +22,6 @@ from saleha.core.memory.lesson_ledger import (
     sign_test,
     trial,
 )
-from saleha.core.real_task_bench import Task
 
 
 def _task(name: str) -> Task:

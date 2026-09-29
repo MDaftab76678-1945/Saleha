@@ -34,7 +34,7 @@ closer to what actually separates models on the hard benchmark.
 
 Real pipeline, no fabricated numbers:
     TrainingCollector -> LoRATuner (PEFT/TRL SFT) -> merge + `ollama create`
-    -> saleha.core.evaluator.ModelBenchmarkEvaluator (real sandboxed Pass@1,
+    -> saleha.core.harness.evaluator.ModelBenchmarkEvaluator (real sandboxed Pass@1,
        before vs. after, on our own small benchmark set -- NOT a claim of
        official LiveCodeBench/HumanEval scores, just a real local signal).
 
@@ -52,8 +52,8 @@ from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from saleha.core.training_collector import TrainingCollector
-from saleha.core.frontier_trainer import FrontierTrainer
+from saleha.core.training.training_collector import TrainingCollector
+from saleha.core.training.frontier_trainer import FrontierTrainer
 
 # Real, official reference numbers (see module docstring for source) --
 # printed for context, never used as a training/eval result.

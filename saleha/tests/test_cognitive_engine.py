@@ -10,7 +10,7 @@ literal string `x = "telemetry"` in a comment scored 75.
 
 import unittest
 
-from saleha.core.cognitive_engine import CognitiveEngine, CognitiveStateReport
+from saleha.core.cognitive.cognitive_engine import CognitiveEngine, CognitiveStateReport
 
 
 class TestCognitiveEngine(unittest.TestCase):

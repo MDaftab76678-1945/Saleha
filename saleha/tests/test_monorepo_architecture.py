@@ -11,39 +11,39 @@ from pathlib import Path
 
 class MonorepoArchitectureTests(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.root_dir = Path(__file__).resolve().parents[2]
 
-    def test_phase0_product_brief_exists_and_complete(self):
+    def test_phase0_product_brief_exists_and_complete(self) -> None:
         brief_path = self.root_dir / "PRODUCT_BRIEF.md"
         self.assertTrue(brief_path.exists())
         content = brief_path.read_text(encoding="utf-8")
         self.assertIn("Saleha AI", content)
-        # "Zero-leak" describes the real local encrypted vault (saleha/core/vault.py).
+        # "Zero-leak" describes the real local encrypted vault (saleha/core/security/vault.py).
         self.assertIn("Zero-leak", content)
         # NOTE: this test previously also asserted the brief contained "LOOP_CHECK".
         # That token appears nowhere in the codebase - it only ever existed to be
         # asserted here, so requiring it forced a meaningless string into the doc.
 
-    def test_architecture_documentation_exists(self):
+    def test_architecture_documentation_exists(self) -> None:
         arch_path = self.root_dir / "ARCHITECTURE.md"
         self.assertTrue(arch_path.exists())
         content = arch_path.read_text(encoding="utf-8")
         self.assertIn("Saleha", content)
 
-    def test_roadmap_documentation_exists(self):
+    def test_roadmap_documentation_exists(self) -> None:
         roadmap_path = self.root_dir / "ROADMAP.md"
         self.assertTrue(roadmap_path.exists())
         content = roadmap_path.read_text(encoding="utf-8")
         self.assertIn("Saleha", content)
 
-    def test_github_actions_ci_workflow_configured(self):
+    def test_github_actions_ci_workflow_configured(self) -> None:
         ci_yml = self.root_dir / ".github" / "workflows" / "ci.yml"
         self.assertTrue(ci_yml.exists())
         ci_text = ci_yml.read_text(encoding="utf-8")
         self.assertTrue(len(ci_text) > 50)
 
-    def test_optional_turborepo_configuration(self):
+    def test_optional_turborepo_configuration(self) -> None:
         turbo_path = self.root_dir / "turbo.json"
         if turbo_path.exists():
             with open(turbo_path, "r", encoding="utf-8") as f:
@@ -68,7 +68,7 @@ class WorkspaceVersionTests(unittest.TestCase):
 
     WORKSPACE_GLOBS = ("apps", "packages")
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.root_dir = Path(__file__).resolve().parents[2]
         self.pkgs = {}
         for parent in self.WORKSPACE_GLOBS:
@@ -82,7 +82,7 @@ class WorkspaceVersionTests(unittest.TestCase):
         if not self.pkgs:
             self.skipTest("no workspace packages found")
 
-    def test_every_workspace_package_shares_one_version(self):
+    def test_every_workspace_package_shares_one_version(self) -> None:
         versions = {rel: d.get("version") for rel, d in self.pkgs.items()}
         distinct = set(versions.values())
         self.assertEqual(
@@ -90,7 +90,7 @@ class WorkspaceVersionTests(unittest.TestCase):
             f"workspace packages disagree on version: {versions}",
         )
 
-    def test_workspace_packages_are_private(self):
+    def test_workspace_packages_are_private(self) -> None:
         """
         The shared-version rule above is only safe because these are never
         published. If one is ever made public, its version becomes meaningful
@@ -104,7 +104,7 @@ class WorkspaceVersionTests(unittest.TestCase):
             f"shared-version rule no longer applies to it.",
         )
 
-    def test_no_dependency_is_declared_at_two_versions(self):
+    def test_no_dependency_is_declared_at_two_versions(self) -> None:
         """
         Every package.json in the repo, workspace or not -- templates and the
         vscode extension sit outside the workspace globs and so are never
@@ -131,7 +131,7 @@ class WorkspaceVersionTests(unittest.TestCase):
             f"dependencies declared at conflicting versions: {conflicts}",
         )
 
-    def test_declared_scripts_have_the_tools_they_run(self):
+    def test_declared_scripts_have_the_tools_they_run(self) -> None:
         """
         packages/core declared `"test": "jest"` while jest is declared nowhere
         in the repo -- the rest of the workspace uses vitest. That command
@@ -150,7 +150,7 @@ class WorkspaceVersionTests(unittest.TestCase):
                                     f"'{first}', which it does not depend on")
         self.assertEqual(problems, [], "; ".join(problems))
 
-    def test_only_one_lockfile(self):
+    def test_only_one_lockfile(self) -> None:
         """
         `package-lock.json` and `pnpm-lock.yaml` were both committed. Two
         lockfiles can resolve the same range to different versions, so which
@@ -165,14 +165,14 @@ class WorkspaceVersionTests(unittest.TestCase):
             f"expected only pnpm-lock.yaml, found {present}. package.json "
             f"declares pnpm as the package manager.")
 
-    def test_declared_package_manager_matches_the_lockfile(self):
+    def test_declared_package_manager_matches_the_lockfile(self) -> None:
         root = json.loads((self.root_dir / "package.json").read_text(encoding="utf-8"))
         declared = root.get("packageManager", "")
         self.assertTrue(declared.startswith("pnpm@"),
                         f"packageManager is {declared!r}; the committed "
                         f"lockfile is pnpm-lock.yaml")
 
-    def test_typecheck_scripts_have_a_tsconfig_to_read(self):
+    def test_typecheck_scripts_have_a_tsconfig_to_read(self) -> None:
         """
         Four packages declared `tsc --noEmit` with no tsconfig.json anywhere.
         tsc with no project prints its help text and exits 1, so
@@ -201,7 +201,7 @@ class PythonVersionTests(unittest.TestCase):
     version the project's own metadata does not allow and CI never tests.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.root_dir = Path(__file__).resolve().parents[2]
         pyproject = self.root_dir / "pyproject.toml"
         if not pyproject.is_file():
@@ -220,7 +220,7 @@ class PythonVersionTests(unittest.TestCase):
             raise AssertionError(f"cannot read a 3.x version out of {spec!r}")
         return int(digits[0])
 
-    def test_ruff_and_pyright_match_requires_python(self):
+    def test_ruff_and_pyright_match_requires_python(self) -> None:
         required = self._minor(self.cfg["project"]["requires-python"])
         ruff = self.cfg.get("tool", {}).get("ruff", {}).get("target-version")
         pyright = self.cfg.get("tool", {}).get("pyright", {}).get("pythonVersion")
@@ -236,7 +236,7 @@ class PythonVersionTests(unittest.TestCase):
                 f"pyright pythonVersion {pyright} does not match "
                 f"requires-python {self.cfg['project']['requires-python']}")
 
-    def test_no_duplicate_setup_py(self):
+    def test_no_duplicate_setup_py(self) -> None:
         """
         setup.py duplicated every field of pyproject.toml and drifted from it.
         Two files declaring the same package is how they end up disagreeing.
@@ -246,7 +246,7 @@ class PythonVersionTests(unittest.TestCase):
             "setup.py is back; pyproject.toml already declares this package, "
             "and the duplicate is what drifted to python_requires>=3.10")
 
-    def test_ci_matrix_covers_only_supported_versions(self):
+    def test_ci_matrix_covers_only_supported_versions(self) -> None:
         ci = self.root_dir / ".github" / "workflows" / "ci.yml"
         if not ci.is_file():
             self.skipTest("no ci.yml")

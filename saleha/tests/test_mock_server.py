@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.mock_server import SyntheticMockServer
+from saleha.core.devops.mock_server import SyntheticMockServer
 
 
 class MockServerTests(unittest.TestCase):

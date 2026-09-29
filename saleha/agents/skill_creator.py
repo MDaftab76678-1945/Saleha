@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from saleha.agents.base_agent import BaseAgent
-from saleha.core.skill_catalog import AgentSkill, skill_catalog
+from saleha.core.skills.skill_catalog import AgentSkill, skill_catalog
 
 
 @dataclass

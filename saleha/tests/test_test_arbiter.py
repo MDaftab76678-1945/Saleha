@@ -1,4 +1,4 @@
-"""Tests for saleha/core/test_arbiter.py.
+"""Tests for saleha/core/harness/test_arbiter.py.
 
 The fixtures are the two real `saleha run` failures from 2026-09-23: in both,
 the model wrote a correct is_palindrome and a wrong assertion for it.
@@ -11,7 +11,7 @@ from typing import List, Tuple
 import pytest
 
 from saleha.core.harness.code_executor import CodeExecutor
-from saleha.core.test_arbiter import arbitrate_failure, extract_failing_expectation
+from saleha.core.harness.test_arbiter import arbitrate_failure, extract_failing_expectation
 
 PALINDROME = (
     "def is_palindrome(s: str) -> bool:\n"

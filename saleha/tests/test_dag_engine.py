@@ -1,5 +1,5 @@
 """
-Tests for Saleha Core TaskDAG Engine (saleha/core/dag_engine.py).
+Tests for Saleha Core TaskDAG Engine (saleha/core/workflow/dag_engine.py).
 
 Verifies topological batching, missing dependency detection, cycle detection,
 cascading failure skipping, offline executor hooks, and cp1252-safe text badges.
@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from saleha.cli.commands import cli
-from saleha.core.dag_engine import DAGResult, TaskDAG, TaskNode
+from saleha.core.workflow.dag_engine import DAGResult, TaskDAG, TaskNode
 
 
 class DAGTopologicalSortingTests(unittest.TestCase):

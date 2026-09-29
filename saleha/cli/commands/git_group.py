@@ -31,7 +31,7 @@ def git_hook_cmd(action, as_json):
     Example install: saleha git hook install
     Example uninstall: saleha git hook uninstall
     """
-    # Was `from saleha.core.git_hooks import hook_manager`, calling
+    # Was `from saleha.core.git.git_hooks import hook_manager`, calling
     # install_pre_commit()/uninstall_pre_commit(). None of those three names
     # exist: the module exports `git_hook_manager` with install_hooks() /
     # uninstall_hooks(), which return (ok, message) rather than a dict. So
@@ -39,7 +39,7 @@ def git_hook_cmd(action, as_json):
     # the suite stayed green -- the import is inside the function body, so
     # nothing but a real run ever reaches it. Found by
     # test_cli_reachability.py.
-    from saleha.core.git_hooks import git_hook_manager
+    from saleha.core.git.git_hooks import git_hook_manager
     # install_hooks()/uninstall_hooks() return (ok, message); the renderer
     # below reads 'success'/'message'/'error', so both have to be supplied.
     # A first version of this fix set 'installed'/'message' only, which made

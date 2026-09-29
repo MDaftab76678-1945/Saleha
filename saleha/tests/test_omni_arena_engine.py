@@ -15,7 +15,7 @@ fabricated verdict string is gone for good.
 
 import unittest
 
-from saleha.core.omni_arena_engine import (
+from saleha.core.research.omni_arena_engine import (
     AgenticIndexEvaluator,
     OmniArenaEvaluationReport,
     VideoArenaModule,

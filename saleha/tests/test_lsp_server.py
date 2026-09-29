@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from saleha.core.lsp_server import SalehaLSPServer
+from saleha.core.platform.lsp_server import SalehaLSPServer
 
 
 class LSPServerTests(unittest.TestCase):

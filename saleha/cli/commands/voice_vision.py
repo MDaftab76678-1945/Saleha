@@ -29,7 +29,7 @@ def voice_cmd(prompt: Optional[str], audio: Optional[str], wake_word: str, simul
     
     Example: saleha voice "build a rate limiter"
     """
-    from saleha.core.voice_assistant import VoiceAssistant
+    from saleha.core.voice.voice_assistant import VoiceAssistant
     if not prompt and (not audio) and (not simulate):
         console.print('[bold red]❌ Error: Either prompt text, --audio, or --simulate must be provided.[/bold red]')
         sys.exit(2)
@@ -53,7 +53,7 @@ def vision_cmd(spec, framework, name, image, output_file, as_json):
 
     Example: saleha vision "responsive dashboard" --image ./mockup.png -f react
     """
-    from saleha.core.vision_coder import vision_coder
+    from saleha.core.vision.vision_coder import vision_coder
     res = vision_coder.synthesize_ui(layout_spec=spec, framework=framework, component_name=name, image_source=image)
     if as_json:
         click.echo(json.dumps({'framework': res.framework, 'component_name': res.component_name, 'dependencies': res.dependencies, 'code': res.code, 'used_vision': res.used_vision, 'model_used': res.model_used, 'source': res.source_note}, ensure_ascii=True))
@@ -75,7 +75,7 @@ def voice_live_cmd(speak):
     
     Example: saleha voice-live
     """
-    from saleha.core.voice_live import voice_live_assistant
+    from saleha.core.voice.voice_live import voice_live_assistant
     console.print('[bold green]🎙️ Saleha Voice-Live Terminal Assistant is listening...[/]')
     console.print("[dim]Type voice command or press Enter with speech. Type 'exit' to quit.[/]\n")
     try:

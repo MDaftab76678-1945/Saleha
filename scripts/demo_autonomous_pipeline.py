@@ -16,11 +16,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from saleha.core.agent_pc import AgentPC
+from saleha.core.sandbox.agent_pc import AgentPC
 from saleha.core.alignment.verifiable_rewards import RLHVRVerifier
 from saleha.core.alignment.contrastive_rlcd import RLCDGenerator
-from saleha.core.prm_mcts_engine import ProcessRewardModel
-from saleha.core.self_correction import VerifiedSelfCorrectionEngine
+from saleha.core.alignment.prm_mcts_engine import ProcessRewardModel
+from saleha.core.loop.self_correction import VerifiedSelfCorrectionEngine
 
 console = Console()
 
