@@ -123,7 +123,7 @@ def _schema_snapshot(cursor: sqlite3.Cursor) -> List[Tuple[str, str, Tuple[Tuple
     for obj_type, name in cursor.fetchall():
         cols: Tuple[Tuple[object, ...], ...] = ()
         if obj_type == "table":
-            cols = tuple(tuple(row) for row in cursor.execute(f'PRAGMA table_info("{name}")').fetchall())
+            cols = tuple(tuple(row) for row in cursor.execute(f'PRAGMA table_info("{name}")').fetchall())  # noqa: SEC001 -- name comes from sqlite's own schema listing, not user input
         snapshot.append((obj_type, name, cols))
     return snapshot
 

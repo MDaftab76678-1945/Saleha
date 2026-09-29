@@ -88,7 +88,7 @@ class SalehaHarness:
         if marker not in test_code:
             return _not_run(f"task {task.id} test code has no {PASS_MARKER} line")
 
-        exec_res = self.executor.execute(f"{strip_main_guard(code)}\n\n{test_code}", timeout=task.timeout_sec)
+        exec_res = self.executor.execute(f"{strip_main_guard(code)}\n\n{test_code}", timeout=task.timeout_sec)  # noqa: SEC001 -- sandboxed CodeExecutor, not SQL
         elapsed = round(time.time() - start_t, 2)
         if exec_res.blocked:
             return _not_run(f"blocked by sandbox before tests ran: {exec_res.block_reason or exec_res.error}",

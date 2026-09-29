@@ -234,7 +234,7 @@ class ParallelSolver:
         executor = CodeExecutor(timeout=15)
 
         def verify(code: str):
-            res = executor.execute(f"{code}\n\n{test_suite}")
+            res = executor.execute(f"{code}\n\n{test_suite}")  # noqa: SEC001 -- sandboxed CodeExecutor, not SQL
             ok = bool(getattr(res, "success", False))
             out = getattr(res, "output", "") or ""
             # A suite that prints a marker is only passing if the marker

@@ -465,7 +465,7 @@ def profile_cmd(code_snippet: str) -> None:
     console.print(f'[bold cyan]⏱️ Profiling snippet:[/] [yellow]{code_snippet}[/]')
 
     def target_exec() -> None:
-        exec(code_snippet, {})  # saleha: allow-exec -- profiling a user snippet IS this command's job
+        exec(code_snippet, {})  # noqa: SEC002 -- saleha: allow-exec; profiling a user snippet IS this command's job
     _, m = performance_profiler.profile_callable(target_exec)
     if m.success:
         console.print('\n[bold green]✅ Execution Profile Completed:[/]')

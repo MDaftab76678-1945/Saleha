@@ -33,7 +33,8 @@ class PreWarmedWorker:
 
     def execute_snippet(self, code: str) -> Tuple[bool, str, str, int, float]:
         start = time.perf_counter_ns()
-        # Direct high-speed local evaluation in isolated environment
+        # In-process exec, not isolation despite the old comment: this
+        # pool has no production callers (test warmup path only).
         loc: Dict[str, Any] = {}
         glob: Dict[str, Any] = {"__builtins__": __builtins__}
         
@@ -43,8 +44,8 @@ class PreWarmedWorker:
         exit_code = 0
 
         try:
-            # Execute safely
-            exec(code, glob, loc)  # saleha: allow-exec
+            # Execute (in-process warmup only)
+            exec(code, glob, loc)  # noqa: SEC002 -- saleha: allow-exec; test-only warmup, no prod callers
             out = "EXECUTION_PASSED_CLEAN"
         except Exception as ex:
             passed = False

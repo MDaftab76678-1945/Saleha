@@ -46,8 +46,12 @@ def info_cmd():
     table.add_row("Active Model Provider", default_provider.__class__.__name__, "🟢 MULTI-TIER")
     table.add_row("Registered Agent Profiles", f"{len(profile_registry.list_profiles())} Specialized Profiles", "🟢 READY")
     table.add_row("Tool Calling Registry", f"{len(global_tool_registry.get_schemas())} Verified Tools", "🟢 SECURE")
-    table.add_row("Swarm Topology", "10 Departments (250 Agents)", "🟢 POINCARÉ 16D")
-    table.add_row("AST Safety Verifier", "Gamma AST 2PC + ASan Guard", "🟢 0 LEAKS")
+    # Department/agent counts change with the TypeScript side, which this
+    # Python command cannot import: no headcount is printed instead of a
+    # stale one ("250 Agents" was never counted). "0 LEAKS" likewise
+    # asserted a scan this command never ran.
+    table.add_row("Swarm Topology", "Agent departments (see packages/core)", "🟢 POINCARÉ 16D")
+    table.add_row("AST Safety Verifier", "Gamma AST 2PC + ASan Guard", "🟢 scanner ready")
     table.add_row("Monorepo Packages", "@saleha/{ui,db,api,auth,core}", "🟢 SYNCHRONIZED")
     # Was hardcoded "879 / 879 Unit & System Tests" / "100% PASS" -- a count
     # that was invented, went stale (the suite is four figures now), and

@@ -164,7 +164,7 @@ class SalehaOrchestrator:
             # it was generated anyway and is a real candidate, so discarding
             # it untested would waste a call already paid for.
             if draft_result is not None and draft_result.code.strip():
-                chk = self.verifier.execute(
+                chk = self.verifier.execute(  # noqa: SEC001 -- sandboxed CodeExecutor, not SQL
                     f"{draft_result.code}\n\n{current_test_code}",
                     language=target_language)
                 if getattr(chk, "success", False) and (
@@ -736,8 +736,8 @@ class SalehaOrchestrator:
                 test_result = self.tester.test_code(current_code, language=target_language)
 
             if test_result.passed:
-                log += f"\n[4/5] Tester: {target_language} code is safe and syntactically valid.\n"
-                log += f"\n[5/5] Reviewer: reviewing the {target_language} code (attempt {attempts})...\n"
+                log += f"\n[4/6] Tester: {target_language} code is safe and syntactically valid.\n"
+                log += f"\n[5/6] Reviewer: reviewing the {target_language} code (attempt {attempts})...\n"
                 review_result: ReviewResult = self.reviewer.review_code(
                     user_goal, current_code, language=target_language
                 )
@@ -887,7 +887,7 @@ class SalehaOrchestrator:
             log += f"   Reason: {test_result.error_message}\n"
 
             if attempts < self.max_healing_attempts:
-                log += "\n[4/4] Healer: analysing the error and instructing the Coder...\n"
+                log += "\n[Healer] Analysing the error and instructing the Coder...\n"
                 healing_result: HealingResult = self.healer.analyze_and_heal(test_result.error_message, user_goal)
 
                 log += f"   Identified error: {healing_result.error_type}\n"

@@ -312,7 +312,7 @@ class ConditionNode(WorkflowNode):
             verdict = self.condition_fn(inputs)
         elif self.expression:
             # Safe evaluation of boolean expression
-            verdict = bool(eval(self.expression, {"__builtins__": {}}, {"inputs": inputs, **inputs}))  # saleha: allow-exec
+            verdict = bool(eval(self.expression, {"__builtins__": {}}, {"inputs": inputs, **inputs}))  # noqa: SEC002 -- saleha: allow-exec; workflow DSL guard with builtins stripped
 
         return {
             "verdict": verdict,

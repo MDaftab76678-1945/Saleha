@@ -65,12 +65,12 @@ class StatefulREPL:
                 if is_single_expr:
                     # Evaluate expression and store/print result
                     expr_code = compile(ast.Expression(parsed.body[0].value), "<saleha-repl>", "eval")
-                    result_val = eval(expr_code, self.globals_dict)  # saleha: allow-exec -- this IS the interactive REPL's core feature
+                    result_val = eval(expr_code, self.globals_dict)  # noqa: SEC002 -- saleha: allow-exec; this IS the interactive REPL's core feature
                     if result_val is not None:
                         stdout_buf.write(repr(result_val) + "\n")
                 else:
                     exec_code = compile(parsed, "<saleha-repl>", "exec")
-                    exec(exec_code, self.globals_dict)  # saleha: allow-exec -- this IS the interactive REPL's core feature
+                    exec(exec_code, self.globals_dict)  # noqa: SEC002 -- saleha: allow-exec; this IS the interactive REPL's core feature
 
             out = stdout_buf.getvalue()
             err = stderr_buf.getvalue()

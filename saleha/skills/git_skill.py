@@ -58,7 +58,7 @@ class GitSkill(Skill):
         if "git init" in task_lower:
             return SkillResult(
                 success=True,
-                output="Initialized empty Git repository.\nRun:\n  git init\n  git branch -M main\n  git add .\n  git commit -m 'chore: initial project scaffold'"
+                output="To start a Git repository here, run:\n  git init\n  git branch -M main\n  git add .\n  git commit -m 'chore: initial project scaffold'\n(Nothing was run: this skill prints guidance, it does not execute.)"
             )
 
         if "git branch" in task_lower or "checkout" in task_lower:

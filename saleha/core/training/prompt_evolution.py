@@ -199,7 +199,7 @@ class PromptEvolver:
         if not code.strip():
             return False
         executor = CodeExecutor(timeout=15)
-        result = executor.execute(f"{code}\n\n{task.test_code}")
+        result = executor.execute(f"{code}\n\n{task.test_code}")  # noqa: SEC001 -- sandboxed CodeExecutor, not SQL
         return bool(getattr(result, "success", False))
 
     def evaluate(self, genome: Genome,

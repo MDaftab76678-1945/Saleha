@@ -26,7 +26,7 @@ def build_release(dry_run: bool = False):
         assert os.path.isfile(pyproject), "pyproject.toml missing"
         print("[OK] pyproject.toml present and validated.")
         print("[OK] Setup packaging configuration clean.")
-        print("[SUCCESS] Dry run validation passed successfully!")
+        print("[SUCCESS] Dry run done: layout checked, nothing was built.")
         return True
 
     # 1. Clean dist/ directory

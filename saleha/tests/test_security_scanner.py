@@ -50,6 +50,17 @@ def run_cmd(user_cmd):
         vulns = self.scanner.scan_code(code)
         self.assertTrue(any(v.rule_id == "SEC004" for v in vulns))
 
+    def test_detect_subprocess_shell_true_through_alias(self) -> None:
+        # The check matched only the literal "subprocess." prefix, so an
+        # aliased or from-imported call with shell=True was missed.
+        for code in (
+            'import subprocess as sp\nsp.run(cmd, shell=True)\n',
+            'from subprocess import run\nrun(cmd, shell=True)\n',
+        ):
+            with self.subTest(code=code):
+                vulns = self.scanner.scan_code(code)
+                self.assertTrue(any(v.rule_id == "SEC004" for v in vulns))
+
     def test_noqa_suppresses_matching_rule_only(self) -> None:
         code = 'eval(x)  # noqa: SEC002\n'
         vulns = self.scanner.scan_code(code)

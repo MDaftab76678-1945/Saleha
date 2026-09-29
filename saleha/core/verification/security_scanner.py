@@ -90,6 +90,13 @@ class ASTSecurityVisitor(ast.NodeVisitor):
         self.filename = filename
         self.lines = lines
         self.vulnerabilities: List[SecurityVulnerability] = []
+        # Module aliases binding `subprocess` (e.g. `import subprocess as
+        # sp`) and bare names imported from it (`from subprocess import
+        # run`). The SEC004 check used to match only the literal prefix
+        # "subprocess.", so an aliased call with shell=True was missed --
+        # the same alias gap GOV-SAST controls already close elsewhere.
+        self._sp_modules = {"subprocess"}
+        self._sp_funcs: set = set()
 
     def _suppressed(self, lineno: int, rule_id: str) -> bool:
         if not (1 <= lineno <= len(self.lines)):
@@ -165,8 +172,17 @@ class ASTSecurityVisitor(ast.NodeVisitor):
                         remediation="Use parameterized queries with bind parameters."
                     ))
 
-        # 3. Check Subprocess shell=True
-        if func_name.startswith("subprocess."):
+        # 3. Check Subprocess shell=True (through module aliases and
+        # from-imports too, not just the literal `subprocess.` prefix)
+        func = node.func
+        is_sp_call = (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id in self._sp_modules
+        ) or (
+            isinstance(func, ast.Name) and func.id in self._sp_funcs
+        )
+        if is_sp_call:
             for kw in node.keywords:
                 if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
                     self.vulnerabilities.append(SecurityVulnerability(
@@ -262,6 +278,14 @@ class ASTSecurityScanner:
             return []
         lines = code.splitlines()
         visitor = ASTSecurityVisitor(filename=filename, lines=lines)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    if a.name == "subprocess":
+                        visitor._sp_modules.add(a.asname or "subprocess")
+            elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+                for a in node.names:
+                    visitor._sp_funcs.add(a.asname or a.name)
         visitor.visit(tree)
         # Inline SECxxx suppression (Bandit nosec-style)
         return [v for v in visitor.vulnerabilities

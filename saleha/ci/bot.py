@@ -118,13 +118,13 @@ class PRReviewBot:
                 lines.append(f"| `{v.rule_id}` | `{v.severity.upper()}` | {loc} | {v.description} | {v.remediation} |")
             lines.append("")
         else:
-            lines.append("✅ **No security vulnerabilities found.** Safe to merge.\n")
+            lines.append("No pattern findings in this scan (a miss is not proof of safety).\n")
 
         lines.append("#### 📋 Recommended Actions")
         for s in suggestions:
             lines.append(f"- {s}")
         lines.append("")
         lines.append("---")
-        lines.append("*Generated autonomously by [Saleha AI Platform](https://github.com/aftab-alam/saleha-0.1)*")
+        lines.append("*Generated autonomously by [Saleha AI Platform](https://github.com/MDaftab76678-1945/Saleha)*")
 
         return "\n".join(lines)

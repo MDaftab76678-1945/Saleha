@@ -25,6 +25,7 @@ Zero-dependency local HTTP server providing:
 import io
 import json
 import os
+import re
 import secrets
 import sqlite3
 import subprocess
@@ -2495,6 +2496,16 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
 
         if path == "/api/db/seed":
             table = payload.get("table", "subscriptions")
+            # Identifiers cannot be parameterized: reject anything that is
+            # not a plain table name rather than interpolating it.
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table)):
+                self._send_json(200, {
+                    "success": False,
+                    "inserted_records": 0,
+                    "table": table,
+                    "error": "invalid table name: plain identifier expected",
+                })
+                return
             count = min(int(payload.get("count", 5)), 50)
             schema_sql = payload.get("schema_sql", "")
             try:
@@ -2503,7 +2514,7 @@ class SalehaAPIHandler(BaseHTTPRequestHandler):
                 if schema_sql:
                     cursor.executescript(schema_sql)
                 for i in range(1, count + 1):
-                    cursor.execute(
+                    cursor.execute(  # noqa: SEC001 -- table identifier validated above; values are parameterized
                         f"INSERT INTO {table} (user_id, plan, mrr_cents) VALUES (?, ?, ?)",
                         (100 + i, f"Pro_Tier_{i}", 4900 * i)
                     )

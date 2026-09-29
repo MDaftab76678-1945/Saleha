@@ -1,10 +1,17 @@
 """
 Saleha Core: Encrypted Secret & Knowledge Vault
 
-Provides secure, encrypted local credential and secret storage for API keys,
-database passwords, tokens, and private environment variables (PBKDF2-HMAC + AES/CBC).
+Provides local credential and secret storage (PBKDF2-HMAC-SHA256 key +
+HMAC-SHA256 counter-mode stream cipher with Encrypt-then-MAC tag -- not
+AES; the old docstring said AES/CBC and that was wrong).
 
 Storage: ~/.saleha/vault.enc (Encrypted JSON payload)
+
+WARNING: without SALEHA_VAULT_PASSPHRASE set, everything is keyed by a
+constant default passphrase from the source below. That keeps honest
+users' secrets away from casual shoulder-surfing and nothing more --
+anyone holding the vault file and this source decrypts it. Set a real
+passphrase for anything that matters.
 """
 
 import base64

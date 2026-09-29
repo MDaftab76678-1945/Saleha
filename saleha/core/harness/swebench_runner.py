@@ -115,8 +115,8 @@ class SWEBenchRunner:
         namespace: Dict[str, Any] = {}
         try:
             if generated_code:
-                exec(generated_code, namespace)  # saleha: allow-exec
-            exec(assertion_str, namespace)  # saleha: allow-exec
+                exec(generated_code, namespace)  # noqa: SEC002 -- saleha: allow-exec; offline bench grading of generated code
+            exec(assertion_str, namespace)  # noqa: SEC002 -- saleha: allow-exec; offline bench grading
             return True
         except Exception:
             return False

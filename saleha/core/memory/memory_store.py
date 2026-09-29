@@ -211,6 +211,10 @@ class MemoryStore:
                 existing.code = code
                 existing.tags = list(set(existing.tags + all_tags))
                 existing.model = model
+                # The new verdict supersedes the old one: keeping the
+                # previous source_type would replay e.g. a "verified"
+                # label for code that merely ran without error this time.
+                existing.source_type = source_type
                 existing.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 # Incremental vector update (same doc_id overwrite)
                 self.vector_store.add_document(
