@@ -294,7 +294,7 @@ class LoopResult:
         lines = []
         for s in self.steps:
             lines.append(f"[{s.step}] {s.action}({s.args_preview})")
-            obs = s.observation[:400].replace("\n", " ⏎ ")
+            obs = s.observation[:400].replace("\n", " | ")
             lines.append(f"    -> {obs}")
         return "\n".join(lines)
 
@@ -454,8 +454,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # real runs at step 1 whenever the model narrated its plan before
         # emitting the block. 0 restores that old fail-fast behaviour.
         self.max_parse_retries = max_parse_retries
-        # Profile-driven tool restriction (v1.5): agar diya gaya to sirf ye
-        # tools available honge (intersection with built-ins).
+        # Profile-driven tool restriction (v1.5): if given, only these
+        # tools are available (intersection with built-ins).
         self.allowed_tools = set(allowed_tools) if allowed_tools else None
         self._executor = code_executor  # lazy init in _tool_run_code
 

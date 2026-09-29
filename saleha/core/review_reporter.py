@@ -85,7 +85,7 @@ class ReviewReporter:
 </style></head>
 <body>
 <div class="header">
-  <h1>🔍 Saleha AI — Code Review Dashboard</h1>
+  <h1>Saleha AI — Code Review Dashboard</h1>
   <span class="badge">v{__version__} | {time.strftime('%Y-%m-%d %H:%M')}</span>
 </div>
 <div class="stats">
@@ -94,9 +94,9 @@ class ReviewReporter:
   <div class="stat-box"><div class="stat-num" style="color:#ef4444">{critical}</div><div class="stat-label">CRITICAL ISSUES</div></div>
   <div class="stat-box"><div class="stat-num">{total_issues}</div><div class="stat-label">TOTAL ISSUES</div></div>
 </div>
-<h2 style="color:#f0f6fc">📁 File Scores</h2>
+<h2 style="color:#f0f6fc">File Scores</h2>
 <div class="grid">{file_cards}</div>
-<h2 style="color:#f0f6fc">🐛 All Issues</h2>
+<h2 style="color:#f0f6fc">All Issues</h2>
 <table>
   <tr><th>File</th><th>Line</th><th>Severity</th><th>Category</th><th>Issue</th><th>CWE</th><th>Fix</th></tr>
   {issue_rows}

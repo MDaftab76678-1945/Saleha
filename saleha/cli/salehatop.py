@@ -1,32 +1,39 @@
 """
 Saleha Live Terminal UI Dashboard (salehatop / saleha doom top).
-Real-time console dashboard rendering:
-1. System Hardware & RAM/VRAM bounds (2.2GB RAM / 600MB VRAM cap)
-2. 250 Saleha Agent Active Matrix Grid (Idle ●, Active ⚡, Delegated ✉)
-3. 10 Swarm Departments load breakdown (500 models distribution)
-4. Live Gamma Sandbox & Self-Healing Event Ticker
+
+Shows only data that is actually measured or recorded:
+1. Hardware: CPU, RAM (psutil) and GPU memory when `nvidia-smi` is present.
+2. Recent runs: the last entries of the persisted task history, so a run made
+   by a different `saleha` process is visible here.
+3. In-process message-bus activity: event counts per event type and sender.
+4. The most recent message-bus events.
+
+An earlier version of this dashboard drew RAM/VRAM/throughput from formulas of
+a tick counter, a 250-cell "agent activity" grid from modulo arithmetic, fixed
+legend counts, and randomly chosen invented log lines. None of that was measured
+and all of it is gone; a source with no data now says so instead.
 """
 
 from __future__ import annotations
 
 import os
-import random
+import shutil
+import subprocess
 import sys
 import time
+from collections import Counter
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from rich.align import Align
+import psutil
 from rich.console import Console
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, TextColumn
 from rich.table import Table
 from rich.text import Text
 
 from saleha import __version__
-from saleha.core.swarm.saleha_swarm_topology import SalehaSwarmTopology, SwarmDepartment
 
 if sys.platform == "win32":
     try:
@@ -41,127 +48,117 @@ if sys.platform == "win32":
 
 console = Console(safe_box=True)
 
+_GIB = 1024 ** 3
+
+
+def query_gpu_memory() -> Optional[Tuple[int, int]]:
+    """Returns (used_mib, total_mib) for the first GPU, or None if it cannot be read."""
+    exe = shutil.which("nvidia-smi")
+    if not exe:
+        return None
+    try:
+        out = subprocess.run(
+            [exe, "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, encoding="utf-8", timeout=5,
+        )
+        if out.returncode != 0:
+            return None
+        used, total = (int(x.strip()) for x in out.stdout.splitlines()[0].split(","))
+        return used, total
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return None
+
+
+def _bar(fraction: float, width: int = 30) -> str:
+    filled = max(0, min(width, round(fraction * width)))
+    return "#" * filled + "-" * (width - filled)
+
 
 class SalehaTopDashboard:
-    def __init__(self):
-        self.swarm = SalehaSwarmTopology()
+    def __init__(self) -> None:
         self.tick = 0
-        self.event_log: List[str] = [
-            "[dim]System initialized: 250 Agents + 250 Shadow Models + 500 Swarm Experts ready.[/]",
-            "[green]✓ Gamma AST Sandbox active: Zero-Broken Code Guarantee enforced.[/]",
-            "[cyan]✓ Tri-Tier Memory mounted: Working, Episodic, and Semantic Graph online.[/]",
-        ]
 
     def generate_header(self) -> Panel:
         title = Text()
-        title.append("🚀 SALEHATOP: LIVE SWARM MONITOR & HARDWARE GAUGES ", style="bold green")
+        title.append("SALEHATOP: LIVE MONITOR ", style="bold green")
         title.append(f"v{__version__} ", style="bold cyan")
-        title.append(f"• {datetime.now().strftime('%H:%M:%S')} • ", style="dim")
-        title.append("PID: salehad", style="bold yellow")
+        title.append(f"| {datetime.now().strftime('%H:%M:%S')} | ", style="dim")
+        title.append(f"PID: {os.getpid()}", style="bold yellow")
         return Panel(title, border_style="cyan", padding=(0, 1))
 
     def generate_hardware_panel(self) -> Panel:
-        # Simulated tight hardware bounds from the blueprint
-        ram_used = 412 + (self.tick * 3) % 80
-        vram_used = 580 + (self.tick * 2) % 20
-        throughput = 3373819 + (self.tick * 15420) % 50000
-
+        mem = psutil.virtual_memory()
+        proc_rss = psutil.Process().memory_info().rss
         text = Text()
-        text.append(f" RAM Usage:  ", style="bold white")
-        text.append(f"[{'■' * 8}{'─' * 22}] ", style="green")
-        text.append(f"{ram_used} MB / 2,200 MB Hard Cap (18.7%)\n", style="bold green")
+        text.append(" CPU Usage:  ", style="bold white")
+        cpu = psutil.cpu_percent(interval=None)
+        text.append(f"[{_bar(cpu / 100)}] {cpu:.0f}%\n", style="green")
 
-        text.append(f" VRAM Usage: ", style="bold white")
-        text.append(f"[{'■' * 12}{'─' * 18}] ", style="cyan")
-        text.append(f"{vram_used} MB / 2,048 MB Cap (28.3%)\n", style="bold cyan")
+        text.append(" RAM Usage:  ", style="bold white")
+        text.append(f"[{_bar(mem.percent / 100)}] ", style="green")
+        text.append(f"{mem.used / _GIB:.1f} / {mem.total / _GIB:.1f} GB ({mem.percent:.0f}%)\n", style="bold green")
 
-        text.append(f" Throughput: ", style="bold white")
-        text.append(f"{throughput:,} Jobs/sec", style="bold magenta")
-        text.append(" | Mailbox SPSC Latency: ", style="dim")
-        text.append("< 15 ns\n", style="bold green")
+        text.append(" This process: ", style="bold white")
+        text.append(f"{proc_rss / 1024 ** 2:.0f} MB resident\n", style="bold magenta")
 
-        text.append(f" Swarm Mode: ", style="bold white")
-        text.append("SOVEREIGN BARE-METAL (0% Cloud / $0 Cost)", style="bold yellow")
+        text.append(" GPU Memory: ", style="bold white")
+        gpu = query_gpu_memory()
+        if gpu is None:
+            text.append("n/a (nvidia-smi not available)", style="dim")
+        else:
+            used, total = gpu
+            text.append(f"[{_bar(used / total)}] {used} / {total} MiB", style="bold cyan")
 
-        return Panel(text, title="⚙️ Hardware Resource Bounds", border_style="green")
+        return Panel(text, title="Hardware", border_style="green")
 
-    def generate_agents_grid(self) -> Panel:
-        grid_text = Text()
-        # Render 250 agent matrix
-        for i in range(250):
-            # Dynamic activity simulation based on tick
-            if (i + self.tick) % 17 == 0:
-                grid_text.append("⚡", style="bold yellow")  # Active
-            elif (i + self.tick) % 29 == 0:
-                grid_text.append("✉", style="bold cyan")    # Delegating
-            elif (i + self.tick) % 43 == 0:
-                grid_text.append("⚙", style="bold magenta") # Swarm Escalated
-            else:
-                grid_text.append("●", style="dim green")    # Idle
-            
-            if (i + 1) % 50 == 0:
-                grid_text.append("\n")
+    def generate_recent_runs_panel(self, limit: int = 10) -> Panel:
+        from saleha.core.task_history import TaskHistory
 
-        legend = "\n[dim green]● Idle (218)[/]  [bold yellow]⚡ Active (16)[/]  [bold cyan]✉ Delegated (10)[/]  [bold magenta]⚙ Swarm Escalated (6)[/]"
-        return Panel(
-            grid_text + Text.from_markup(legend),
-            title="🤖 250 Saleha Agent Active Matrix",
-            border_style="yellow",
-        )
+        try:
+            records = TaskHistory().recent(limit)
+        except Exception as exc:  # unreadable history must not kill the monitor
+            return Panel(f"Task history unreadable: {exc}", title="Recent Runs", border_style="red")
+        if not records:
+            return Panel("No runs recorded yet.", title="Recent Runs", border_style="yellow")
 
-    def generate_departments_table(self) -> Table:
-        table = Table(title="🏢 10 Swarm Departments (500 Models Pool)", border_style="magenta", expand=True)
-        table.add_column("Department", style="bold white")
-        table.add_column("Models", justify="center", style="cyan")
-        table.add_column("Load Gauge", style="green")
+        table = Table(expand=True, show_edge=False)
+        table.add_column("Time", style="dim", no_wrap=True)
+        table.add_column("Result", no_wrap=True)
+        table.add_column("Tries", justify="right", no_wrap=True, min_width=5)
+        table.add_column("Model", style="cyan", no_wrap=True, max_width=16, overflow="ellipsis")
+        table.add_column("Goal", overflow="ellipsis", no_wrap=True, ratio=1)
+        for r in reversed(records):
+            result = "[green]ok[/]" if r.success else "[red]failed[/]"
+            table.add_row(str(r.timestamp)[11:19], result, str(r.attempts), str(r.model), r.goal[:60])
+        return Panel(table, title=f"Recent Runs (last {len(records)})", border_style="yellow")
 
-        dept_names = [
-            ("01. Foundation Reasoning", "50", 45),
-            ("02. Generative & Multimodal", "50", 30),
-            ("03. Agentic Swarms", "50", 65),
-            ("04. Advanced RAG & Vector", "50", 25),
-            ("05. Systems & Kernel AI", "50", 85),
-            ("06. AIOps & Infrastructure", "50", 40),
-            ("07. Security & Governance", "50", 55),
-            ("08. Physical Edge Robotics", "50", 20),
-            ("09. Quantum & Math", "50", 35),
-            ("10. Enterprise Solutions", "50", 50),
-        ]
+    def generate_bus_activity_table(self) -> Table:
+        from saleha.core.swarm.agent_message_bus import message_bus
 
-        for name, count, base_load in dept_names:
-            dynamic_load = min(100, max(10, base_load + ((self.tick * 7) % 30) - 15))
-            bars = int(dynamic_load / 10)
-            gauge = f"[{'█' * bars}{'░' * (10 - bars)}] {dynamic_load}%"
-            color = "red" if dynamic_load > 75 else ("yellow" if dynamic_load > 50 else "green")
-            table.add_row(name, count, f"[{color}]{gauge}[/]")
-
+        table = Table(title="Message-bus activity (this process)", border_style="magenta", expand=True)
+        table.add_column("Event type", style="bold white")
+        table.add_column("Sender", style="cyan")
+        table.add_column("Count", justify="right")
+        counts = Counter((e.event_type, e.sender_agent) for e in message_bus.get_history(limit=500))
+        if not counts:
+            table.add_row("(no events)", "-", "0")
+        for (event_type, sender), n in counts.most_common(12):
+            table.add_row(str(event_type), str(sender), str(n))
         return table
 
     def generate_event_log(self) -> Panel:
         from saleha.core.swarm.agent_message_bus import message_bus
-        bus_events = message_bus.get_history(limit=6)
 
-        if bus_events:
-            event_lines = []
-            for e in bus_events:
-                ts = datetime.fromtimestamp(e.timestamp).strftime('%H:%M:%S')
-                event_lines.append(f"[bold cyan]• [{ts}][/] [yellow]{e.sender_agent}[/] dispatched [bold green]{e.event_type}[/]")
-            log_text = Text.from_markup("\n".join(event_lines))
+        events = message_bus.get_history(limit=6)
+        if not events:
+            body = Text("No message-bus events in this process. Run a swarm here to see its events.", style="dim")
         else:
-            if self.tick % 3 == 0:
-                events_pool = [
-                    "[green]✓ [10:04:12] Swarm DAG verified Task in 14.2 ms (0 CWEs)[/]",
-                    "[yellow]⚡ [10:04:15] CoderAgent synthesized clean AST patch[/]",
-                    "[cyan]✉ [10:04:18] ArchitectAgent generated Hexagonal Ports & Adapters ADR[/]",
-                    "[magenta]🔄 [10:04:21] FinOpsOptimizerAgent compressed context window by 42%[/]",
-                    "[bold green]✨ [10:04:24] QALeadAgent verified 100% pytest assertions[/]",
-                ]
-                self.event_log.append(random.choice(events_pool))
-                if len(self.event_log) > 6:
-                    self.event_log.pop(0)
-            log_text = Text.from_markup("\n".join(self.event_log))
-
-        return Panel(log_text, title="📡 Live Swarm EventBus Telemetry Stream", border_style="blue")
+            lines: List[str] = []
+            for e in events:
+                ts = datetime.fromtimestamp(e.timestamp).strftime("%H:%M:%S")
+                lines.append(f"[bold cyan]- [{ts}][/] [yellow]{e.sender_agent}[/] dispatched [bold green]{e.event_type}[/]")
+            body = Text.from_markup("\n".join(lines))
+        return Panel(body, title="Latest message-bus events", border_style="blue")
 
     def make_layout(self) -> Layout:
         layout = Layout()
@@ -176,16 +173,16 @@ class SalehaTopDashboard:
         )
         layout["left"].split_column(
             Layout(name="hardware", size=8),
-            Layout(name="agents", ratio=1),
+            Layout(name="runs", ratio=1),
         )
-        layout["right"].update(self.generate_departments_table())
+        layout["right"].update(self.generate_bus_activity_table())
         layout["header"].update(self.generate_header())
         layout["left"]["hardware"].update(self.generate_hardware_panel())
-        layout["left"]["agents"].update(self.generate_agents_grid())
+        layout["left"]["runs"].update(self.generate_recent_runs_panel())
         layout["footer"].update(self.generate_event_log())
         return layout
 
-    def run(self, max_seconds: Optional[int] = None):
+    def run(self, max_seconds: Optional[int] = None) -> None:
         start_time = time.time()
         with Live(self.make_layout(), refresh_per_second=4, screen=True) as live:
             try:
@@ -199,11 +196,9 @@ class SalehaTopDashboard:
                 pass
 
 
-def run_salehatop(max_seconds: Optional[int] = None):
-    dash = SalehaTopDashboard()
-    dash.run(max_seconds=max_seconds)
+def run_salehatop(max_seconds: Optional[int] = None) -> None:
+    SalehaTopDashboard().run(max_seconds=max_seconds)
 
 
 if __name__ == "__main__":
     run_salehatop()
-

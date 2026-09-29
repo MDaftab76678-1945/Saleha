@@ -100,19 +100,19 @@ class DeepResearcherAgent(BaseAgent):
         )
 
         # Synthesize Markdown Whitepaper
-        markdown = f"""# 🔬 Deep Technical Research Report: {clean_topic}
+        markdown = f"""# Deep Technical Research Report: {clean_topic}
 
-## 📋 Executive Summary
+## Executive Summary
 This empirical study evaluates the architectural characteristics, performance benchmarks, and invariant safety guarantees of **{clean_topic}**. Using recursive multi-hop synthesis across primary literature and AST-validated systems, we establish deterministic performance models.
 
 ---
 
-## 🔑 Key Empirical Findings
+## Key Empirical Findings
 {findings_text}
 
 ---
 
-## 📊 Methodology & Comparative Analysis
+## Methodology & Comparative Analysis
 The research framework executed a 3-stage validation pipeline:
 1. **Source Discovery**: High-confidence citation extraction from peer-reviewed venues.
 2. **Invariant Proof**: Cross-checking state transitions against deterministic formal models.
@@ -120,7 +120,7 @@ The research framework executed a 3-stage validation pipeline:
 
 ---
 
-## 📚 Verified Citations & References
+## Verified Citations & References
 {citations_text}
 
 ---

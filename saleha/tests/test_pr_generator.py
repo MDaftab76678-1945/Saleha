@@ -35,7 +35,7 @@ class PRGeneratorTests(unittest.TestCase):
             commit_title="feat(async): implement build async rate limiter",
             team_res=team_res
         )
-        self.assertIn("# 🚀 Pull Request: Build async rate limiter", md)
+        self.assertIn("# Pull Request: Build async rate limiter", md)
         self.assertIn("feature/async-rate-limiter", md)
         self.assertIn("TokenBucket", md)
         self.assertIn("Zero high severity", md)

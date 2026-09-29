@@ -21,7 +21,7 @@ class InlineSuggestion:
     category: str       # "syntax" | "security" | "style" | "performance"
 
     def format(self) -> str:
-        icon = {"error": "🔴", "warning": "🟡", "hint": "💡"}.get(self.severity, "ℹ️")
+        icon = {"error": "[ERROR]", "warning": "[WARNING]", "hint": "[HINT]"}.get(self.severity, "[INFO]")
         return f"{icon} Line {self.line} [{self.category}]: {self.message}\n   Fix: {self.fix}"
 
 

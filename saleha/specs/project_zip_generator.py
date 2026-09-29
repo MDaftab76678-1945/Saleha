@@ -402,7 +402,7 @@ pub struct FullSubstrateOrchestrator {
 
 fn main() {
     println!("========================================================================");
-    println!("🚀 LAUNCHING PRODUCTION NEXUS-AGENTIC UNIFIED CONVERGED BACKBONE v8.5");
+    println!("LAUNCHING PRODUCTION NEXUS-AGENTIC UNIFIED CONVERGED BACKBONE v8.5");
     println!("========================================================================");
 
     let compilation_fence_timer = Instant::now();
@@ -491,7 +491,7 @@ fn main() {
     let total_execution_delay = industrial_trace_timer.elapsed();
 
     println!("\\n========================================================================");
-    println!("🟢 MASTER PIPELINE CORE STATUS: 100% UNIFIED OPERATIONAL HARNESS");
+    println!("[OK] MASTER PIPELINE CORE STATUS: 100% UNIFIED OPERATIONAL HARNESS");
     println!("  ├── Cumulative Stack Execution Latency : {:?}", total_execution_delay);
     println!("  ├── Total Hardware CPU TSC Cycles Spent : {} Invariant Cycles", tsc_end - tsc_start);
     println!("  ├── Final Combined State Balance Trace  : {} FP units", updated_master_balance);
@@ -542,7 +542,7 @@ criterion_main!(benches);
 set -e
 
 echo "========================================================================"
-echo "🛡️  STARTING HARDWARE-NATIVE PROFILE-GUIDED OPTIMIZATION (PGO) PIPELINE"
+echo " STARTING HARDWARE-NATIVE PROFILE-GUIDED OPTIMIZATION (PGO) PIPELINE"
 echo "========================================================================"
 
 cargo clean
@@ -562,7 +562,7 @@ RUSTFLAGS="${RUSTFLAGS} -C profile-use=/tmp/pgo-profiles" \\
     cargo build --release --bin nexus_core
 
 echo "========================================================================"
-echo "🟢 PGO COMPLETE: Production binary successfully locked to hardware cycles."
+echo "[OK] PGO COMPLETE: Production binary successfully locked to hardware cycles."
 echo "========================================================================"
 """
 
@@ -653,7 +653,7 @@ Loads contiguous 256-bit registers to calculate 8 scalar values in a single exec
                 arcname = os.path.relpath(file_path, start=os.path.dirname(base_dir))
                 zipf.write(file_path, arcname)
 
-    print(f"[🟢 SUCCESS] Generated fully operational project archive: '{zip_filename}'")
+    print(f"[[OK] SUCCESS] Generated fully operational project archive: '{zip_filename}'")
 
 if __name__ == "__main__":
     create_project_structure()

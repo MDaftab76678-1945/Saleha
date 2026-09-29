@@ -1,7 +1,7 @@
 """
-One-shot profile enrichment: har thin agent_*.md me role-specific
-goals / constraints / allowed_tools / llm_routing inject karta hai.
-(Idempotent: jo keys pehle se hain wo overwrite NahI hoti.)
+One-shot profile enrichment: injects role-specific goals / constraints /
+allowed_tools / llm_routing into every thin agent_*.md.
+(Idempotent: keys that already exist are never overwritten.)
 """
 import io
 import os
@@ -9,7 +9,7 @@ import re
 
 SKILLS = "saleha/skills"
 
-# Role-specific enrichment content (hand-written, generic filler nahi)
+# Role-specific enrichment content (hand-written, not generic filler)
 ENRICH = {
     "agent_ai_engineer": {
         "temp": 0.3,
@@ -245,14 +245,14 @@ ENRICH = {
         ],
         "tools": ["read_file", "search_repo"],
     },
-    # --- partially-rich profiles ko sirf missing pieces ---
+    # --- partially-rich profiles: only the missing pieces ---
     "agent_sde": {
         "tools": ["read_file", "write_file", "run_code", "search_repo", "list_dir"],
     },
     "agent_software_designer_extra": None,  # placeholder (unused)
 }
 
-# software_designer: goals already 3 -> sirf constraints/tools/routing
+# software_designer: goals already 3 -> only constraints/tools/routing
 DESIGNER_ONLY = {
     "constraints": [
         "No design without stated scalability assumptions",

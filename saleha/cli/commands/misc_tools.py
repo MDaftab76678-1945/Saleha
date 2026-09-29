@@ -57,7 +57,7 @@ def debug(code_file: str, error_log: Optional[str], model: str, save: bool,
     if as_json:
         result = agent.debug_code('Debug the provided Python code', code, active_error_log)
     else:
-        console.print(Panel.fit(f'[bold cyan]🐞 Debugging:[/] {code_file}\n[bold cyan]🤖 Model:[/] {model}', title='[bold green]Saleha Debugger[/]', border_style='green'))
+        console.print(Panel.fit(f'[bold cyan]Debugging:[/] {code_file}\n[bold cyan]Model:[/] {model}', title='[bold green]Saleha Debugger[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Analyzing error...', total=None)
             result = agent.debug_code('Debug the provided Python code', code, active_error_log)
@@ -65,7 +65,7 @@ def debug(code_file: str, error_log: Optional[str], model: str, save: bool,
         if as_json:
             click.echo(json.dumps({'success': False, 'diagnosis': result.diagnosis, 'fixed_code': result.fixed_code, 'error': result.error, 'model_used': result.model_used}, ensure_ascii=False))
             raise click.exceptions.Exit(1)
-        console.print(Panel(f'[bold red]❌ Debugging Failed[/]\n{result.error}', border_style='red'))
+        console.print(Panel(f'[bold red][FAIL] Debugging Failed[/]\n{result.error}', border_style='red'))
         return
     destination = code_file if save else output
     if destination:
@@ -74,18 +74,18 @@ def debug(code_file: str, error_log: Optional[str], model: str, save: bool,
             if as_json:
                 click.echo(json.dumps({'success': False, 'diagnosis': result.diagnosis, 'fixed_code': result.fixed_code, 'error': f'{validation.error_type}: {validation.error_message}', 'model_used': result.model_used}, ensure_ascii=False))
                 raise click.exceptions.Exit(1)
-            console.print(Panel(f'[bold red]❌ Save cancelled[/] - corrected code failed validation\n{validation.error_type}: {validation.error_message}', border_style='red'))
+            console.print(Panel(f'[bold red][FAIL] Save cancelled[/] - corrected code failed validation\n{validation.error_type}: {validation.error_message}', border_style='red'))
             return
         with open(destination, 'w', encoding='utf-8') as f:
             f.write(result.fixed_code + '\n')
     if as_json:
         click.echo(json.dumps({'success': True, 'diagnosis': result.diagnosis, 'fixed_code': result.fixed_code, 'error': '', 'model_used': result.model_used, 'saved_to': destination or ''}, ensure_ascii=False))
         return
-    console.print(Panel(f"[bold green]✅ Diagnosis[/]\n{result.diagnosis or 'No diagnosis returned.'}", border_style='green'))
-    console.print('\n[bold cyan]📝 Corrected Code:[/]')
+    console.print(Panel(f"[bold green][OK] Diagnosis[/]\n{result.diagnosis or 'No diagnosis returned.'}", border_style='green'))
+    console.print('\n[bold cyan]Corrected Code:[/]')
     console.print(Syntax(result.fixed_code, 'python', theme='monokai', line_numbers=True))
     if destination:
-        console.print(f'\n[bold green]✅ Saved corrected code to:[/] {destination}')
+        console.print(f'\n[bold green][OK] Saved corrected code to:[/] {destination}')
 
 @cli.command()
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
@@ -98,7 +98,7 @@ def models(as_json: bool) -> None:
         payload = {'models': {name: {'size_gb': profile.size_gb, 'speed': profile.speed, 'best_for': profile.best_for, 'stats': router.get_model_stats(name)} for name, profile in router.models.items()}}
         click.echo(json.dumps(payload, ensure_ascii=False))
         return
-    table = Table(title='🤖 Available Models', show_header=True, header_style='bold magenta')
+    table = Table(title='Available Models', show_header=True, header_style='bold magenta')
     table.add_column('Model', style='cyan')
     table.add_column('Size', justify='right')
     table.add_column('Speed', style='green')
@@ -108,7 +108,7 @@ def models(as_json: bool) -> None:
     console.print(table)
     stats = router.get_all_stats()
     if any((s['uses'] > 0 for s in stats.values())):
-        console.print('\n[bold cyan]📊 Performance Stats:[/]')
+        console.print('\n[bold cyan]Performance Stats:[/]')
         stats_table = Table(show_header=True, header_style='bold magenta')
         stats_table.add_column('Model', style='cyan')
         stats_table.add_column('Uses', justify='right')
@@ -159,7 +159,7 @@ def refactor(target_file: str, instruction: str, model: str, diff_only: bool,
         if as_json:
             click.echo(json.dumps({'success': False, 'error': resp.error or 'Coder failed'}, ensure_ascii=True))
         else:
-            console.print(f'[red]❌ Refactoring failed:[/] {resp.error}')
+            console.print(f'[red][FAIL] Refactoring failed:[/] {resp.error}')
         return
     diff = _cmds.SmartPatcher.create_unified_diff(original_code, resp.code, os.path.basename(target_file))
     if not diff_only:
@@ -168,12 +168,12 @@ def refactor(target_file: str, instruction: str, model: str, diff_only: bool,
             if as_json:
                 click.echo(json.dumps(patch_result, ensure_ascii=True))
             else:
-                console.print(f"[red]❌ Patch rejected:[/] {patch_result['error']}")
+                console.print(f"[red][FAIL] Patch rejected:[/] {patch_result['error']}")
             return
     if as_json:
         click.echo(json.dumps({'success': True, 'file': target_file, 'diff': diff, 'modified': not diff_only}, ensure_ascii=True))
         return
-    console.print(Panel(f'[bold green]✅ Refactoring Complete[/]\nFile: {target_file}', border_style='green'))
+    console.print(Panel(f'[bold green][OK] Refactoring Complete[/]\nFile: {target_file}', border_style='green'))
     if diff:
         console.print('\n[bold cyan]Unified Diff Patch:[/]')
         syntax = Syntax(diff, 'diff', theme='monokai')
@@ -184,14 +184,14 @@ def refactor(target_file: str, instruction: str, model: str, diff_only: bool,
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
 def doctor(as_json: bool) -> None:
     """
-    Saleha ke common problems ko check karta hai -- jaise wo saari cheezein
-    jo is session me manually debug karni padi (Ollama band hona, missing
-    files, galat spelling wali files, python/python3 na milna).
+    Checks for Saleha's common problems -- the things that previously had to be
+    debugged by hand (Ollama not running, missing files, misspelled files,
+    python/python3 not found).
 
     Example: saleha doctor
     """
     if not as_json:
-        console.print(Panel.fit('[bold green]🩺 Saleha Doctor[/]', border_style='green'))
+        console.print(Panel.fit('[bold green]Saleha Doctor[/]', border_style='green'))
     checks = []
     py = _cmds.shutil_which_check()
     checks.append(('Python interpreter (python/python3)', py is not None, py or "Neither 'python' nor 'python3' found on PATH"))
@@ -229,15 +229,15 @@ def doctor(as_json: bool) -> None:
     table.add_column('Detail', style='dim')
     fail_count = 0
     for name, ok, detail in checks:
-        status = '[green]✅[/]' if ok else '[red]❌[/]'
+        status = '[green][OK][/]' if ok else '[red][FAIL][/]'
         if not ok:
             fail_count += 1
         table.add_row(name, status, detail[:60])
     console.print(table)
     if fail_count == 0:
-        console.print('\n[bold green]Sab theek hai![/] 🎉')
+        console.print('\n[bold green]All checks passed.[/]')
     else:
-        console.print(f'\n[bold yellow]{fail_count} problem(s) mile.[/] Upar table me detail dekho.')
+        console.print(f'\n[bold yellow]{fail_count} problem(s) found.[/] See the table above for details.')
         raise click.exceptions.Exit(1)
 
 @cli.command()
@@ -247,9 +247,9 @@ def stats(task_type: str = 'coding', as_json: bool = False) -> None:
     """
     Show persistent model performance stats (saved in ~/.saleha/stats.json)
 
-    Ye 'models' command se alag hai -- 'models' SmartRouter ki apni
-    router_history.json dikhata hai, ye command orchestrator ke
-    stats_tracker.py wali file dikhata hai.
+    This differs from the 'models' command: 'models' shows the SmartRouter's own
+    router_history.json, while this command shows the file the orchestrator's
+    stats_tracker.py writes.
 
     Example: saleha stats
     Example: saleha stats --task-type coding
@@ -262,7 +262,7 @@ def stats(task_type: str = 'coding', as_json: bool = False) -> None:
         if as_json:
             click.echo(json.dumps({'task_type': t_type, 'models': [], 'best_model': None}, ensure_ascii=False))
             return
-        console.print(f"[yellow]Abhi tak '{t_type}' ke liye koi stats nahi hain.[/]")
+        console.print(f"[yellow]No stats recorded yet for '{t_type}'.[/]")
         return
     if as_json:
         models = {}
@@ -271,7 +271,7 @@ def stats(task_type: str = 'coding', as_json: bool = False) -> None:
             models[model_name] = {'uses': model_stats.uses, 'success_rate': model_stats.success_rate, 'avg_attempts': model_stats.avg_attempts, 'last_used': model_stats.last_used}
         click.echo(json.dumps({'task_type': t_type, 'models': models, 'best_model': tracker.best_model_for(task_type=t_type)}, ensure_ascii=False))
         return
-    table = Table(title=f'📊 Model Stats ({t_type})', show_header=True, header_style='bold magenta')
+    table = Table(title=f'Model Stats ({t_type})', show_header=True, header_style='bold magenta')
     table.add_column('Model', style='cyan')
     table.add_column('Uses', justify='right')
     table.add_column('Success Rate', justify='right', style='green')
@@ -283,7 +283,7 @@ def stats(task_type: str = 'coding', as_json: bool = False) -> None:
     console.print(table)
     best = tracker.best_model_for(task_type=t_type)
     if best:
-        console.print(f"\n[bold green]🏆 Best model for '{t_type}':[/] {best}")
+        console.print(f"\n[bold green]Best model for '{t_type}':[/] {best}")
 
 @cli.command()
 @click.option('--limit', '-n', default=10, help='Number of recent tasks to show')
@@ -332,7 +332,7 @@ def metrics(tail: int, as_json: bool) -> None:
         click.echo(json.dumps({'summary': summary, 'recent': recent}, ensure_ascii=True))
         return
     console.print(Panel.fit('[bold green]Saleha Run Metrics[/]', border_style='green'))
-    console.print(f"[cyan]Total Runs:[/] {summary['total_runs']}  |  [green]✅ {summary['successful_runs']}[/]  [red]❌ {summary['failed_runs']}[/]")
+    console.print(f"[cyan]Total Runs:[/] {summary['total_runs']}  |  [green][OK] {summary['successful_runs']}[/]  [red][FAIL] {summary['failed_runs']}[/]")
     console.print(f"[cyan]Success Rate:[/] {summary['success_rate']}%   [cyan]Avg Attempts:[/] {summary['avg_attempts']}   [cyan]Avg Duration:[/] {summary['avg_duration_sec']}s")
     if summary['by_model']:
         table = Table(title='Per-Model Performance')
@@ -351,7 +351,7 @@ def metrics(tail: int, as_json: bool) -> None:
             ts = time.strftime('%H:%M:%S', time.localtime(e.get('ts', 0)))
             detail = ''
             if e.get('event') == 'run_completed':
-                detail = f"{('✅' if e.get('success') else '❌')} attempts={e.get('attempts')} model={e.get('model')}"
+                detail = f"{('OK' if e.get('success') else 'FAIL')} attempts={e.get('attempts')} model={e.get('model')}"
             rt.add_row(ts, str(e.get('event')), detail or '-')
         console.print(rt)
 
@@ -366,10 +366,10 @@ def plugins_cmd(as_json: bool) -> None:
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
     if not plugins:
-        console.print(Panel('[yellow]No external plugins loaded.[/]\n\n💡 You can drop custom Python plugins into [bold cyan]~/.saleha/plugins/[/] or [bold cyan].saleha/plugins/[/]\nSupported hooks: [dim]on_task_start, on_code_generated, on_test_complete, on_commit[/]', title='[bold green]🔌 Saleha Plugin Registry[/]', border_style='green'))
+        console.print(Panel('[yellow]No external plugins loaded.[/]\n\nYou can drop custom Python plugins into [bold cyan]~/.saleha/plugins/[/] or [bold cyan].saleha/plugins/[/]\nSupported hooks: [dim]on_task_start, on_code_generated, on_test_complete, on_commit[/]', title='[bold green]Saleha Plugin Registry[/]', border_style='green'))
         return
     from rich.table import Table
-    table = Table(title='🔌 Loaded Plugins', border_style='green')
+    table = Table(title='Loaded Plugins', border_style='green')
     table.add_column('Plugin Name', style='bold cyan')
     table.add_column('Version', style='dim')
     table.add_column('Description', style='yellow')
@@ -391,13 +391,13 @@ def fuzz_cmd(func_name: str, mutations: int, as_json: bool) -> None:
         click.echo(json.dumps({'target': report.target, 'total_mutations': report.total_mutations, 'vulnerabilities_found': report.vulnerabilities_found, 'crashes_found': report.crashes_found, 'findings': [f.__dict__ for f in report.findings]}, ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title=f'🦹 Saleha API Security Fuzzer — Target: {report.target}()', border_style='red')
+    table = Table(title=f'Saleha API Security Fuzzer — Target: {report.target}()', border_style='red')
     table.add_column('Category', style='bold cyan')
     table.add_column('Payload Preview', style='dim')
     table.add_column('Status', justify='center')
     table.add_column('Result', style='yellow')
     for f in report.findings:
-        status_txt = '[red]💥 CRASH[/]' if f.status == 'CRASH' else '[green]🛡️ SAFE[/]'
+        status_txt = '[red]CRASH[/]' if f.status == 'CRASH' else '[green]SAFE[/]'
         table.add_row(f.category, f.payload[:30], status_txt, f.details[:50])
     console.print(table)
     console.print(Panel(f"[bold cyan]Total Mutations:[/] {report.total_mutations}\n[bold cyan]Crashes / Exceptions:[/] [{('red' if report.crashes_found else 'green')}]{report.crashes_found}[/]", title='[bold green]Fuzzing Summary[/]', border_style='green'))
@@ -419,7 +419,7 @@ def loadtest_cmd(url: str, concurrency: int, requests: int, dry_run: bool,
         click.echo(json.dumps(res.__dict__, ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title=f'⚡ Load Test Benchmark — {res.url}', border_style='cyan')
+    table = Table(title=f'Load Test Benchmark — {res.url}', border_style='cyan')
     table.add_column('Metric', style='bold cyan')
     table.add_column('Value', justify='right', style='bold green')
     table.add_row('Total Requests', str(res.total_requests))
@@ -499,7 +499,7 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps({'healthy': all_pass, 'checks': [{'name': f"core/{c['component'].lower().replace(' ', '_')}", 'status': c['status'], 'detail': c['detail']} for c in checks], 'diagnostics': checks}, ensure_ascii=False, indent=2))
         return
-    table = Table(title='🩺 Saleha System Doctor & Diagnostic Suite', show_header=True, header_style='bold magenta', expand=True)
+    table = Table(title='Saleha System Doctor & Diagnostic Suite', show_header=True, header_style='bold magenta', expand=True)
     table.add_column('Component', style='bold cyan', width=25)
     table.add_column('Status', width=12)
     table.add_column('Details', style='white')
@@ -511,9 +511,9 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
         table.add_row(c['component'], f"[{color}]{c['status']}[/]", c['detail'])
     console.print(table)
     if all_pass:
-        console.print('\n[bold green]✅ Everything is healthy and ready for autonomous engineering![/]\n')
+        console.print('\n[bold green][OK] Everything is healthy and ready for autonomous engineering![/]\n')
     else:
-        console.print("\n[bold yellow]⚠️ Some components require attention. Run 'saleha doctor --fix' to auto-repair.[/]\n")
+        console.print("\n[bold yellow][WARN] Some components require attention. Run 'saleha doctor --fix' to auto-repair.[/]\n")
 
 @cli.command(name='bench')
 @click.option('--limit', '-n', default=None, type=int, help='Maximum number of benchmark instances to evaluate')
@@ -603,7 +603,7 @@ def chaos_cmd(iterations: int) -> None:
     Example: saleha chaos --iterations 10
     """
     from saleha.core.chaos_engine import chaos_engine
-    console.print(f'[bold cyan]💥 Running Chaos Fault Injection Probe ({iterations} iterations)...[/]')
+    console.print(f'[bold cyan]Running Chaos Fault Injection Probe ({iterations} iterations)...[/]')
 
     def mock_target_flow() -> bool:
         time.sleep(0.005)
@@ -624,9 +624,9 @@ def mock_cmd(port: int) -> None:
     Example: saleha mock --port 8080
     """
     from saleha.core.mock_server import mock_server
-    console.print(f'[bold cyan]🎭 Synthetic Mock API Server initialized on port:[/] [green]{port}[/]')
+    console.print(f'[bold cyan]Synthetic Mock API Server initialized on port:[/] [green]{port}[/]')
     routes = mock_server.list_routes()
-    table = Table(title='🎭 Active Synthetic Mock Endpoints', show_header=True, header_style='bold magenta', expand=True)
+    table = Table(title='Active Synthetic Mock Endpoints', show_header=True, header_style='bold magenta', expand=True)
     table.add_column('HTTP Method', style='bold yellow')
     table.add_column('Endpoint Path', style='cyan')
     table.add_column('Status Code', style='green')
@@ -643,9 +643,9 @@ def init_cmd(force: bool) -> None:
     Example: saleha init
     """
     from saleha.core.project_initializer import project_initializer
-    console.print('[bold cyan]🪄 Initializing Saleha AI for current workspace...[/]')
+    console.print('[bold cyan]Initializing Saleha AI for current workspace...[/]')
     res = project_initializer.initialize_workspace(force=force)
-    console.print(f'\n[bold green]✅ Project Initialized Successfully![/]')
+    console.print(f'\n[bold green][OK] Project Initialized Successfully![/]')
     console.print(f"  • Stack: [cyan]{', '.join(res.detected_languages)}[/]")
     console.print(f'  • Rules: [yellow]{res.rules_file_created}[/]')
     console.print(f'  • Indexed AST Symbols: [green]{res.ast_symbols_indexed}[/]\n')
@@ -662,16 +662,16 @@ def pull_cmd(model_name: str, benchmark: bool) -> None:
     from saleha.core.model_manager import model_manager, RECOMMENDED_MODELS
     targets = [RECOMMENDED_MODELS['fast'], RECOMMENDED_MODELS['reasoning']] if model_name == 'recommended' else [model_name]
     for m in targets:
-        console.print(f'[bold cyan]📥 Pulling model:[/] [yellow]{m}[/]...')
+        console.print(f'[bold cyan]Pulling model:[/] [yellow]{m}[/]...')
         ok, msg = model_manager.pull_model(m)
         if ok:
-            console.print(f'[bold green]✅ {msg}[/]')
+            console.print(f'[bold green][OK] {msg}[/]')
             if benchmark:
                 bench = model_manager.benchmark_model(m)
                 if bench.success:
-                    console.print(f'  [green]⚡ Speed:[/] {bench.tokens_per_sec} tokens/sec ({bench.tokens_generated} tokens in {bench.duration_sec}s)')
+                    console.print(f'  [green]Speed:[/] {bench.tokens_per_sec} tokens/sec ({bench.tokens_generated} tokens in {bench.duration_sec}s)')
         else:
-            console.print(f'[bold yellow]⚠️ {msg}[/]')
+            console.print(f'[bold yellow][WARN] {msg}[/]')
 
 @cli.command(name='tune')
 @click.option('--model', default='qwen2.5-coder:3b', help='Base model to fine-tune')
@@ -686,15 +686,15 @@ def tune_cmd(model: str, epochs: int, name: str = 'saleha-custom') -> None:
     from saleha.core.lora_tuner import lora_tuner, TuningConfig
     out_name = name or 'saleha-custom'
     cfg = TuningConfig(base_model=model, epochs=epochs, output_model_name=out_name)
-    console.print(f'[bold cyan]🚀 Starting Local LoRA Fine-Tuning on {model}...[/]')
+    console.print(f'[bold cyan]Starting Local LoRA Fine-Tuning on {model}...[/]')
     result = lora_tuner.fine_tune(cfg)
     if result.success:
-        console.print(f'[bold green]✅ Fine-Tuning Completed Successfully![/]')
+        console.print(f'[bold green][OK] Fine-Tuning Completed Successfully![/]')
         console.print(f'  Model: [bold cyan]{result.output_model}[/]')
         console.print(f'  Samples: {result.samples_used} | Time: {result.training_time_sec}s')
         console.print(f'  Score: {result.before_score} → [bold green]{result.after_score}[/] (+{result.improvement_pct}%)')
     else:
-        console.print(f'[bold red]❌ Fine-Tuning failed:[/] {result.error}')
+        console.print(f'[bold red][FAIL] Fine-Tuning failed:[/] {result.error}')
 
 @cli.group()
 def memory() -> None:
@@ -716,7 +716,7 @@ def memory_list(limit: int, as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps({'memories': [{'id': m.id, 'goal': m.goal, 'model': m.model, 'tags': m.tags, 'timestamp': m.timestamp, 'hit_count': m.hit_count, 'code_preview': m.code[:100]} for m in memories]}, ensure_ascii=True))
         return
-    table = Table(title='🧠 Persistent Knowledge Base', show_header=True, header_style='bold magenta')
+    table = Table(title='Persistent Knowledge Base', show_header=True, header_style='bold magenta')
     table.add_column('ID', style='cyan')
     table.add_column('Hits', justify='right', style='green')
     table.add_column('Timestamp', style='dim')
@@ -749,7 +749,7 @@ def memory_search(query: str, semantic: bool, as_json: bool) -> None:
         click.echo(json.dumps({'query': query, 'semantic': semantic, 'results': [{'id': m.id, 'goal': m.goal, 'tags': m.tags, 'hit_count': m.hit_count, 'score': scores.get(m.id, 1.0), 'code': m.code} for m in results]}, ensure_ascii=True))
         return
     mode_label = ' (Semantic Vector Mode)' if semantic else ''
-    table = Table(title=f"🔍 Memory Search: '{query}'{mode_label}", show_header=True, header_style='bold magenta')
+    table = Table(title=f"Memory Search: '{query}'{mode_label}", show_header=True, header_style='bold magenta')
     table.add_column('ID', style='cyan')
     if semantic:
         table.add_column('Score', justify='right', style='magenta')
@@ -773,7 +773,7 @@ def memory_clear(yes: bool) -> None:
             console.print('[yellow]Cancelled.[/]')
             return
     _cmds.memory_store.clear()
-    console.print('[green]✅ Persistent memory cleared successfully.[/]')
+    console.print('[green][OK] Persistent memory cleared successfully.[/]')
 
 @memory.command('stats')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
@@ -783,7 +783,7 @@ def memory_stats(as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps(stats, ensure_ascii=True))
         return
-    console.print(Panel.fit(f"[bold cyan]📦 Total Memories:[/] {stats['total_memories']}\n[bold cyan]🎯 Total Cache Hits:[/] {stats['total_hits']}\n[bold cyan]📁 File Path:[/] {stats['storage_path']}", title='[bold green]Memory Store Statistics[/]', border_style='green'))
+    console.print(Panel.fit(f"[bold cyan]Total Memories:[/] {stats['total_memories']}\n[bold cyan]Total Cache Hits:[/] {stats['total_hits']}\n[bold cyan]File Path:[/] {stats['storage_path']}", title='[bold green]Memory Store Statistics[/]', border_style='green'))
 
 @cli.group()
 def ci() -> None:
@@ -809,7 +809,7 @@ def ci_review(target_dir: str, pr_number: Optional[int], output: Optional[str],
         if report.status == 'CHANGES_REQUESTED':
             raise click.exceptions.Exit(1)
         return
-    console.print(Panel(f'[bold green]Status:[/] {report.status}\n[bold cyan]Quality Score:[/] {report.quality_score}/100\n[bold cyan]Files Scanned:[/] {report.total_files} ({report.total_loc} LOC)\n[bold yellow]Security Issues:[/] {report.security_report.total_vulnerabilities} ({report.security_report.high_count} High)', title='[bold green]🤖 Saleha CI/CD Autonomous Code Review[/]', border_style='green' if report.status == 'APPROVED' else 'red'))
+    console.print(Panel(f'[bold green]Status:[/] {report.status}\n[bold cyan]Quality Score:[/] {report.quality_score}/100\n[bold cyan]Files Scanned:[/] {report.total_files} ({report.total_loc} LOC)\n[bold yellow]Security Issues:[/] {report.security_report.total_vulnerabilities} ({report.security_report.high_count} High)', title='[bold green]Saleha CI/CD Autonomous Code Review[/]', border_style='green' if report.status == 'APPROVED' else 'red'))
     console.print(Markdown(report.markdown_review[:1200] + '\n\n*(Full report generated)*'))
 
 @cli.group(name='db')
@@ -831,8 +831,8 @@ def db_optimize_cmd(schema_or_file: str, as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps({'tables_found': analysis.tables_found, 'missing_indexes': analysis.missing_indexes, 'n_plus_one_risks': analysis.n_plus_one_risks, 'migration_sql_up': analysis.migration_sql_up, 'migration_sql_down': analysis.migration_sql_down}, ensure_ascii=True))
         return
-    console.print(Panel(f"[bold cyan]Tables Found:[/] {', '.join(analysis.tables_found) or 'None'}\n[bold cyan]Missing Indexes Detected:[/] {len(analysis.missing_indexes)}\n[bold cyan]N+1 Query Risks:[/] {len(analysis.n_plus_one_risks)}", title='[bold green]🗄️ Database Schema & Index Optimizer[/]', border_style='green'))
-    console.print('\n[bold green]⚡ Generated Migration (UP):[/]')
+    console.print(Panel(f"[bold cyan]Tables Found:[/] {', '.join(analysis.tables_found) or 'None'}\n[bold cyan]Missing Indexes Detected:[/] {len(analysis.missing_indexes)}\n[bold cyan]N+1 Query Risks:[/] {len(analysis.n_plus_one_risks)}", title='[bold green]Database Schema & Index Optimizer[/]', border_style='green'))
+    console.print('\n[bold green]Generated Migration (UP):[/]')
     console.print(Syntax(analysis.migration_sql_up, 'sql', theme='monokai'))
 
 @cli.group(name='workspace')
@@ -851,13 +851,13 @@ def workspace_status_cmd(path: str, as_json: bool) -> None:
         click.echo(json.dumps([s.__dict__ for s in statuses], ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title='🌐 Multi-Repo Workspace Status', border_style='cyan')
+    table = Table(title='Multi-Repo Workspace Status', border_style='cyan')
     table.add_column('Repository', style='bold cyan')
     table.add_column('Current Branch', style='yellow')
     table.add_column('Clean Status', justify='center')
     table.add_column('Uncommitted Files', justify='right')
     for s in statuses:
-        clean_txt = '[green]✅ CLEAN[/]' if s.is_clean else '[yellow]⚠️ DIRTY[/]'
+        clean_txt = '[green][OK] CLEAN[/]' if s.is_clean else '[yellow][WARN] DIRTY[/]'
         table.add_row(s.name, s.current_branch, clean_txt, str(s.uncommitted_count))
     console.print(table)
 
@@ -881,8 +881,8 @@ def sre_analyze_cmd(log_or_file: str, as_json: bool) -> None:
         click.echo(json.dumps(report.__dict__, ensure_ascii=True))
         return
     sev_color = 'red' if report.severity in ('CRITICAL', 'HIGH') else 'yellow'
-    console.print(Panel(f"[bold cyan]Exception:[/] [{sev_color}]{report.error_type}[/]\n[bold cyan]Severity:[/] [{sev_color}]{report.severity}[/]\n[bold cyan]Offending Location:[/] {report.offending_file or 'N/A'}:{report.offending_line or 'N/A'}\n[bold cyan]Message:[/] {report.error_message}\n\n[bold yellow]Root Cause Analysis (RCA):[/]\n{report.root_cause_analysis}", title=f'[{sev_color}]🚨 Autonomous SRE Incident Report[/]', border_style=sev_color))
-    console.print('\n[bold green]🩹 Emergency Hotfix Patch:[/]')
+    console.print(Panel(f"[bold cyan]Exception:[/] [{sev_color}]{report.error_type}[/]\n[bold cyan]Severity:[/] [{sev_color}]{report.severity}[/]\n[bold cyan]Offending Location:[/] {report.offending_file or 'N/A'}:{report.offending_line or 'N/A'}\n[bold cyan]Message:[/] {report.error_message}\n\n[bold yellow]Root Cause Analysis (RCA):[/]\n{report.root_cause_analysis}", title=f'[{sev_color}]Autonomous SRE Incident Report[/]', border_style=sev_color))
+    console.print('\n[bold green]Emergency Hotfix Patch:[/]')
     console.print(Syntax(report.hotfix_patch, 'python', theme='monokai'))
 
 @cli.group(name='refactor')
@@ -903,18 +903,18 @@ def refactor_rename_cmd(old_symbol: str, new_symbol: str, no_commit: bool) -> No
     Example: saleha refactor rename SmartRouter NextGenRouter
     """
     from saleha.core.multi_file_refactorer import multi_file_refactorer
-    console.print(f'[bold cyan]🔄 Planning atomic multi-file rename:[/] [yellow]{old_symbol}[/] -> [green]{new_symbol}[/]')
+    console.print(f'[bold cyan]Planning atomic multi-file rename:[/] [yellow]{old_symbol}[/] -> [green]{new_symbol}[/]')
     res = multi_file_refactorer.rename_symbol(old_symbol, new_symbol, auto_commit=not no_commit)
     if res.success:
-        console.print(f"\n[bold green]✅ Successfully renamed '{old_symbol}' -> '{new_symbol}' across {len(res.files_modified)} files![/]")
+        console.print(f"\n[bold green][OK] Successfully renamed '{old_symbol}' -> '{new_symbol}' across {len(res.files_modified)} files![/]")
         for f in res.files_modified:
             console.print(f'  • [cyan]{f}[/]')
         if res.commit_hash:
-            console.print(f'\n[cyan]📦 Git Commit:[/] [yellow]{res.commit_hash}[/]')
+            console.print(f'\n[cyan]Git Commit:[/] [yellow]{res.commit_hash}[/]')
     else:
-        console.print(f'\n[bold red]❌ Refactoring failed:[/] {res.error}')
+        console.print(f'\n[bold red][FAIL] Refactoring failed:[/] {res.error}')
         if res.rollback_performed:
-            console.print('[bold yellow]🛡️ Automatic transactional rollback completed. Workspace is 100% intact.[/]')
+            console.print('[bold yellow]Automatic transactional rollback completed. Workspace is 100% intact.[/]')
 
 @cli.group(name='multi-repo')
 def multi_repo_group() -> None:
@@ -932,9 +932,9 @@ def multi_repo_scan_cmd(workspace_dir: str) -> None:
     Example: saleha multi-repo scan .
     """
     from saleha.core.graph.multi_repo_graph import multi_repo_graph
-    console.print(f'[bold cyan]🏢 Scanning multi-repository workspace:[/] [yellow]{workspace_dir}[/]')
+    console.print(f'[bold cyan]Scanning multi-repository workspace:[/] [yellow]{workspace_dir}[/]')
     meta = multi_repo_graph.scan_workspace(workspace_dir)
-    table = Table(title='🏢 Multi-Repository Swarm Index', show_header=True, header_style='bold blue', expand=True)
+    table = Table(title='Multi-Repository Swarm Index', show_header=True, header_style='bold blue', expand=True)
     table.add_column('Repository / Package', style='bold white')
     table.add_column('Source Files', style='cyan')
     table.add_column('AST Symbols', style='green')
@@ -959,7 +959,7 @@ def env_list_cmd() -> None:
     """
     from saleha.core.env_sync import env_sync
     secrets = env_sync.get_vault_env()
-    console.print(f'[bold cyan]🔐 Vault Environment Variables ({len(secrets)} active):[/]')
+    console.print(f'[bold cyan]Vault Environment Variables ({len(secrets)} active):[/]')
     for k in secrets:
         console.print(f'  • [green]{k}[/]=******')
 

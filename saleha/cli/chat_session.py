@@ -66,7 +66,7 @@ class SwarmChatSession:
 
     def render_welcome(self) -> None:
         """Renders welcome banner and slash command cheat-sheet."""
-        self.console.print("\n[bold cyan]🐝 Welcome to Saleha Swarm Interactive Chat Playground v3.2.0 Frontier[/bold cyan]")
+        self.console.print("\n[bold cyan]Welcome to Saleha Swarm Interactive Chat Playground v3.2.0 Frontier[/bold cyan]")
         self.console.print("[dim]Type your engineering question, prompt, or slash command to begin.[/dim]\n")
 
         table = Table(show_header=True, header_style="bold magenta", border_style="dim")
@@ -113,7 +113,7 @@ class SwarmChatSession:
             cmd = cmd[7:].strip()
 
         if cmd in ["/exit", "/quit", "exit", "quit", ":q"]:
-            self.console.print("[bold yellow]👋 Exiting Saleha Chat. Happy Coding![/bold yellow]\n")
+            self.console.print("[bold yellow]Exiting Saleha Chat. Happy Coding![/bold yellow]\n")
             return False
 
         if cmd == "/clear" or cmd == "clear":
@@ -283,51 +283,51 @@ class SwarmChatSession:
         return True
 
     def _render_agents_list(self) -> None:
-        table = Table(title="🤖 Saleha 19 First-Class Python Agents", border_style="cyan")
-        table.add_column("Icon", width=4)
+        table = Table(title="Saleha 19 First-Class Python Agents", border_style="cyan")
         table.add_column("Agent Name", style="bold cyan")
         table.add_column("Core Responsibility", style="white")
 
         agents_data = [
-            ("🏛️", "ArchitectAgent", "ADR synthesis & Hexagonal architecture"),
-            ("🗺️", "PlannerAgent", "Task decomposition & DAG scheduling"),
-            ("🎨", "DesignerAgent", "UI/UX design systems & Vanilla CSS tokens"),
-            ("🌐", "WebDevAgent", "HTML5, CSS3, React, Three.js, Astro"),
-            ("👨‍💻", "DeveloperAgent", "Fullstack polyglot microservices"),
-            ("⚡", "CoderAgent", "AST-valid Python / TS / Rust synthesis"),
-            ("🛡️", "SecurityGuardAgent", "OWASP Top-10 & SAST static code audit"),
-            ("🧪", "QALeadAgent", "Pytest unit & regression test suites"),
-            ("🔬", "TesterAgent", "Sandboxed execution & boundary assertions"),
-            ("🔍", "DebuggerAgent", "Traceback analysis & root cause isolation"),
-            ("🧐", "ReviewerAgent", "Senior code quality review & score"),
-            ("♻️", "RefactorSpecialistAgent", "AST modernizations & PEP typing"),
-            ("💰", "FinOpsOptimizerAgent", "Context compression & token cost audit"),
-            ("🐳", "DevOpsAgent", "Docker, Kubernetes, CI/CD pipelines"),
-            ("📊", "DataEngineerAgent", "SQL schemas, ETL data pipelines, vector DBs"),
-            ("🚨", "SREIncidentAgent", "Outage log RCA & remediation runbooks"),
-            ("🧬", "NewSkillCreatorAgent", "AgentSkill directory & tool creator"),
-            ("👁️", "VisionDesignerAgent", "Wireframe-to-Code generator (Vanilla CSS + JSX)"),
-            ("📚", "DocGeneratorAgent", "Autonomous Codebase Docs & Mermaid Architecture"),
-            ("🧠", "TreeOfThoughtsOrchestrator", "State-space heuristic search & self-evolution"),
+            ("ArchitectAgent", "ADR synthesis & Hexagonal architecture"),
+            ("PlannerAgent", "Task decomposition & DAG scheduling"),
+            ("DesignerAgent", "UI/UX design systems & Vanilla CSS tokens"),
+            ("WebDevAgent", "HTML5, CSS3, React, Three.js, Astro"),
+            ("DeveloperAgent", "Fullstack polyglot microservices"),
+            ("CoderAgent", "AST-valid Python / TS / Rust synthesis"),
+            ("SecurityGuardAgent", "OWASP Top-10 & SAST static code audit"),
+            ("QALeadAgent", "Pytest unit & regression test suites"),
+            ("TesterAgent", "Sandboxed execution & boundary assertions"),
+            ("DebuggerAgent", "Traceback analysis & root cause isolation"),
+            ("ReviewerAgent", "Senior code quality review & score"),
+            ("RefactorSpecialistAgent", "AST modernizations & PEP typing"),
+            ("FinOpsOptimizerAgent", "Context compression & token cost audit"),
+            ("DevOpsAgent", "Docker, Kubernetes, CI/CD pipelines"),
+            ("DataEngineerAgent", "SQL schemas, ETL data pipelines, vector DBs"),
+            ("SREIncidentAgent", "Outage log RCA & remediation runbooks"),
+            ("NewSkillCreatorAgent", "AgentSkill directory & tool creator"),
+            ("VisionDesignerAgent", "Wireframe-to-Code generator (Vanilla CSS + JSX)"),
+            ("DocGeneratorAgent", "Autonomous Codebase Docs & Mermaid Architecture"),
+            ("TreeOfThoughtsOrchestrator", "State-space heuristic search & self-evolution"),
         ]
 
-        for icon, name, role in agents_data:
-            table.add_row(icon, name, role)
+        table.title = f"Saleha {len(agents_data)} First-Class Python Agents"
+        for name, role in agents_data:
+            table.add_row(name, role)
         self.console.print(table)
         self.console.print()
 
     def _execute_swarm_command(self, goal: str) -> None:
-        self.console.print(f"\n[bold cyan]🚀 Triggering Autonomous Swarm DAG:[/] [yellow]\"{goal}\"[/]")
+        self.console.print(f"\n[bold cyan]Triggering Autonomous Swarm DAG:[/] [yellow]\"{goal}\"[/]")
         res = swarm_engine.execute_swarm(goal)
-        self.console.print(f"[bold green]✨ Swarm Completed in {res.total_duration_ms}ms ({len(res.stages)} stages)![/bold green]")
+        self.console.print(f"[bold green]Swarm Completed in {res.total_duration_ms}ms ({len(res.stages)} stages)![/bold green]")
         if res.final_code:
             self.console.print(Syntax(res.final_code[:500], "python", theme="monokai", line_numbers=True))
         self.console.print()
 
     def _execute_solve_command(self, issue_desc: str) -> None:
-        self.console.print(f"\n[bold cyan]🐙 Resolving Issue:[/] [yellow]\"{issue_desc}\"[/]")
+        self.console.print(f"\n[bold cyan]Resolving Issue:[/] [yellow]\"{issue_desc}\"[/]")
         plan = issue_resolver.resolve_issue(issue_desc)
-        self.console.print(Panel(plan.pr_body_markdown, title="[bold green]📦 Generated GitHub PR[/]", border_style="green"))
+        self.console.print(Panel(plan.pr_body_markdown, title="[bold green]Generated GitHub PR[/]", border_style="green"))
         self.console.print()
 
     def _execute_vision_command(self, prompt: str) -> None:
@@ -343,7 +343,7 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_container_command(self, code: str) -> None:
-        self.console.print(f"\n[bold cyan]🐳 Ephemeral Container Sandbox Executing...[/bold cyan]")
+        self.console.print(f"\n[bold cyan]Ephemeral Container Sandbox Executing...[/bold cyan]")
         res = container_runner.run_code(code)
         color = "green" if res.success else "red"
         self.console.print(f"[{color}]● Execution {'SUCCESS' if res.success else 'FAILED'} ({res.duration_ms}ms) | {res.isolation_engine}[/{color}]\n")
@@ -354,9 +354,9 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_notebook_command(self, topic: str) -> None:
-        self.console.print(f"\n[bold cyan]📓 Autonomous Notebook Engine — Structuring:[/] [yellow]\"{topic}\"[/]")
+        self.console.print(f"\n[bold cyan]Autonomous Notebook Engine — Structuring:[/] [yellow]\"{topic}\"[/]")
         result = notebook_architect.synthesize_notebook(topic)
-        self.console.print(f"[bold green]✨ Synthesized {result.cell_count} Reactive Cells in {result.generation_time_ms}ms (Jupyter .ipynb v4.5)![/bold green]\n")
+        self.console.print(f"[bold green]Synthesized {result.cell_count} Reactive Cells in {result.generation_time_ms}ms (Jupyter .ipynb v4.5)![/bold green]\n")
         for idx, cell in enumerate(result.notebook_doc.cells):
             self.console.print(f"[dim]── Cell [{idx+1}/{result.cell_count}] ({cell.cell_type.upper()}) ──[/dim]")
             if cell.cell_type == "code":
@@ -368,22 +368,22 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_dataset_command(self, path: str) -> None:
-        self.console.print(f"\n[bold cyan]📊 Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
+        self.console.print(f"\n[bold cyan]Synthesizing AST-Verified Instruction Dataset for SLM Fine-Tuning...[/bold cyan]")
         count = dataset_synthesizer.synthesize_dataset(output_path=path, sample_count=50)
-        self.console.print(f"[bold green]✨ Successfully Synthesized {count} Verified Samples -> [yellow]{path}[/yellow]![/bold green]\n")
+        self.console.print(f"[bold green]Successfully Synthesized {count} Verified Samples -> [yellow]{path}[/yellow]![/bold green]\n")
 
     def _execute_lora_config_command(self) -> None:
-        self.console.print(f"\n[bold cyan]⚙️ Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
+        self.console.print(f"\n[bold cyan]Exporting PEFT / LoRA Training Scripts & YAML Configuration...[/bold cyan]")
         model_distillation_pipeline.generate_lora_training_yaml("configs/lora_training_config.yaml")
         model_distillation_pipeline.generate_training_script("scripts/train_lora_slm.py")
-        self.console.print("[bold green]✨ Exported `configs/lora_training_config.yaml` & `scripts/train_lora_slm.py`![/bold green]\n")
+        self.console.print("[bold green]Exported `configs/lora_training_config.yaml` & `scripts/train_lora_slm.py`![/bold green]\n")
 
     def _execute_score_code_command(self, code: str) -> None:
-        self.console.print(f"\n[bold cyan]🧬 Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
+        self.console.print(f"\n[bold cyan]Neuro-Symbolic RLIF Invariant Engine Scoring...[/bold cyan]")
         score = neuro_symbolic_engine.score_code(code)
         color = "green" if score.composite_score >= 0.8 else "yellow" if score.composite_score >= 0.5 else "red"
         self.console.print(f"[{color}]● Composite Invariant Score: {score.composite_score * 100:.1f}% ({score.evaluation_duration_ms}ms)[/{color}]")
-        self.console.print(f"- AST Syntax: {'✅ Valid (100%)' if score.ast_valid else '❌ Syntax Error (0%)'}")
+        self.console.print(f"- AST Syntax: {'[OK] Valid (100%)' if score.ast_valid else '[FAIL] Syntax Error (0%)'}")
         self.console.print(f"- Type Safety: {score.type_safety_score * 100:.0f}%")
         self.console.print(f"- OWASP Security: {score.security_score * 100:.0f}%")
         self.console.print(f"- Invariant Assertions: {score.assertion_score * 100:.0f}%\n")
@@ -392,24 +392,24 @@ class SwarmChatSession:
 
     def _execute_mcp_command(self, sub: str) -> None:
         tools = saleha_mcp_server.list_tools()
-        self.console.print(f"\n[bold cyan]🔌 Universal Model Context Protocol (MCP) Server Active v{saleha_mcp_server.version}[/bold cyan]")
-        self.console.print(f"[bold green]✨ Exposing {len(tools)} Standard MCP Tools to Cursor, VS Code & Claude Desktop:[/bold green]\n")
+        self.console.print(f"\n[bold cyan]Universal Model Context Protocol (MCP) Server Active v{saleha_mcp_server.version}[/bold cyan]")
+        self.console.print(f"[bold green]Exposing {len(tools)} Standard MCP Tools to Cursor, VS Code & Claude Desktop:[/bold green]\n")
         for t in tools:
             self.console.print(f"- [cyan]{t['name']}[/cyan]: [white]{t['description']}[/white]")
         self.console.print()
 
     def _execute_screen_inspect_command(self, ui_desc: str) -> None:
-        self.console.print(f"\n[bold cyan]👁️ Screen Copilot Inspecting Visual Layout for:[/] [yellow]\"{ui_desc}\"[/]")
+        self.console.print(f"\n[bold cyan]Screen Copilot Inspecting Visual Layout for:[/] [yellow]\"{ui_desc}\"[/]")
         result = screen_copilot.inspect_screen_and_fix(ui_desc)
-        self.console.print(f"[bold green]✨ Visual Inspection Complete in {result.inspection_time_ms}ms (WCAG AA: PASS)![/bold green]\n")
+        self.console.print(f"[bold green]Visual Inspection Complete in {result.inspection_time_ms}ms (WCAG AA: PASS)![/bold green]\n")
         for g in result.detected_glitches:
-            self.console.print(f"[yellow]⚠️ {g}[/yellow]")
+            self.console.print(f"[yellow][WARN] {g}[/yellow]")
         self.console.print(Panel(result.remediation_code_diff, title="[bold cyan]Remediated React JSX & Responsive CSS[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_cluster_command(self, sub: str) -> None:
         status = swarm_cluster.get_cluster_status()
-        self.console.print(f"\n[bold cyan]🐝 Decentralized P2P Swarm Cluster Status[/bold cyan]")
+        self.console.print(f"\n[bold cyan]Decentralized P2P Swarm Cluster Status[/bold cyan]")
         self.console.print(f"- Local Node ID : [cyan]{status['local_node_id']}[/cyan]")
         self.console.print(f"- Total Nodes   : [bold green]{status['total_nodes']}[/bold green]")
         self.console.print(f"- Cluster Cores : [white]{status['total_cluster_cores']} vCPUs[/white] | Cluster RAM: [white]{status['total_cluster_ram_gb']} GB[/white]\n")
@@ -418,16 +418,16 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_chaos_command(self, target: str) -> None:
-        self.console.print(f"\n[bold cyan]💥 Chaos Resilience Fault Injection Running on:[/] [yellow]\"{target}\"[/]")
+        self.console.print(f"\n[bold cyan]Chaos Resilience Fault Injection Running on:[/] [yellow]\"{target}\"[/]")
         result = chaos_resilience.run_chaos_test(target)
-        self.console.print(f"[bold green]✨ Chaos Experiment Complete in {result.experiment_duration_ms}ms (Resilience Score: {result.resilience_score_pct}%)![/bold green]\n")
+        self.console.print(f"[bold green]Chaos Experiment Complete in {result.experiment_duration_ms}ms (Resilience Score: {result.resilience_score_pct}%)![/bold green]\n")
         self.console.print(f"- Fault Injected: [red]{result.injected_fault_scenario}[/red]")
         self.console.print(f"- Impact RCA    : [white]{result.system_impact_analysis}[/white]\n")
         self.console.print(Panel(result.circuit_breaker_patch, title="[bold cyan]Synthesized Autonomous Circuit Breaker[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_autopr_command(self, task: str) -> None:
-        self.console.print(f"\n[bold cyan]🤖 Preparing PR from repository state: [yellow]\"{task}\"[/yellow][/bold cyan]")
+        self.console.print(f"\n[bold cyan]Preparing PR from repository state: [yellow]\"{task}\"[/yellow][/bold cyan]")
         result = repo_orchestrator.execute_auto_pr(task)
 
         if not result.is_git_repo:
@@ -435,7 +435,7 @@ class SwarmChatSession:
             self.console.print()
             return
 
-        self.console.print(f"[bold green]✨ PR description prepared in {result.execution_time_ms}ms[/bold green]")
+        self.console.print(f"[bold green]PR description prepared in {result.execution_time_ms}ms[/bold green]")
         branch_state = "created" if result.branch_created else "proposed, not created"
         self.console.print(f"- Branch         : [cyan]{result.branch_name}[/cyan] ({branch_state})")
         self.console.print(f"- Commit Message : [white]{result.commit_message.splitlines()[0]}[/white]")
@@ -452,43 +452,43 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_voice_command(self, topic: str) -> None:
-        self.console.print(f"\n[bold cyan]🎙️ Voice Architect Synthesizing Real-Time Spoken Audio Commentary for: [yellow]\"{topic}\"[/yellow][/bold cyan]")
+        self.console.print(f"\n[bold cyan]Voice Architect Synthesizing Real-Time Spoken Audio Commentary for: [yellow]\"{topic}\"[/yellow][/bold cyan]")
         result = voice_architect.synthesize_voice_commentary(topic)
-        self.console.print(f"[bold green]✨ Spoken Audio Commentary Synthesized ({result.audio_duration_estimate_sec}s spoken duration, {result.generation_time_ms}ms)![/bold green]")
-        self.console.print(Panel(f"🗣️ [italic]\"{result.transcript}\"[/italic]", title="[bold magenta]Spoken Pair-Programming Transcript[/]", border_style="magenta"))
+        self.console.print(f"[bold green]Spoken Audio Commentary Synthesized ({result.audio_duration_estimate_sec}s spoken duration, {result.generation_time_ms}ms)![/bold green]")
+        self.console.print(Panel(f"[italic]\"{result.transcript}\"[/italic]", title="[bold magenta]Spoken Pair-Programming Transcript[/]", border_style="magenta"))
         self.console.print()
 
     def _execute_local_model_command(self, model_name: str) -> None:
         local_inference_engine.set_active_model(model_name)
-        self.console.print(f"\n[bold green]⚡ Active Local GGUF / Ollama Model switched to: [yellow]{model_name}[/yellow][/bold green]\n")
+        self.console.print(f"\n[bold green]Active Local GGUF / Ollama Model switched to: [yellow]{model_name}[/yellow][/bold green]\n")
 
     def _execute_research_command(self, topic: str) -> None:
-        self.console.print(f"\n[bold cyan]🔬 Autonomous Deep Research — Scanning Sources for:[/] [yellow]\"{topic}\"[/]")
+        self.console.print(f"\n[bold cyan]Autonomous Deep Research — Scanning Sources for:[/] [yellow]\"{topic}\"[/]")
         report = deep_researcher.conduct_research(topic)
-        self.console.print(f"[bold green]✨ Research Synthesized in {report.generation_time_ms}ms ({len(report.citations)} citations, {len(report.key_findings)} findings)![/bold green]\n")
+        self.console.print(f"[bold green]Research Synthesized in {report.generation_time_ms}ms ({len(report.citations)} citations, {len(report.key_findings)} findings)![/bold green]\n")
         self.console.print(Panel(report.full_markdown_report[:1200] + "\n...", title="[bold cyan]Deep Research Whitepaper[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_slides_command(self, topic: str) -> None:
-        self.console.print(f"\n[bold cyan]📊 Synthesizing Presentation Deck:[/] [yellow]\"{topic}\"[/]")
+        self.console.print(f"\n[bold cyan]Synthesizing Presentation Deck:[/] [yellow]\"{topic}\"[/]")
         deck = slides_architect.synthesize_deck(topic)
-        self.console.print(f"[bold green]✨ Synthesized {len(deck.slides)} Slides in {deck.generation_time_ms}ms![/bold green]\n")
+        self.console.print(f"[bold green]Synthesized {len(deck.slides)} Slides in {deck.generation_time_ms}ms![/bold green]\n")
         self.console.print(Panel(deck.marp_markdown[:900] + "\n...", title="[bold cyan]Marp Markdown Slides[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_sheet_command(self, query: str) -> None:
-        self.console.print(f"\n[bold cyan]📈 Tabular Columnar Analytics — Processing:[/] [yellow]\"{query}\"[/]")
+        self.console.print(f"\n[bold cyan]Tabular Columnar Analytics — Processing:[/] [yellow]\"{query}\"[/]")
         res = sheets_analyst.analyze_tabular_query(query)
-        self.console.print(f"[bold green]✨ Processed {res.total_rows} Rows ({len(res.columns)} Columns, {len(res.anomalies)} Anomalies) in {res.execution_time_ms}ms![/bold green]\n")
+        self.console.print(f"[bold green]Processed {res.total_rows} Rows ({len(res.columns)} Columns, {len(res.anomalies)} Anomalies) in {res.execution_time_ms}ms![/bold green]\n")
         self.console.print(Panel(res.ascii_table_preview, title="[bold green]Aggregated Table Output[/]", border_style="green"))
         if res.anomalies:
-            self.console.print(Panel(f"🚨 [bold red]Detected {len(res.anomalies)} Anomaly Outliers:[/bold red]\n" + "\n".join(f"- {a.column} (Row {a.row_index}): {a.reason}" for a in res.anomalies), title="[bold red]Anomaly Alert[/]", border_style="red"))
+            self.console.print(Panel(f"[bold red]Detected {len(res.anomalies)} Anomaly Outliers:[/bold red]\n" + "\n".join(f"- {a.column} (Row {a.row_index}): {a.reason}" for a in res.anomalies), title="[bold red]Anomaly Alert[/]", border_style="red"))
         self.console.print()
 
     def _execute_claw_command(self, target: str) -> None:
-        self.console.print(f"\n[bold cyan]🦅 Sovereign Claw Web Agent Navigating:[/] [yellow]\"{target}\"[/]")
+        self.console.print(f"\n[bold cyan]Sovereign Claw Web Agent Navigating:[/] [yellow]\"{target}\"[/]")
         res = browser_claw.crawl_and_extract(target)
-        self.console.print(f"[bold green]✨ Crawled {res.dom_elements_scanned} DOM Nodes in {res.execution_time_ms}ms (HTTP {res.http_status})![/bold green]\n")
+        self.console.print(f"[bold green]Crawled {res.dom_elements_scanned} DOM Nodes in {res.execution_time_ms}ms (HTTP {res.http_status})![/bold green]\n")
         self.console.print(Panel(str(res.extracted_data), title="[bold cyan]Extracted Structured JSON[/]", border_style="cyan"))
         self.console.print()
 
@@ -502,7 +502,7 @@ class SwarmChatSession:
         self.console.print(f"[bold green]Task Registered Successfully (Task ID: {task.task_id})![/bold green]\n")
 
     def _execute_tasks_command(self) -> None:
-        self.console.print(f"\n[bold cyan]⏰ Registered Background Cron Tasks:[/bold cyan]\n")
+        self.console.print(f"\n[bold cyan]Registered Background Cron Tasks:[/bold cyan]\n")
         tasks = task_scheduler.list_tasks()
         table = Table(title="Scheduled Background Tasks", border_style="cyan")
         table.add_column("Task ID", style="cyan")
@@ -516,14 +516,14 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_docgen_command(self, target_dir: str) -> None:
-        self.console.print(f"\n[bold cyan]📚 Autonomous Doc Generator — Scanning:[/] [yellow]{target_dir}[/]")
+        self.console.print(f"\n[bold cyan]Autonomous Doc Generator — Scanning:[/] [yellow]{target_dir}[/]")
         spec = doc_generator.scan_and_generate_docs(target_dir)
-        self.console.print(f"[bold green]✨ Synthesized in {spec.generation_time_ms}ms ({len(spec.modules_found)} modules, {spec.total_classes} classes)![/bold green]\n")
+        self.console.print(f"[bold green]Synthesized in {spec.generation_time_ms}ms ({len(spec.modules_found)} modules, {spec.total_classes} classes)![/bold green]\n")
         self.console.print(Panel(spec.full_doc_markdown[:1000] + "\n...", title="[bold cyan]Architecture Reference[/]", border_style="cyan"))
         self.console.print()
 
     def _execute_release_command(self) -> None:
-        self.console.print(f"\n[bold cyan]📦 Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n")
+        self.console.print(f"\n[bold cyan]Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n")
         report = release_manager.check_release_readiness()
         table = Table(title=f"Release Pre-Flight Report (v{report.version})", border_style="green" if report.success else "red")
         table.add_column("Component", style="white")
@@ -535,9 +535,9 @@ class SwarmChatSession:
         self.console.print()
 
     def _execute_resume_command(self, exec_id: str) -> None:
-        self.console.print(f"\n[bold cyan]🔄 Resuming Execution ID:[/] [yellow]{exec_id}[/]")
+        self.console.print(f"\n[bold cyan]Resuming Execution ID:[/] [yellow]{exec_id}[/]")
         res = swarm_engine.resume_swarm(exec_id)
-        self.console.print(f"[bold green]✨ Resumed successfully ({len(res.stages)} stages, {res.total_duration_ms}ms)![/bold green]\n")
+        self.console.print(f"[bold green]Resumed successfully ({len(res.stages)} stages, {res.total_duration_ms}ms)![/bold green]\n")
 
     def _execute_mcts_command(self, prompt: str) -> None:
         self.console.print(f"\n[bold cyan]Template Candidate Scoring (fixed templates, real scoring -- not real MCTS):[/] [yellow]{prompt}[/]")
@@ -576,7 +576,7 @@ class SwarmChatSession:
 
     def _execute_evolving_status_command(self) -> None:
         stats = self_evolving_loop.get_stats()
-        table = Table(title="🔄 Saleha Continuous Learning & Self-Evolving Telemetry", border_style="cyan")
+        table = Table(title="Saleha Continuous Learning & Self-Evolving Telemetry", border_style="cyan")
         table.add_column("Metric", style="white")
         table.add_column("Value", style="bold cyan")
         table.add_row("Active Learning Status", f"[green]{stats.active_learning_status}[/]")
@@ -638,11 +638,11 @@ class SwarmChatSession:
         self.render_welcome()
         while True:
             try:
-                user_input = input("saleha ❯ ")
+                user_input = input("saleha ")
                 if not self.process_command(user_input):
                     break
             except (KeyboardInterrupt, EOFError):
-                self.console.print("\n[bold yellow]👋 Exiting Saleha Chat. Happy Coding![/bold yellow]\n")
+                self.console.print("\n[bold yellow]Exiting Saleha Chat. Happy Coding![/bold yellow]\n")
                 break
 
 

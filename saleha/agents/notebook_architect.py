@@ -36,7 +36,7 @@ class NotebookArchitectAgent(BaseAgent):
         result = self.synthesize_notebook(prompt)
         duration = (time.perf_counter() - start) * 1000
 
-        content = f"""### 📓 Synthesized Interactive Notebook: {result.title}
+        content = f"""### Synthesized Interactive Notebook: {result.title}
 - **Total Cells**: {result.cell_count}
 - **Execution Engine**: Saleha Sovereign Ephemeral Sandbox
 - **Export Format**: Standard Jupyter `.ipynb` (nbformat v4.5)
@@ -63,7 +63,7 @@ class NotebookArchitectAgent(BaseAgent):
             NotebookCell(
                 cell_id="cell_01",
                 cell_type="markdown",
-                source=f"# 📓 {clean_topic}\n\n*Synthesized autonomously by Saleha Notebook Engine v2.8.0.*\n\n### Overview\nThis interactive computational notebook models and evaluates **{clean_topic}** with AST invariant proofs and container isolation.",
+                source=f"# {clean_topic}\n\n*Synthesized autonomously by Saleha Notebook Engine v2.8.0.*\n\n### Overview\nThis interactive computational notebook models and evaluates **{clean_topic}** with AST invariant proofs and container isolation.",
             ),
             NotebookCell(
                 cell_id="cell_02",
@@ -72,8 +72,8 @@ class NotebookArchitectAgent(BaseAgent):
 import sys
 import time
 
-print(f"🚀 Initialized Kernel: Python {{sys.version.split()[0]}}")
-print(f"🔒 Sandboxed Container: 256MB RAM / 1.0 CPU CGroups")""",
+print(f"Initialized Kernel: Python {{sys.version.split()[0]}}")
+print(f"Sandboxed Container: 256MB RAM / 1.0 CPU CGroups")""",
                 defined_variables=["sys", "time"],
             ),
             NotebookCell(
@@ -103,14 +103,14 @@ class ModelPipeline:
 
 pipeline = ModelPipeline()
 result = pipeline.predict(100.0)
-print(f"✅ Prediction Output: {{result}} (Model: {{pipeline.name}})")""",
+print(f"[OK] Prediction Output: {{result}} (Model: {{pipeline.name}})")""",
                 defined_variables=["ModelPipeline", "pipeline", "result"],
                 referenced_variables=["clean_topic"],
             ),
             NotebookCell(
                 cell_id="cell_05",
                 cell_type="markdown",
-                source="""### 🎯 Summary & Invariant Verification
+                source="""### Summary & Invariant Verification
 - **AST Correctness**: 100% Deterministic (0 Syntax/Type Errors)
 - **Execution Safety**: Isolated in Ephemeral Container Sandbox
 - **Reactivity**: Dependency Graph verified across all 5 cells.""",

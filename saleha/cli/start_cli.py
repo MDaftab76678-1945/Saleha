@@ -22,7 +22,7 @@ console = Console()
 @click.option("--choice", "-c", type=int, default=None, help="Directly select menu option (1-5).")
 def start_cmd(choice: int | None):
     console.print(Panel(
-        f"[bold cyan]🚀 SALEHA AI QUICKSTART LAUNCHER (v{__version__})[/bold cyan]\n"
+        f"[bold cyan]SALEHA AI QUICKSTART LAUNCHER (v{__version__})[/bold cyan]\n"
         "[dim]Choose an action to launch or inspect the autonomous ecosystem:[/dim]",
         border_style="cyan"
     ))

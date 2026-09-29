@@ -1,11 +1,11 @@
 """
 Saleha Core: Task History (New file)
 
-Har task run ka poora record save karta hai -- kya goal tha, kaunsa model use
-hua, success mila ya nahi, kitne attempts lage, aur final code kya bana.
+Saves a full record of every task run -- the goal, which model was used,
+whether it succeeded, how many attempts it took, and the final code.
 
-File format: JSONL (ek line = ek task), taaki file corrupt hone ka risk kam
-ho -- agar ek line kharab bhi ho jaaye, baaki history padhi ja sakti hai.
+File format: JSONL (one line = one task), which limits corruption risk -- if one
+line is damaged the rest of the history can still be read.
 
 Default location: ~/.saleha/history.jsonl
 
@@ -14,7 +14,7 @@ Usage:
     history.log(goal="...", model="qwen2.5-coder:3b", success=True,
                 attempts=1, code="...")
     recent = history.recent(5)          # last 5 tasks
-    failed = history.failed_tasks()     # sirf jo fail hue
+    failed = history.failed_tasks()     # only the ones that failed
 """
 
 import json
@@ -64,7 +64,7 @@ class TaskHistory:
             extra=kwargs if kwargs else None,
         )
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        # Append-only -- ek task ek line, koi read-modify-write race nahi
+        # Append-only -- one task per line, so there is no read-modify-write race
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(record), ensure_ascii=False) + "\n")
 
@@ -86,9 +86,9 @@ class TaskHistory:
                         base_data["extra"] = {**(base_data.get("extra") or {}), **extra_data}
                     records.append(TaskRecord(**base_data))
                 except (json.JSONDecodeError, TypeError) as e:
-                    # Ek kharab line pura history nahi todegi -- skip karo, warn karo.
-                    # stderr par -- stdout par nahi, warna `saleha history --json`
-                    # jaise commands ka JSON output corrupt ho jaata hai (real bug:
+                    # One bad line must not break the whole history -- skip it and warn.
+                    # Warn on stderr, not stdout, or the JSON output of commands
+                    # like `saleha history --json` is corrupted (real bug:
                     # a pre-fix TaskRecord schema on a divergent branch had no
                     # `extra` field, so decoding an extra-field record raised
                     # TypeError here, and the warning text landed inside JSON stdout).

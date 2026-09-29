@@ -42,7 +42,7 @@ def deploy_cmd(target, output_dir, name, port, as_json):
     if as_json:
         click.echo(json.dumps({'app_name': pkg.app_name, 'runtime': pkg.runtime, 'port': pkg.port, 'output_dir': output_dir, 'files_generated': [os.path.basename(f) for f in written]}, ensure_ascii=True))
         return
-    console.print(Panel(f'[bold cyan]App Name:[/] {pkg.app_name}\n[bold cyan]Detected Runtime:[/] {pkg.runtime.upper()}\n[bold cyan]Exposed Port:[/] {pkg.port}\n[bold cyan]Output Directory:[/] {output_dir}\n[bold green]Files Generated:[/]\n' + '\n'.join([f'  • {os.path.basename(f)}' for f in written]), title='[bold green]☁️ Saleha 1-Click Cloud & K8s Deployer[/]', border_style='green'))
+    console.print(Panel(f'[bold cyan]App Name:[/] {pkg.app_name}\n[bold cyan]Detected Runtime:[/] {pkg.runtime.upper()}\n[bold cyan]Exposed Port:[/] {pkg.port}\n[bold cyan]Output Directory:[/] {output_dir}\n[bold green]Files Generated:[/]\n' + '\n'.join([f'  • {os.path.basename(f)}' for f in written]), title='[bold green]Saleha 1-Click Cloud & K8s Deployer[/]', border_style='green'))
 
 @cli.command(name='migrate')
 @click.argument('target_path')
@@ -62,12 +62,12 @@ def migrate_cmd(target_path, source_fw, target_fw, inplace):
     with open(target_path, 'r', encoding='utf-8') as f:
         code = f.read()
     res = code_migrator.migrate(code, source=source_fw, target=target_fw)
-    console.print(f'[bold cyan]🔄 Codebase Migration:[/] [yellow]{source_fw} ➔ {target_fw}[/]')
+    console.print(f'[bold cyan]Codebase Migration:[/] [yellow]{source_fw} {target_fw}[/]')
     console.print(f'[dim]{res.summary}[/]\n')
     if inplace:
         with open(target_path, 'w', encoding='utf-8') as f:
             f.write(res.migrated_code)
-        console.print(f'[bold green]✅ Saved migrated code in-place to:[/] {target_path}')
+        console.print(f'[bold green][OK] Saved migrated code in-place to:[/] {target_path}')
     else:
         console.print('[bold green]Migrated Code Preview:[/]')
         console.print(res.migrated_code)
@@ -83,7 +83,7 @@ def generate_infra_cmd(name: str, port: int):
     """
     from saleha.core.infra_generator import infra_generator
     b = infra_generator.generate_infrastructure(name, port)
-    console.print(Panel(f'[bold blue]🏗️ Infrastructure-as-Code Generated for {name}[/bold blue]', border_style='blue'))
+    console.print(Panel(f'[bold blue]Infrastructure-as-Code Generated for {name}[/bold blue]', border_style='blue'))
     console.print(f"Synthesized: {', '.join(b.files.keys())}")
 
 @cli.command(name='cloud-plan')
@@ -94,7 +94,7 @@ def generate_infra_cmd(name: str, port: int):
 def cloud_plan_cmd(goal: str, provider: str, ha: bool, output_dir: Optional[str]):
     """Autonomously synthesize Terraform, Kubernetes manifests, Helm values & IAM security policies."""
     from saleha.core.cloud_infra_orchestrator import cloud_infra_orchestrator
-    console.print(f'[bold cyan]☁️ Synthesizing Enterprise Cloud Architecture for:[/] [white]{goal}[/]')
+    console.print(f'[bold cyan]Synthesizing Enterprise Cloud Architecture for:[/] [white]{goal}[/]')
     plan = cloud_infra_orchestrator.plan_and_generate_infra(goal=goal, cloud_provider=provider, high_availability=ha)
     if output_dir:
         out_p = Path(output_dir)
@@ -127,7 +127,7 @@ def cloud_plan_cmd(goal: str, provider: str, ha: bool, output_dir: Optional[str]
 def silicon_build_cmd(goal: str, name: Optional[str], output_dir: Optional[str]):
     """Synthesize synthesizable Verilog / SystemVerilog RTL, self-checking testbenches & SDC timing."""
     from saleha.core.silicon_circuit_orchestrator import silicon_circuit_orchestrator
-    console.print(f'[bold yellow]⚡ Synthesizing Silicon Hardware Circuit for:[/] [white]{goal}[/]')
+    console.print(f'[bold yellow]Synthesizing Silicon Hardware Circuit for:[/] [white]{goal}[/]')
     design = silicon_circuit_orchestrator.synthesize_hardware_circuit(spec_goal=goal, module_name=name)
     if output_dir:
         out_p = Path(output_dir)
@@ -135,7 +135,7 @@ def silicon_build_cmd(goal: str, name: Optional[str], output_dir: Optional[str])
         (out_p / f'{design.module_name}.v').write_text(design.verilog_rtl, encoding='utf-8')
         (out_p / f'tb_{design.module_name}.v').write_text(design.testbench_sv, encoding='utf-8')
         (out_p / f'{design.module_name}.sdc').write_text(design.timing_constraints_sdc, encoding='utf-8')
-        console.print(f'[bold green]✅ Wrote hardware RTL, testbench & SDC timing to:[/] {output_dir}')
+        console.print(f'[bold green][OK] Wrote hardware RTL, testbench & SDC timing to:[/] {output_dir}')
     console.print(Panel(design.verilog_rtl[:380] + '\n  ...', title=f'Verilog RTL: {design.module_name}', border_style='yellow'))
     console.print(f'[cyan]SDC target:[/] {design.sdc_target_freq_mhz} MHz '
                   f'[dim](what the constraints ask for, not a measured result)[/]')

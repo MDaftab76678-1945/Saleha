@@ -97,14 +97,14 @@ class SWEBenchHarness:
         avg_time = round(sum(r.duration_ms for r in results) / total if total else 0.0, 2)
 
         md = [
-            "# 🏆 Saleha AI Multi-Agent Swarm SWE-bench Leaderboard",
+            "# Saleha AI Multi-Agent Swarm SWE-bench Leaderboard",
             f"\n**Resolved**: `{resolved_count}/{total}` ({pass_rate}%) | **Avg Resolution Time**: `{avg_time}ms`\n",
             "| Task ID | Target Repository | Status | Security (SAST) | QA Tests | Duration |",
             "| :--- | :--- | :--- | :--- | :--- | :--- |",
         ]
 
         for r in results:
-            status = "✅ RESOLVED" if r.resolved else "❌ FAILED"
+            status = "[OK] RESOLVED" if r.resolved else "[FAIL] FAILED"
             sec = "PASS (0 CVE)" if r.security_clean else "FLAGGED"
             qa = "PASS" if r.tests_passed else "FAIL"
             md.append(f"| `{r.task_id}` | `{r.repo}` | **{status}** | {sec} | {qa} | `{r.duration_ms}ms` |")

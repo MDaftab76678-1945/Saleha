@@ -113,7 +113,7 @@ class MemoryJournal:
             return "No entries in current session."
         lines = [f"Session: {self.session_id} | Project: {self.project}"]
         for e in entries:
-            status = "✅" if e.success else "❌"
+            status = "[OK]" if e.success else "[FAIL]"
             lines.append(f"  {status} [{e.timestamp}] {e.agent}:{e.action} ({e.duration_ms}ms)")
             lines.append(f"     IN:  {e.input_summary[:80]}")
             lines.append(f"     OUT: {e.output_summary[:80]}")

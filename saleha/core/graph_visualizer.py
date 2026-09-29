@@ -107,7 +107,7 @@ class ArchitectureGraphVisualizer:
 </head>
 <body>
   <div id="header">
-    <h1>⚡ Saleha Architecture Graph</h1>
+    <h1>Saleha Architecture Graph</h1>
     <p>{len(graph_data['nodes'])} Nodes | {len(graph_data['links'])} Cross-File Links</p>
   </div>
   <div id="search-box">

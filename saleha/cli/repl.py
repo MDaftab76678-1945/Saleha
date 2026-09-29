@@ -50,7 +50,7 @@ class SalehaREPL:
 
     def print_welcome(self) -> None:
         console.print(Panel.fit(
-            f"[bold green]🧠 Saleha Interactive Pair-Programming REPL[/] [dim]v{__version__}[/]\n"
+            f"[bold green]Saleha Interactive Pair-Programming REPL[/] [dim]v{__version__}[/]\n"
             f"[bold cyan]Active Persona:[/] [yellow]{self.role_title}[/]\n"
             f"[bold cyan]Security Mode:[/] [magenta]{self.security_mode.upper()}[/] | [bold cyan]Model:[/] {self.model}\n"
             f"[dim]Type your message, or use slash commands like [bold]/help[/bold], [bold]/soul <name>[/bold], [bold]/cost[/bold], [bold]/exit[/bold][/dim]",
@@ -59,7 +59,7 @@ class SalehaREPL:
         ))
 
     def print_help(self) -> None:
-        table = Table(title="💬 REPL Slash Commands", show_header=True, header_style="bold magenta")
+        table = Table(title="REPL Slash Commands", show_header=True, header_style="bold magenta")
         table.add_column("Command", style="cyan")
         table.add_column("Description", style="yellow")
         table.add_row("/soul <name>", "Switch SoulSpec persona (e.g., /soul artisan, /soul architect, /soul sentinel)")
@@ -102,12 +102,12 @@ class SalehaREPL:
 
         if cmd == "/clear":
             self.history.clear()
-            console.print("[green]🧹 Conversation context cleared.[/]")
+            console.print("[green]Conversation context cleared.[/]")
             return True
 
         if cmd == "/profiles":
             profiles = profile_registry.list_profiles()
-            t = Table(title="🎭 Available Agent Profiles", show_header=True)
+            t = Table(title="Available Agent Profiles", show_header=True)
             t.add_column("ID", style="cyan")
             t.add_column("Role Name", style="green")
             for p in profiles:
@@ -177,12 +177,12 @@ class SalehaREPL:
                 console.print("[red]Usage: /fix <failing_command_or_test>[/]")
                 return True
             from saleha.core.platform.self_healer import self_healer
-            console.print(f"[cyan]🩹 Running Autonomous Self-Healer on:[/] [yellow]{arg}[/]")
+            console.print(f"[cyan]Running Autonomous Self-Healer on:[/] [yellow]{arg}[/]")
             res = self_healer.auto_heal(arg)
             if res.success:
-                console.print(f"[bold green]✅ Fixed and verified in {res.attempts_used} attempts![/] Commit: {res.commit_hash}")
+                console.print(f"[bold green][OK] Fixed and verified in {res.attempts_used} attempts![/] Commit: {res.commit_hash}")
             else:
-                console.print(f"[bold red]❌ Could not auto-heal:[/] {res.error}")
+                console.print(f"[bold red][FAIL] Could not auto-heal:[/] {res.error}")
             return True
 
         if cmd == "/repair":
@@ -190,7 +190,7 @@ class SalehaREPL:
                 console.print("[red]Usage: /repair <failing_command_or_test>[/]")
                 return True
             from saleha.core.platform.self_healer import SelfHealingEngine
-            console.print(f"[bold cyan]🔧 Autonomous Self-Healing Diagnostic Engine running on:[/] [bold yellow]{arg}[/]")
+            console.print(f"[bold cyan]Autonomous Self-Healing Diagnostic Engine running on:[/] [bold yellow]{arg}[/]")
             healer = SelfHealingEngine()
             diag = healer.parse_error_output(arg)
             console.print(f"[cyan]Detected Error Type:[/] [bold red]{diag.error_type}[/] ({diag.message or 'Diagnosing'})")
@@ -198,9 +198,9 @@ class SalehaREPL:
                 console.print(f"[cyan]Faulting Location:[/] {diag.faulting_file}:{diag.faulting_line}")
             applied_ok, patch_content, target_file = healer.generate_heal_patch(diag)
             if applied_ok:
-                console.print(f"[bold green]✅ Patch synthesized and verified for:[/] {target_file}")
+                console.print(f"[bold green][OK] Patch synthesized and verified for:[/] {target_file}")
             else:
-                console.print(f"[yellow]⚠️ Healing analysis:[/] {target_file or 'No immediate patch generated'}")
+                console.print(f"[yellow][WARN] Healing analysis:[/] {target_file or 'No immediate patch generated'}")
             return True
 
         if cmd == "/debate":
@@ -209,13 +209,13 @@ class SalehaREPL:
                 return True
             from saleha.core.cognitive.persona_debate import PersonaDebateEngine
             engine = PersonaDebateEngine(model=self.model)
-            console.print(f"[bold cyan]⚖️ Initiating Multi-Persona Adversarial Debate on:[/] [bold yellow]{arg}[/]")
+            console.print(f"[bold cyan]Initiating Multi-Persona Adversarial Debate on:[/] [bold yellow]{arg}[/]")
             contract = engine.run_debate(arg)
             console.print(Panel(
                 f"[bold green]Consensus:[/] {contract.consensus_decision}\n"
                 f"[bold cyan]CP-WBFT Score:[/] [bold]{int(contract.cp_wbft_score * 100)}%[/] | [bold green]Status:[/] {'APPROVED' if contract.approved else 'REVISE'}\n\n"
-                f"[bold yellow]🛡️ Critical Invariants:[/]\n" + "\n".join(f"  • {inv}" for inv in contract.invariants[:3]) + "\n\n"
-                f"[bold magenta]🩹 Adversarial Mitigations:[/]\n" + "\n".join(f"  • {mit}" for mit in contract.mitigations[:3]),
+                f"[bold yellow]Critical Invariants:[/]\n" + "\n".join(f"  • {inv}" for inv in contract.invariants[:3]) + "\n\n"
+                f"[bold magenta]Adversarial Mitigations:[/]\n" + "\n".join(f"  • {mit}" for mit in contract.mitigations[:3]),
                 title=f"[bold green]Debate Result: {contract.topic}[/]",
                 border_style="green" if contract.approved else "yellow"
             ))
@@ -223,7 +223,7 @@ class SalehaREPL:
 
         if cmd == "/pr":
             goal = arg or "Automated Pull Request from Session"
-            console.print(f"[bold cyan]🚀 Synthesizing Autonomous Pull Request for:[/] [bold yellow]{goal}[/]")
+            console.print(f"[bold cyan]Synthesizing Autonomous Pull Request for:[/] [bold yellow]{goal}[/]")
             from saleha.core.pr_generator import PRGenerator
             generator = PRGenerator(model=self.model)
             from saleha.core.platform.git_native import git_engine
@@ -237,16 +237,16 @@ class SalehaREPL:
                 f"- Modified Files ({len(files_changed)}): {', '.join(files_changed[:5]) or 'Working tree changes'}\n"
                 f"- Verification: AST & Security Guard Passed\n"
             )
-            pr_md = f"""# 🚀 Pull Request: {goal}
+            pr_md = f"""# Pull Request: {goal}
 
-## 📌 Executive Summary
+## Executive Summary
 {body}
 
-## 🌿 Git Metadata
+## Git Metadata
 - **Branch**: `{branch_name}`
 - **Commit Title**: `{title}`
 
-## 🛡️ Verification Checklist
+## Verification Checklist
 - [x] Code conforms to sovereign architecture guidelines.
 - [x] Unit test suite executed and validated.
 - [x] Zero third-party brand leaks verified.
@@ -297,7 +297,7 @@ class SalehaREPL:
         if cmd == "/budget":
             from saleha.core.telemetry.token_analytics import token_analytics
             s = token_analytics.get_summary()
-            console.print(f"[green]💰 Token Economics:[/] Invocations: {s['total_invocations']} | Saved vs Commercial Cloud: {s.get('claude_equivalent_saved', '$0.00')}")
+            console.print(f"[green]Token Economics:[/] Invocations: {s['total_invocations']} | Saved vs Commercial Cloud: {s.get('claude_equivalent_saved', '$0.00')}")
             return True
 
         if cmd == "/review":
@@ -327,7 +327,7 @@ class SalehaREPL:
                 import ast
                 with open(arg, "r", encoding="utf-8", errors="replace") as f:
                     tree = ast.parse(f.read(), filename=arg)
-                t = Table(title=f"📐 File Outline: {arg}", show_header=True)
+                t = Table(title=f"File Outline: {arg}", show_header=True)
                 t.add_column("Type", style="cyan")
                 t.add_column("Name", style="bold yellow")
                 t.add_column("Lines", style="green")
@@ -373,22 +373,22 @@ class SalehaREPL:
             from saleha.core.platform.git_native import git_engine
             res = git_engine.rollback_last_commit(soft=True)
             if res.get("success"):
-                console.print(f"[green]✅ {res.get('message')}[/]")
+                console.print(f"[green][OK] {res.get('message')}[/]")
             else:
-                console.print(f"[red]❌ Undo failed: {res.get('error')}[/]")
+                console.print(f"[red][FAIL] Undo failed: {res.get('error')}[/]")
             return True
 
         if cmd == "/souls":
             from saleha.core.cognitive.soul_engine import soul_engine
             souls = soul_engine.list_souls()
             active = soul_engine.get_active_soul_name()
-            t = Table(title="🌌 SoulSpec v1.0 Cognitive Personas", show_header=True)
+            t = Table(title="SoulSpec v1.0 Cognitive Personas", show_header=True)
             t.add_column("Status", style="green")
             t.add_column("Name", style="bold cyan")
             t.add_column("Archetype", style="yellow")
             t.add_column("Description", style="dim")
             for s in souls:
-                tag = "★ ACTIVE" if s.name == active else "  "
+                tag = "ACTIVE" if s.name == active else "  "
                 t.add_row(tag, s.name, s.archetype, s.description[:50] + "...")
             console.print(t)
             return True
@@ -400,7 +400,7 @@ class SalehaREPL:
             from saleha.core.cognitive.soul_engine import soul_engine
             try:
                 activated = soul_engine.set_active_soul(arg)
-                console.print(f"[bold green]✓ Activated SoulSpec Persona:[/] [bold yellow]{activated.display_name}[/] ({activated.archetype})")
+                console.print(f"[bold green]OK Activated SoulSpec Persona:[/] [bold yellow]{activated.display_name}[/] ({activated.archetype})")
             except KeyError:
                 console.print(f"[red]Soul '{arg}' not found. Use /souls to list all available personas.[/]")
             except OSError as err:
@@ -411,7 +411,7 @@ class SalehaREPL:
             from saleha.core.telemetry.token_analytics import token_analytics
             s = token_analytics.get_summary()
             console.print(Panel(
-                f"[bold green]💰 Saleha Local-First Economic ROI[/]\n"
+                f"[bold green]Saleha Local-First Economic ROI[/]\n"
                 f"• Total Invocations: [bold cyan]{s.get('total_invocations', 0)}[/]\n"
                 f"• Estimated Tokens: [bold cyan]{s.get('total_tokens', 0):,}[/]\n"
                 f"• Commercial Cloud Equivalent Cost: [bold red]${s.get('claude_cost_estimate', 0.0):.2f}[/]\n"
@@ -431,20 +431,20 @@ class SalehaREPL:
             condensed = self.history[-4:] if len(self.history) > 4 else self.history
             summary_msg = f"[Compacted {old_count - len(condensed)} previous turns into semantic memory summary]"
             self.history = [{"role": "system", "content": summary_msg}] + condensed
-            console.print(f"[green]🗜️ Context compacted:[/] {old_count} turns reduced to {len(self.history)} turns.")
+            console.print(f"[green]Context compacted:[/] {old_count} turns reduced to {len(self.history)} turns.")
             return True
 
         if cmd == "/mode":
             mode = arg.lower().strip()
             if mode in ("auto", "autopilot"):
                 self.security_mode = "auto"
-                console.print("[yellow]⚡ Mode changed to: AUTO (Autonomous execution)[/]")
+                console.print("[yellow]Mode changed to: AUTO (Autonomous execution)[/]")
             elif mode in ("guard", "interactive"):
                 self.security_mode = "guard"
-                console.print("[green]🛡️ Mode changed to: GUARD (Interactive safety confirmation)[/]")
+                console.print("[green]Mode changed to: GUARD (Interactive safety confirmation)[/]")
             elif mode in ("readonly", "safe"):
                 self.security_mode = "readonly"
-                console.print("[cyan]🔒 Mode changed to: READONLY (No filesystem mutations)[/]")
+                console.print("[cyan]Mode changed to: READONLY (No filesystem mutations)[/]")
             else:
                 console.print(f"[dim]Current Mode: [bold]{self.security_mode.upper()}[/]. Options: /mode auto | /mode guard | /mode readonly[/dim]")
             return True
@@ -454,7 +454,7 @@ class SalehaREPL:
             if os.path.isfile(target):
                 rep = quality_guard.check_file(target)
                 status_color = "green" if rep.passed else "red"
-                t = Table(title=f"🛡️ Quality Report: {target}", show_header=True)
+                t = Table(title=f"Quality Report: {target}", show_header=True)
                 t.add_column("Metric", style="cyan")
                 t.add_column("Value", style="bold yellow")
                 t.add_row("Status", f"[{status_color}]{'PASSED' if rep.passed else 'FAILED'}[/]")
@@ -474,7 +474,7 @@ class SalehaREPL:
                         console.print(f"  • [{sev_color}]{iss.severity}[/] [dim]L{iss.line_number}:[/] {iss.message}")
             else:
                 summary = quality_guard.check_workspace(root_dir=target, max_files=40)
-                t = Table(title=f"🛡️ Workspace Quality Audit: {target}", show_header=True)
+                t = Table(title=f"Workspace Quality Audit: {target}", show_header=True)
                 t.add_column("Metric", style="cyan")
                 t.add_column("Value", style="bold green")
                 # check_workspace stops at max_files, so on any real tree this
@@ -500,7 +500,7 @@ class SalehaREPL:
             if not arg:
                 console.print("[red]Usage: /ttc <problem or task description>[/]")
                 return True
-            console.print(f"[bold cyan]🧠 Running Test-Time Compute (TTC) Multi-Trajectory Solver on:[/] [bold yellow]{arg}[/]")
+            console.print(f"[bold cyan]Running Test-Time Compute (TTC) Multi-Trajectory Solver on:[/] [bold yellow]{arg}[/]")
             res = ttc_solver.solve(problem=arg, num_candidates=3)
             best = res.best_trajectory
             if best:
@@ -529,17 +529,17 @@ class SalehaREPL:
                     f"• Session Name: [bold yellow]{data['session_name']}[/]\n"
                     f"• Active Spans Recorded: [bold green]{data['span_count']}[/]\n"
                     f"• Total Duration: [bold]{data['total_duration_ms']:.1f} ms[/]",
-                    title="[bold cyan]📡 OpenTelemetry Session Trace Status[/]",
+                    title="[bold cyan]OpenTelemetry Session Trace Status[/]",
                     border_style="cyan"
                 ))
             elif action == "export":
                 save_dir = extra or ".saleha/traces"
                 saved_path = session_tracer.save_to_disk(directory=save_dir)
-                console.print(f"[bold green]✅ Trace exported to disk:[/] [cyan]{saved_path}[/]")
+                console.print(f"[bold green][OK] Trace exported to disk:[/] [cyan]{saved_path}[/]")
             elif action == "reset":
                 new_name = extra or "saleha_session"
                 session_tracer.reset(session_name=new_name)
-                console.print(f"[green]🔄 Tracer reset. New session: [bold yellow]{new_name}[/][/]")
+                console.print(f"[green]Tracer reset. New session: [bold yellow]{new_name}[/][/]")
             else:
                 console.print("[yellow]Usage: /trace [status|export|reset <session_name>][/]")
             return True
@@ -561,17 +561,17 @@ class SalehaREPL:
         ))
         diff_text = "".join(diff_lines)
 
-        console.print(f"\n[bold yellow]📝 Proposed Changes for:[/] [bold cyan]{file_path}[/]")
+        console.print(f"\n[bold yellow]Proposed Changes for:[/] [bold cyan]{file_path}[/]")
         if diff_text:
             console.print(Syntax(diff_text, "diff", theme="monokai", line_numbers=True))
         else:
             console.print("[dim](No textual differences)[/]")
 
         if self.security_mode == "auto":
-            console.print("[dim]⚡ Mode AUTO: Auto-accepting patch.[/dim]")
+            console.print("[dim]Mode AUTO: Auto-accepting patch.[/dim]")
             return True
         elif self.security_mode == "readonly":
-            console.print("[red]🔒 Mode READONLY: Rejecting filesystem modification.[/]")
+            console.print("[red]Mode READONLY: Rejecting filesystem modification.[/]")
             return False
 
         while True:
@@ -581,10 +581,10 @@ class SalehaREPL:
                 return False
 
             if choice in ("y", "yes"):
-                console.print("[bold green]✓ Patch accepted.[/]")
+                console.print("[bold green]OK Patch accepted.[/]")
                 return True
             elif choice in ("n", "no"):
-                console.print("[bold red]✗ Patch rejected.[/]")
+                console.print("[bold red]FAIL Patch rejected.[/]")
                 return False
             elif choice in ("d", "diff"):
                 console.print(Syntax(diff_text or "(Empty diff)", "diff", theme="monokai", line_numbers=True))
@@ -626,7 +626,7 @@ class SalehaREPL:
                     self.history.append({"role": "assistant", "content": resp.content})
                     console.print()  # newline after streamed tokens
                     if not streamed_parts:
-                        # Provider ne stream nahi kiya (fallback) -- poora output render
+                        # The provider did not stream (fallback) -- render the whole output
                         console.print(Markdown(resp.content))
                     else:
                         console.print("[dim]──[/dim]")

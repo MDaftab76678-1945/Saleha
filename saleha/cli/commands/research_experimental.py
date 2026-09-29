@@ -49,13 +49,13 @@ def cognitive_cmd(path: str) -> None:
     """
     from saleha.core.cognitive_engine import CognitiveEngine
     if not os.path.exists(path):
-        console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
+        console.print(f"[bold red][FAIL] Error: Path '{path}' not found.[/bold red]")
         return
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         code = f.read()
     engine = CognitiveEngine()
     rep = engine.evaluate_code(code, filename=os.path.basename(path))
-    console.print(Panel(f'[bold magenta]🧭 4D Cognitive State Report: {path}[/bold magenta]\n[bold green]{rep.summary}[/bold green]', border_style='magenta'))
+    console.print(Panel(f'[bold magenta]4D Cognitive State Report: {path}[/bold magenta]\n[bold green]{rep.summary}[/bold green]', border_style='magenta'))
     table = Table(title='Cognitive Dimensions Breakdown', border_style='magenta')
     table.add_column('Dimension', style='bold')
     table.add_column('Score', style='cyan')
@@ -75,7 +75,7 @@ def ledger_cmd() -> None:
     """
     from saleha.core.telemetry.token_ledger import token_ledger
     summary = token_ledger.get_summary()
-    console.print(Panel('[bold green]💰 Saleha Double-Entry Token & Compute ROI Ledger[/bold green]', border_style='green'))
+    console.print(Panel('[bold green]Saleha Double-Entry Token & Compute ROI Ledger[/bold green]', border_style='green'))
     table = Table(border_style='green')
     table.add_column('Metric', style='bold white')
     table.add_column('Value', style='bold cyan')
@@ -96,7 +96,7 @@ def optimize_prompts_cmd(role: str) -> None:
     Example: saleha optimize-prompts --role CoderAgent
     """
     from saleha.core.prompt_optimizer import prompt_optimizer, recent_real_errors
-    console.print(Panel(f'[bold magenta]🧬 Saleha Auto-Curriculum Prompt Optimizer: {role}[/bold magenta]', border_style='magenta'))
+    console.print(Panel(f'[bold magenta]Saleha Auto-Curriculum Prompt Optimizer: {role}[/bold magenta]', border_style='magenta'))
     # This used to pass a hardcoded failure list -- literally
     # ['IndexError in test suite'] -- so it "self-optimized" against an error
     # that had never happened, while real failures sat unused in TaskHistory.
@@ -176,7 +176,7 @@ def generate_app_cmd(name: str, desc: str, out: str) -> None:
     from saleha.core.htmx_generator import htmx_generator
     pkg = htmx_generator.generate_app(app_name=name, description=desc)
     htmx_generator.write_to_disk(out, pkg)
-    console.print(f"[bold green]✅ HTMX App '{name}' generated in '{out}'![/bold green]")
+    console.print(f"[bold green][OK] HTMX App '{name}' generated in '{out}'![/bold green]")
 
 @cli.command(name='quantum-sim')
 @click.option('--gates', default='H,X,H', help='Comma-separated quantum gates (e.g. H,X,H)')
@@ -211,7 +211,7 @@ def search_code_cmd(query: str, path: str) -> None:
     from saleha.core.rag.fast_search import fast_search_engine
     fast_search_engine.index_directory(path)
     matches = fast_search_engine.search(query, limit=10)
-    console.print(Panel(f"[bold cyan]🔍 Fast Code Search for '{query}' ({len(matches)} matches)[/bold cyan]", border_style='cyan'))
+    console.print(Panel(f"[bold cyan]Fast Code Search for '{query}' ({len(matches)} matches)[/bold cyan]", border_style='cyan'))
     for m in matches:
         console.print(f'- [bold white]{m.file_path}:{m.line_number}[/bold white] ([italic yellow]{m.symbol_type}[/italic yellow]): `{m.snippet}`')
 
@@ -249,7 +249,7 @@ def explain_code_cmd(path: str) -> None:
     """
     from saleha.core.mech_interp import code_structure_engine
     if not os.path.exists(path):
-        console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
+        console.print(f"[bold red][FAIL] Error: Path '{path}' not found.[/bold red]")
         return
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         code = f.read()
@@ -257,11 +257,11 @@ def explain_code_cmd(path: str) -> None:
 
     if not rep.parsed:
         console.print(Panel(
-            f'[bold yellow]⚠ Could not parse {path}[/bold yellow]\n{rep.summary}',
+            f'[bold yellow][WARN] Could not parse {path}[/bold yellow]\n{rep.summary}',
             border_style='yellow'))
         return
 
-    console.print(Panel(f'[bold cyan]🔬 Code structure: {path}[/bold cyan]\n{rep.summary}',
+    console.print(Panel(f'[bold cyan]Code structure: {path}[/bold cyan]\n{rep.summary}',
                         border_style='cyan'))
 
     if rep.functions:
@@ -278,13 +278,13 @@ def explain_code_cmd(path: str) -> None:
             table.add_row(
                 f'{"async " if fn.is_async else ""}{fn.qualname}',
                 str(fn.line_number), str(fn.complexity), str(fn.arg_count),
-                '✓' if fn.has_docstring else '·',
-                '✓' if fn.is_annotated else '·',
+                'yes' if fn.has_docstring else '-',
+                'yes' if fn.is_annotated else '-',
                 style=style)
         console.print(table)
 
     bare = [a for a in rep.attributions if 'Bare `except:`' in a.rationale]
     if bare:
-        console.print(f'[yellow]⚠ {len(bare)} bare except clause(s): '
+        console.print(f'[yellow][WARN] {len(bare)} bare except clause(s): '
                       f'lines {", ".join(str(a.line_number) for a in bare[:10])}[/]')
 

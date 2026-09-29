@@ -1,10 +1,10 @@
 """
 Saleha Agents: Base Agent (v3.1 - Model Provider Abstraction)
 
-Naya vs pehle: Ollama se seedha baat karne ke bajaye ab `model_provider.py`
-ke through hota hai. Behavior bilkul same hai (same URL, same payload,
-same timeout) -- sirf ye ki agar kabhi backend badalna ho, sirf
-model_provider.py me naya provider likhna hoga, ye file chhedni nahi padegi.
+Model calls go through `model_provider.py` instead of talking to Ollama
+directly. Behaviour is unchanged (same URL, same payload, same timeout); the
+point is that switching backends only needs a new provider in
+model_provider.py, not an edit to this file.
 """
 import os
 import uuid
@@ -66,10 +66,10 @@ class BaseAgent:
                 and os.environ.get("SALEHA_TEST_MODE") == "1"):
             self.provider: ModelProvider = MockProvider()
         else:
-            self.provider = provider or default_provider  # naya: pluggable backend
+            self.provider = provider or default_provider  # pluggable backend
         self.task_counter = 0
-        # "auto" mode me runtime Ollama probing enable -- router sirf installed
-        # models choose karta hai (2026 catalog + adaptive candidate filtering).
+        # "auto" mode enables runtime Ollama probing -- the router only picks
+        # installed models (2026 catalog + adaptive candidate filtering).
         if model == "auto":
             from saleha.core.platform.smart_router import SmartRouter
             self.router = SmartRouter(probe_runtime=True)
@@ -161,12 +161,12 @@ class BaseAgent:
                      complexity_score: float = 0.0) -> AgentResponse:
         """Token-level real-time streaming variant of think().
 
-        `on_token(str)` har token chunk par fire hota hai (Ollama NDJSON
-        stream). Response poora hoke wahi AgentResponse milti hai -- callers
-        tokens live print kar sakte hain bina downstream logic badle.
+        `on_token(str)` fires for every token chunk (Ollama NDJSON stream). The
+        same AgentResponse is returned once the response is complete, so callers
+        can print tokens live without changing any downstream logic.
 
-        Provider stream support na kare to silently non-streaming generate
-        pe fallback (graceful degradation).
+        If the provider does not support streaming, this silently falls back to
+        non-streaming generate (graceful degradation).
         """
         self.task_counter += 1
         start_time = time.time()
@@ -188,8 +188,8 @@ class BaseAgent:
             provider_result = stream_fn(model=selected_model, prompt=full_prompt,
                                         callback=on_token, options=stream_opts)
         else:
-            # Profile-set temperature ho to provider options me jao (v1.4 wiring);
-            # warna provider apne defaults use karta hai.
+            # If the profile sets a temperature, pass it in the provider options
+            # (v1.4 wiring); otherwise the provider uses its own defaults.
             temp = getattr(self, "temperature", None)
             options = {"temperature": temp} if temp is not None else None
             provider_result = self.provider.generate(model=selected_model, prompt=full_prompt, options=options)

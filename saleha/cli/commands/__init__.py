@@ -81,12 +81,11 @@ if TYPE_CHECKING:
 
 # ==============================================================================
 # LAZY IMPORTS (PEP 562)
-# Pehle ye file top-level par poora codebase import karti thi -- CLI startup
-# ~460ms le raha tha. Ab heavy modules sirf tab load hote hain jab koi command
-# actually unhe use kare. Function bodies in names ko globals ke through
-# resolve karti hain (call-time lookup), isliye `mock.patch("saleha.cli.
-# commands.X")` bhi waise hi kaam karta hai -- patch setattr __getattr__ ko
-# override kar deta hai.
+# This file used to import the whole codebase at top level, which made CLI
+# startup take ~460ms. Heavy modules are now loaded only when a command
+# actually uses them. Function bodies resolve these names through globals
+# (call-time lookup), so `mock.patch("saleha.cli.commands.X")` keeps working --
+# the patch's setattr overrides __getattr__.
 # ==============================================================================
 
 _LAZY_IMPORT_MAP = {
@@ -133,15 +132,14 @@ _LAZY_IMPORT_MAP = {
 
 
 class _LazySymbol:
-    """Module-global proxy jo pehli actual use par real object load karke
-    khud ko globals me swap kar deta hai.
+    """Module-global proxy that loads the real object on first use and then
+    swaps itself out of the module globals.
 
-    Kyun zaroori tha: PEP 562 module __getattr__ sirf EXTERNAL attribute
-    access handle karta hai -- function bodies ke andar global name lookup
-    usse nahi guzarta (isliye pehla attempt NameError hua tha). Proxy se
-    command bodies bina kisi badlav ke chalti hain, aur mock.patch("saleha.
-    cli.commands.X") bhi waise hi kaam karta hai (patch ka setattr proxy ko
-    override kar deta hai).
+    Why it exists: PEP 562 module __getattr__ only handles EXTERNAL attribute
+    access -- a global name lookup inside a function body never goes through it
+    (which is why the first attempt raised NameError). With the proxy, command
+    bodies run unchanged, and mock.patch("saleha.cli.commands.X") still works
+    (the patch's setattr overrides the proxy).
     """
     __slots__ = ("_module_name", "_attr_name", "_resolved")
 
@@ -238,7 +236,7 @@ def cli() -> None:
 
 
 # ==============================================================================
-# PROJECT COMMAND - Multi-file Project Builder (Naya)
+# PROJECT COMMAND - Multi-file Project Builder
 # ==============================================================================
 
 
@@ -263,7 +261,7 @@ def cli() -> None:
 
 
 # ==============================================================================
-# DOCTOR COMMAND - Diagnostic checklist (Naya -- is session ke real bugs se banaya)
+# DOCTOR COMMAND - Diagnostic checklist (built from real bugs found in this project)
 # ==============================================================================
 
 
@@ -287,12 +285,12 @@ def _check_ollama():
         return False, f"Not reachable -- run 'ollama serve' ({e})"
 
 # ==============================================================================
-# STATS COMMAND - Show persistent StatsTracker data (Naya)
+# STATS COMMAND - Show persistent StatsTracker data
 # ==============================================================================
 
 
 # ============================================================================
-# HISTORY COMMAND - Show recent task history (Naya)
+# HISTORY COMMAND - Show recent task history
 # ============================================================================
 
 

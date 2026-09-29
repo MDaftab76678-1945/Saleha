@@ -55,7 +55,7 @@ class SalehaNotebookEngine:
                 NotebookCell(
                     cell_id=f"cell_{uuid.uuid4().hex[:6]}",
                     cell_type="markdown",
-                    source=f"# 📓 {title.strip()}\nInteractive AI Notebook with AST validation and container isolation.",
+                    source=f"# {title.strip()}\nInteractive AI Notebook with AST validation and container isolation.",
                 ),
                 NotebookCell(
                     cell_id=f"cell_{uuid.uuid4().hex[:6]}",
@@ -133,7 +133,7 @@ class SalehaNotebookEngine:
         else:
             cell.has_error = True
             cell.error_diagnostic = res.error
-            cell.output_text = f"❌ Execution Failed:\n{res.error}"
+            cell.output_text = f"[FAIL] Execution Failed:\n{res.error}"
             # Self-healing auto-repair suggestion
             cell.suggested_patch = f"# Auto-Repaired Invariant Patch:\ntry:\n{chr(10).join('    ' + line for line in cell.source.splitlines())}\nexcept Exception as e:\n    print(f'Recovered from error: {{e}}')"
 

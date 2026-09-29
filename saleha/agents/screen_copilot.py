@@ -33,11 +33,11 @@ class ScreenCopilotAgent(BaseAgent):
         duration = time.perf_counter() - start
 
         content = (
-            f"👁️ [ScreenCopilotAgent] Visual Layout Inspection for: \"{result.target_ui_description}\"\n\n"
-            f"🔍 **Detected UI Glitches & Invariants**:\n"
-            + "\n".join(f"- ⚠️ {g}" for g in result.detected_glitches)
-            + f"\n\n🎨 **Remediation Code & React JSX Patch**:\n```tsx\n{result.remediation_code_diff}\n```\n"
-            f"📱 **WCAG AA Contrast & Responsive Gate**: {'✅ PASS' if result.contrast_ratio_wcag_passed else '❌ FAIL'}"
+            f"[ScreenCopilotAgent] Visual Layout Inspection for: \"{result.target_ui_description}\"\n\n"
+            f"**Detected UI Glitches & Invariants**:\n"
+            + "\n".join(f"- [WARN] {g}" for g in result.detected_glitches)
+            + f"\n\n**Remediation Code & React JSX Patch**:\n```tsx\n{result.remediation_code_diff}\n```\n"
+            f"**WCAG AA Contrast & Responsive Gate**: {'[OK] PASS' if result.contrast_ratio_wcag_passed else '[FAIL] FAIL'}"
         )
 
         return AgentResponse(

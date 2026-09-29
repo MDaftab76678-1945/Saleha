@@ -45,9 +45,9 @@ def hook_install_cmd():
     from saleha.core.git_hooks import git_hook_manager
     ok, msg = git_hook_manager.install_hooks()
     if ok:
-        console.print(f'[bold green]✅ {msg}[/]')
+        console.print(f'[bold green][OK] {msg}[/]')
     else:
-        console.print(f'[bold red]❌ {msg}[/]')
+        console.print(f'[bold red][FAIL] {msg}[/]')
 
 @hook_group.command(name='uninstall')
 def hook_uninstall_cmd():
@@ -70,9 +70,9 @@ def hook_run_cmd():
     from saleha.core.git_hooks import git_hook_manager
     passed, errors = git_hook_manager.run_pre_commit_check()
     if passed:
-        console.print('[bold green]✅ Pre-commit verification passed. 0 syntax errors or secret leaks.[/]')
+        console.print('[bold green][OK] Pre-commit verification passed. 0 syntax errors or secret leaks.[/]')
     else:
-        console.print('[bold red]❌ Pre-commit validation failed:[/]')
+        console.print('[bold red][FAIL] Pre-commit validation failed:[/]')
         for e in errors:
             console.print(f'  • [red]{e}[/]')
         import sys

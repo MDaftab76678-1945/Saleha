@@ -48,9 +48,9 @@ def team(goal: Any, model: Any, output_dir: Any, debate: Any, max_attempts: Any,
         with contextlib.redirect_stdout(io.StringIO()):
             result = orchestrator.run_team_workflow(goal=goal, output_dir=output_dir, debate=debate)
     else:
-        out_info = f'\n[bold cyan]📁 Output Dir:[/] {output_dir}' if output_dir else ''
-        debate_info = '\n[bold yellow]🤝 Mode:[/] Multi-Agent Deliberation & Debate Enabled' if debate else ''
-        console.print(Panel.fit(f'[bold cyan]🎯 Swarm Goal:[/] {goal}\n[bold cyan]🤖 Model:[/] {model}{out_info}{debate_info}\n[bold cyan]👥 Swarm Team:[/] ProductManager ➔ Architect ➔ SDE ➔ Security ➔ QA ➔ Verifier', title='[bold green]Saleha Multi-Agent Swarm[/]', border_style='green'))
+        out_info = f'\n[bold cyan]Output Dir:[/] {output_dir}' if output_dir else ''
+        debate_info = '\n[bold yellow]Mode:[/] Multi-Agent Deliberation & Debate Enabled' if debate else ''
+        console.print(Panel.fit(f'[bold cyan]Swarm Goal:[/] {goal}\n[bold cyan]Model:[/] {model}{out_info}{debate_info}\n[bold cyan]Swarm Team:[/] ProductManager Architect SDE Security QA Verifier', title='[bold green]Saleha Multi-Agent Swarm[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Collaborating across team...', total=None)
             result = orchestrator.run_team_workflow(goal=goal, output_dir=output_dir, debate=debate)
@@ -62,10 +62,10 @@ def team(goal: Any, model: Any, output_dir: Any, debate: Any, max_attempts: Any,
         return
     console.print()
     if result.success:
-        console.print(Panel(f'[bold green]✅ TEAM SWARM SUCCESS[/] -- Completed all {len(result.stages_completed)} stages', border_style='green'))
+        console.print(Panel(f'[bold green][OK] TEAM SWARM SUCCESS[/] -- Completed all {len(result.stages_completed)} stages', border_style='green'))
     else:
-        console.print(Panel('[bold yellow]⚠️ Swarm Finished with Warnings/Failures[/]', border_style='yellow'))
-    table = Table(title='👥 Swarm Stage Breakdown', show_header=True, header_style='bold magenta')
+        console.print(Panel('[bold yellow][WARN] Swarm Finished with Warnings/Failures[/]', border_style='yellow'))
+    table = Table(title='Swarm Stage Breakdown', show_header=True, header_style='bold magenta')
     table.add_column('Stage', style='cyan')
     table.add_column('Agent Role', style='green')
     table.add_column('Artifact Produced', style='yellow')
@@ -74,11 +74,11 @@ def team(goal: Any, model: Any, output_dir: Any, debate: Any, max_attempts: Any,
         table.add_row(stage_name, role_name, artifact)
     console.print(table)
     if result.code:
-        console.print('\n[bold cyan]💻 Production Code (Preview):[/]')
+        console.print('\n[bold cyan]Production Code (Preview):[/]')
         syntax = Syntax(result.code[:600] + ('\n# ... (continued)' if len(result.code) > 600 else ''), 'python', theme='monokai', line_numbers=True)
         console.print(syntax)
     if result.output_dir:
-        console.print(f'\n[bold green]📁 Full Artifact Package Exported To:[/] {result.output_dir}')
+        console.print(f'\n[bold green]Full Artifact Package Exported To:[/] {result.output_dir}')
 
 @cli.command(name='debate')
 @click.argument('topic')
@@ -86,15 +86,15 @@ def team(goal: Any, model: Any, output_dir: Any, debate: Any, max_attempts: Any,
 def debate_cmd(topic: str, rounds: int) -> None:
     """Execute game-theoretic multi-agent council debate (Advocate, Devil's Advocate, Security, FinOps, Arbiter)."""
     from saleha.core.debate_consensus_orchestrator import debate_orchestrator
-    console.print(f'[bold purple]⚖️ Conducting Multi-Agent Architectural Debate on:[/] [white]{topic}[/]')
+    console.print(f'[bold purple]Conducting Multi-Agent Architectural Debate on:[/] [white]{topic}[/]')
     verdict = debate_orchestrator.conduct_architectural_debate(topic=topic, num_rounds=rounds)
     for rnd in verdict.rounds:
         console.print(f'\n[bold yellow]--- Round {rnd.round_number} ---[/]')
-        console.print(f'[green]🟢 Advocate:[/] {rnd.advocate_argument}')
-        console.print(f"[red]🔴 Devil's Advocate:[/] {rnd.skeptic_rebuttal}")
-        console.print(f'[cyan]🛡️ Security Red-Team:[/] {rnd.security_critique}')
-        console.print(f'[magenta]💰 FinOps Auditor:[/] {rnd.finops_impact}')
-    console.print(f'\n[bold green]🏆 Consensus Decision (Elo Confidence: {verdict.elo_confidence_score * 100:.1f}%):[/]')
+        console.print(f'[green][OK] Advocate:[/] {rnd.advocate_argument}')
+        console.print(f"[red][FAIL] Devil's Advocate:[/] {rnd.skeptic_rebuttal}")
+        console.print(f'[cyan]Security Red-Team:[/] {rnd.security_critique}')
+        console.print(f'[magenta]FinOps Auditor:[/] {rnd.finops_impact}')
+    console.print(f'\n[bold green]Consensus Decision (Elo Confidence: {verdict.elo_confidence_score * 100:.1f}%):[/]')
     console.print(Panel(verdict.adr_markdown[:400] + '\n  ...', title='Synthesized Architecture Decision Record (ADR)', border_style='green'))
 
 @cli.command(name='council')
@@ -111,7 +111,7 @@ def council_cmd(problem: Any) -> None:
     Example: saleha council "Design a high-throughput distributed caching layer"
     """
     from saleha.core.agent_council import agent_council
-    console.print(f'[bold cyan]👥 Assembling Multi-Agent Architectural Council for:[/] [yellow]{problem}[/]\n')
+    console.print(f'[bold cyan]Assembling Multi-Agent Architectural Council for:[/] [yellow]{problem}[/]\n')
     res = agent_council.debate_and_synthesize(problem)
 
     if res.degenerate:
@@ -130,7 +130,7 @@ def council_cmd(problem: Any) -> None:
             console.print(f'  • {arg}')
         console.print()
 
-    console.print(f'[bold green]🏆 Consensus Winner:[/] {res.winning_persona} (Consensus Score: {res.total_consensus_score}/100)')
+    console.print(f'[bold green]Consensus Winner:[/] {res.winning_persona} (Consensus Score: {res.total_consensus_score}/100)')
     if res.tied:
         console.print(f'[yellow]Tie at the top between {", ".join(res.tied_personas)} — '
                       f'winner is a tie-break, not a judgement.[/]')
@@ -147,7 +147,7 @@ def resolve_conflicts_cmd(path: Any, auto_stage: Any) -> None:
     Example: saleha resolve-conflicts . --auto-stage
     """
     from saleha.core.conflict_resolver import conflict_resolver
-    console.print(f'[bold cyan]🔀 Scanning for Git merge conflicts in:[/] [yellow]{os.path.abspath(path)}[/]')
+    console.print(f'[bold cyan]Scanning for Git merge conflicts in:[/] [yellow]{os.path.abspath(path)}[/]')
     files_to_check = []
     if os.path.isfile(path):
         files_to_check.append(path)
@@ -168,16 +168,16 @@ def resolve_conflicts_cmd(path: Any, auto_stage: Any) -> None:
         if conflict_resolver.has_conflicts(content):
             res = conflict_resolver.resolve_file(fpath, auto_save=True)
             if res.status == 'RESOLVED':
-                console.print(f'[bold green]✅ Resolved Conflicts in:[/] {fpath} ({res.summary})')
+                console.print(f'[bold green][OK] Resolved Conflicts in:[/] {fpath} ({res.summary})')
                 resolved_count += 1
                 if auto_stage:
                     subprocess.run(['git', 'add', fpath])
             else:
-                console.print(f'[bold yellow]⚠️ Manual Review Needed:[/] {fpath} ({res.summary})')
+                console.print(f'[bold yellow][WARN] Manual Review Needed:[/] {fpath} ({res.summary})')
     if resolved_count == 0:
         console.print('[green]No merge conflicts found in workspace.[/]')
     else:
-        console.print(f'\n[bold green]🎉 Successfully resolved {resolved_count} conflicted file(s)![/]')
+        console.print(f'\n[bold green]Successfully resolved {resolved_count} conflicted file(s)![/]')
 
 @cli.command(name='recursive')
 @click.argument('goal', required=True)
@@ -189,7 +189,7 @@ def recursive_cmd(goal: str, model: str) -> None:
     Example: saleha recursive "Find longest palindromic substring in O(n)"
     """
     from saleha.core.loop.recursive_solver import RecursiveSolver
-    console.print(Panel(f'[bold cyan]🧠 Saleha Recursive Intelligence Network[/bold cyan]\n[italic]{goal}[/italic]', border_style='cyan'))
+    console.print(Panel(f'[bold cyan]Saleha Recursive Intelligence Network[/bold cyan]\n[italic]{goal}[/italic]', border_style='cyan'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), transient=True) as progress:
         progress.add_task(description='Exploring multi-path reasoning trajectories...', total=None)
         solver = RecursiveSolver(model=model)
@@ -200,14 +200,14 @@ def recursive_cmd(goal: str, model: str) -> None:
     table.add_column('Complexity (T / S)', style='green')
     table.add_column('Score', style='yellow')
     for p in result.paths_explored:
-        winner = ' 🏆 (Winner)' if p.path_id == result.winning_path_id else ''
+        winner = ' (Winner)' if p.path_id == result.winning_path_id else ''
         table.add_row(p.path_id, f'{p.name}{winner}', f'{p.complexity_time} / {p.complexity_space}', f'{p.score}/10')
     console.print(table)
     if result.success:
-        console.print('\n[bold green]✅ Optimal Solution Verified & Synthesized:[/bold green]')
+        console.print('\n[bold green][OK] Optimal Solution Verified & Synthesized:[/bold green]')
         console.print(Syntax(result.final_code, 'python', theme='monokai', line_numbers=True))
     else:
-        console.print(f'\n[bold red]⚠️ Solution Completed with Warnings:[/bold red]\n{result.log}')
+        console.print(f'\n[bold red][WARN] Solution Completed with Warnings:[/bold red]\n{result.log}')
 
 @cli.command(name='consensus')
 def consensus_cmd() -> None:
@@ -217,7 +217,7 @@ def consensus_cmd() -> None:
     Example: saleha consensus
     """
     from saleha.core.swarm.swarm_consensus import swarm_consensus
-    console.print(Panel('[bold cyan]🛡️ Saleha Swarm PBFT Consensus Engine[/bold cyan]', border_style='cyan'))
+    console.print(Panel('[bold cyan]Saleha Swarm PBFT Consensus Engine[/bold cyan]', border_style='cyan'))
     table = Table(border_style='cyan')
     table.add_column('Property', style='bold white')
     table.add_column('Value', style='bold green')
@@ -262,15 +262,15 @@ def tot_solve_cmd(goal: str, code: str, tests: str) -> None:
     from saleha.core.loop.tot_orchestrator import tot_orchestrator
     code_content = Path(code).read_text(encoding='utf-8') if os.path.exists(code) else code.replace('\\n', '\n')
     tests_content = Path(tests).read_text(encoding='utf-8') if os.path.exists(tests) else tests.replace('\\n', '\n')
-    console.print(f'[bold cyan]🌲 Starting Tree-of-Thoughts (ToT) Search for:[/] [white]{goal}[/]')
+    console.print(f'[bold cyan]Starting Tree-of-Thoughts (ToT) Search for:[/] [white]{goal}[/]')
     res = tot_orchestrator.solve_task_with_tot(goal=goal, initial_code=code_content, test_suite=tests_content)
     for line in res.execution_log:
         console.print(f'[dim]{line}[/dim]')
     if res.success:
-        console.print(f'[bold green]✨ ToT Solution Found! Total nodes explored: {res.total_nodes_explored} (Pruned: {res.pruned_nodes})[/bold green]')
+        console.print(f'[bold green]ToT Solution Found! Total nodes explored: {res.total_nodes_explored} (Pruned: {res.pruned_nodes})[/bold green]')
         console.print(Panel(res.final_code, title='Winning Code Patch', border_style='green'))
     else:
-        console.print(f'[bold yellow]⚠️ Best-effort candidate reached with score. Nodes: {res.total_nodes_explored}[/bold yellow]')
+        console.print(f'[bold yellow][WARN] Best-effort candidate reached with score. Nodes: {res.total_nodes_explored}[/bold yellow]')
 
 @cli.command('swarm')
 @click.argument('goal', default='Build a robust distributed worker pool')

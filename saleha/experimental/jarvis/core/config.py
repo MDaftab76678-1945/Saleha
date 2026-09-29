@@ -207,6 +207,6 @@ if __name__ == "__main__":
     print("=" * 60)
     results = validate_environment()
     for key, status in results.items():
-        icon = "✅" if status else "❌"
+        icon = "[OK]" if status else "[FAIL]"
         print(f"  {icon} {key.upper():15} : {'ONLINE' if status else 'OFFLINE'}")
     print("=" * 60)

@@ -33,11 +33,11 @@ class ChaosResilienceAgent(BaseAgent):
         duration = time.perf_counter() - start
 
         content = (
-            f"💥 [ChaosResilienceAgent] Chaos Fault Injection for: \"{result.target_service}\"\n\n"
-            f"🚨 **Injected Scenario**: {result.injected_fault_scenario}\n"
-            f"📊 **System Impact RCA**: {result.system_impact_analysis}\n"
-            f"🛡️ **Resilience Score**: {result.resilience_score_pct}%\n\n"
-            f"🛠️ **Synthesized Self-Healing Circuit Breaker**:\n```python\n{result.circuit_breaker_patch}\n```"
+            f"[ChaosResilienceAgent] Chaos Fault Injection for: \"{result.target_service}\"\n\n"
+            f"**Injected Scenario**: {result.injected_fault_scenario}\n"
+            f"**System Impact RCA**: {result.system_impact_analysis}\n"
+            f"**Resilience Score**: {result.resilience_score_pct}%\n\n"
+            f"**Synthesized Self-Healing Circuit Breaker**:\n```python\n{result.circuit_breaker_patch}\n```"
         )
 
         return AgentResponse(

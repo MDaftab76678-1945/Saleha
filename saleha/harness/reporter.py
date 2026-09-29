@@ -88,7 +88,7 @@ class HarnessReporter:
         # Sort by pass_at_1 descending, then latency ascending
         ranked = sorted(history, key=lambda x: (-x.get("pass_at_1", 0), x.get("avg_latency", 999)))
 
-        table = Table(title="🏆 Saleha Model Evaluation Leaderboard (DeepSeek-Standard)", border_style="green")
+        table = Table(title="Saleha Model Evaluation Leaderboard (DeepSeek-Standard)", border_style="green")
         table.add_column("Rank", justify="center", style="bold")
         table.add_column("Model Name", style="bold cyan")
         table.add_column("Pass@1", justify="right", style="bold green")
@@ -98,7 +98,7 @@ class HarnessReporter:
         table.add_column("Evaluated At", style="dim")
 
         for idx, rec in enumerate(ranked, 1):
-            rank_icon = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}"))
+            rank_icon = {1: "1st", 2: "2nd", 3: "3rd"}.get(idx, f"{idx}")
             table.add_row(
                 rank_icon,
                 rec.get("model", "unknown"),
@@ -114,7 +114,7 @@ class HarnessReporter:
     def export_markdown(self, report: HarnessReport, filepath: str) -> bool:
         """Exports evaluation results to clean GitHub Markdown format."""
         md = [
-            f"# 🧪 Saleha Harness Evaluation Report",
+            f"# Saleha Harness Evaluation Report",
             f"",
             f"**Model Evaluated:** `{report.model_name}`  ",
             f"**Evaluation Timestamp:** `{report.timestamp}`  ",
@@ -122,7 +122,7 @@ class HarnessReporter:
             f"**Unbiased Pass@5 Estimate:** **{report.overall_pass_at_5}%**  ",
             f"**Average Latency:** `{report.avg_latency_sec}s / task`  ",
             f"",
-            f"## 📊 Benchmark Suite Breakdown",
+            f"## Benchmark Suite Breakdown",
             f"",
             f"| Benchmark Suite | Total Tasks | Passed | Pass@1 Rate | Avg Latency |",
             f"|---|:---:|:---:|:---:|:---:|",
@@ -131,11 +131,11 @@ class HarnessReporter:
         for name, summ in report.benchmark_summaries.items():
             md.append(f"| `{name}` | {summ.total_tasks} | {summ.passed_tasks} | **{summ.pass_at_1}%** | {summ.avg_latency_sec}s |")
 
-        md.append("\n## 📋 Task Details\n")
+        md.append("\n## Task Details\n")
         for name, summ in report.benchmark_summaries.items():
             md.append(f"### Benchmark: `{name}`")
             for t in summ.task_results:
-                icon = "✅" if t.passed else "❌"
+                icon = "[OK]" if t.passed else "[FAIL]"
                 md.append(f"- {icon} **[{t.task_id}]** (Latency: {t.latency_sec}s, Attempts: {t.attempts_used})")
 
         content = "\n".join(md)

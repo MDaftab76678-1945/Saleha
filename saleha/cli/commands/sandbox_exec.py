@@ -55,17 +55,17 @@ def sandbox(target_file, deps, timeout, docker, lang, as_json):
             raise click.exceptions.Exit(1)
         return
     mode_label = 'Docker Container' if docker else 'VirtualEnv'
-    console.print(Panel.fit(f'[bold cyan]📄 Target File:[/] {target_file}\n[bold cyan]🛡️ Mode:[/] {mode_label} Sandbox\n[bold cyan]⏱️ Timeout:[/] {timeout}s', title='[bold green]📦 Isolated Sandbox Execution[/]', border_style='green'))
+    console.print(Panel.fit(f'[bold cyan]Target File:[/] {target_file}\n[bold cyan]Mode:[/] {mode_label} Sandbox\n[bold cyan]Timeout:[/] {timeout}s', title='[bold green]Isolated Sandbox Execution[/]', border_style='green'))
     if result.blocked:
-        console.print(Panel(f'[bold red]🚫 Execution Blocked:[/] {result.block_reason}', border_style='red'))
+        console.print(Panel(f'[bold red]Execution Blocked:[/] {result.block_reason}', border_style='red'))
         return
     if result.success:
-        console.print(Panel(f'[bold green]✅ Sandbox Execution Successful[/] in {result.execution_time:.2f}s (Exit code: {result.exit_code})', border_style='green'))
+        console.print(Panel(f'[bold green][OK] Sandbox Execution Successful[/] in {result.execution_time:.2f}s (Exit code: {result.exit_code})', border_style='green'))
         if result.output:
-            console.print('\n[bold cyan]📤 Standard Output:[/]')
+            console.print('\n[bold cyan]Standard Output:[/]')
             console.print(result.output)
     else:
-        console.print(Panel(f'[bold red]❌ Sandbox Execution Failed[/] in {result.execution_time:.2f}s (Exit code: {result.exit_code})\nError: {result.error}', border_style='red'))
+        console.print(Panel(f'[bold red][FAIL] Sandbox Execution Failed[/] in {result.execution_time:.2f}s (Exit code: {result.exit_code})\nError: {result.error}', border_style='red'))
 
 @cli.command(name='exec')
 @click.argument('filepath')
@@ -94,12 +94,12 @@ def exec_code(filepath, lang, timeout, as_json):
         click.echo(json.dumps({'success': res.success, 'language': res.language, 'exit_code': res.exit_code, 'output': res.output, 'error': res.error, 'blocked': res.blocked, 'block_reason': res.block_reason, 'execution_time': res.execution_time}, ensure_ascii=True))
         return
     if res.blocked:
-        console.print(Panel(f'[bold red]🚫 Execution Blocked by SAST Gate[/]\n\n[yellow]Reason:[/] {res.block_reason}', title='[bold red]Security Block[/]', border_style='red'))
+        console.print(Panel(f'[bold red]Execution Blocked by SAST Gate[/]\n\n[yellow]Reason:[/] {res.block_reason}', title='[bold red]Security Block[/]', border_style='red'))
         raise click.exceptions.Exit(1)
     status_color = 'green' if res.success else 'red'
     output_content = res.output.strip() or '(No stdout output)'
     error_content = f'\n[bold red]Stderr/Error:[/]\n{res.error.strip()}' if res.error.strip() else ''
-    console.print(Panel(f'[bold cyan]Language:[/] {res.language}\n[bold cyan]Exit Code:[/] [{status_color}]{res.exit_code}[/]\n[bold cyan]Time:[/] {res.execution_time}s\n\n[bold green]Stdout Output:[/]\n{output_content}{error_content}', title=f'[{status_color}]⚡ Saleha Polyglot Execution ({res.language})[/]', border_style=status_color))
+    console.print(Panel(f'[bold cyan]Language:[/] {res.language}\n[bold cyan]Exit Code:[/] [{status_color}]{res.exit_code}[/]\n[bold cyan]Time:[/] {res.execution_time}s\n\n[bold green]Stdout Output:[/]\n{output_content}{error_content}', title=f'[{status_color}]Saleha Polyglot Execution ({res.language})[/]', border_style=status_color))
 
 @cli.command(name='sidecar')
 @click.option('--host', default='127.0.0.1', help='Host address')
@@ -107,7 +107,7 @@ def exec_code(filepath, lang, timeout, as_json):
 @click.option('--open/--no-open', 'open_browser', default=True, help='Open in browser')
 def sidecar_cmd(host, port, open_browser):
     """Launch the floating desktop AI companion daemon on localhost:7890."""
-    console.print(Panel(f'[bold cyan]URL:[/] http://{host}:{port}\n[bold cyan]Service:[/] Floating Desktop Sidecar Companion\n[dim]Press Ctrl+C in terminal to stop daemon[/]', title='[bold green]🪟 Saleha Desktop Sidecar Active[/]', border_style='green'))
+    console.print(Panel(f'[bold cyan]URL:[/] http://{host}:{port}\n[bold cyan]Service:[/] Floating Desktop Sidecar Companion\n[dim]Press Ctrl+C in terminal to stop daemon[/]', title='[bold green]Saleha Desktop Sidecar Active[/]', border_style='green'))
     from saleha.core.sidecar_daemon import sidecar_daemon
     sidecar_daemon.run(host=host, port=port, open_browser=open_browser)
 
@@ -123,14 +123,14 @@ def watch_cmd(directory, debounce):
     from saleha.core.repo_watcher import RepoWatcher
     watcher = RepoWatcher(root_dir=directory, poll_interval=0.5, debounce_sec=debounce)
     watcher.initialize()
-    console.print(Panel(f'[bold cyan]Watching Workspace:[/] {os.path.abspath(directory)}\n[dim]Live AST indexer active. Save any file in your IDE to see instant blast-radius traces.[/]\n[dim]Press Ctrl+C to stop watching.[/]', title='[bold green]👁️ Saleha Live Repo Watcher[/]', border_style='green'))
+    console.print(Panel(f'[bold cyan]Watching Workspace:[/] {os.path.abspath(directory)}\n[dim]Live AST indexer active. Save any file in your IDE to see instant blast-radius traces.[/]\n[dim]Press Ctrl+C to stop watching.[/]', title='[bold green]Saleha Live Repo Watcher[/]', border_style='green'))
 
     def on_event(ev):
         color = 'green' if ev.change_type == 'created' else 'yellow' if ev.change_type == 'modified' else 'red'
         syms = f" [cyan](Symbols: {', '.join(ev.symbols_defined[:4])})[/]" if ev.symbols_defined else ''
-        console.print(f'[{color}]⚡ {ev.change_type.upper()}:[/] [bold white]{ev.file_path}[/]{syms}')
+        console.print(f'[{color}]{ev.change_type.upper()}:[/] [bold white]{ev.file_path}[/]{syms}')
         if ev.impacted_downstream_files:
-            console.print(f"   [bold magenta]↳ ⚠️ Downstream Blast Radius ({len(ev.impacted_downstream_files)} files):[/] [yellow]{', '.join(ev.impacted_downstream_files[:4])}[/]")
+            console.print(f"   [bold magenta][WARN] Downstream Blast Radius ({len(ev.impacted_downstream_files)} files):[/] [yellow]{', '.join(ev.impacted_downstream_files[:4])}[/]")
     watcher.on_change(on_event)
     watcher.start_background()
     try:
@@ -168,12 +168,12 @@ def sandbox_cmd(script_path, timeout, memory, json_output):
     if json_output:
         click.echo(json.dumps({'success': res.success, 'output': res.output, 'error': res.error, 'sandbox_tier': res.sandbox_tier}))
         return
-    console.print(f'[bold cyan]🛡️ Executing in Hardened Sandbox:[/] [yellow]{script_path}[/]')
+    console.print(f'[bold cyan]Executing in Hardened Sandbox:[/] [yellow]{script_path}[/]')
     if res.success:
-        console.print(f'[bold green]✅ Sandbox Execution Succeeded (Tier: {res.sandbox_tier}):[/]')
+        console.print(f'[bold green][OK] Sandbox Execution Succeeded (Tier: {res.sandbox_tier}):[/]')
         console.print(res.output)
     else:
-        console.print(f'[bold red]❌ Sandbox Execution Failed (Tier: {res.sandbox_tier}):[/]')
+        console.print(f'[bold red][FAIL] Sandbox Execution Failed (Tier: {res.sandbox_tier}):[/]')
         console.print(res.error)
 
 @cli.command(name='sandbox-run')
@@ -187,5 +187,5 @@ def sandbox_run_cmd(code: str):
     from saleha.core.harness.sandbox_runner import sandbox_runner
     res = sandbox_runner.run_python_code(code)
     col = 'green' if res.success else 'red'
-    console.print(Panel(f'[bold {col}]📦 Sandbox Execution Result[/bold {col}]\n{res.summary}\n[bold white]Output:[/bold white]\n{res.stdout or res.stderr}', border_style=col))
+    console.print(Panel(f'[bold {col}]Sandbox Execution Result[/bold {col}]\n{res.summary}\n[bold white]Output:[/bold white]\n{res.stdout or res.stderr}', border_style=col))
 

@@ -43,7 +43,7 @@ def harness_list_cmd(as_json):
         click.echo(json.dumps(catalogs, ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title='📚 Saleha Harness Benchmark Datasets', border_style='cyan')
+    table = Table(title='Saleha Harness Benchmark Datasets', border_style='cyan')
     table.add_column('Benchmark Suite', style='bold cyan')
     table.add_column('Tasks', justify='right', style='green')
     table.add_column('Domain Category', style='yellow')
@@ -71,7 +71,7 @@ def harness_run_cmd(benchmark, model, limit, workers, output_file, dry_run, as_j
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title=f'🧪 Saleha Harness Evaluation — Model: {report.model_name}', border_style='green')
+    table = Table(title=f'Saleha Harness Evaluation — Model: {report.model_name}', border_style='green')
     table.add_column('Benchmark Suite', style='bold cyan')
     table.add_column('Tasks', justify='right')
     table.add_column('Passed', justify='right')
@@ -80,10 +80,10 @@ def harness_run_cmd(benchmark, model, limit, workers, output_file, dry_run, as_j
     for name, summ in report.benchmark_summaries.items():
         table.add_row(name, str(summ.total_tasks), str(summ.passed_tasks), f'{summ.pass_at_1}%', f'{summ.avg_latency_sec}s')
     console.print(table)
-    console.print(Panel(f'[bold cyan]Model:[/] {report.model_name}\n[bold cyan]Overall Pass@1:[/] [bold green]{report.overall_pass_at_1}%[/]\n[bold cyan]Unbiased Pass@5 Estimate:[/] [bold green]{report.overall_pass_at_5}%[/]\n[bold cyan]Average Latency:[/] {report.avg_latency_sec}s / task\n[bold cyan]Throughput:[/] {report.avg_tokens_per_sec} tok/sec', title='[bold green]🏆 Harness Evaluation Summary[/]', border_style='green'))
+    console.print(Panel(f'[bold cyan]Model:[/] {report.model_name}\n[bold cyan]Overall Pass@1:[/] [bold green]{report.overall_pass_at_1}%[/]\n[bold cyan]Unbiased Pass@5 Estimate:[/] [bold green]{report.overall_pass_at_5}%[/]\n[bold cyan]Average Latency:[/] {report.avg_latency_sec}s / task\n[bold cyan]Throughput:[/] {report.avg_tokens_per_sec} tok/sec', title='[bold green]Harness Evaluation Summary[/]', border_style='green'))
     if output_file:
         reporter.export_markdown(report, output_file)
-        console.print(f'[bold green]💾 Markdown report exported to:[/] {output_file}')
+        console.print(f'[bold green]Markdown report exported to:[/] {output_file}')
 
 @harness_group.command(name='leaderboard')
 def harness_leaderboard_cmd():

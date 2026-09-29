@@ -14,6 +14,7 @@ from saleha.core.swarm.agent_message_bus import (
 from saleha.core.memory.semantic_memory_cache import SemanticMemoryCache
 from saleha.core.swarm.swarm_pipeline_engine import (
     AutonomousSwarmRouter,
+    SwarmExecutionResult,
     SwarmPipelineEngine,
     SwarmPipelineStage,
 )
@@ -141,6 +142,30 @@ class SwarmVisualizerTests(unittest.TestCase):
         stage = SwarmPipelineStage(stage_id="s1", agent_role="Architect", status="success", duration_ms=12.4, output_summary="ADR generated")
         vis.render_header("Test Goal")
         vis.render_stage_update(stage, 1, 3)
+
+    def _result(self, success: bool) -> SwarmExecutionResult:
+        return SwarmExecutionResult(
+            execution_id="x", goal="g", success=success, adr_title="t", final_code="",
+            security_clean=success, tests_passed=success,
+            token_savings_pct=0.0, total_duration_ms=1.0, memory_recalled_count=0, stages=[],
+        )
+
+    def test_summary_reports_failure_as_failure(self) -> None:
+        import contextlib
+        import io
+
+        vis = SwarmAsciiVisualizer()
+        for success, expected, forbidden in (
+            (True, "COMPLETED SUCCESSFULLY", "FAILED"),
+            (False, "PIPELINE FAILED", "COMPLETED SUCCESSFULLY"),
+        ):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                vis.render_execution_summary(self._result(success))
+            out = buf.getvalue()
+            self.assertIn(expected, out)
+            self.assertNotIn(forbidden, out)
+            out.encode("cp1252")  # must render on a Windows console
 
 
 if __name__ == "__main__":

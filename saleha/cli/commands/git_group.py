@@ -74,12 +74,12 @@ def git_hook_cmd(action, as_json):
         return
     if action == 'status':
         status_txt = '[bold green]Active (Installed)[/]' if res.get('installed') else '[yellow]Not Installed[/]'
-        console.print(f'🛡️ Pre-Commit SAST Hook: {status_txt}')
+        console.print(f'Pre-Commit SAST Hook: {status_txt}')
         return
     if res.get('success'):
-        console.print(f"[bold green]✅ {res.get('message')}[/]")
+        console.print(f"[bold green][OK] {res.get('message')}[/]")
     else:
-        console.print(f"[bold red]❌ {res.get('error')}[/]")
+        console.print(f"[bold red][FAIL] {res.get('error')}[/]")
 
 @git_group.command(name='status')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
@@ -94,5 +94,5 @@ def git_status_cmd(as_json):
         console.print('[bold red]Not a Git repository.[/]')
         return
     dirty_txt = '[bold red]Dirty (Uncommitted Changes)[/]' if status.get('dirty') else '[bold green]Clean[/]'
-    console.print(Panel(f"[bold cyan]Branch:[/] {status.get('branch')}\n[bold cyan]Working Tree:[/] {dirty_txt}\n[bold cyan]Uncommitted Files:[/] {status.get('dirty_count')}\n" + '\n'.join([f'  • {f}' for f in status.get('files', [])]), title='[bold green]🌿 Saleha Git Status[/]', border_style='green'))
+    console.print(Panel(f"[bold cyan]Branch:[/] {status.get('branch')}\n[bold cyan]Working Tree:[/] {dirty_txt}\n[bold cyan]Uncommitted Files:[/] {status.get('dirty_count')}\n" + '\n'.join([f'  • {f}' for f in status.get('files', [])]), title='[bold green]Saleha Git Status[/]', border_style='green'))
 

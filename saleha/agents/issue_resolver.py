@@ -186,26 +186,26 @@ class AutonomousIssueResolver:
             else "no reduction -- input had no removable whitespace or TODO comments"
         )
 
-        return f"""## 🚀 {pr_title}
+        return f"""## {pr_title}
 
-### 📋 Overview & Issue Reference
+### Overview & Issue Reference
 - **Issue Reference**: `{issue_id}`
 - **Target Branch**: `{branch_name}` $\\rightarrow$ `main`
 - **Target Repository**: `{repo_name}`
 
 ---
 
-### 🔍 Root Cause Analysis (RCA)
+### Root Cause Analysis (RCA)
 {rca}
 
 ---
 
-### 🐝 Multi-Agent Swarm Execution Trace
+### Multi-Agent Swarm Execution Trace
 {stages_summary}
 
 ---
 
-### 🛡️ Quality & Verification Gate
+### Quality & Verification Gate
 - {ast_box} **AST Syntax Verification**: {ast_status}
 - {security_box} **OWASP & SAST Security Audit**: {security_status}
 - {tests_box} **Generated-Test Execution (sandbox)**: {tests_status}

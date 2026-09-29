@@ -145,7 +145,7 @@ class SlidesArchitectAgent(BaseAgent):
     h3 {{ font-size: 1.1rem; margin: 0 0 1.5rem; color: #64748b; font-weight: 500; }}
     ul {{ list-style-type: none; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }}
     li {{ display: flex; align-items: center; gap: 0.6rem; font-size: 1rem; color: #cbd5e1; }}
-    li::before {{ content: '✦'; color: #38bdf8; }}
+    li::before {{ content: '\u2022'; color: #38bdf8; }}
   </style>
 </head>
 <body>

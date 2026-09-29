@@ -1,15 +1,15 @@
 """
-Saleha Skills: Calculator Skill (Example -- pehla built-in skill)
+Saleha Skills: Calculator Skill (example -- the first built-in skill)
 
-Ye dikhata hai Skill pattern kaise kaam karta hai: simple math questions
-("What is 12 * 8?") ko LLM ke through Plan->Code->Test bhejne ki zaroorat
-nahi -- seedha Python se solve ho sakta hai. Isse:
-  - Zyada fast (koi Ollama call nahi)
-  - Zyada bharosemand (chhota model kabhi-kabhi simple math bhi galat
-    kar deta hai, ye kabhi galat nahi hoga)
+Shows how the Skill pattern works: simple math questions ("What is 12 * 8?")
+do not need to go through the LLM Plan->Code->Test pipeline -- Python can
+solve them directly. That is:
+  - faster (no Ollama call)
+  - more reliable (a small model sometimes gets simple math wrong; this
+    evaluator does not)
 
-Ye sirf ek udaharan hai -- isi pattern se future me "file_read_skill",
-"unit_convert_skill", jaisi cheezein bhi add ki ja sakti hain.
+This is only an example; the same pattern could host a "file_read_skill",
+a "unit_convert_skill" and so on.
 """
 
 import re
@@ -19,8 +19,8 @@ import operator
 from saleha.core.skill_base import Skill, SkillResult
 
 
-# Safe operators only -- eval() bilkul use nahi karte (security risk),
-# iske bajaye ek chhota safe expression evaluator likha hai.
+# Safe operators only -- eval() is never used (security risk); a small
+# safe expression evaluator is used instead.
 _SAFE_OPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -48,9 +48,9 @@ class CalculatorSkill(Skill):
     """Simple arithmetic solver without calling an external LLM."""
 
     name = "calculator"
-    description = "Simple arithmetic (add/subtract/multiply/divide/power) seedha solve karta hai, LLM ke bina."
+    description = "Simple arithmetic (add/subtract/multiply/divide/power) solves it directly, without an LLM."
 
-    # Task me se ek clean math expression nikaalne ke liye
+    # Extracts one clean math expression from the task text
     _EXPR_PATTERN = re.compile(r"[-+]?\d+(\.\d+)?(\s*[\+\-\*/\^]\s*[-+]?\d+(\.\d+)?)+")
 
     def can_handle(self, task: str) -> bool:

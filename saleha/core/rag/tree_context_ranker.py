@@ -204,8 +204,8 @@ class TreeContextRanker:
         return defs[:80]
 
     def popularity_boost(self) -> Dict[str, float]:
-        """File-level boost: jo symbols DOOSRI files reference karti hain.
-        Hub modules (shared types/utils) naturally up-rank hote hain."""
+        """File-level boost: boost for symbols that OTHER files reference.
+        Hub modules (shared types/utils) naturally rank higher."""
         all_defined: Dict[str, str] = {}
         for rel, facts in self._files.items():
             for sym in facts.defines:

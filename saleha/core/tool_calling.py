@@ -132,9 +132,9 @@ class ToolRegistry:
         _BLOCKED_HOST_SUFFIXES = (".internal", ".local", ".localhost", ".home.arpa")
 
         def _validate_http_url(url: str) -> str:
-            """SSRF/file-read guard: sirf public http(s) URLs allowed.
-            Pehle `file:///etc/passwd` aur internal hosts bhi fetch ho jaate the
-            jab URL model-controlled tha."""
+            """SSRF/file-read guard: only public http(s) URLs are allowed.
+            Previously `file:///etc/passwd` and internal hosts could also be
+            fetched when the URL was model-controlled."""
             parsed = urllib.parse.urlparse(url)
             if parsed.scheme not in ("http", "https"):
                 raise ValueError(

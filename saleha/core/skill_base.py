@@ -1,20 +1,18 @@
 """
 Saleha Core: Skill Base (New -- plugin-style extensibility)
 
-Abhi Saleha ke agents (Planner, Coder, Tester, Reviewer) sab hardcoded hain
--- naya capability add karna matlab orchestrator.py khud chhedna. Ye "Skill"
-pattern isse alag banata hai: koi bhi naya chhota specialized tool (jaise
-"calculator skill" jo simple math ko bina LLM call kiye seedha solve kare)
-is base class se inherit karke naya file bana sakta hai, aur registry me
-register ho jaata hai -- orchestrator ko chhedne ki zaroorat nahi.
+The core agents (Planner, Coder, Tester, Reviewer) are hardcoded, so adding a
+new capability would mean editing orchestrator.py. The "Skill" pattern avoids
+that: a small specialised tool (for example a calculator skill that solves
+simple math directly, without an LLM call) subclasses this base class in its
+own file and is added to the registry -- no orchestrator change needed.
 
-Design: har Skill do cheezein batata hai --
-  1. can_handle(task) -- "kya ye task mera kaam hai?"
-  2. execute(task) -- "to yahi karo"
-Orchestrator (ya koi bhi caller) pehle registry se poochta hai "koi skill
-is task ko handle kar sakta hai?" -- agar haan, seedha wahi chalta hai
-(LLM call bina, fast aur reliable). Agar nahi, normal Plan->Code->Test
-pipeline chalta hai jaisa abhi hai.
+Design: every Skill answers two questions --
+  1. can_handle(task) -- "is this task mine?"
+  2. execute(task) -- "then do it"
+The orchestrator (or any caller) first asks the registry whether some skill
+can handle the task. If one can, it runs directly (no LLM call, fast and
+deterministic). If none can, the normal Plan->Code->Test pipeline runs.
 """
 
 from abc import ABC, abstractmethod
@@ -29,18 +27,18 @@ class SkillResult:
 
 
 class Skill(ABC):
-    """Har naya skill isse inherit karega."""
+    """Base class every skill inherits from."""
 
     name: str = "unnamed_skill"
     description: str = "No description provided."
 
     @abstractmethod
     def can_handle(self, task: str) -> bool:
-        """Ye task is skill ke scope me aata hai? Fast check hona chahiye
-        (koi LLM call nahi, sirf keyword/pattern check)."""
+        """Whether this task is within this skill's scope. Must be a fast check
+        (no LLM call, only a keyword/pattern test)."""
         raise NotImplementedError
 
     @abstractmethod
     def execute(self, task: str) -> SkillResult:
-        """Task ko handle karo aur result do."""
+        """Handle the task and return the result."""
         raise NotImplementedError

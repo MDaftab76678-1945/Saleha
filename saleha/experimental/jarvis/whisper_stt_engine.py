@@ -25,13 +25,13 @@ class JarvisWhisperSTT:
 
         if HAS_WHISPER:
             try:
-                print(f"⚡ [LOADING LOCAL FASTER-WHISPER ({model_size})...]")
+                print(f"[LOADING LOCAL FASTER-WHISPER ({model_size})...]")
                 self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
-                print("✅ [FASTER-WHISPER ONLINE]: Local STT Engine Ready.")
+                print("[OK] [FASTER-WHISPER ONLINE]: Local STT Engine Ready.")
             except Exception as e:
-                print(f"⚠ Faster-Whisper init failed: {e}")
+                print(f"[WARN] Faster-Whisper init failed: {e}")
         else:
-            print("⚠ faster-whisper not installed. STT disabled.")
+            print("[WARN] faster-whisper not installed. STT disabled.")
 
     def transcribe_pcm(self, pcm_data: np.ndarray, sample_rate: int = 16000) -> str:
         """
@@ -61,12 +61,12 @@ class JarvisWhisperSTT:
             text = "".join([segment.text for segment in segments]).strip()
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-            print(f"⚡ [WHISPER STT] Transcribed {len(audio_float)/sample_rate:.2f}s audio in {elapsed_ms:.1f}ms")
+            print(f"[WHISPER STT] Transcribed {len(audio_float)/sample_rate:.2f}s audio in {elapsed_ms:.1f}ms")
 
             return text
 
         except Exception as e:
-            print(f"❌ [WHISPER STT ERROR]: {e}")
+            print(f"[FAIL] [WHISPER STT ERROR]: {e}")
             return ""
 
     def transcribe_streaming(self, pcm_chunks: Generator[np.ndarray, None, None]) -> Generator[str, None, None]:

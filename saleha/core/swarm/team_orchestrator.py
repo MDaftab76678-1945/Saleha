@@ -120,10 +120,10 @@ class TeamOrchestrator:
                           on_event: Optional[Callable[[Dict[str, Any]], None]] = None) -> TeamResult:
         """Executes the full multi-agent collaborative swarm pipeline.
 
-        `on_event`: optional callback jo har stage complete hote hi turant
-        fire hota hai -- {"stage": str, "content": str, "stage_index": int}.
-        Web Studio SSE isse REAL streaming karta hai (pehle poora workflow
-        chal kar events ko ek saath dump karta tha).
+        `on_event`: optional callback fired immediately after each stage
+        completes -- {"stage": str, "content": str, "stage_index": int}.
+        Web Studio SSE uses it for real streaming (the whole workflow used to
+        run first and dump all events at once).
         """
         log = f"Starting Multi-Agent Team Swarm for Goal: {goal}\n" + "=" * 70 + "\n"
         stages_done = []
@@ -163,7 +163,7 @@ class TeamOrchestrator:
                     "content": content,
                     "stage_index": _event_counter["n"],
                 })
-            except Exception as cb_err:  # callback kabhi pipeline na tode
+            except Exception as cb_err:  # a callback must never break the pipeline
                 log += f"WARNING: on_event callback failed: {cb_err}\n"
 
         if debate:

@@ -33,7 +33,7 @@ class SalehaTUI:
         self.model = model
         self.console = Console()
         self.chat_history: List[str] = [
-            "[bold cyan]🤖 Saleha v2.6.0 Ready.[/bold cyan] 100% Local-First Multi-Agent Platform.",
+            "[bold cyan]Saleha v2.6.0 Ready.[/bold cyan] 100% Local-First Multi-Agent Platform.",
             "Type your coding goal or enter [italic yellow]:help[/italic yellow] for command shortcuts.",
         ]
         self.latest_diff: str = "# No surgical diffs active.\n# Submit a task to generate patches."
@@ -54,20 +54,20 @@ class SalehaTUI:
         )
 
         # Header
-        header_text = Text(f"🚀 SALEHA SOVEREIGN WORKSPACE v2.6.0  |  Model: {self.model}  |  Consensus: 2f+1 PBFT", style="bold white on blue")
+        header_text = Text(f"SALEHA SOVEREIGN WORKSPACE v2.6.0  |  Model: {self.model}  |  Consensus: 2f+1 PBFT", style="bold white on blue")
         layout["header"].update(Panel(header_text, style="blue"))
 
         # Left Chat
         chat_content = "\n\n".join(self.chat_history[-8:])
-        layout["left_chat"].update(Panel(chat_content, title="💬 Agent Interaction Stream", border_style="cyan"))
+        layout["left_chat"].update(Panel(chat_content, title="Agent Interaction Stream", border_style="cyan"))
 
         # Right Diff & Tests
         syntax_diff = Syntax(self.latest_diff, "python", theme="monokai", line_numbers=True)
-        layout["right_diff"].update(Panel(syntax_diff, title=f"⚡ Surgical Code Diff ({self.latest_test_status})", border_style="green"))
+        layout["right_diff"].update(Panel(syntax_diff, title=f"Surgical Code Diff ({self.latest_test_status})", border_style="green"))
 
         # Footer
         summary = token_ledger.get_summary()
-        footer_text = f"💰 Tokens Saved: {summary['total_tokens_saved']:,} | ROI: {summary['token_roi_percent']}% | Spend: ${summary['estimated_spend_usd']} | Commands: :solve, :clear, :exit"
+        footer_text = f"Tokens Saved: {summary['total_tokens_saved']:,} | ROI: {summary['token_roi_percent']}% | Spend: ${summary['estimated_spend_usd']} | Commands: :solve, :clear, :exit"
         layout["footer"].update(Panel(footer_text, style="magenta"))
 
         return layout
@@ -91,7 +91,7 @@ class SalehaTUI:
                     break
 
                 if user_input.lower() in [":clear", "clear"]:
-                    self.chat_history = ["[bold cyan]🤖 Chat history cleared.[/bold cyan]"]
+                    self.chat_history = ["[bold cyan]Chat history cleared.[/bold cyan]"]
                     self.render()
                     continue
 
@@ -102,8 +102,8 @@ class SalehaTUI:
 
                 # Process task
                 goal = user_input[7:].strip() if user_input.startswith(":solve ") else user_input
-                self.chat_history.append(f"[bold yellow]👤 User:[/bold yellow] {goal}")
-                self.chat_history.append("[bold cyan]🤖 Agents:[/bold cyan] Planning and analyzing problem...")
+                self.chat_history.append(f"[bold yellow]User:[/bold yellow] {goal}")
+                self.chat_history.append("[bold cyan]Agents:[/bold cyan] Planning and analyzing problem...")
                 self.latest_test_status = "Running solver..."
                 self.render()
 
@@ -112,9 +112,9 @@ class SalehaTUI:
 
                 if exec_res.final_code:
                     self.latest_diff = exec_res.final_code[:500]
-                status_str = "Passed ✅" if exec_res.success else "Failed ❌"
+                status_str = "Passed [OK]" if exec_res.success else "Failed [FAIL]"
                 self.latest_test_status = f"Status: {status_str}"
-                self.chat_history.append(f"[bold cyan]🤖 Outcome:[/bold cyan] Task {status_str} ({exec_res.attempts} attempts).")
+                self.chat_history.append(f"[bold cyan]Outcome:[/bold cyan] Task {status_str} ({exec_res.attempts} attempts).")
                 self.render()
 
             except (KeyboardInterrupt, EOFError):

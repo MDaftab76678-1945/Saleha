@@ -100,7 +100,7 @@ class HybridModelGateway:
                 temperature=temperature
             )
 
-        # Anthropic Messages API (native -- Bearer-style nahi)
+        # Anthropic Messages API (native -- not Bearer-style)
         if selected_provider == "anthropic":
             return self._call_anthropic(
                 api_key=os.getenv("ANTHROPIC_API_KEY", ""),
@@ -265,7 +265,7 @@ class HybridModelGateway:
 
     def _call_gemini(self, api_key: str, model: str, prompt: str,
                      system_prompt: str, temperature: float) -> GatewayResponse:
-        """Google Gemini generateContent API -- key query-param se jaati hai."""
+        """Google Gemini generateContent API -- the key is sent as a query parameter."""
         start = time.time()
         if not api_key:
             return GatewayResponse(

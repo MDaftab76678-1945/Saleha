@@ -1,9 +1,9 @@
 """
-docs/CLI_REFERENCE.md ko Click CLI se AUTO-GENERATE karta hai.
+AUTO-GENERATES docs/CLI_REFERENCE.md from the Click CLI.
 
 Usage: python scripts/gen_cli_docs.py
-Kabhi naya command add ho to bas ye script chala do -- docs hamesha
-code ke saath sync rehte hain.
+Whenever a command is added, just run this script -- the docs stay in
+sync with the code.
 """
 from __future__ import annotations
 import io

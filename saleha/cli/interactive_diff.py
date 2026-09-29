@@ -50,7 +50,7 @@ class InteractiveDiffReviewer:
 
         self.console.print(Panel(
             syntax,
-            title=f"[bold cyan]📝 Diff Review: {file_path}[/]",
+            title=f"[bold cyan]Diff Review: {file_path}[/]",
             subtitle="[green]+ additions[/] | [red]- deletions[/]",
             border_style="cyan"
         ))

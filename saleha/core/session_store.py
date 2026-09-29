@@ -1,12 +1,12 @@
 """
 Saleha Core: Session Persistence (A4 -- crash/interrupt recovery)
 
-`saleha run` ke har major stage par checkpoint disk pe save hota hai
-(~/.saleha/session.json). Crash/CTRL-C ke baad `saleha run --resume`
-usi jagah se continue karta hai -- planning/coding dobara nahi hota.
+`saleha run` saves a checkpoint to disk (~/.saleha/session.json) at every
+major stage. After a crash or CTRL-C, `saleha run --resume` continues from the
+same point -- planning and coding are not repeated.
 
-Sirf ek active session rakhte hain (local single-user tool); successful ya
-finally-failed sessions clear ho jaate hain taaki stale resume na mile.
+Only one active session is kept (local single-user tool); sessions that
+succeed or finally fail are cleared so a stale one is never resumed.
 """
 
 import json
@@ -50,7 +50,7 @@ class SessionStore:
             with open(self.storage_path, "w", encoding="utf-8") as f:
                 json.dump(asdict(state), f, indent=2, ensure_ascii=False)
         except OSError:
-            pass  # checkpoint failure pipeline kabhi na tode
+            pass  # a checkpoint failure must never break the pipeline
 
     def load(self) -> Optional[SessionState]:
         if not os.path.isfile(self.storage_path):
@@ -83,5 +83,5 @@ class SessionStore:
             pass
 
 
-# Global singleton (lazy filesystem touch -- makedirs sirf save/load/clear par)
+# Global singleton (lazy filesystem touch -- makedirs only on save/load/clear)
 session_store = SessionStore()

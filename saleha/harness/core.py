@@ -113,8 +113,8 @@ class SalehaHarness:
         total = len(all_results)
         passed = sum(1 for r in all_results if r.passed)
         pass_1 = round((passed / total) * 100, 2) if total else 0.0
-        # Real unbiased Pass@k estimator (metrics.py) -- pehle fake
-        # "pass_at_1 * 1.05" formula tha jo report ko misleading banata tha.
+        # Real unbiased Pass@k estimator (metrics.py) -- this used to be a fake
+        # "pass_at_1 * 1.05" formula that made the report misleading.
         pass_5 = round(estimate_pass_at_k(total, passed, k=min(5, total)) * 100, 2) if total else 0.0
         avg_lat = round(sum(r.latency_sec for r in all_results) / total, 2) if total else 0.0
         avg_tok_sec = round(sum(r.tokens_per_sec for r in all_results) / total, 1) if total else 0.0

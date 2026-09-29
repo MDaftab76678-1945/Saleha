@@ -1,8 +1,8 @@
 """
 Saleha Nexus Mobile Mainframe Bridge.
 Provides:
-- 2-Way Encrypted Remote Command Dispatching for Mobile Devices (Telegram & Discord)
-- Mobile System Health & Intruder Push Notification Dispatcher
+- Authorized-device check and a `status` command (real CPU/RAM)
+- Intruder push-alert message formatter (formats a message; sends nothing)
 """
 
 from __future__ import annotations
@@ -22,26 +22,41 @@ class MobileCommandResponse:
 
 class NexusMobileBridge:
     """
-    Handles secure mobile message routing and notifications between Saleha and remote phones.
+    Routes messages from registered mobile devices to the commands Saleha can answer.
+
+    Only `status` is implemented (real CPU/RAM from psutil). Anything else is
+    reported as unsupported rather than acknowledged: this bridge dispatches
+    nothing to a swarm, deploys nothing and shuts nothing down. Messages from a
+    chat id that is not registered are rejected.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.authorized_chat_ids = {"100293849"}  # Registered mobile devices
+
+    @staticmethod
+    def _system_status() -> str:
+        import psutil
+
+        mem = psutil.virtual_memory()
+        gib = 1024 ** 3
+        return (
+            f"CPU: {psutil.cpu_percent(interval=0.1):.0f}% | "
+            f"RAM: {mem.used / gib:.1f}GB / {mem.total / gib:.1f}GB"
+        )
 
     def process_incoming_mobile_message(self, chat_id: str, message: str) -> MobileCommandResponse:
         cmd = message.strip().lower()
-        success = True
 
-        if cmd in ("status", "/status", "vitals"):
-            reply = "🔋 CPU: 12% | 💾 RAM: 3.2GB / 16GB | 🟢 Swarm: 250 Agents Active"
-        elif cmd in ("benchmark", "/benchmark"):
-            reply = "⚡ Benchmark: 7.7M ops/sec SPSC lock-free | 205k Poincaré dist/sec (100% Green)"
-        elif cmd in ("deploy", "/deploy"):
-            reply = "🚀 Live Netlify Deployment Active: https://saleha-app-prod.netlify.app"
-        elif "shutdown" in cmd:
-            reply = "🛑 Shutdown command acknowledged: Entering safe standby mode."
+        if chat_id not in self.authorized_chat_ids:
+            reply, success = "Unauthorized: this chat id is not a registered device.", False
+        elif cmd in ("status", "/status", "vitals"):
+            reply, success = self._system_status(), True
         else:
-            reply = f"🤖 Saleha Mobile Core: Command '{message}' routed to 10-Department Swarm."
+            reply, success = (
+                f"Unsupported command '{message}'. Supported: status. "
+                "Nothing was dispatched, deployed or shut down.",
+                False,
+            )
 
         return MobileCommandResponse(
             command=message,
@@ -52,8 +67,8 @@ class NexusMobileBridge:
 
     def format_intruder_push_alert(self, intruder_name: str = "Unknown Person") -> Dict[str, Any]:
         return {
-            "title": "🚨 SECURITY ALERT: Workstation Intruder Detected",
-            "body": f"Unauthorized subject ({intruder_name}) spotted at primary desk. Screen locked.",
+            "title": "SECURITY ALERT: Workstation Intruder Detected",
+            "body": f"Unauthorized subject ({intruder_name}) reported at the primary desk. No action was taken by this alert.",
             "priority": "HIGH",
             "timestamp": time.time(),
         }

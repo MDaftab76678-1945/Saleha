@@ -38,7 +38,7 @@ def hub_list_cmd():
     """List available plugins in the Saleha Hub registry."""
     from saleha.core.plugin_hub import plugin_hub
     plugins = plugin_hub.list_available_hub_plugins()
-    table = Table(title='🧩 Saleha Hub: Community Plugins Catalog', border_style='cyan')
+    table = Table(title='Saleha Hub: Community Plugins Catalog', border_style='cyan')
     table.add_column('Plugin Name', style='bold white')
     table.add_column('Version', style='bold cyan')
     table.add_column('Author', style='italic white')
@@ -54,7 +54,7 @@ def hub_install_cmd(plugin_name: str):
     from saleha.core.plugin_hub import plugin_hub
     ok = plugin_hub.install_plugin(plugin_name)
     if ok:
-        console.print(f"[bold green]✅ Plugin '{plugin_name}' installed and active![/bold green]")
+        console.print(f"[bold green][OK] Plugin '{plugin_name}' installed and active![/bold green]")
     else:
-        console.print(f"[bold red]❌ Plugin '{plugin_name}' not found in Hub catalog.[/bold red]")
+        console.print(f"[bold red][FAIL] Plugin '{plugin_name}' not found in Hub catalog.[/bold red]")
 

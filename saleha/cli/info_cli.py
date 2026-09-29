@@ -34,21 +34,21 @@ def _count_test_files() -> int:
 
 @click.command(name="info", help="Display system architecture, connected engines, and runtime specs.")
 def info_cmd():
-    console.print(Panel(f"[bold cyan]🧬 SALEHA AI UNIFIED PLATFORM SPECIFICATIONS (v{__version__})[/bold cyan]\n[dim]Autonomous Software Engineering & Polyglot Multi-Agent Swarm[/dim]"))
+    console.print(Panel(f"[bold cyan]SALEHA AI UNIFIED PLATFORM SPECIFICATIONS (v{__version__})[/bold cyan]\n[dim]Autonomous Software Engineering & Polyglot Multi-Agent Swarm[/dim]"))
 
     table = Table(border_style="cyan")
     table.add_column("Property / Component", style="bold white", width=28)
     table.add_column("Active Configuration", style="cyan", width=34)
     table.add_column("Status", style="bold green", width=14)
 
-    table.add_row("Platform Version", f"Saleha AI v{__version__}", "🟢 ENTERPRISE")
-    table.add_row("Python Runtime", f"Python {platform.python_version()} ({platform.system()})", "🟢 ACTIVE")
-    table.add_row("Active Model Provider", default_provider.__class__.__name__, "🟢 MULTI-TIER")
-    table.add_row("Registered Agent Profiles", f"{len(profile_registry.list_profiles())} Specialized Profiles", "🟢 READY")
-    table.add_row("Tool Calling Registry", f"{len(global_tool_registry.get_schemas())} Verified Tools", "🟢 SECURE")
-    table.add_row("Swarm Topology", "10 Departments (250 Agents)", "🟢 POINCARÉ 16D")
-    table.add_row("AST Safety Verifier", "Gamma AST 2PC + ASan Guard", "🟢 0 LEAKS")
-    table.add_row("Monorepo Packages", "@saleha/{ui,db,api,auth,core}", "🟢 SYNCHRONIZED")
+    table.add_row("Platform Version", f"Saleha AI v{__version__}", "[OK] ENTERPRISE")
+    table.add_row("Python Runtime", f"Python {platform.python_version()} ({platform.system()})", "[OK] ACTIVE")
+    table.add_row("Active Model Provider", default_provider.__class__.__name__, "[OK] MULTI-TIER")
+    table.add_row("Registered Agent Profiles", f"{len(profile_registry.list_profiles())} Specialized Profiles", "[OK] READY")
+    table.add_row("Tool Calling Registry", f"{len(global_tool_registry.get_schemas())} Verified Tools", "[OK] SECURE")
+    table.add_row("Swarm Topology", "10 Departments (250 Agents)", "[OK] POINCARÉ 16D")
+    table.add_row("AST Safety Verifier", "Gamma AST 2PC + ASan Guard", "[OK] 0 LEAKS")
+    table.add_row("Monorepo Packages", "@saleha/{ui,db,api,auth,core}", "[OK] SYNCHRONIZED")
     # Was hardcoded "879 / 879 Unit & System Tests" / "100% PASS" -- a count
     # that was invented, went stale (the suite is four figures now), and
     # asserted a passing state on a command that runs no tests at all. The

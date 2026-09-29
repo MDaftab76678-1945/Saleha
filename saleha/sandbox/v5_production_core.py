@@ -126,7 +126,7 @@ class SelfHealingEngine:
         # 1. Check persistent memory cache
         cached_fix = self.db.get_past_solution(task_hash)
         if cached_fix:
-            logger.info("⚡ [Cache Hit] Found previous verified solution in SQLite. Running verification...")
+            logger.info("[Cache Hit] Found previous verified solution in SQLite. Running verification...")
             res = self.sandbox.run_isolated(cached_fix)
             if res["passed"]:
                 return {"status": "RESOLVED_FROM_MEMORY", "attempts": 0, "code": cached_fix, "stdout": res["stdout"]}
@@ -135,7 +135,7 @@ class SelfHealingEngine:
         last_error = ""
 
         for attempt in range(1, max_retries + 1):
-            logger.info(f"🔄 [Healing Loop] Attempt {attempt}/{max_retries}...")
+            logger.info(f"[Healing Loop] Attempt {attempt}/{max_retries}...")
 
             system_prompt = (
                 "You are an expert systems programmer. You generate clean, bug-free Python code. "
@@ -170,7 +170,7 @@ class SelfHealingEngine:
             # Step 2: Hardened Sandboxed Execution
             run_result = self.sandbox.run_isolated(code)
             if run_result["passed"]:
-                logger.info(f"✅ [Passed] Verified code in sandbox on attempt {attempt}.")
+                logger.info(f"[OK] [Passed] Verified code in sandbox on attempt {attempt}.")
                 self.db.save_resolution(task_hash, previous_code, code, last_error)
                 return {
                     "status": "PASSED",

@@ -191,10 +191,10 @@ class AgentProfileRegistry:
 class ProfileAgent(BaseAgent):
     """An agent that adopts a specific AgentProfile persona.
 
-    v1.4 wiring: profile ki ``llm_routing`` metadata ab REAL effect deti hai --
-      - role ke hisaab se SmartRouter me minimum complexity floor
-        (security/sde roles flagship tiers pe route hongi)
-      - llm_routing.temperature provider options me jaata hai
+    v1.4 wiring: the profile's ``llm_routing`` metadata now has a REAL effect --
+      - a minimum complexity floor in SmartRouter depending on the role
+        (security/sde roles are routed to flagship tiers)
+      - llm_routing.temperature is passed in the provider options
     """
 
     # profile-id keyword -> min complexity floor (router candidate tier gate)
@@ -221,7 +221,7 @@ class ProfileAgent(BaseAgent):
         super().__init__(role=profile.name, model=model)
         self.profile = profile
 
-        # Role-tier floor: id ke keywords se derive
+        # Role-tier floor: derived from keywords in the profile id
         pid = profile.id.lower()
         self.complexity_floor = 0.0
         for keyword, floor in self.ROLE_COMPLEXITY_FLOOR:
@@ -229,8 +229,8 @@ class ProfileAgent(BaseAgent):
                 self.complexity_floor = floor
                 break
 
-        # Temperature: llm_routing.temperature (cloud-era metadata) ab real
-        # provider option hai -- clamp 0.05..0.9
+        # Temperature: llm_routing.temperature (cloud-era metadata) is now a real
+        # provider option -- clamped to 0.05..0.9
         raw_temp = (profile.llm_routing or {}).get("temperature")
         try:
             if raw_temp is None:

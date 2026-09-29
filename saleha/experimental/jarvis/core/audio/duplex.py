@@ -138,9 +138,9 @@ class SileroVADDetector:
                 onnx=True
             )
             self._initialized = True
-            print("✅ [Silero-VAD] Model loaded successfully")
+            print("[OK] [Silero-VAD] Model loaded successfully")
         except Exception as e:
-            print(f"⚠️ [Silero-VAD] Failed to load: {e}")
+            print(f"[WARN] [Silero-VAD] Failed to load: {e}")
             self._initialized = False
     
     def detect(self, audio_chunk: np.ndarray) -> dict:
@@ -350,7 +350,7 @@ class FullDuplexAudioEngine:
     
     def initialize(self):
         """Initialize audio engine and all sub-components."""
-        print("🎙️ [Audio Engine] Initializing Full-Duplex Audio Engine...")
+        print("[Audio Engine] Initializing Full-Duplex Audio Engine...")
         
         # Initialize VAD
         self.vad.initialize()
@@ -358,7 +358,7 @@ class FullDuplexAudioEngine:
         # Register barge-in callback
         self.barge_in.register_callback(self._handle_barge_in)
         
-        print("✅ [Audio Engine] Initialization complete")
+        print("[OK] [Audio Engine] Initialization complete")
     
     def start(self):
         """Start audio capture and processing."""
@@ -378,7 +378,7 @@ class FullDuplexAudioEngine:
         )
         self.input_stream.start()
         
-        print("🎙️ [Audio Engine] Listening...")
+        print("[Audio Engine] Listening...")
     
     def stop(self):
         """Stop audio engine."""
@@ -395,7 +395,7 @@ class FullDuplexAudioEngine:
             self.output_stream = None
         
         self.state = AudioState.IDLE
-        print("🎙️ [Audio Engine] Stopped")
+        print("[Audio Engine] Stopped")
     
     def _audio_callback(self, indata, frames, time_info, status):
         """
@@ -406,7 +406,7 @@ class FullDuplexAudioEngine:
             return
         
         if status:
-            print(f"⚠️ [Audio] Status: {status}")
+            print(f"[WARN] [Audio] Status: {status}")
         
         # Get audio data
         audio_data = indata[:, 0].copy() if self.config.CHANNELS == 1 else indata.copy()
@@ -448,7 +448,7 @@ class FullDuplexAudioEngine:
         full_speech = np.concatenate(self.speech_buffer)
         duration_ms = len(full_speech) / self.config.SAMPLE_RATE * 1000
         
-        print(f"🎙️ [Audio] Speech captured: {duration_ms:.0f}ms")
+        print(f"[Audio] Speech captured: {duration_ms:.0f}ms")
         
         # Store in ring buffer
         self.ring_buffer.push(full_speech, time.time())
@@ -464,7 +464,7 @@ class FullDuplexAudioEngine:
     
     def _handle_barge_in(self):
         """Handle barge-in interruption."""
-        print("⚡ [Barge-In] User interrupted J.A.R.V.I.S.!")
+        print("[Barge-In] User interrupted J.A.R.V.I.S.!")
         
         # Clear speech buffer
         self.speech_buffer = []
@@ -499,7 +499,7 @@ class FullDuplexAudioEngine:
             sd.play(audio_data, self.config.SAMPLE_RATE)
             sd.wait()
         except Exception as e:
-            print(f"⚠️ [Audio] Playback error: {e}")
+            print(f"[WARN] [Audio] Playback error: {e}")
         finally:
             self.barge_in.stop_speaking()
             self.state = AudioState.LISTENING
@@ -527,10 +527,10 @@ if __name__ == "__main__":
     engine = create_audio_engine()
     
     def on_speech(audio):
-        print(f"✅ Speech received: {len(audio)} samples")
+        print(f"[OK] Speech received: {len(audio)} samples")
     
     def on_interrupt():
-        print("🛑 Interruption handled")
+        print("Interruption handled")
     
     engine.on_speech_end = on_speech
     engine.on_barge_in = on_interrupt
@@ -542,4 +542,4 @@ if __name__ == "__main__":
             time.sleep(1)
     except KeyboardInterrupt:
         engine.stop()
-        print("\n✅ Audio engine test complete")
+        print("\n[OK] Audio engine test complete")

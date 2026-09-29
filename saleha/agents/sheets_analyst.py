@@ -60,7 +60,7 @@ class SheetsAnalystAgent(BaseAgent):
         result = self.analyze_tabular_query(prompt)
         duration = (time.perf_counter() - start) * 1000
 
-        content = f"""### 📊 Tabular Analysis: {result.dataset_name}
+        content = f"""### Tabular Analysis: {result.dataset_name}
 **Rows**: {result.total_rows} | **Columns**: {result.total_columns} | **Anomalies**: {len(result.anomalies)}
 
 ```sql

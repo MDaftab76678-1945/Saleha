@@ -156,10 +156,10 @@ Respond in JSON format: {{"score": float, "verdict": "APPROVED"|"NEEDS_REVISION"
         confidence = "HIGH" if len([r for r in [sec_rev, perf_rev, qa_rev] if r.verdict == "APPROVED"]) >= 2 else "MEDIUM"
 
         summary_lines = [
-            f"### 👥 Multi-Model Ensemble Consensus: **{verdict}** (Score: {int(weighted_score*100)}/100)",
-            f"- 🛡️ **Security Auditor:** {sec_rev.verdict} ({int(sec_rev.score*100)}%)",
-            f"- ⚡ **Performance Architect:** {perf_rev.verdict} ({int(perf_rev.score*100)}%)",
-            f"- 🧪 **QA Reliability:** {qa_rev.verdict} ({int(qa_rev.score*100)}%)"
+            f"### Multi-Model Ensemble Consensus: **{verdict}** (Score: {int(weighted_score*100)}/100)",
+            f"- **Security Auditor:** {sec_rev.verdict} ({int(sec_rev.score*100)}%)",
+            f"- **Performance Architect:** {perf_rev.verdict} ({int(perf_rev.score*100)}%)",
+            f"- **QA Reliability:** {qa_rev.verdict} ({int(qa_rev.score*100)}%)"
         ]
 
         all_findings = sec_rev.findings + perf_rev.findings + qa_rev.findings

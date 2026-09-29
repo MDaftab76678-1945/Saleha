@@ -115,7 +115,7 @@ class MemoryJournalTests(unittest.TestCase):
         summary = self.journal.replay_summary()
         self.assertIn("CoderAgent", summary)
         self.assertIn("sess_001", summary)
-        self.assertIn("✅", summary)
+        self.assertIn("[OK]", summary)
 
     def test_empty_session_replay(self) -> None:
         j = MemoryJournal("empty_proj", session_id="empty_sess", journal_dir=self.tmp)

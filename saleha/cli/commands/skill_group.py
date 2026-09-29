@@ -41,7 +41,7 @@ def skill_list_cmd(domain: Optional[str], limit: int):
     from saleha.core.skill_catalog import skill_catalog
     skills = skill_catalog.list_skills(domain=domain, limit=limit)
     stats = skill_catalog.get_stats()
-    table = Table(title=f"🧠 Saleha AgentSkills Catalog ({stats['total_skills']} Total Skills across {stats['total_domains']} Domains)", border_style='cyan')
+    table = Table(title=f"Saleha AgentSkills Catalog ({stats['total_skills']} Total Skills across {stats['total_domains']} Domains)", border_style='cyan')
     table.add_column('Skill Name', style='bold cyan')
     table.add_column('Domain', style='magenta')
     table.add_column('Description', style='white')
@@ -62,7 +62,7 @@ def skill_search_cmd(query: str, domain: Optional[str], limit: int):
     if not results:
         console.print(f"[bold yellow]No skills found matching '{query}'.[/bold yellow]")
         return
-    table = Table(title=f"🔍 Skill Search Results for '{query}' ({len(results)} matches)", border_style='green')
+    table = Table(title=f"Skill Search Results for '{query}' ({len(results)} matches)", border_style='green')
     table.add_column('Skill Name', style='bold green')
     table.add_column('Domain', style='magenta')
     table.add_column('Description', style='white')
@@ -77,7 +77,7 @@ def skill_info_cmd(skill_name: str):
     from saleha.core.skill_catalog import skill_catalog
     skill = skill_catalog.get_skill(skill_name)
     if not skill:
-        console.print(f"[bold red]❌ Skill '{skill_name}' not found.[/bold red]")
+        console.print(f"[bold red][FAIL] Skill '{skill_name}' not found.[/bold red]")
         return
     console.print(Panel(skill.to_markdown(), title=f'AgentSkill: {skill.name}', border_style='cyan'))
 
@@ -89,20 +89,20 @@ def skill_run_cmd(skill_name: str, task: str):
     from saleha.core.skill_catalog import skill_catalog
     res = skill_catalog.execute_skill(skill_name, {'task': task})
     if res.get('success'):
-        console.print(Panel(json.dumps(res, indent=2), title=f"✅ Skill '{skill_name}' Execution Output", border_style='green'))
+        console.print(Panel(json.dumps(res, indent=2), title=f"[OK] Skill '{skill_name}' Execution Output", border_style='green'))
     else:
-        console.print(f"[bold red]❌ Skill execution failed: {res.get('error')}[/bold red]")
+        console.print(f"[bold red][FAIL] Skill execution failed: {res.get('error')}[/bold red]")
 
 @skill_group.command(name='stats')
 def skill_stats_cmd():
     """Display statistical breakdown of the 1,000+ skill catalog."""
     from saleha.core.skill_catalog import skill_catalog
     stats = skill_catalog.get_stats()
-    table = Table(title=f'📊 Saleha 1,000+ AgentSkills Domain Distribution', border_style='blue')
+    table = Table(title=f'Saleha 1,000+ AgentSkills Domain Distribution', border_style='blue')
     table.add_column('Domain Name', style='bold cyan')
     table.add_column('Skills Count', style='green', justify='right')
     for domain, count in sorted(stats['domain_breakdown'].items(), key=lambda x: x[1], reverse=True):
         table.add_row(domain, str(count))
     console.print(table)
-    console.print(f"[bold green]✨ Total Catalog: {stats['total_skills']} Skills | {stats['total_domains']} Domains | {stats['total_indexed_keywords']} Indexed Terms[/bold green]")
+    console.print(f"[bold green]Total Catalog: {stats['total_skills']} Skills | {stats['total_domains']} Domains | {stats['total_indexed_keywords']} Indexed Terms[/bold green]")
 

@@ -40,8 +40,8 @@ def scan(directory: Any, as_json: Any) -> None:
         payload = {'summary': summary, 'files': {rel_path: {'lines_of_code': f.lines_of_code, 'classes': [c.name for c in f.classes.values()], 'functions': [fn.name for fn in f.functions.values()], 'imports': f.imports, 'syntax_error': f.syntax_error} for rel_path, f in indexed.items()}}
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
-    console.print(Panel.fit(f"[bold cyan]📁 Root Directory:[/] {summary['root_dir']}\n[bold cyan]📄 Total Python Files:[/] {summary['total_files']}\n[bold cyan]📝 Lines of Code:[/] {summary['total_loc']}\n[bold cyan]🏛️ Classes Found:[/] {summary['total_classes']}\n[bold cyan]⚡ Functions Found:[/] {summary['total_functions']}", title='[bold green]Codebase AST Indexer[/]', border_style='green'))
-    table = Table(title='📄 Indexed Codebase Files', show_header=True, header_style='bold magenta')
+    console.print(Panel.fit(f"[bold cyan]Root Directory:[/] {summary['root_dir']}\n[bold cyan]Total Python Files:[/] {summary['total_files']}\n[bold cyan]Lines of Code:[/] {summary['total_loc']}\n[bold cyan]Classes Found:[/] {summary['total_classes']}\n[bold cyan]Functions Found:[/] {summary['total_functions']}", title='[bold green]Codebase AST Indexer[/]', border_style='green'))
+    table = Table(title='Indexed Codebase Files', show_header=True, header_style='bold magenta')
     table.add_column('File Path', style='cyan')
     table.add_column('LOC', justify='right', style='dim')
     table.add_column('Classes', style='green')
@@ -110,11 +110,11 @@ def sast(path: Any, severity: Any, as_json: Any) -> None:
         payload = {'path': path, 'total_files': total_files, 'total_vulnerabilities': len(filtered_vulns), 'high': high_c, 'medium': med_c, 'low': low_c, 'vulnerabilities': [{'rule_id': v.rule_id, 'severity': v.severity, 'file': v.file_path, 'line': v.line_number, 'snippet': v.code_snippet, 'description': v.description, 'remediation': v.remediation} for v in filtered_vulns]}
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
-    console.print(Panel.fit(f'[bold cyan]📁 Target Path:[/] {path}\n[bold cyan]📄 Files Scanned:[/] {total_files}\n[bold cyan]🛡️ Total Issues:[/] {len(filtered_vulns)} ([red]High: {high_c}[/], [yellow]Med: {med_c}[/], [blue]Low: {low_c}[/])', title='[bold green]🛡️ Deep AST Security SAST Scanner[/]', border_style='green' if not high_c else 'red'))
+    console.print(Panel.fit(f'[bold cyan]Target Path:[/] {path}\n[bold cyan]Files Scanned:[/] {total_files}\n[bold cyan]Total Issues:[/] {len(filtered_vulns)} ([red]High: {high_c}[/], [yellow]Med: {med_c}[/], [blue]Low: {low_c}[/])', title='[bold green]Deep AST Security SAST Scanner[/]', border_style='green' if not high_c else 'red'))
     if not filtered_vulns:
-        console.print('[bold green]✅ Zero security vulnerabilities detected. Codebase is clean![/]')
+        console.print('[bold green][OK] Zero security vulnerabilities detected. Codebase is clean![/]')
         return
-    table = Table(title='🚨 Security Vulnerability Breakdown', show_header=True, header_style='bold magenta')
+    table = Table(title='Security Vulnerability Breakdown', show_header=True, header_style='bold magenta')
     table.add_column('Severity', justify='center')
     table.add_column('Rule ID', style='cyan')
     table.add_column('Location', style='yellow')
@@ -146,9 +146,9 @@ def review_cmd(target_file_or_dir: Any, ensemble: Any, min_confidence: Any) -> N
         consensus = ensemble_reviewer.review_code(content, file_path=target_file_or_dir, min_confidence=min_confidence)
         console.print(Markdown(consensus.summary))
         if consensus.approved:
-            console.print('\n[bold green]✅ Code change APPROVED by Ensemble Consensus![/]\n')
+            console.print('\n[bold green][OK] Code change APPROVED by Ensemble Consensus![/]\n')
         else:
-            console.print('\n[bold yellow]⚠️ Code change REQUIRES REVISION before merge.[/]\n')
+            console.print('\n[bold yellow][WARN] Code change REQUIRES REVISION before merge.[/]\n')
     else:
         console.print('[yellow]Pass --ensemble to run the 3-Agent consensus reviewer (e.g. saleha review . --ensemble)[/]')
 
@@ -186,11 +186,11 @@ def debt_cmd(threshold: Any, target_dir: Any) -> None:
     Example: saleha debt --threshold 10
     """
     from saleha.core.tech_debt_analyzer import tech_debt_analyzer
-    console.print(f'[bold cyan]📉 Auditing codebase Technical Debt & Cognitive Complexity for:[/] [yellow]{target_dir}[/]')
+    console.print(f'[bold cyan]Auditing codebase Technical Debt & Cognitive Complexity for:[/] [yellow]{target_dir}[/]')
     rep = tech_debt_analyzer.analyze_workspace(root_dir=target_dir, threshold=threshold)
     console.print(f'\n[bold white]Functions Analyzed:[/] {rep.total_functions_analyzed} | [bold white]Average Cyclomatic:[/] {rep.average_cyclomatic} | [bold white]Hotspots Flagged:[/] [yellow]{rep.hotspots_count}[/]\n')
     if rep.hotspots:
-        table = Table(title=f'⚠️ Maintainability Hotspots (Complexity >= {threshold})', show_header=True, header_style='bold red', expand=True)
+        table = Table(title=f'[WARN] Maintainability Hotspots (Complexity >= {threshold})', show_header=True, header_style='bold red', expand=True)
         table.add_column('Location', style='cyan')
         table.add_column('Function', style='bold white')
         table.add_column('Cyclomatic', style='yellow')
@@ -201,7 +201,7 @@ def debt_cmd(threshold: Any, target_dir: Any) -> None:
             table.add_row(loc_str, f'{h.function_name}()', str(h.cyclomatic_complexity), str(h.cognitive_complexity), h.refactor_suggestion or 'Extract helper functions')
         console.print(table)
     else:
-        console.print('[bold green]✨ Clean Codebase! Zero functions exceed the complexity threshold.[/]\n')
+        console.print('[bold green]Clean Codebase! Zero functions exceed the complexity threshold.[/]\n')
 
 def _review_ai_walk_directory(path: str, ai_reviewer: Any) -> list:
     """Reviews every .py file under path, skipping unreadable ones."""
@@ -242,7 +242,7 @@ def review_ai_cmd(path: Any, html: Any, out: Any) -> None:
         console.print('[yellow]No Python files found to review.[/]')
         return
     from rich.table import Table
-    table = Table(title='🔍 Saleha AI Code Review Summary', border_style='cyan')
+    table = Table(title='Saleha AI Code Review Summary', border_style='cyan')
     table.add_column('File', style='cyan')
     table.add_column('Score', justify='right')
     table.add_column('Issues', justify='right')
@@ -254,7 +254,7 @@ def review_ai_cmd(path: Any, html: Any, out: Any) -> None:
     console.print(table)
     if html:
         saved = review_reporter.save_report(reports, output_path=out)
-        console.print(f'[bold green]📊 HTML Review Report saved to:[/] [cyan]{saved}[/]')
+        console.print(f'[bold green]HTML Review Report saved to:[/] [cyan]{saved}[/]')
 
 @cli.command(name='redteam')
 @click.argument('path', required=True)
@@ -267,11 +267,11 @@ def redteam_cmd(path: str, model: str) -> None:
     """
     from saleha.core.red_team_engine import RedTeamEngine
     if not os.path.exists(path):
-        console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
+        console.print(f"[bold red][FAIL] Error: Path '{path}' not found.[/bold red]")
         return
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         code = f.read()
-    console.print(Panel(f'[bold red]⚔️ AgentShield: Adversarial Red-Team Fuzzer[/bold red]\nTarget: {path}', border_style='red'))
+    console.print(Panel(f'[bold red]AgentShield: Adversarial Red-Team Fuzzer[/bold red]\nTarget: {path}', border_style='red'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), transient=True) as progress:
         progress.add_task(description='Synthesizing adversarial fuzz vectors & stress tests...', total=None)
         engine = RedTeamEngine(model=model)
@@ -297,7 +297,7 @@ def constitutional_check_cmd(path: str) -> None:
     """
     from saleha.core.constitutional_guard import constitutional_guard
     if not os.path.exists(path):
-        console.print(f"[bold red]❌ Error: Path '{path}' not found.[/bold red]")
+        console.print(f"[bold red][FAIL] Error: Path '{path}' not found.[/bold red]")
         return
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         code = f.read()
@@ -336,7 +336,7 @@ def godel_utility_cmd() -> None:
         lines += ['', 'Unmeasured: ' + ', '.join(state.unmeasured_fields),
                   'alignment_score is deliberately never self-scored -- a system',
                   'rating its own alignment proves nothing.']
-    console.print(Panel(f'[bold {col}]⚖️ Gödel Machine Utility Measurement[/bold {col}]\n'
+    console.print(Panel(f'[bold {col}]Gödel Machine Utility Measurement[/bold {col}]\n'
                         + '\n'.join(lines), border_style=col))
 
 @cli.command(name='emergence-check')
@@ -365,13 +365,13 @@ def emergence_check_cmd(clear: Any) -> None:
 
     if not rep.has_data:
         console.print(Panel(
-            f'[bold yellow]🕵️ Swarm Emergence & Collusion Monitor[/bold yellow]\n{rep.summary}',
+            f'[bold yellow]Swarm Emergence & Collusion Monitor[/bold yellow]\n{rep.summary}',
             border_style='yellow'))
         return
 
     col = 'green' if rep.is_healthy else 'yellow'
     console.print(Panel(
-        f'[bold {col}]🕵️ Swarm Emergence & Collusion Monitor[/bold {col}]\n{rep.summary}',
+        f'[bold {col}]Swarm Emergence & Collusion Monitor[/bold {col}]\n{rep.summary}',
         border_style=col))
     for anomaly in rep.anomalies:
         console.print(f'  [yellow]•[/] {anomaly}')
@@ -388,7 +388,7 @@ def merkle_audit_cmd() -> None:
     from saleha.core.merkle_provenance import merkle_provenance_ledger
     ok, msg = merkle_provenance_ledger.verify_integrity()
     col = 'green' if ok else 'red'
-    console.print(Panel(f'[bold {col}]🌳 Cryptographic Merkle Audit Trail[/bold {col}]\n{msg}', border_style=col))
+    console.print(Panel(f'[bold {col}]Cryptographic Merkle Audit Trail[/bold {col}]\n{msg}', border_style=col))
 
 @cli.command(name='merkle-leaves')
 @click.option('--limit', default=20, type=int, help='Max leaves to show, most recent first (default: 20, 0 = all)')
@@ -453,7 +453,7 @@ def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
         }, ensure_ascii=True))
         return
 
-    table = Table(title=f'🌳 Merkle Audit Leaves ({len(shown)} of {len(leaves)} shown, most recent last)',
+    table = Table(title=f'Merkle Audit Leaves ({len(shown)} of {len(leaves)} shown, most recent last)',
                   border_style='cyan')
     table.add_column('#', justify='right', style='dim')
     table.add_column('Time', style='dim')

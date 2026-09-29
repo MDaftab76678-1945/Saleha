@@ -43,7 +43,7 @@ def test(code_file: str, as_json: bool) -> None:
     if as_json:
         result = tester.test_code(code)
     else:
-        console.print(Panel.fit(f'[bold cyan]🧪 Testing:[/] {code_file}', title='[bold green]Saleha Tester[/]', border_style='green'))
+        console.print(Panel.fit(f'[bold cyan]Testing:[/] {code_file}', title='[bold green]Saleha Tester[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Testing code...', total=None)
             result = tester.test_code(code)
@@ -54,9 +54,9 @@ def test(code_file: str, as_json: bool) -> None:
         return
     console.print()
     if result.passed:
-        console.print(Panel('[bold green]✅ PASSED[/] - Code is syntactically correct and secure', border_style='green'))
+        console.print(Panel('[bold green][OK] PASSED[/] - Code is syntactically correct and secure', border_style='green'))
     else:
-        console.print(Panel(f'[bold red]❌ FAILED[/] - {result.error_type}', border_style='red'))
+        console.print(Panel(f'[bold red][FAIL] FAILED[/] - {result.error_type}', border_style='red'))
         console.print(f'\n[yellow]Reason:[/] {result.error_message}')
 
 # Renamed from 'benchmark'. That name is also declared by
@@ -100,7 +100,7 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
         click.echo(json.dumps(payload, ensure_ascii=True))
         return
     from rich.table import Table
-    table = Table(title=f'📊 Saleha Benchmark Report — Model: {score.model}', border_style='green')
+    table = Table(title=f'Saleha Benchmark Report — Model: {score.model}', border_style='green')
     table.add_column('Task ID', style='bold cyan')
     table.add_column('Difficulty', style='dim')
     table.add_column('Passed', style='bold')
@@ -114,7 +114,7 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
         if res['passed'] is None:
             pass_txt = '[dim]not run[/]'
         else:
-            pass_txt = '[green]✅ PASS[/]' if res['passed'] else '[red]❌ FAIL[/]'
+            pass_txt = '[green][OK] PASS[/]' if res['passed'] else '[red][FAIL] FAIL[/]'
         table.add_row(res['task_id'], res['difficulty'], pass_txt, f"{res['latency_sec']}s")
     console.print(table)
 
@@ -128,7 +128,7 @@ def benchmark_cmd(model: str, limit: int, dry_run: bool, as_json: bool) -> None:
             f'rate.[/] {score.total_tasks} task(s) would be attempted.',
             title='[bold yellow]Dry run[/]', border_style='yellow'))
         return
-    console.print(Panel(f'[bold cyan]Model:[/] {score.model}\n[bold cyan]Pass@1 Rate:[/] [bold green]{score.pass_rate}%[/] ({score.passed_tasks}/{score.total_tasks} passed)\n[bold cyan]Average Latency:[/] {score.avg_latency_sec}s per task', title='[bold green]🏆 Benchmark Summary[/]', border_style='green'))
+    console.print(Panel(f'[bold cyan]Model:[/] {score.model}\n[bold cyan]Pass@1 Rate:[/] [bold green]{score.pass_rate}%[/] ({score.passed_tasks}/{score.total_tasks} passed)\n[bold cyan]Average Latency:[/] {score.avg_latency_sec}s per task', title='[bold green]Benchmark Summary[/]', border_style='green'))
 
 @cli.command(name='sandbox-selfcheck')
 @click.option('--limit', '-l', default=None, type=int, help='Limit number of instances')
@@ -347,7 +347,7 @@ def benchmark_eval_cmd(model: str) -> None:
     Example: saleha benchmark-eval
     """
     from saleha.core.harness.benchmark_harness import BenchmarkHarness
-    console.print(Panel('[bold yellow]📊 Saleha Autonomous Evaluation Benchmark Harness[/bold yellow]', border_style='yellow'))
+    console.print(Panel('[bold yellow]Saleha Autonomous Evaluation Benchmark Harness[/bold yellow]', border_style='yellow'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), transient=True) as progress:
         progress.add_task(description='Evaluating benchmark task suite...', total=None)
         harness = BenchmarkHarness(model=model)
@@ -365,7 +365,7 @@ def test_ui_cmd(path: str) -> None:
     from saleha.core.browser_agent import browser_agent
     rep = browser_agent.inspect_file(path)
     col = 'green' if rep.is_ui_valid else 'yellow'
-    console.print(Panel(f'[bold {col}]🌐 Headless Browser DOM & UI Audit: {path}[/bold {col}]\n{rep.summary}', border_style=col))
+    console.print(Panel(f'[bold {col}]Headless Browser DOM & UI Audit: {path}[/bold {col}]\n{rep.summary}', border_style=col))
 
 @cli.command(name='swebench-eval')
 def swebench_eval_cmd() -> None:
@@ -376,7 +376,7 @@ def swebench_eval_cmd() -> None:
     """
     from saleha.core.harness.swebench_runner import swebench_runner
     rep = swebench_runner.run_benchmark_suite()
-    console.print(Panel(f'[bold cyan]📊 SWE-Bench Benchmark Scorecard[/bold cyan]\n{rep.summary}', border_style='cyan'))
+    console.print(Panel(f'[bold cyan]SWE-Bench Benchmark Scorecard[/bold cyan]\n{rep.summary}', border_style='cyan'))
 
 @cli.command('solve-issue')
 @click.argument('issue_description')
@@ -384,7 +384,7 @@ def swebench_eval_cmd() -> None:
 def solve_issue_cli_cmd(issue_description: str, repo: str) -> None:
     """Autonomously triage, patch, test, and generate a GitHub PR for an issue."""
     from saleha.agents.issue_resolver import issue_resolver
-    console.print(f'\n[bold cyan]🐙 Autonomous Issue Resolver Bot — Target:[/] [white]{repo}[/]')
+    console.print(f'\n[bold cyan]Autonomous Issue Resolver Bot — Target:[/] [white]{repo}[/]')
     console.print(f'[dim]Analyzing issue report: "{issue_description[:60]}..."[/dim]\n')
     plan = issue_resolver.resolve_issue(issue_description, repo_name=repo)
     if plan.success:
@@ -401,7 +401,7 @@ def solve_issue_cli_cmd(issue_description: str, repo: str) -> None:
         console.print(f"  • Security Audit  : {('[green]PASS (0 CVEs)[/]' if plan.security_clean else '[yellow]Hardened[/]')}")
         console.print(f"  • Generated tests : {('[green]passed in sandbox[/]' if plan.tests_passed else '[red]FAILED[/]')}")
         console.print('  [dim]This repository\'s own test suite was not run.[/]\n')
-        console.print(Panel(plan.pr_body_markdown, title='[bold green]📦 Generated GitHub PR Markdown[/]', border_style='green'))
+        console.print(Panel(plan.pr_body_markdown, title='[bold green]Generated GitHub PR Markdown[/]', border_style='green'))
     else:
-        console.print(f'[bold red]❌ Failed to resolve issue automatically.[/]')
+        console.print(f'[bold red][FAIL] Failed to resolve issue automatically.[/]')
 

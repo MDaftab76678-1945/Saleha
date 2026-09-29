@@ -533,8 +533,8 @@ HTML_PAGE = """<!DOCTYPE html>
   <div id="git-repo-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('git-repo-modal')">
     <div class="modal-card">
       <div class="modal-header">
-        <span class="modal-title">📁 Connect Git Repository</span>
-        <button class="modal-close" onclick="closeModal('git-repo-modal')">✖</button>
+        <span class="modal-title">Connect Git Repository</span>
+        <button class="modal-close" onclick="closeModal('git-repo-modal')">FAIL</button>
       </div>
       <p style="color:var(--text-dim); font-size:0.8rem; margin-bottom:1rem;">Clone and index any GitHub / GitLab repository into Saleha AST workspace.</p>
       <input id="git-repo-url" type="text" placeholder="https://github.com/MDaftab76678/saleha.git" style="width:100%; background:#04060a; border:1px solid var(--border-subtle); padding:0.6rem 0.8rem; border-radius:8px; color:#fff; font-family:var(--font-mono); font-size:0.8rem; margin-bottom:0.75rem;">
@@ -542,7 +542,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <input id="git-branch" type="text" value="main" placeholder="Branch (e.g. main)" style="background:#04060a; border:1px solid var(--border-subtle); padding:0.5rem 0.75rem; border-radius:8px; color:#fff; font-size:0.8rem;">
         <input id="git-token" type="password" placeholder="Auth Token (optional)" style="background:#04060a; border:1px solid var(--border-subtle); padding:0.5rem 0.75rem; border-radius:8px; color:#fff; font-size:0.8rem;">
       </div>
-      <button class="btn-build-primary" style="width:100%; justify-content:center;" onclick="connectGitRepoAction()">⚡ Clone & Index AST Codebase</button>
+      <button class="btn-build-primary" style="width:100%; justify-content:center;" onclick="connectGitRepoAction()">Clone & Index AST Codebase</button>
     </div>
   </div>
 
@@ -550,11 +550,11 @@ HTML_PAGE = """<!DOCTYPE html>
   <div id="upload-attachment-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('upload-attachment-modal')">
     <div class="modal-card">
       <div class="modal-header">
-        <span class="modal-title">📎 Attach File or Image</span>
-        <button class="modal-close" onclick="closeModal('upload-attachment-modal')">✖</button>
+        <span class="modal-title">Attach File or Image</span>
+        <button class="modal-close" onclick="closeModal('upload-attachment-modal')">FAIL</button>
       </div>
       <div style="border:2px dashed var(--border-subtle); border-radius:12px; padding:2rem 1rem; text-align:center; cursor:pointer;" onclick="document.getElementById('file-upload-input').click()">
-        <div style="font-size:2rem; margin-bottom:0.5rem;">📂</div>
+        <div style="font-size:2rem; margin-bottom:0.5rem;"></div>
         <p style="color:#fff; font-size:0.85rem; font-weight:600;">Drag and drop files here, or browse</p>
         <p style="color:var(--text-dim); font-size:0.75rem; margin-top:0.25rem;">Supports PNG, JPG, PDF, Python, JavaScript, and C files</p>
         <input type="file" id="file-upload-input" style="display:none;" onchange="handleFileSelected(this)">
@@ -566,24 +566,24 @@ HTML_PAGE = """<!DOCTYPE html>
   <div id="skills-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('skills-modal')">
     <div class="modal-card" style="max-width:580px;">
       <div class="modal-header">
-        <span class="modal-title">🪶 Autonomous Skill Registry</span>
-        <button class="modal-close" onclick="closeModal('skills-modal')">✖</button>
+        <span class="modal-title">Autonomous Skill Registry</span>
+        <button class="modal-close" onclick="closeModal('skills-modal')">FAIL</button>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; max-height:300px; overflow-y:auto; padding-right:0.3rem;">
         <div style="background:#04060a; padding:0.65rem; border-radius:7px; border:1px solid var(--border-subtle); font-size:0.78rem;">
-          <div style="color:var(--accent); font-weight:700;">✦ BigQuery SQL Optimizer</div>
+          <div style="color:var(--accent); font-weight:700;">BigQuery SQL Optimizer</div>
           <div style="color:var(--text-dim); font-size:0.7rem;">Active (Auto)</div>
         </div>
         <div style="background:#04060a; padding:0.65rem; border-radius:7px; border:1px solid var(--border-subtle); font-size:0.78rem;">
-          <div style="color:var(--accent-purple); font-weight:700;">✦ UNIMAX Quantum Sim</div>
+          <div style="color:var(--accent-purple); font-weight:700;">UNIMAX Quantum Sim</div>
           <div style="color:var(--text-dim); font-size:0.7rem;">Active (Auto)</div>
         </div>
         <div style="background:#04060a; padding:0.65rem; border-radius:7px; border:1px solid var(--border-subtle); font-size:0.78rem;">
-          <div style="color:var(--accent-green); font-weight:700;">✦ Sentinel 65k Port Scanner</div>
+          <div style="color:var(--accent-green); font-weight:700;">Sentinel 65k Port Scanner</div>
           <div style="color:var(--text-dim); font-size:0.7rem;">Active (Auto)</div>
         </div>
         <div style="background:#04060a; padding:0.65rem; border-radius:7px; border:1px solid var(--border-subtle); font-size:0.78rem;">
-          <div style="color:var(--accent-amber); font-weight:700;">✦ DooM Multi-Chain FinTech</div>
+          <div style="color:var(--accent-amber); font-weight:700;">DooM Multi-Chain FinTech</div>
           <div style="color:var(--text-dim); font-size:0.7rem;">Active (Auto)</div>
         </div>
       </div>
@@ -595,15 +595,15 @@ HTML_PAGE = """<!DOCTYPE html>
   <div id="deploy-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('deploy-modal')">
     <div class="modal-card">
       <div class="modal-header">
-        <span class="modal-title">🚀 1-Click Multi-Cloud Edge Deploy</span>
-        <button class="modal-close" onclick="closeModal('deploy-modal')">✖</button>
+        <span class="modal-title">1-Click Multi-Cloud Edge Deploy</span>
+        <button class="modal-close" onclick="closeModal('deploy-modal')">FAIL</button>
       </div>
       <p style="color:var(--text-dim); font-size:0.8rem; margin-bottom:0.75rem;">Builds Docker containers, verifies AST, and deploys to Netlify Edge / Cloudflare.</p>
       <input type="text" value="saleha-app-prod" placeholder="Subdomain" style="width:100%; background:#04060a; border:1px solid var(--border-subtle); padding:0.6rem; border-radius:8px; color:#fff; font-size:0.8rem; margin-bottom:1rem;">
       <div id="deploy-progress-box" style="display:none; background:#04060a; padding:0.75rem; border-radius:8px; border:1px solid var(--border-subtle); margin-bottom:1rem; font-family:var(--font-mono); font-size:0.75rem; color:#86efac;">
-        ⚡ Building AST Bundle... Done!<br>
-        ⚡ Synthesizing Dockerfile & K8s Manifest... Done!<br>
-        🚀 Deployed: <a href="https://saleha-app-prod.netlify.app" target="_blank" style="color:var(--accent);">https://saleha-app-prod.netlify.app</a>
+        Building AST Bundle... Done!<br>
+        Synthesizing Dockerfile & K8s Manifest... Done!<br>
+        Deployed: <a href="https://saleha-app-prod.netlify.app" target="_blank" style="color:var(--accent);">https://saleha-app-prod.netlify.app</a>
       </div>
       <button class="btn-deploy-glow" style="width:100%; justify-content:center;" onclick="executeDeployAction()">Publish Live Production Service</button>
     </div>
@@ -615,7 +615,7 @@ HTML_PAGE = """<!DOCTYPE html>
       <div class="sidebar-top">
         <a href="#" class="org-badge">
           <div class="org-info">
-            <div class="logo-icon">👑</div>
+            <div class="logo-icon"></div>
             <span>Saleha AI Studio</span>
           </div>
           <span class="pro-pill">PRO</span>
@@ -628,25 +628,25 @@ HTML_PAGE = """<!DOCTYPE html>
       <nav class="nav-sections">
         <div>
           <div class="nav-group-title">Workspaces & Playgrounds</div>
-          <a class="nav-link active" onclick="switchView('view-studio', this)"><span class="nav-link-icon">⚡</span> Studio Playground</a>
-          <a class="nav-link" onclick="toggleWorkbenchView()"><span class="nav-link-icon">📝</span> 3-Pane Editor</a>
-          <a class="nav-link" onclick="switchView('view-playbooks', this)"><span class="nav-link-icon">🤖</span> Automations & Playbooks</a>
-          <a class="nav-link" onclick="switchView('view-sql', this)"><span class="nav-link-icon">🗄️</span> SQL Studio</a>
-          <a class="nav-link" onclick="switchView('view-secrets', this)"><span class="nav-link-icon">🔑</span> Secrets & .env</a>
+          <a class="nav-link active" onclick="switchView('view-studio', this)"><span class="nav-link-icon"></span> Studio Playground</a>
+          <a class="nav-link" onclick="toggleWorkbenchView()"><span class="nav-link-icon"></span> 3-Pane Editor</a>
+          <a class="nav-link" onclick="switchView('view-playbooks', this)"><span class="nav-link-icon"></span> Automations & Playbooks</a>
+          <a class="nav-link" onclick="switchView('view-sql', this)"><span class="nav-link-icon"></span> SQL Studio</a>
+          <a class="nav-link" onclick="switchView('view-secrets', this)"><span class="nav-link-icon"></span> Secrets & .env</a>
         </div>
 
         <div>
           <div class="nav-group-title">Observe & Analytics</div>
-          <a class="nav-link" onclick="switchView('view-logs', this)"><span class="nav-link-icon">📜</span> Logs & Datasets</a>
-          <a class="nav-link" onclick="switchView('view-docs', this)"><span class="nav-link-icon">📚</span> API Docs & Models</a>
+          <a class="nav-link" onclick="switchView('view-logs', this)"><span class="nav-link-icon"></span> Logs & Datasets</a>
+          <a class="nav-link" onclick="switchView('view-docs', this)"><span class="nav-link-icon"></span> API Docs & Models</a>
         </div>
 
         <div>
           <div class="nav-group-title">Frontier Silicon & Economy</div>
-          <a class="nav-link" onclick="switchView('view-unimax', this)"><span class="nav-link-icon">🔬</span> UNIMAX 2nm Silicon</a>
-          <a class="nav-link" onclick="switchView('view-sentinel', this)"><span class="nav-link-icon">🛡️</span> Sentinel-RS 65k Scanner</a>
-          <a class="nav-link" onclick="switchView('view-doom-fintech', this)"><span class="nav-link-icon">📈</span> DooM Vault FinTech</a>
-          <a class="nav-link" onclick="switchView('view-mukti', this)"><span class="nav-link-icon">💰</span> Mukti Web3 Insurance</a>
+          <a class="nav-link" onclick="switchView('view-unimax', this)"><span class="nav-link-icon"></span> UNIMAX 2nm Silicon</a>
+          <a class="nav-link" onclick="switchView('view-sentinel', this)"><span class="nav-link-icon"></span> Sentinel-RS 65k Scanner</a>
+          <a class="nav-link" onclick="switchView('view-doom-fintech', this)"><span class="nav-link-icon"></span> DooM Vault FinTech</a>
+          <a class="nav-link" onclick="switchView('view-mukti', this)"><span class="nav-link-icon"></span> Mukti Web3 Insurance</a>
         </div>
       </nav>
     </div>
@@ -665,17 +665,17 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
 
       <div class="footer-tools">
-        <button class="btn-footer-tool" onclick="showToast('Security Posture: 0 Vulnerabilities Detected', 'success')" title="Notifications">🔔</button>
-        <button class="btn-footer-tool" onclick="toggleSettingsFlyout()" title="Settings">⚙️</button>
-        <button class="btn-footer-tool" onclick="syncWorkspaceDisk()" title="Sync Disk">💾</button>
+        <button class="btn-footer-tool" onclick="showToast('Security Posture: 0 Vulnerabilities Detected', 'success')" title="Notifications"></button>
+        <button class="btn-footer-tool" onclick="toggleSettingsFlyout()" title="Settings"></button>
+        <button class="btn-footer-tool" onclick="syncWorkspaceDisk()" title="Sync Disk"></button>
       </div>
 
       <!-- SETTINGS FLYOUT MENU -->
       <div id="settings-flyout" class="settings-flyout">
-        <div class="flyout-item" onclick="toggleFocusMode()"><span>🌌 Cyberpunk Focus</span><span>Toggle</span></div>
-        <div class="flyout-item" onclick="toggleAudioTTS()"><span>🔊 Voice Audio TTS</span><span>Enabled</span></div>
-        <div class="flyout-item" onclick="toggleGameMode()"><span>🎮 Game Mode Shield</span><span>Auto</span></div>
-        <div class="flyout-item" onclick="syncWorkspaceDisk()"><span>💾 Sync Workspace</span><span>Disk</span></div>
+        <div class="flyout-item" onclick="toggleFocusMode()"><span>Cyberpunk Focus</span><span>Toggle</span></div>
+        <div class="flyout-item" onclick="toggleAudioTTS()"><span>Voice Audio TTS</span><span>Enabled</span></div>
+        <div class="flyout-item" onclick="toggleGameMode()"><span>Game Mode Shield</span><span>Auto</span></div>
+        <div class="flyout-item" onclick="syncWorkspaceDisk()"><span>Sync Workspace</span><span>Disk</span></div>
       </div>
     </div>
   </aside>
@@ -692,22 +692,22 @@ HTML_PAGE = """<!DOCTYPE html>
 
       <div class="header-right">
         <select id="model-selector" class="model-selector" onchange="onModelSwitch(this.value)">
-          <option value="ollama">🦙 Ollama Local ($0 / Ryzen 7)</option>
-          <option value="deepseek-r1">🔮 DeepSeek-R1 (Thinking 671B)</option>
-          <option value="claude-3-7-sonnet">⚡ Claude 3.7 Sonnet (UI Pro)</option>
-          <option value="gpt-4o">🧠 OpenAI GPT-4o (Multimodal)</option>
-          <option value="gemini-3-7-flash">💎 Gemini 3.7 Flash (Sub-100ms)</option>
+          <option value="ollama">Ollama Local ($0 / Ryzen 7)</option>
+          <option value="deepseek-r1">DeepSeek-R1 (Thinking 671B)</option>
+          <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (UI Pro)</option>
+          <option value="gpt-4o">OpenAI GPT-4o (Multimodal)</option>
+          <option value="gemini-3-7-flash">Gemini 3.7 Flash (Sub-100ms)</option>
         </select>
 
-        <button class="btn-header-action" onclick="toggleFocusMode()">🌌 Cyberpunk Focus</button>
-        <button class="btn-deploy-glow" onclick="openModal('deploy-modal')">🚀 1-Click Deploy</button>
+        <button class="btn-header-action" onclick="toggleFocusMode()">Cyberpunk Focus</button>
+        <button class="btn-deploy-glow" onclick="openModal('deploy-modal')">1-Click Deploy</button>
       </div>
     </header>
 
     <!-- VIEW 1: STUDIO PLAYGROUND HERO -->
     <div id="view-studio" class="view-panel active">
       <div class="studio-hero-container" id="hero-starter-view">
-        <div class="hero-sparkle">✦</div>
+        <div class="hero-sparkle"></div>
         <h1 class="hero-title">Build your ideas with Saleha AI</h1>
         <p class="hero-subtitle">Autonomous 10-Department Swarm • TSMC 2nm GAAFET Silicon • 0-Leak Gamma AST</p>
 
@@ -715,11 +715,11 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="omnibox-wrapper">
           <div class="omnibox-top">
             <div class="mode-pills">
-              <button class="mode-pill active" onclick="setAgentMode('agent', this)">🤖 Autonomous Agent</button>
-              <button class="mode-pill" onclick="setAgentMode('ask', this)">💬 Fast Ask</button>
-              <button class="mode-pill" onclick="setAgentMode('cowork', this)">🤝 Cowork</button>
+              <button class="mode-pill active" onclick="setAgentMode('agent', this)">Autonomous Agent</button>
+              <button class="mode-pill" onclick="setAgentMode('ask', this)">Fast Ask</button>
+              <button class="mode-pill" onclick="setAgentMode('cowork', this)">Cowork</button>
             </div>
-            <span style="font-size:0.72rem; color:var(--accent); font-family:var(--font-mono);">⚡ 7.7M ops/s Swarm</span>
+            <span style="font-size:0.72rem; color:var(--accent); font-family:var(--font-mono);">7.7M ops/s Swarm</span>
           </div>
 
           <textarea id="main-omnibox-input" class="omnibox-textarea" placeholder="Ask Saleha to build fullstack web apps, simulate 2nm chips, compile C binaries, or scan 65k ports..."></textarea>
@@ -727,33 +727,33 @@ HTML_PAGE = """<!DOCTYPE html>
           <div class="omnibox-bottom">
             <div class="omnibox-tools">
               <button class="btn-tool-icon" onclick="togglePlusDropdown()" title="Attach Modules">+</button>
-              <button class="btn-tool-icon" onclick="toggleVoiceDictation()" title="Voice Input">🎙️</button>
+              <button class="btn-tool-icon" onclick="toggleVoiceDictation()" title="Voice Input"></button>
               
               <!-- DEVIN STYLE OPEN PLUS DROPDOWN -->
               <div id="plus-dropdown" class="plus-dropdown">
-                <div class="plus-item" onclick="openModal('upload-attachment-modal'); togglePlusDropdown();"><span>📎</span> Upload attachment</div>
-                <div class="plus-item" onclick="openModal('git-repo-modal'); togglePlusDropdown();"><span>📁</span> Repositories</div>
+                <div class="plus-item" onclick="openModal('upload-attachment-modal'); togglePlusDropdown();"><span></span> Upload attachment</div>
+                <div class="plus-item" onclick="openModal('git-repo-modal'); togglePlusDropdown();"><span></span> Repositories</div>
                 <div class="plus-item" onclick="toggleWorkbenchView(); togglePlusDropdown();"><span>&lt;/&gt;</span> Workspace Files</div>
-                <div class="plus-item" onclick="openModal('skills-modal'); togglePlusDropdown();"><span>🪶</span> Skill Registry</div>
-                <div class="plus-item" onclick="switchView('view-playbooks'); togglePlusDropdown();"><span>📖</span> Playbooks</div>
-                <div class="plus-item" onclick="switchView('view-secrets'); togglePlusDropdown();"><span>🔑</span> Secrets & .env</div>
+                <div class="plus-item" onclick="openModal('skills-modal'); togglePlusDropdown();"><span></span> Skill Registry</div>
+                <div class="plus-item" onclick="switchView('view-playbooks'); togglePlusDropdown();"><span></span> Playbooks</div>
+                <div class="plus-item" onclick="switchView('view-secrets'); togglePlusDropdown();"><span></span> Secrets & .env</div>
               </div>
             </div>
 
             <div style="display:flex; gap:0.4rem;">
-              <button class="btn-header-action" onclick="feelingLuckyPrompt()">✦ I'm feeling lucky</button>
-              <button class="btn-build-primary" onclick="launchOmniboxBuild()">✨ Build & Launch</button>
+              <button class="btn-header-action" onclick="feelingLuckyPrompt()">I'm feeling lucky</button>
+              <button class="btn-build-primary" onclick="launchOmniboxBuild()">Build & Launch</button>
             </div>
           </div>
         </div>
 
         <!-- STARTER INTEGRATION PILLS -->
         <div class="starter-chips">
-          <div class="starter-chip" onclick="loadFrontierApp('saas')">🚀 Fullstack SaaS Dashboard</div>
-          <div class="starter-chip" onclick="loadFrontierApp('crypto')">💎 Multi-Chain Crypto Radar</div>
-          <div class="starter-chip" onclick="loadFrontierApp('unimax')">🔬 UNIMAX 2nm RTL Circuit</div>
-          <div class="starter-chip" onclick="switchView('view-sentinel')">🛡️ Sub-50ms Port Scanner</div>
-          <div class="starter-chip" onclick="loadFrontierApp('kanban')">📋 Realtime Kanban Flow</div>
+          <div class="starter-chip" onclick="loadFrontierApp('saas')">Fullstack SaaS Dashboard</div>
+          <div class="starter-chip" onclick="loadFrontierApp('crypto')">Multi-Chain Crypto Radar</div>
+          <div class="starter-chip" onclick="loadFrontierApp('unimax')">UNIMAX 2nm RTL Circuit</div>
+          <div class="starter-chip" onclick="switchView('view-sentinel')">Sub-50ms Port Scanner</div>
+          <div class="starter-chip" onclick="loadFrontierApp('kanban')">Realtime Kanban Flow</div>
         </div>
       </div>
 
@@ -763,7 +763,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <!-- LEFT: STREAMING AGENT REASONING TIMELINE -->
         <div class="wb-pane-left">
           <div style="padding:0.65rem 0.85rem; border-bottom:1px solid var(--border-subtle); font-size:0.8rem; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-            <span>🧠 Autonomous Swarm Reasoning</span>
+            <span>Autonomous Swarm Reasoning</span>
             <span id="wb-status-pill" style="color:var(--accent-green); font-size:0.72rem; background:rgba(16,185,129,0.15); padding:0.1rem 0.4rem; border-radius:4px;">100% Green</span>
           </div>
           <div id="wb-timeline" style="flex:1; padding:0.75rem; overflow-y:auto; font-size:0.78rem; display:flex; flex-direction:column; gap:0.55rem;">
@@ -774,13 +774,13 @@ HTML_PAGE = """<!DOCTYPE html>
         <!-- CENTER: MULTI-FILE VFS MONACO-STYLE EDITOR -->
         <div class="wb-pane-center">
           <div class="file-tabs-bar" id="wb-file-tabs">
-            <div class="file-tab active" onclick="switchVFSFile('App.jsx', this)">⚛️ App.jsx</div>
-            <div class="file-tab" onclick="switchVFSFile('index.html', this)">📄 index.html</div>
-            <div class="file-tab" onclick="switchVFSFile('styles.css', this)">🎨 styles.css</div>
+            <div class="file-tab active" onclick="switchVFSFile('App.jsx', this)">App.jsx</div>
+            <div class="file-tab" onclick="switchVFSFile('index.html', this)">index.html</div>
+            <div class="file-tab" onclick="switchVFSFile('styles.css', this)">styles.css</div>
           </div>
           <div style="padding:0.35rem 0.85rem; background:#0a0e1a; border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.72rem;">
             <span id="wb-active-filename" style="color:var(--text-dim);">src/App.jsx</span>
-            <span style="color:var(--accent-green);">⚡ Live Babel + Tailwind Play Sandbox</span>
+            <span style="color:var(--accent-green);">Live Babel + Tailwind Play Sandbox</span>
           </div>
           <textarea id="wb-code-editor" style="flex:1; background:#04060a; border:none; color:#e2e8f0; font-family:var(--font-mono); font-size:0.82rem; padding:0.85rem; outline:none; resize:none; line-height:1.6;" oninput="onWorkbenchEditorInput()"></textarea>
         </div>
@@ -788,10 +788,10 @@ HTML_PAGE = """<!DOCTYPE html>
         <!-- RIGHT: LIVE INTERACTIVE COMPILED REACT SANDBOX -->
         <div class="wb-pane-right">
           <div style="padding:0.4rem 0.85rem; background:var(--bg-surface); border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; font-size:0.72rem;">
-            <span style="font-family:var(--font-mono); color:var(--text-dim);">🔒 http://localhost:3000/live-sandbox</span>
+            <span style="font-family:var(--font-mono); color:var(--text-dim);">http://localhost:3000/live-sandbox</span>
             <div style="display:flex; gap:0.4rem;">
-              <button style="background:#151b2e; border:1px solid var(--border-subtle); color:#fff; border-radius:4px; padding:0.2rem 0.4rem; cursor:pointer;" onclick="reloadLiveSandbox()">🔄 Refresh</button>
-              <button style="background:transparent; border:none; color:var(--accent); cursor:pointer;" onclick="toggleWorkbenchView()">Close ✖</button>
+              <button style="background:#151b2e; border:1px solid var(--border-subtle); color:#fff; border-radius:4px; padding:0.2rem 0.4rem; cursor:pointer;" onclick="reloadLiveSandbox()">Refresh</button>
+              <button style="background:transparent; border:none; color:var(--accent); cursor:pointer;" onclick="toggleWorkbenchView()">Close FAIL</button>
             </div>
           </div>
           <iframe id="wb-preview-iframe" style="flex:1; border:none; background:#090c15;"></iframe>
@@ -806,12 +806,12 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="lab-card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
-              <h2 style="color:var(--text-bright); font-size:1.3rem;">📜 Saleha API Logs & Datasets ⓘ</h2>
+              <h2 style="color:var(--text-bright); font-size:1.3rem;">Saleha API Logs & Datasets ⓘ</h2>
               <p style="color:var(--text-dim); font-size:0.82rem;">Real-time traces, AST validation scores, token latencies, and execution logs.</p>
             </div>
             <div style="display:flex; gap:0.4rem;">
-              <button class="btn-header-action" onclick="showToast('Dataset exported to saleha-traces.json', 'success')">📥 Export Dataset</button>
-              <button class="btn-deploy-glow" onclick="showToast('Connected Google Cloud Project: saleha-singularity-prod', 'success')">⚡ Connect Project</button>
+              <button class="btn-header-action" onclick="showToast('Dataset exported to saleha-traces.json', 'success')">Export Dataset</button>
+              <button class="btn-deploy-glow" onclick="showToast('Connected Google Cloud Project: saleha-singularity-prod', 'success')">Connect Project</button>
             </div>
           </div>
 
@@ -866,7 +866,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <div id="view-docs" class="view-panel">
       <div class="lab-container">
         <div class="lab-card">
-          <h2 style="color:var(--text-bright); font-size:1.3rem;">📚 Saleha API Documentation & Model Specs</h2>
+          <h2 style="color:var(--text-bright); font-size:1.3rem;">Saleha API Documentation & Model Specs</h2>
           <p style="color:var(--text-dim); font-size:0.82rem; margin-top:0.2rem;">The fastest path to autonomous multi-agent engineering, silicon simulation, and formal proofs.</p>
 
           <div class="code-tabs-box">
@@ -876,7 +876,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="code-tab-btn" onclick="switchCodeTab('js', this)">JavaScript</button>
                 <button class="code-tab-btn" onclick="switchCodeTab('rest', this)">REST / cURL</button>
               </div>
-              <button style="background:transparent; border:none; color:var(--accent); font-size:0.75rem; cursor:pointer;" onclick="showToast('Code copied to clipboard!', 'success')">📋 Copy</button>
+              <button style="background:transparent; border:none; color:var(--accent); font-size:0.75rem; cursor:pointer;" onclick="showToast('Code copied to clipboard!', 'success')">Copy</button>
             </div>
             <pre id="docs-code-snippet" style="padding:1rem; color:#93c5fd; font-family:var(--font-mono); font-size:0.8rem; overflow-x:auto;">
 from saleha.orchestrator import SalehaOrchestrator
@@ -890,15 +890,15 @@ print("Status:", result.success)
           <h3 style="color:var(--text-bright); font-size:1rem; margin-top:1.5rem; margin-bottom:0.75rem;">Meet the Models & Substrates</h3>
           <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.85rem;">
             <div style="background:#04060a; padding:1rem; border-radius:8px; border:1px solid var(--border-subtle);">
-              <h4 style="color:var(--accent);">✦ UNIMAX 2nm GAAFET</h4>
+              <h4 style="color:var(--accent);">UNIMAX 2nm GAAFET</h4>
               <p style="color:var(--text-dim); font-size:0.75rem; margin-top:0.3rem;">120B Transistors, 6-Domain Compute, Landauer Thermodynamic Monitored.</p>
             </div>
             <div style="background:#04060a; padding:1rem; border-radius:8px; border:1px solid var(--border-subtle);">
-              <h4 style="color:var(--accent-purple);">✦ DeepSeek-R1 (671B)</h4>
+              <h4 style="color:var(--accent-purple);">DeepSeek-R1 (671B)</h4>
               <p style="color:var(--text-dim); font-size:0.75rem; margin-top:0.3rem;">Deep mathematical thinking and formal theorem verification.</p>
             </div>
             <div style="background:#04060a; padding:1rem; border-radius:8px; border:1px solid var(--border-subtle);">
-              <h4 style="color:var(--accent-green);">✦ Claude 3.7 Sonnet</h4>
+              <h4 style="color:var(--accent-green);">Claude 3.7 Sonnet</h4>
               <p style="color:var(--text-dim); font-size:0.75rem; margin-top:0.3rem;">Hybrid reasoning and elite frontend Web Studio synthesis.</p>
             </div>
           </div>
@@ -910,19 +910,19 @@ print("Status:", result.success)
     <div id="view-playbooks" class="view-panel">
       <div class="lab-container">
         <div class="lab-card">
-          <h2 style="color:var(--text-bright); font-size:1.3rem;">🤖 Automations & Reusable Playbooks</h2>
+          <h2 style="color:var(--text-bright); font-size:1.3rem;">Automations & Reusable Playbooks</h2>
           <p style="color:var(--text-dim); font-size:0.82rem; margin-top:0.2rem;">Execute complex, multi-agent automated pipelines with a single click.</p>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.85rem; margin-top:1rem;">
             <div style="background:#04060a; padding:1rem; border-radius:8px; border:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center;">
               <div>
-                <h4 style="color:#fff;">🛡️ Full CI/CD Security & OWASP Audit</h4>
+                <h4 style="color:#fff;">Full CI/CD Security & OWASP Audit</h4>
                 <p style="color:var(--text-dim); font-size:0.75rem;">Scans 65k ports, fuzzes endpoints, checks AST leaks.</p>
               </div>
               <button class="btn-deploy-glow" onclick="executePlaybook('Security Audit')">Run</button>
             </div>
             <div style="background:#04060a; padding:1rem; border-radius:8px; border:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center;">
               <div>
-                <h4 style="color:#fff;">🚀 1-Click Multi-Cloud Edge Deployment</h4>
+                <h4 style="color:#fff;">1-Click Multi-Cloud Edge Deployment</h4>
                 <p style="color:var(--text-dim); font-size:0.75rem;">Builds Docker containers, k8s manifests, and Netlify edge.</p>
               </div>
               <button class="btn-deploy-glow" onclick="executePlaybook('Edge Deployment')">Run</button>
@@ -938,22 +938,22 @@ print("Status:", result.success)
         <div class="lab-card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
-              <h2 style="color:var(--text-bright); font-size:1.3rem;">🔬 UNIMAX-ABSOLUTE Silicon & Quantum Co-Simulator</h2>
+              <h2 style="color:var(--text-bright); font-size:1.3rem;">UNIMAX-ABSOLUTE Silicon & Quantum Co-Simulator</h2>
               <p style="color:var(--text-dim); font-size:0.82rem;">TSMC 2nm GAAFET RTL Logic Waveform, 64-Qubit Quantum Gates, and Landauer Kill-Switch.</p>
             </div>
             <div style="display:flex; gap:0.4rem;">
-              <button class="btn-header-action" onclick="applyQuantumGate('H')">⚡ Apply Hadamard (H)</button>
-              <button class="btn-header-action" onclick="applyQuantumGate('X')">⚡ Apply Pauli-X</button>
-              <button class="btn-deploy-glow" style="background:#ef4444;" onclick="triggerOuroborosZeroize()">🛑 Ouroboros Kill-Switch</button>
+              <button class="btn-header-action" onclick="applyQuantumGate('H')">Apply Hadamard (H)</button>
+              <button class="btn-header-action" onclick="applyQuantumGate('X')">Apply Pauli-X</button>
+              <button class="btn-deploy-glow" style="background:#ef4444;" onclick="triggerOuroborosZeroize()">Ouroboros Kill-Switch</button>
             </div>
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
             <div style="background:#04060a; border:1px solid var(--border-subtle); border-radius:8px; padding:1rem;">
-              <h4 style="color:var(--accent); margin-bottom:0.5rem; font-size:0.82rem;">📊 64-QUBIT QUANTUM STATE REPORT</h4>
+              <h4 style="color:var(--accent); margin-bottom:0.5rem; font-size:0.82rem;">64-QUBIT QUANTUM STATE REPORT</h4>
               <pre id="unimax-quantum-report" style="color:#86efac; font-family:var(--font-mono); font-size:0.8rem;">Loading quantum simulation...</pre>
             </div>
             <div style="background:#04060a; border:1px solid var(--border-subtle); border-radius:8px; padding:1rem;">
-              <h4 style="color:var(--accent); margin-bottom:0.5rem; font-size:0.82rem;">🌊 RTL VCD LOGIC WAVEFORM TRACE</h4>
+              <h4 style="color:var(--accent); margin-bottom:0.5rem; font-size:0.82rem;">RTL VCD LOGIC WAVEFORM TRACE</h4>
               <pre id="unimax-vcd-trace" style="color:#93c5fd; font-family:var(--font-mono); font-size:0.75rem; height:180px; overflow-y:auto;">Loading waveform...</pre>
             </div>
           </div>
@@ -967,10 +967,10 @@ print("Status:", result.success)
         <div class="lab-card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
-              <h2 style="color:var(--text-bright); font-size:1.3rem;">🛡️ Sentinel-RS 2.0: Bare-Metal Network Scanner</h2>
+              <h2 style="color:var(--text-bright); font-size:1.3rem;">Sentinel-RS 2.0: Bare-Metal Network Scanner</h2>
               <p style="color:var(--text-dim); font-size:0.82rem;">Multi-threaded Rayon socket auditor scanning 65,535 ports in sub-50ms.</p>
             </div>
-            <button class="btn-deploy-glow" onclick="runSentinelScan()">⚡ Scan Localhost (Sub-50ms)</button>
+            <button class="btn-deploy-glow" onclick="runSentinelScan()">Scan Localhost (Sub-50ms)</button>
           </div>
           <div id="sentinel-scan-output" style="background:#04060a; border:1px solid var(--border-subtle); border-radius:8px; padding:1rem; font-family:var(--font-mono); font-size:0.82rem; color:#7dd3fc; height:240px; overflow-y:auto;">
 Click 'Scan Localhost' to execute bare-metal parallel port scan...
@@ -985,10 +985,10 @@ Click 'Scan Localhost' to execute bare-metal parallel port scan...
         <div class="lab-card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
-              <h2 style="color:var(--text-bright); font-size:1.3rem;">📈 DooM Vault 2.0: Multi-Chain FinTech & Whale Radar</h2>
+              <h2 style="color:var(--text-bright); font-size:1.3rem;">DooM Vault 2.0: Multi-Chain FinTech & Whale Radar</h2>
               <p style="color:var(--text-dim); font-size:0.82rem;">Real-time price feeds, autonomous whale anomaly radar, and risk-bounded paper trading.</p>
             </div>
-            <button class="btn-header-action" onclick="triggerWhaleCheck()">🐳 Scan Whale Transactions</button>
+            <button class="btn-header-action" onclick="triggerWhaleCheck()">Scan Whale Transactions</button>
           </div>
           <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.85rem; margin-bottom:1rem;">
             <div style="background:#04060a; padding:0.85rem; border-radius:8px; border:1px solid var(--border-subtle);">
@@ -1021,10 +1021,10 @@ Whale Radar Ready: Monitoring $1,000,000+ transfers...
         <div class="lab-card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div>
-              <h2 style="color:var(--text-bright); font-size:1.3rem;">💰 Mukti Autonomous Economy & Hallucination Insurance</h2>
+              <h2 style="color:var(--text-bright); font-size:1.3rem;">Mukti Autonomous Economy & Hallucination Insurance</h2>
               <p style="color:var(--text-dim); font-size:0.82rem;">Autonomous staking bonds insuring code quality. Slashing agent stake on AST errors.</p>
             </div>
-            <button class="btn-deploy-glow" onclick="createInsurancePolicy()">🛡️ Create 1000 MUKTI Policy</button>
+            <button class="btn-deploy-glow" onclick="createInsurancePolicy()">Create 1000 MUKTI Policy</button>
           </div>
           <div id="mukti-policy-box" style="background:#04060a; border:1px solid var(--border-subtle); border-radius:8px; padding:1rem; font-family:var(--font-mono); font-size:0.82rem; color:#86efac;">
 Click 'Create 1000 MUKTI Policy' to lock autonomous code insurance bond...
@@ -1037,7 +1037,7 @@ Click 'Create 1000 MUKTI Policy' to lock autonomous code insurance bond...
     <div id="view-sql" class="view-panel">
       <div class="lab-container">
         <div class="lab-card">
-          <h2 style="color:var(--text-bright); font-size:1.3rem; margin-bottom:0.75rem;">🗄️ SQL Studio & Schema Explorer</h2>
+          <h2 style="color:var(--text-bright); font-size:1.3rem; margin-bottom:0.75rem;">SQL Studio & Schema Explorer</h2>
           <textarea id="sql-query-input" style="width:100%; height:75px; background:#04060a; border:1px solid var(--border-subtle); border-radius:8px; color:#93c5fd; font-family:var(--font-mono); font-size:0.82rem; padding:0.6rem;">SELECT 1 as live_status, 'Saleha DB Engine' as name, 99.98 as uptime_pct;</textarea>
           <button class="btn-deploy-glow" style="margin-top:0.5rem;" onclick="executeSQLQuery()">▶ Run SQL Query</button>
           <div id="sql-result-box" style="margin-top:1rem; background:#04060a; border:1px solid var(--border-subtle); border-radius:8px; padding:1rem; color:#fff; font-family:var(--font-mono); font-size:0.82rem;"></div>
@@ -1049,9 +1049,9 @@ Click 'Create 1000 MUKTI Policy' to lock autonomous code insurance bond...
     <div id="view-secrets" class="view-panel">
       <div class="lab-container">
         <div class="lab-card">
-          <h2 style="color:var(--text-bright); font-size:1.3rem; margin-bottom:0.75rem;">🔑 Encrypted Secrets Vault</h2>
+          <h2 style="color:var(--text-bright); font-size:1.3rem; margin-bottom:0.75rem;">Encrypted Secrets Vault</h2>
           <p style="color:var(--text-dim); font-size:0.82rem; margin-bottom:1rem;">Environment variables and secure API credentials.</p>
-          <button class="btn-deploy-glow" onclick="showToast('Injected .env file into workspace!', 'success')">⚡ Inject .env File</button>
+          <button class="btn-deploy-glow" onclick="showToast('Injected .env file into workspace!', 'success')">Inject .env File</button>
         </div>
       </div>
     </div>
@@ -1071,7 +1071,7 @@ Click 'Create 1000 MUKTI Policy' to lock autonomous code insurance bond...
       <header className="flex justify-between items-center pb-6 border-b border-slate-800">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
-            🚀 Saleha Autonomous Revenue Hub
+            Saleha Autonomous Revenue Hub
           </h1>
           <p className="text-xs text-slate-400 mt-1">TSMC 2nm GAAFET • Live AGI Sandbox</p>
         </div>
@@ -1107,11 +1107,11 @@ Click 'Create 1000 MUKTI Policy' to lock autonomous code insurance bond...
         <div className="space-y-3 font-mono text-xs text-slate-300">
           <div className="p-3 bg-slate-950/80 rounded-lg flex justify-between border border-slate-800/60">
             <span>[Polyglot Coder] Synthesized React component with Tailwind</span>
-            <span className="text-emerald-400 font-bold">✓ 18ms</span>
+            <span className="text-emerald-400 font-bold">OK 18ms</span>
           </div>
           <div className="p-3 bg-slate-950/80 rounded-lg flex justify-between border border-slate-800/60">
             <span>[Sentinel-RS] 65k port bare-metal vulnerability sweep</span>
-            <span className="text-emerald-400 font-bold">✓ Clean</span>
+            <span className="text-emerald-400 font-bold">OK Clean</span>
           </div>
         </div>
       </div>
@@ -1131,7 +1131,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
       const tc = document.getElementById('toast-container');
       const toast = document.createElement('div');
       toast.className = 'toast';
-      const icon = type === 'success' ? '✓' : type === 'error' ? '✖' : 'ℹ';
+      const icon = type === 'success' ? 'OK' : type === 'error' ? 'X' : 'i';
       toast.innerHTML = `<span style="color:var(--accent); font-weight:bold;">${icon}</span> <span>${message}</span>`;
       tc.appendChild(toast);
       setTimeout(() => {
@@ -1204,7 +1204,13 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
       iframe.srcdoc = html;
     }
 
-    // REAL-TIME STREAMING AGENT REASONING ENGINE (DEVIN + BOLT.NEW STYLE)
+    // Runs the real swarm pipeline (POST /api/v2/swarm/execute) and renders what it
+    // actually returned. This used to play five hard-coded "Done" stages, load a
+    // template app chosen by keyword and toast "0 Leaks" without calling the backend.
+    function escHtml(v) {
+      return String(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    }
+
     async function launchOmniboxBuild() {
       const prompt = document.getElementById('main-omnibox-input').value.trim();
       if (!prompt) {
@@ -1215,42 +1221,48 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
       if (!isWorkbenchOpen) toggleWorkbenchView();
 
       const tl = document.getElementById('wb-timeline');
-      tl.innerHTML = `<div style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); padding:0.65rem; border-radius:7px; color:#fff;"><strong>User Goal:</strong> ${prompt}</div>`;
-      
-      const stages = [
-        { name: 'Planner & Architect', text: 'Deconstructing intent into AST module graph...', icon: '🧠' },
-        { name: 'Polyglot Coder', text: 'Synthesizing React 18 component with Tailwind CSS...', icon: '⚡' },
-        { name: 'OWASP Security Guard', text: 'Scanning memory bounds & sanitizing input vectors...', icon: '🛡️' },
-        { name: 'Gamma AST 2PC Verifier', text: 'Verified 0 Memory Leaks, Formal invariants proved.', icon: '💎' },
-        { name: 'Live HMR Sandbox', text: 'Bundled virtual ES modules & mounted live preview.', icon: '🚀' }
-      ];
+      tl.innerHTML = `<div style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); padding:0.65rem; border-radius:7px; color:#fff;"><strong>User Goal:</strong> ${escHtml(prompt)}</div>`
+        + `<div id="wb-running" style="padding:0.65rem; font-size:0.76rem; color:var(--text-dim);">Running the swarm pipeline. With a local model this can take minutes...</div>`;
 
-      for (let i = 0; i < stages.length; i++) {
-        await new Promise(r => setTimeout(r, 220));
+      let data;
+      try {
+        const res = await fetch('/api/v2/swarm/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({goal: prompt})
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      } catch (err) {
+        const running = document.getElementById('wb-running');
+        if (running) running.remove();
+        tl.innerHTML += `<div style="border:1px solid var(--border-subtle); padding:0.65rem; border-radius:7px; color:#f87171; font-size:0.76rem;">Build request failed: ${escHtml(err.message)}</div>`;
+        showToast('Build request failed', 'error');
+        return;
+      }
+
+      const running = document.getElementById('wb-running');
+      if (running) running.remove();
+      for (const st of data.stages || []) {
+        const ok = st.status === 'success';
         tl.innerHTML += `
           <div style="background:var(--bg-elevated); border:1px solid var(--border-subtle); padding:0.65rem; border-radius:7px; font-size:0.76rem;">
             <div style="display:flex; justify-content:space-between; margin-bottom:0.25rem;">
-              <span style="font-weight:700; color:var(--text-bright);">${stages[i].icon} [${stages[i].name}]</span>
-              <span style="color:var(--accent-green); font-size:0.68rem;">Done</span>
+              <span style="font-weight:700; color:var(--text-bright);">[${escHtml(st.agent_role)}]</span>
+              <span style="color:${ok ? 'var(--accent-green)' : '#f87171'}; font-size:0.68rem;">${escHtml(st.status)} (${escHtml(st.duration_ms)} ms)</span>
             </div>
-            <p style="color:var(--text-dim);">${stages[i].text}</p>
+            <p style="color:var(--text-dim);">${escHtml(st.output_summary || '')}</p>
           </div>
         `;
-        tl.scrollTop = tl.scrollHeight;
       }
-
-      // SYNTHESIZE DYNAMIC REACT APP TAILORED TO PROMPT
-      if (prompt.toLowerCase().includes('crypto') || prompt.toLowerCase().includes('fintech') || prompt.toLowerCase().includes('trade')) {
-        loadFrontierApp('crypto');
-      } else if (prompt.toLowerCase().includes('kanban') || prompt.toLowerCase().includes('todo') || prompt.toLowerCase().includes('task')) {
-        loadFrontierApp('kanban');
-      } else if (prompt.toLowerCase().includes('unimax') || prompt.toLowerCase().includes('silicon') || prompt.toLowerCase().includes('chip') || prompt.toLowerCase().includes('quantum')) {
-        loadFrontierApp('unimax');
-      } else {
-        loadFrontierApp('saas');
-      }
-
-      showToast('⚡ Autonomous AGI Build Finished in 1.1s (0 Leaks)', 'success');
+      tl.innerHTML += `
+        <div style="background:var(--bg-elevated); border:1px solid var(--border-subtle); padding:0.65rem; border-radius:7px; font-size:0.76rem;">
+          <div style="font-weight:700; margin-bottom:0.25rem;">${data.success ? 'Pipeline succeeded' : 'Pipeline did not succeed'}</div>
+          <div style="color:var(--text-dim);">Security clean: ${data.security_clean ? 'yes' : 'no'} | Tests passed: ${data.tests_passed ? 'yes' : 'no'} | ${escHtml(data.total_duration_ms)} ms</div>
+          <pre style="margin-top:0.5rem; white-space:pre-wrap; color:var(--text-dim);">${escHtml(data.final_code || '(no code produced)')}</pre>
+        </div>`;
+      tl.scrollTop = tl.scrollHeight;
+      showToast(data.success ? 'Swarm pipeline finished' : 'Swarm pipeline finished with failures', data.success ? 'success' : 'error');
     }
 
     function loadFrontierApp(type) {
@@ -1264,7 +1276,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
       <header className="flex justify-between items-center pb-6 border-b border-slate-800">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
-            🚀 Enterprise Singularity Hub
+            Enterprise Singularity Hub
           </h1>
           <p className="text-xs text-slate-400 mt-1">Autonomous Revenue & AST Analytics</p>
         </div>
@@ -1301,7 +1313,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
     <div className="min-h-screen bg-slate-950 text-slate-100 p-8 font-sans">
       <header className="flex justify-between items-center pb-6 border-b border-slate-800">
         <div>
-          <h1 className="text-2xl font-bold text-sky-400">💎 DooM FinTech & Whale Terminal</h1>
+          <h1 className="text-2xl font-bold text-sky-400">DooM FinTech & Whale Terminal</h1>
           <p className="text-xs text-slate-400 mt-1">Multi-Chain Zero-Slippage Paper Engine</p>
         </div>
         <div className="text-xs font-mono bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
@@ -1324,8 +1336,8 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <div className="text-xs text-slate-400">Whale Radar ($1M+ Transfers)</div>
           <div className="text-xs font-mono text-amber-400 mt-3 space-y-2">
-            <div className="p-2 bg-slate-950 rounded">🚨 3,500 BTC ($337M) transferred to Cold Storage</div>
-            <div className="p-2 bg-slate-950 rounded">🚨 12,000 ETH ($41.7M) deposited to MakerDAO</div>
+            <div className="p-2 bg-slate-950 rounded">3,500 BTC ($337M) transferred to Cold Storage</div>
+            <div className="p-2 bg-slate-950 rounded">12,000 ETH ($41.7M) deposited to MakerDAO</div>
           </div>
         </div>
       </div>
@@ -1342,7 +1354,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-8 font-sans">
-      <h1 className="text-2xl font-bold text-indigo-400 mb-6">📋 Realtime Kanban Flow Manager</h1>
+      <h1 className="text-2xl font-bold text-indigo-400 mb-6">Realtime Kanban Flow Manager</h1>
       <div className="grid grid-cols-3 gap-6">
         {['Todo', 'In Progress', 'Done'].map(col => (
           <div key={col} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
@@ -1367,7 +1379,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-8 font-sans">
-      <h1 className="text-2xl font-bold text-sky-400 mb-2">🔬 UNIMAX-ABSOLUTE Quantum & 2nm Silicon</h1>
+      <h1 className="text-2xl font-bold text-sky-400 mb-2">UNIMAX-ABSOLUTE Quantum & 2nm Silicon</h1>
       <p className="text-xs text-slate-400 mb-6">Landauer Thermodynamic Limit Monitored</p>
       <div className="grid grid-cols-2 gap-6">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
@@ -1454,13 +1466,13 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
 
     function executeDeployAction() {
       document.getElementById('deploy-progress-box').style.display = 'block';
-      showToast('🚀 Production deployment active!', 'success');
+      showToast('Production deployment active!', 'success');
     }
 
     function executePlaybook(name) {
-      showToast(`⚡ Running Playbook: ${name}...`, 'info');
+      showToast(`Running Playbook: ${name}...`, 'info');
       setTimeout(() => {
-        showToast(`✓ Playbook completed: ${name} (100% Green)`, 'success');
+        showToast(`OK Playbook completed: ${name} (100% Green)`, 'success');
       }, 1200);
     }
 
@@ -1489,7 +1501,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
       try {
         const res = await fetch('/api/unimax/zeroize', {method: 'POST'});
         const d = await res.json();
-        showToast(`🛑 OUROBOROS PHYSICAL ZEROIZE: ${d.status}`, 'error');
+        showToast(`OUROBOROS PHYSICAL ZEROIZE: ${d.status}`, 'error');
       } catch(e){ showToast(e.message, 'error'); }
     }
 
@@ -1516,7 +1528,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
           body: JSON.stringify({symbol: 'BTC', amount_usd: 3500000.0})
         });
         const d = await res.json();
-        document.getElementById('whale-radar-box').innerText = `🚨 WHALE ALERT DETECTED:\\n${JSON.stringify(d, null, 2)}`;
+        document.getElementById('whale-radar-box').innerText = `WHALE ALERT DETECTED:\\n${JSON.stringify(d, null, 2)}`;
         showToast('Whale transaction detected ($3.5M)!', 'warning');
       } catch(e){ showToast(e.message, 'error'); }
     }
@@ -1529,7 +1541,7 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
           body: JSON.stringify({client: '0xUser', agent: '0xSalehaAgent', code: 'def safe(): pass', stake: 1000})
         });
         const d = await res.json();
-        document.getElementById('mukti-policy-box').innerText = `🛡️ ACTIVE ON-CHAIN INSURANCE POLICY:\\n${JSON.stringify(d, null, 2)}`;
+        document.getElementById('mukti-policy-box').innerText = `ACTIVE ON-CHAIN INSURANCE POLICY:\\n${JSON.stringify(d, null, 2)}`;
         showToast('1000 MUKTI Policy Bond Locked On-Chain', 'success');
       } catch(e){ showToast(e.message, 'error'); }
     }
@@ -1542,14 +1554,14 @@ body { margin: 0; background: #020617; color: #f8fafc; font-family: sans-serif; 
           body: JSON.stringify({active: true})
         });
         const d = await res.json();
-        showToast('🌌 Cyberpunk Focus Mode: Active', 'success');
+        showToast('Cyberpunk Focus Mode: Active', 'success');
       } catch(e){ showToast(e.message, 'error'); }
     }
 
-    function toggleAudioTTS() { showToast('🔊 Neural Voice Audio TTS: Enabled', 'success'); }
-    function toggleGameMode() { showToast('🎮 Game Mode Shield: Auto Low-Latency Throttling', 'success'); }
-    function toggleVoiceDictation() { showToast('🎙️ Neural Voice Dictation Active: Listening...', 'info'); }
-    function syncWorkspaceDisk() { showToast('💾 Synced 3 workspace files to disk.', 'success'); }
+    function toggleAudioTTS() { showToast('Neural Voice Audio TTS: Enabled', 'success'); }
+    function toggleGameMode() { showToast('Game Mode Shield: Auto Low-Latency Throttling', 'success'); }
+    function toggleVoiceDictation() { showToast('Neural Voice Dictation Active: Listening...', 'info'); }
+    function syncWorkspaceDisk() { showToast('Synced 3 workspace files to disk.', 'success'); }
 
     async function executeSQLQuery() {
       const q = document.getElementById('sql-query-input').value;
@@ -2910,7 +2922,7 @@ still required before merging -- neither ran here."""
             return
 
         if path == "/api/mobile/message":
-            chat_id = payload.get("chat_id", "100293849")
+            chat_id = str(payload.get("chat_id", ""))
             msg = payload.get("message", "status")
             m_resp = nexus_mobile_bridge.process_incoming_mobile_message(chat_id, msg)
             self._send_json(200, {

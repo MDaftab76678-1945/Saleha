@@ -23,19 +23,38 @@ class TestSalehaTopDashboard:
         assert layout.get("main") is not None
         assert layout.get("footer") is not None
 
-    def test_hardware_panel_generation(self) -> None:
-        panel = self.dash.generate_hardware_panel()
-        assert panel is not None
-        assert "RAM Usage" in str(panel.renderable)
+    def test_hardware_panel_reports_measured_values(self) -> None:
+        import psutil
 
-    def test_agent_matrix_grid_generation(self) -> None:
-        panel = self.dash.generate_agents_grid()
-        assert panel is not None
+        text = str(self.dash.generate_hardware_panel().renderable)
+        assert "RAM Usage" in text
+        # The old panel printed a formula of the tick counter ("2,200 MB Hard Cap").
+        assert f"/ {psutil.virtual_memory().total / 1024 ** 3:.1f} GB" in text
+        assert "Jobs/sec" not in text and "< 15 ns" not in text
 
-    def test_departments_table_generation(self) -> None:
-        table = self.dash.generate_departments_table()
-        assert table is not None
-        assert len(table.rows) == 10
+    def test_bus_activity_counts_real_events(self) -> None:
+        from saleha.core.swarm.agent_message_bus import AgentEvent, message_bus
+
+        message_bus.clear()
+        empty = self.dash.generate_bus_activity_table()
+        assert empty.columns[0]._cells == ["(no events)"]
+        message_bus.publish(AgentEvent(event_type="probe.event", sender_agent="ProbeAgent"))
+        try:
+            table = self.dash.generate_bus_activity_table()
+            assert "probe.event" in table.columns[0]._cells
+            assert "ProbeAgent" in table.columns[1]._cells
+        finally:
+            message_bus.clear()
+
+    def test_event_log_never_invents_events(self) -> None:
+        from saleha.core.swarm.agent_message_bus import message_bus
+
+        message_bus.clear()
+        for tick in range(6):
+            self.dash.tick = tick
+            body = str(self.dash.generate_event_log().renderable)
+            assert "No message-bus events" in body
+            assert "CWEs" not in body and "pytest assertions" not in body
 
 
 class TestSandboxedMCPClient:

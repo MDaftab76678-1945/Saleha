@@ -55,7 +55,7 @@ class TerminalHUD:
         )
 
         # 1. Header
-        header_text = Text("⚡ SALEHA AI FRAMEWORK :: AUTONOMOUS ENGINEERING DASHBOARD ⚡", style="bold cyan")
+        header_text = Text("SALEHA AI FRAMEWORK :: AUTONOMOUS ENGINEERING DASHBOARD ", style="bold cyan")
         layout["header"].update(Panel(header_text, style="cyan on black", border_style="cyan"))
 
         # 2. Top-Left: System & Ollama Telemetry
@@ -75,7 +75,7 @@ class TerminalHUD:
         telemetry_table.add_row("Active Models", f"{len(available_models)} loaded ({', '.join(available_models[:2])})")
 
         layout["left"]["telemetry"].update(
-            Panel(telemetry_table, title="[bold green]🖥️ System & LLM Telemetry[/bold green]", border_style="green")
+            Panel(telemetry_table, title="[bold green]System & LLM Telemetry[/bold green]", border_style="green")
         )
 
         # 3. Bottom-Left: Memory & Worktree Stats
@@ -90,7 +90,7 @@ class TerminalHUD:
         mem_table.add_row("Execution Policy", "[cyan]Docker Fail-Closed + Local AST[/cyan]")
 
         layout["left"]["memory"].update(
-            Panel(mem_table, title="[bold magenta]🧠 Agent Memory & Sandboxing[/bold magenta]", border_style="magenta")
+            Panel(mem_table, title="[bold magenta]Agent Memory & Sandboxing[/bold magenta]", border_style="magenta")
         )
 
         # 4. Top-Right: Codebase Intelligence
@@ -110,7 +110,7 @@ class TerminalHUD:
         code_table.add_row("Git Branch", f"[blue]{branch}[/blue]")
 
         layout["right"]["codebase"].update(
-            Panel(code_table, title="[bold blue]🌐 Codebase & AST Intelligence[/bold blue]", border_style="blue")
+            Panel(code_table, title="[bold blue]Codebase & AST Intelligence[/bold blue]", border_style="blue")
         )
 
         # 5. Bottom-Right: Quick Actions & Shortcuts
@@ -125,7 +125,7 @@ class TerminalHUD:
         hotkeys_table.add_row("saleha chat", "Autonomous interactive REPL")
 
         layout["right"]["hotkeys"].update(
-            Panel(hotkeys_table, title="[bold yellow]⚡ Developer Action Shortcuts[/bold yellow]", border_style="yellow")
+            Panel(hotkeys_table, title="[bold yellow]Developer Action Shortcuts[/bold yellow]", border_style="yellow")
         )
 
         # 6. Footer

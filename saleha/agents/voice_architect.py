@@ -33,10 +33,10 @@ class VoiceArchitectAgent(BaseAgent):
         duration = time.perf_counter() - start
 
         content = (
-            f"🎙️ [VoiceArchitectAgent] Spoken Commentary Generated for: \"{result.topic}\"\n\n"
-            f"🗣️ **Verbal Audio Transcript ({result.audio_duration_estimate_sec}s spoken estimate)**:\n"
+            f"[VoiceArchitectAgent] Spoken Commentary Generated for: \"{result.topic}\"\n\n"
+            f"**Verbal Audio Transcript ({result.audio_duration_estimate_sec}s spoken estimate)**:\n"
             f"\"{result.transcript}\"\n\n"
-            f"📋 **Key Talking Points**:\n"
+            f"**Key Talking Points**:\n"
             + "\n".join(f"- {pt}" for pt in result.bullet_talking_points)
         )
 

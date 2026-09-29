@@ -102,7 +102,7 @@ class AgentCouncil:
         ("\U0001f6e1️ Security Specialist", "Zero-Trust & Cryptographic Hardening",
          "Attack surface, input validation, authentication, secrets handling, "
          "and safe failure modes."),
-        ("⚡ Performance Optimizer", "High-Throughput & Efficient Resource Use",
+        ("Performance Optimizer", "High-Throughput & Efficient Resource Use",
          "Time and space complexity, caching, allocation, I/O and contention."),
         ("\U0001f3db️ Senior Architect", "Clean Architecture & Maintainability",
          "Module boundaries, coupling, testability, and clarity of the design."),

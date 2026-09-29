@@ -30,25 +30,25 @@ def monorepo_group():
 @monorepo_group.command(name="status", help="Display status of all apps and packages in the monorepo.")
 def status_cmd():
     root = get_monorepo_root()
-    table = Table(title="🧬 Saleha Unified Ecosystem Status", border_style="cyan")
+    table = Table(title="Saleha Unified Ecosystem Status", border_style="cyan")
     table.add_column("Type", style="bold white", width=12)
     table.add_column("Path", style="cyan", width=22)
     table.add_column("Stack", style="magenta", width=30)
     table.add_column("Status", style="bold green", width=16)
 
     apps = [
-        ("App: Desktop", "apps/desktop", "Tauri v2 + Rust + React 19", "🟢 Ready (Offline-First)"),
-        ("App: Web", "apps/web", "Next.js 15 (App Router, RSC)", "🟢 Ready (Cloud Studio)"),
-        ("App: Landing", "apps/landing", "Astro 5 (Islands Architecture)", "🟢 Ready (Lighthouse 100)"),
-        ("Pkg: UI", "packages/ui", "React + Tailwind + Radix UI", "🟢 Ready (Design Tokens)"),
-        ("Pkg: DB", "packages/db", "Prisma ORM + Multi-Tenant Schema", "🟢 Ready (SQLite / Postgres)"),
-        ("Pkg: API", "packages/api", "tRPC v11 + Zod Validation", "🟢 Ready (Type-Safe Routers)"),
-        ("Pkg: Auth", "packages/auth", "SecurityGuard + RBAC Hierarchy", "🟢 Ready (Zero-Trust)"),
+        ("App: Desktop", "apps/desktop", "Tauri v2 + Rust + React 19", "[OK] Ready (Offline-First)"),
+        ("App: Web", "apps/web", "Next.js 15 (App Router, RSC)", "[OK] Ready (Cloud Studio)"),
+        ("App: Landing", "apps/landing", "Astro 5 (Islands Architecture)", "[OK] Ready (Lighthouse 100)"),
+        ("Pkg: UI", "packages/ui", "React + Tailwind + Radix UI", "[OK] Ready (Design Tokens)"),
+        ("Pkg: DB", "packages/db", "Prisma ORM + Multi-Tenant Schema", "[OK] Ready (SQLite / Postgres)"),
+        ("Pkg: API", "packages/api", "tRPC v11 + Zod Validation", "[OK] Ready (Type-Safe Routers)"),
+        ("Pkg: Auth", "packages/auth", "SecurityGuard + RBAC Hierarchy", "[OK] Ready (Zero-Trust)"),
     ]
 
     for t, p, s, st in apps:
         full_p = root / p
-        exists = "🟢 Configured" if full_p.exists() else "🔴 Missing"
+        exists = "[OK] Configured" if full_p.exists() else "[FAIL] Missing"
         table.add_row(t, p, s, st if full_p.exists() else exists)
 
     console.print(table)
@@ -57,7 +57,7 @@ def status_cmd():
 @monorepo_group.command(name="verify", help="Run full monorepo recursive loop verification.")
 def verify_cmd():
     root = get_monorepo_root()
-    console.print(Panel("[bold cyan]🧬 Running Universal Loop Engineering Verification (Phases 0–7)...[/bold cyan]"))
+    console.print(Panel("[bold cyan]Running Universal Loop Engineering Verification (Phases 0–7)...[/bold cyan]"))
     
     # Each phase is "do the required paths exist", so collect the verdicts
     # rather than only printing them -- the summary below has to be able to

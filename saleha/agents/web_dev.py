@@ -58,7 +58,7 @@ class WebDevAgent(BaseAgent):
       <div class="glass-card">
         <h3>Interactive Dashboard</h3>
         <p>Real-time client-side state synchronized.</p>
-        <button id="action-btn" class="btn-primary">⚡ Execute Action</button>
+        <button id="action-btn" class="btn-primary">Execute Action</button>
       </div>
     </section>
   </main>
@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('action-btn');
   if (btn) {
     btn.addEventListener('click', () => {
-      btn.innerText = '✨ Action Triggered!';
+      btn.innerText = 'Action Triggered!';
       btn.style.boxShadow = '0 0 25px rgba(0, 242, 254, 0.6)';
     });
   }

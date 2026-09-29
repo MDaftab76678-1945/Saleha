@@ -72,6 +72,11 @@ class OrchestrationResult:
 # 2. Core logic
 # ==============================================================================
 
+# Written into OrchestrationResult.log when a goal is too vague to act on;
+# the CLI (core_agentic.py) looks for this exact text to render the question.
+CLARIFICATION_MARKER = "I need one detail before I start:"
+
+
 class SalehaOrchestrator:
     def __init__(self, model: str = "qwen2.5-coder:3b", max_healing_attempts: int = 3,
                  profile: Optional[str] = None, parallel_candidates: int = 0):
@@ -494,7 +499,7 @@ class SalehaOrchestrator:
                                      error=f"Needs clarification: {question}")
                     return OrchestrationResult(
                         success=False, final_code="", attempts=0,
-                        log=log + f"I need one detail before I start:\n   {question}\n"
+                        log=log + f"{CLARIFICATION_MARKER}\n   {question}\n"
                                   f"{chr(10) + 'Why:' + chr(10) + why if why else ''}",
                         profile_used=profile_name
                     )

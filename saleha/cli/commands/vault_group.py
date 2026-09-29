@@ -42,9 +42,9 @@ def vault_set_cmd(key, value, desc):
     from saleha.core.vault import vault
     ok = vault.set_secret(key, value, description=desc)
     if ok:
-        console.print(f"[bold green]🔐 Secret '{key}' stored securely in encrypted vault.[/]")
+        console.print(f"[bold green]Secret '{key}' stored securely in encrypted vault.[/]")
     else:
-        console.print(f"[bold red]❌ Failed to store secret '{key}'.[/]")
+        console.print(f"[bold red][FAIL] Failed to store secret '{key}'.[/]")
 
 @vault_group.command(name='get')
 @click.argument('key')
@@ -72,7 +72,7 @@ def vault_list_cmd(as_json):
         console.print("[yellow]Vault is empty. Use 'saleha vault set <KEY> <VALUE>' to add secrets.[/]")
         return
     from rich.table import Table
-    table = Table(title='🔐 Saleha Encrypted Secret Vault', border_style='cyan')
+    table = Table(title='Saleha Encrypted Secret Vault', border_style='cyan')
     table.add_column('Secret Key', style='bold cyan')
     table.add_column('Masked Preview', style='yellow')
     table.add_column('Description', style='dim')
@@ -88,7 +88,7 @@ def vault_delete_cmd(key):
     from saleha.core.vault import vault
     ok = vault.delete_secret(key)
     if ok:
-        console.print(f"[bold green]🗑️ Secret '{key}' deleted from vault.[/]")
+        console.print(f"[bold green]Secret '{key}' deleted from vault.[/]")
     else:
         console.print(f"[bold red]Secret '{key}' was not found in vault.[/]")
 
@@ -97,5 +97,5 @@ def vault_export_cmd():
     """Inject all vault secrets into the current environment session."""
     from saleha.core.vault import vault
     exported = vault.export_to_env()
-    console.print(f'[bold green]✅ Exported {len(exported)} secret(s) to environment.[/]')
+    console.print(f'[bold green][OK] Exported {len(exported)} secret(s) to environment.[/]')
 

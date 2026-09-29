@@ -31,7 +31,7 @@ console = Console()
 @click.command(name="benchmark", help="Run comprehensive throughput and latency micro-benchmarks.")
 @click.option("--iterations", "-n", default=10000, help="Number of benchmark iterations per test.")
 def benchmark_cmd(iterations: int):
-    console.print(Panel(f"[bold green]⚡ SALEHA AI MICRO-BENCHMARK & PERFORMANCE AUDIT (v{__version__})[/bold green]\n[dim]Benchmarking {iterations:,} operations per subsystem...[/dim]"))
+    console.print(Panel(f"[bold green]SALEHA AI MICRO-BENCHMARK & PERFORMANCE AUDIT (v{__version__})[/bold green]\n[dim]Benchmarking {iterations:,} operations per subsystem...[/dim]"))
 
     metrics = []
 
@@ -73,7 +73,7 @@ def benchmark_cmd(iterations: int):
     metrics.append(("Latency Histogram", f"{hist_ops:,.0f} records/sec", f"{(hist_time/iterations)*1e6:.3f} μs/op", f"{iterations:,} records"))
 
     # Render Table
-    table = Table(title="🚀 Saleha AI Hardware & Algorithmic Benchmark Scores", border_style="green")
+    table = Table(title="Saleha AI Hardware & Algorithmic Benchmark Scores", border_style="green")
     table.add_column("Subsystem / Benchmark", style="bold white", width=28)
     table.add_column("Throughput", style="cyan", width=22)
     table.add_column("Latency", style="magenta", width=20)

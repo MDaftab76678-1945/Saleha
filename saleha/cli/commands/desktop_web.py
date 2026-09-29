@@ -34,7 +34,7 @@ from saleha import __version__
 @click.option('--open/--no-open', 'open_browser', default=True, help='Open in default browser')
 def serve(host, port, open_browser):
     """Launch the interactive Saleha Web Studio & REST API Server."""
-    console.print(Panel.fit(f'[bold cyan]🌐 URL:[/] http://{host}:{port}\n[bold cyan]🚀 Web Studio:[/] Active\n[bold cyan]📡 REST & SSE API:[/] Enabled\n[dim]Press Ctrl+C in terminal to stop server[/]', title='[bold green]🧠 Saleha Web Studio[/]', border_style='green'))
+    console.print(Panel.fit(f'[bold cyan]URL:[/] http://{host}:{port}\n[bold cyan]Web Studio:[/] Active\n[bold cyan]REST & SSE API:[/] Enabled\n[dim]Press Ctrl+C in terminal to stop server[/]', title='[bold green]Saleha Web Studio[/]', border_style='green'))
     _cmds.run_web_studio(host=host, port=port, open_browser=open_browser)
 
 @cli.command()
@@ -59,9 +59,9 @@ def browser(url, selector, screenshot, timeout, as_json):
         click.echo(json.dumps({'success': res.success, 'url': res.url, 'status_code': res.status_code, 'title': res.title, 'console_errors': res.console_errors, 'screenshot_path': res.screenshot_path, 'dom_elements_found': res.dom_elements_found, 'load_time': res.load_time, 'backend': res.backend, 'error': res.error}, ensure_ascii=True))
         return
     status_color = 'green' if res.success else 'red'
-    dom_summary = '\n'.join([f"  • {k}: {('✅ Found' if v else '❌ Missing')}" for k, v in res.dom_elements_found.items()]) if res.dom_elements_found else '  • None requested'
+    dom_summary = '\n'.join([f"  • {k}: {('[OK] Found' if v else '[FAIL] Missing')}" for k, v in res.dom_elements_found.items()]) if res.dom_elements_found else '  • None requested'
     error_summary = '\n'.join([f'  • {e}' for e in res.console_errors]) if res.console_errors else '  • None detected'
-    console.print(Panel(f"[bold cyan]URL:[/] {res.url}\n[bold cyan]Status Code:[/] [{status_color}]{res.status_code}[/]\n[bold cyan]Title:[/] {res.title or 'N/A'}\n[bold cyan]Backend:[/] {res.backend}\n[bold cyan]Load Time:[/] {res.load_time}s\n[bold yellow]DOM Elements:[/]\n{dom_summary}\n[bold red]Console Errors:[/]\n{error_summary}" + (f'\n[bold green]Screenshot:[/] {res.screenshot_path}' if res.screenshot_path else ''), title=f'[{status_color}]🌐 Saleha Headless Browser Verification[/]', border_style=status_color))
+    console.print(Panel(f"[bold cyan]URL:[/] {res.url}\n[bold cyan]Status Code:[/] [{status_color}]{res.status_code}[/]\n[bold cyan]Title:[/] {res.title or 'N/A'}\n[bold cyan]Backend:[/] {res.backend}\n[bold cyan]Load Time:[/] {res.load_time}s\n[bold yellow]DOM Elements:[/]\n{dom_summary}\n[bold red]Console Errors:[/]\n{error_summary}" + (f'\n[bold green]Screenshot:[/] {res.screenshot_path}' if res.screenshot_path else ''), title=f'[{status_color}]Saleha Headless Browser Verification[/]', border_style=status_color))
 
 @cli.command(name='server')
 @click.option('--port', default=8000, help='Port to bind distributed swarm server')
@@ -74,7 +74,7 @@ def server_cmd(port, dry_run):
     """
     from saleha.core.distributed_server import distributed_server
     distributed_server.port = port
-    console.print(f'[bold cyan]🖥️ Starting Saleha Distributed Swarm Server on:[/] [green]http://127.0.0.1:{port}[/]')
+    console.print(f'[bold cyan]Starting Saleha Distributed Swarm Server on:[/] [green]http://127.0.0.1:{port}[/]')
     telem = distributed_server.get_cluster_telemetry()
     console.print(f"[dim]Status: {telem['server_status']} | GPU Pool: {telem['gpu_pool']}[/]\n")
     if not dry_run:
@@ -106,7 +106,7 @@ def desktop_cmd(port, browser):
     app = SalehaDesktopApp(port=port)
     assigned_port = app.start_server()
     app_url = app.get_app_url()
-    console.print(f'[bold green]🖥️ Saleha AI Desktop v2.0 running![/]')
+    console.print(f'[bold green]Saleha AI Desktop v2.0 running![/]')
     console.print(f'  • URL: [bold cyan]{app_url}[/]')
     console.print(f'  • Port: [yellow]{assigned_port}[/]')
     console.print(f'  • Token: [dim]{app.token}[/]\n')

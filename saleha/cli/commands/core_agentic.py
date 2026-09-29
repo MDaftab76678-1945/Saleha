@@ -57,9 +57,9 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
     """
     from saleha.core.harness.code_executor import CodeExecutor
     if resume and goal:
-        raise click.UsageError('--resume ke saath GOAL mat do -- saved session ka goal use hota hai.')
+        raise click.UsageError('Do not pass GOAL together with --resume: the saved session\'s goal is used.')
     if not goal and (not resume):
-        raise click.UsageError('GOAL zaroori hai (ya --resume use karein).')
+        raise click.UsageError('GOAL is required (or use --resume).')
     if not goal:
         goal = ''
     orchestrator = _cmds.SalehaOrchestrator(model=model, max_healing_attempts=max_attempts, profile=profile)
@@ -67,11 +67,11 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
         with contextlib.redirect_stdout(io.StringIO()):
             result = orchestrator.execute_task(goal, profile=profile, auto_commit=commit, context_dir=context_dir, generate_tests=tests, resume_session=resume)
     else:
-        profile_info = f'\n[bold cyan]🎭 Profile:[/] {profile}' if profile else ''
-        context_info = f'\n[bold cyan]📦 Repo Context:[/] {context_dir}' if context_dir else ''
-        tests_info = '\n[bold cyan]🧪 Real Tests:[/] enabled' if tests else ''
-        resume_info = '\n[bold cyan]⏯️ Mode:[/] RESUME last checkpoint' if resume else ''
-        console.print(Panel.fit(f"[bold cyan]🎯 Goal:[/] {goal or '(from checkpoint)'}\n[bold cyan]🤖 Model:[/] {model}{profile_info}{context_info}{tests_info}{resume_info}\n[bold cyan]🔄 Max Attempts:[/] {max_attempts}", title='[bold green]Saleha Orchestrator[/]', border_style='green'))
+        profile_info = f'\n[bold cyan]Profile:[/] {profile}' if profile else ''
+        context_info = f'\n[bold cyan]Repo Context:[/] {context_dir}' if context_dir else ''
+        tests_info = '\n[bold cyan]Real Tests:[/] enabled' if tests else ''
+        resume_info = '\n[bold cyan]Mode:[/] RESUME last checkpoint' if resume else ''
+        console.print(Panel.fit(f"[bold cyan]Goal:[/] {goal or '(from checkpoint)'}\n[bold cyan]Model:[/] {model}{profile_info}{context_info}{tests_info}{resume_info}\n[bold cyan]Max Attempts:[/] {max_attempts}", title='[bold green]Saleha Orchestrator[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console, disable=stream) as progress:
             progress.add_task('[cyan]Processing...', total=None)
             _cb = None
@@ -92,40 +92,41 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
         return
     console.print()
     if result.success:
-        console.print(Panel(f'[bold green]✅ SUCCESS[/] in {result.attempts} attempt(s)', border_style='green'))
+        console.print(Panel(f'[bold green][OK] SUCCESS[/] in {result.attempts} attempt(s)', border_style='green'))
         # `verified` is a stronger claim than `success`: it means the code was
         # actually executed and ran clean. A caveat must be shown, not implied.
         _reason = getattr(result, 'unverified_reason', '')
         if _reason:
-            console.print(f'[yellow]⚠ {_reason}[/]')
-        console.print('\n[bold cyan]📝 Generated Code:[/]')
+            console.print(f'[yellow][WARN] {_reason}[/]')
+        console.print('\n[bold cyan]Generated Code:[/]')
         syntax = Syntax(result.final_code, 'python', theme='monokai', line_numbers=True)
         console.print(syntax)
         if execute:
-            console.print('\n[bold yellow]🚀 Executing Code...[/]')
+            console.print('\n[bold yellow]Executing Code...[/]')
             executor = CodeExecutor()
             exec_result = executor.execute(result.final_code)
             if exec_result.success:
-                console.print(Panel('[bold green]✅ Execution Successful[/]', border_style='green'))
+                console.print(Panel('[bold green][OK] Execution Successful[/]', border_style='green'))
                 if exec_result.output:
-                    console.print('\n[bold cyan]📤 Output:[/]')
+                    console.print('\n[bold cyan]Output:[/]')
                     console.print(exec_result.output)
             else:
-                console.print(Panel(f'[bold red]❌ Execution Failed[/]', border_style='red'))
+                console.print(Panel(f'[bold red][FAIL] Execution Failed[/]', border_style='red'))
                 if exec_result.error:
                     console.print(f'\n[red]Error:[/] {exec_result.error}')
     else:
         # A goal too vague to act on is a question, not a failure. Rendering it
-        # as "❌ FAILED after 0 attempt(s)" hid the one thing the user could do
+        # as "[FAIL] FAILED after 0 attempt(s)" hid the one thing the user could do
         # about it -- the question itself only appeared under --verbose.
-        if '❓' in (result.log or ''):
-            ask = result.log[result.log.index('❓'):].strip()
+        from saleha.orchestrator import CLARIFICATION_MARKER
+        if CLARIFICATION_MARKER in (result.log or ''):
+            ask = result.log[result.log.index(CLARIFICATION_MARKER):].strip()
             console.print(Panel(ask, title='[bold yellow]Need one detail[/]',
                                 border_style='yellow'))
         else:
-            console.print(Panel(f'[bold red]❌ FAILED[/] after {result.attempts} attempt(s)', border_style='red'))
+            console.print(Panel(f'[bold red][FAIL] FAILED[/] after {result.attempts} attempt(s)', border_style='red'))
     if verbose:
-        console.print('\n[bold yellow]📜 Execution Log:[/]')
+        console.print('\n[bold yellow]Execution Log:[/]')
         console.print(result.log)
 
 @cli.command()
@@ -153,7 +154,7 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
     # that table, so only this panel was wrong.
     read_tools = 'list_dir, read_file, get_file_outline, find_symbols, search_repo, run_code'
     tool_line = read_tools + (', patch_file, write_file' if write else '')
-    console.print(Panel.fit(f"[bold cyan]🎯 Goal:[/] {goal}\n[bold cyan]📁 Root:[/] {os.path.abspath(root_dir)}\n[bold cyan]🔧 Tools:[/] {tool_line}\n[bold cyan]🔁 Max Steps:[/] {max_steps}\n[bold cyan]⏱ Timeout:[/] {timeout}s", title='[bold green]🤖 Saleha Autonomous Agent[/]', border_style='green'))
+    console.print(Panel.fit(f"[bold cyan]Goal:[/] {goal}\n[bold cyan]Root:[/] {os.path.abspath(root_dir)}\n[bold cyan]Tools:[/] {tool_line}\n[bold cyan]Max Steps:[/] {max_steps}\n[bold cyan]Timeout:[/] {timeout}s", title='[bold green]Saleha Autonomous Agent[/]', border_style='green'))
     # timeout_sec was never passed, so every run silently took AgentLoop's
     # 300s default however big --max-steps was. Measured: a qwen3:8b control
     # run against a real repo bug was killed at step 5 by that ceiling while
@@ -166,7 +167,7 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
     if as_json:
         click.echo(json.dumps({'success': result.success, 'final_message': result.final_message, 'error': result.error, 'steps': [{'step': s.step, 'action': s.action, 'args': s.args_preview, 'observation': s.observation[:500]} for s in result.steps]}, ensure_ascii=True))
     else:
-        console.print(Panel(result.final_message or result.error, title='[green]✅ Agent Summary[/]' if result.success else '[red]❌ Agent Stopped[/]', border_style='green' if result.success else 'red'))
+        console.print(Panel(result.final_message or result.error, title='[green][OK] Agent Summary[/]' if result.success else '[red][FAIL] Agent Stopped[/]', border_style='green' if result.success else 'red'))
         console.print(f'[dim]{len(result.steps)} step(s) used[/]')
     if not result.success:
         raise click.exceptions.Exit(1)
@@ -186,7 +187,7 @@ def plan(goal: str, model: str, as_json: bool) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
             result = planner.create_plan(goal)
     else:
-        console.print(Panel.fit(f'[bold cyan]🎯 Goal:[/] {goal}', title='[bold green]Saleha Planner[/]', border_style='green'))
+        console.print(Panel.fit(f'[bold cyan]Goal:[/] {goal}', title='[bold green]Saleha Planner[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Planning...', total=None)
             result = planner.create_plan(goal)
@@ -197,12 +198,12 @@ def plan(goal: str, model: str, as_json: bool) -> None:
         return
     console.print()
     if result.success:
-        console.print(Panel(f'[bold green]✅ Plan Generated[/] (Recommendation: {result.recommendation})', border_style='green'))
-        console.print('\n[bold cyan]📋 Plan Steps:[/]')
+        console.print(Panel(f'[bold green][OK] Plan Generated[/] (Recommendation: {result.recommendation})', border_style='green'))
+        console.print('\n[bold cyan]Plan Steps:[/]')
         for i, step in enumerate(result.steps, 1):
             console.print(f'  [yellow]{i}.[/] {step}')
     else:
-        console.print(Panel(f'[bold red]❌ Planning Failed[/]', border_style='red'))
+        console.print(Panel(f'[bold red][FAIL] Planning Failed[/]', border_style='red'))
         console.print(result.raw_response)
 
 @cli.command()
@@ -221,7 +222,7 @@ def code(task: str, model: str, as_json: bool, output: Optional[str]) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
             result = coder.generate_code(task)
     else:
-        console.print(Panel.fit(f'[bold cyan]💻 Task:[/] {task}', title='[bold green]Saleha Coder[/]', border_style='green'))
+        console.print(Panel.fit(f'[bold cyan]Task:[/] {task}', title='[bold green]Saleha Coder[/]', border_style='green'))
         with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
             progress.add_task('[cyan]Generating code...', total=None)
             result = coder.generate_code(task)
@@ -242,8 +243,8 @@ def code(task: str, model: str, as_json: bool, output: Optional[str]) -> None:
         return
     console.print()
     if result.success:
-        console.print(Panel(f'[bold green]✅ Code Generated[/] in {result.attempts} attempt(s)', border_style='green'))
-        console.print('\n[bold cyan]📝 Code:[/]')
+        console.print(Panel(f'[bold green][OK] Code Generated[/] in {result.attempts} attempt(s)', border_style='green'))
+        console.print('\n[bold cyan]Code:[/]')
         syntax = Syntax(result.code, 'python', theme='monokai', line_numbers=True)
         console.print(syntax)
         if output:
@@ -251,11 +252,11 @@ def code(task: str, model: str, as_json: bool, output: Optional[str]) -> None:
             if validation.passed:
                 with open(output, 'w', encoding='utf-8') as f:
                     f.write(result.code + '\n')
-                console.print(f'\n[bold green]✅ Saved generated code to:[/] {output}')
+                console.print(f'\n[bold green][OK] Saved generated code to:[/] {output}')
             else:
-                console.print(Panel(f'[bold red]❌ Save cancelled[/] - generated code failed validation\n{validation.error_type}: {validation.error_message}', border_style='red'))
+                console.print(Panel(f'[bold red][FAIL] Save cancelled[/] - generated code failed validation\n{validation.error_type}: {validation.error_message}', border_style='red'))
     else:
-        console.print(Panel(f'[bold red]❌ Code Generation Failed[/]', border_style='red'))
+        console.print(Panel(f'[bold red][FAIL] Code Generation Failed[/]', border_style='red'))
         console.print(result.error)
 
 @cli.command()
@@ -293,7 +294,7 @@ def agents(as_json: bool) -> None:
     if as_json:
         click.echo(json.dumps({'profiles': [{'id': p.id, 'name': p.name, 'version': p.version, 'goals': p.goals, 'tools': p.allowed_tools, 'source_file': os.path.basename(p.source_file)} for p in loaded_profiles]}, ensure_ascii=False))
         return
-    table = Table(title='🎭 Loaded Agent Profiles', show_header=True, header_style='bold magenta')
+    table = Table(title='Loaded Agent Profiles', show_header=True, header_style='bold magenta')
     table.add_column('ID', style='cyan')
     table.add_column('Role Name', style='green')
     table.add_column('Ver', justify='center', style='dim')
@@ -334,7 +335,7 @@ def edit(goal: str, root_dir: str, model: str, apply: bool, as_json: bool) -> No
     coder = _cmds.CoderAgent(model=model)
     editor = MultiFileEditor(coder_agent=coder, root_dir=root_dir)
     mode_label = '[bold red]APPLY[/]' if apply else '[bold yellow]DRY-RUN[/]'
-    console.print(Panel.fit(f'[bold cyan]🎯 Goal:[/] {goal}\n[bold cyan]📁 Root:[/] {os.path.abspath(root_dir)}\n[bold cyan]⚙️ Mode:[/] {mode_label}', title='[bold green]✏️ Saleha Multi-File Editor[/]', border_style='green'))
+    console.print(Panel.fit(f'[bold cyan]Goal:[/] {goal}\n[bold cyan]Root:[/] {os.path.abspath(root_dir)}\n[bold cyan]Mode:[/] {mode_label}', title='[bold green]Saleha Multi-File Editor[/]', border_style='green'))
     result = editor.edit(goal, apply=apply)
     if as_json:
         click.echo(json.dumps({'success': result.success, 'applied': result.applied, 'rolled_back': result.rolled_back, 'errors': result.errors, 'edits': [{'path': e.path, 'action': e.action, 'lines': e.lines_changed} for e in result.edits]}, ensure_ascii=True))
@@ -352,17 +353,17 @@ def edit(goal: str, root_dir: str, model: str, apply: bool, as_json: bool) -> No
         from rich.syntax import Syntax as _Syntax
         for e in result.edits:
             if e.diff:
-                console.print(f'\n[bold cyan]📄 Diff: {e.path}[/]')
+                console.print(f'\n[bold cyan]Diff: {e.path}[/]')
                 console.print(_Syntax(e.diff, 'diff', theme='monokai'))
     if result.success and result.applied:
-        console.print(f'[green]✅ {len(result.edits)} file(s) written atomically.[/]')
+        console.print(f'[green][OK] {len(result.edits)} file(s) written atomically.[/]')
     elif result.success:
         console.print('[yellow]Dry-run only. Re-run with [bold]--apply[/] to write changes.[/]')
     else:
         for err in result.errors[:6]:
             console.print(f'[red]• {err}[/]')
         if result.rolled_back:
-            console.print('[red]↩️ Changes rolled back -- disk untouched.[/]')
+            console.print('[red]Changes rolled back -- disk untouched.[/]')
         raise click.exceptions.Exit(1)
 
 @cli.command(name='profile')
@@ -374,19 +375,19 @@ def profile_cmd(code_snippet: str) -> None:
     Example: saleha profile "sum([i**2 for i in range(100000)])"
     """
     from saleha.core.telemetry.performance_profiler import performance_profiler
-    console.print(f'[bold cyan]⏱️ Profiling snippet:[/] [yellow]{code_snippet}[/]')
+    console.print(f'[bold cyan]Profiling snippet:[/] [yellow]{code_snippet}[/]')
 
     def target_exec() -> None:
         exec(code_snippet, {})  # saleha: allow-exec -- profiling a user snippet IS this command's job
     _, m = performance_profiler.profile_callable(target_exec)
     if m.success:
-        console.print(f'\n[bold green]✅ Execution Profile Completed:[/]')
+        console.print(f'\n[bold green][OK] Execution Profile Completed:[/]')
         console.print(f'  • Duration: [cyan]{m.duration_ms} ms[/]')
         console.print(f'  • Peak Memory: [yellow]{m.peak_memory_mb} MB[/]')
         console.print(f'  • Current Memory: {m.current_memory_mb} MB')
         console.print(f'  • GC Collections: {m.gc_collections}\n')
     else:
-        console.print(f'[bold red]❌ Execution failed:[/] {m.error}\n')
+        console.print(f'[bold red][FAIL] Execution failed:[/] {m.error}\n')
 
 @cli.command()
 @click.option('--live', is_flag=True, help='Run auto-refreshing live dashboard')
@@ -424,17 +425,17 @@ def status() -> None:
         from saleha.core.platform.smart_router import get_installed_ollama_models
         live_models = get_installed_ollama_models()
         if live_models:
-            console.print(f'[green]✅ Ollama:[/] Connected ({len(live_models)} model(s) installed)')
+            console.print(f'[green][OK] Ollama:[/] Connected ({len(live_models)} model(s) installed)')
             console.print(f"[green]   Models:[/] {', '.join(sorted(live_models)[:8])}")
         else:
-            console.print('[green]✅ Ollama:[/] Connected (koi model installed nahi mila)')
+            console.print('[green][OK] Ollama:[/] Connected (no installed model found)')
     else:
-        console.print('[red]❌ Ollama:[/] Not reachable at http://localhost:11434')
+        console.print('[red][FAIL] Ollama:[/] Not reachable at http://localhost:11434')
     router = _cmds.SmartRouter()
     stats = router.get_all_stats()
     total_uses = sum((s['uses'] for s in stats.values()))
-    console.print(f'\n[cyan]📊 Total Tasks Processed:[/] {total_uses}')
-    console.print(f'[cyan]🧠 Models Available:[/] {len(router.models)}')
+    console.print(f'\n[cyan]Total Tasks Processed:[/] {total_uses}')
+    console.print(f'[cyan]Models Available:[/] {len(router.models)}')
 
 @cli.command()
 @click.option('--model', '-m', default='auto', help='Model to use')
@@ -466,12 +467,12 @@ def interactive(model: str) -> None:
                 task = user_input[5:].strip()
                 result = orchestrator.execute_task(task)
                 if result.success:
-                    console.print(f'\n[green]✅ Success![/] ({result.attempts} attempts)')
+                    console.print(f'\n[green][OK] Success![/] ({result.attempts} attempts)')
                     console.print('\n[bold]Code:[/]')
                     syntax = Syntax(result.final_code, 'python', theme='monokai', line_numbers=True)
                     console.print(syntax)
                 else:
-                    console.print(f'\n[red]❌ Failed![/] ({result.attempts} attempts)')
+                    console.print(f'\n[red][FAIL] Failed![/] ({result.attempts} attempts)')
             else:
                 agent = _cmds.BaseAgent(role='Assistant', model=model)
                 response = agent.think(user_input)
@@ -507,8 +508,8 @@ def stream_cmd(prompt: str, model: str) -> None:
 def repl_cmd() -> None:
     """Start an interactive stateful Python AI REPL & live variable debugger.
 
-    (Pehle ye 'repl' naam se registered tha, jisne 'saleha repl --profile'
-    chat alias ko silently overwrite kar diya tha -- isliye rename kiya gaya.)
+    (This used to be registered as 'repl', which silently overwrote the
+    'saleha repl --profile' chat alias -- hence the rename.)
     """
     from saleha.core.debugger_repl import repl
     repl.interactive_loop()
@@ -548,12 +549,12 @@ def watch_ai_cmd(directory: str) -> None:
     """
     from saleha.core.realtime_watcher import RealtimeWatcher
     watcher = RealtimeWatcher(root_dir=directory)
-    console.print(f'[bold green]👀 Saleha Watch-AI is actively monitoring:[/] [cyan]{os.path.abspath(directory)}[/]')
+    console.print(f'[bold green]Saleha Watch-AI is actively monitoring:[/] [cyan]{os.path.abspath(directory)}[/]')
     console.print('[dim]Edit any .py/.js/.ts file to see real-time suggestions. Press Ctrl+C to stop.[/]')
 
     def on_event(ev: Any) -> None:
         if ev.suggestions:
-            console.print(f'\n[bold yellow]⚡ File changed:[/] {ev.path}')
+            console.print(f'\n[bold yellow]File changed:[/] {ev.path}')
             for s in ev.suggestions:
                 console.print(f'  {s.format()}')
     watcher.on_change(on_event)
@@ -582,12 +583,12 @@ def resume_cli_cmd(execution_id: str) -> None:
     """Resume an interrupted swarm execution from its last saved checkpoint."""
     from saleha.core.swarm.swarm_pipeline_engine import swarm_engine
     from saleha.cli.swarm_visualizer import visualizer
-    console.print(f'[bold cyan]🔄 Resuming Swarm Execution:[/] [yellow]{execution_id}[/]')
+    console.print(f'[bold cyan]Resuming Swarm Execution:[/] [yellow]{execution_id}[/]')
     try:
         res = swarm_engine.resume_swarm(execution_id)
         visualizer.render_execution_summary(res)
     except Exception as e:
-        console.print(f'[bold red]❌ Failed to resume checkpoint:[/] {e}')
+        console.print(f'[bold red][FAIL] Failed to resume checkpoint:[/] {e}')
 
 @cli.command('dev')
 @click.option('--all', 'all_apps', is_flag=True, default=False, help='Launch backend server and frontend apps simultaneously')
@@ -595,7 +596,7 @@ def resume_cli_cmd(execution_id: str) -> None:
 def dev_cli_cmd(all_apps: bool, port: int) -> None:
     """Start local development server and client applications."""
     if all_apps:
-        console.print('[bold cyan]🚀 Starting Saleha AI Multi-App Dev Ecosystem...[/bold cyan]')
+        console.print('[bold cyan]Starting Saleha AI Multi-App Dev Ecosystem...[/bold cyan]')
         console.print('  • Backend Web Studio : http://127.0.0.1:8000')
         console.print('  • Next.js App Studio : http://localhost:3000')
         console.print('  • Astro Landing Page : http://localhost:4321')
@@ -623,7 +624,7 @@ def play_cli_cmd() -> None:
 def run_container_cli_cmd(code_or_file: str, timeout: float) -> None:
     """Execute code inside isolated ephemeral Docker container with cgroup bounds."""
     from saleha.core.ephemeral_container_runner import container_runner
-    console.print(f'\n[bold cyan]🐳 Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
+    console.print(f'\n[bold cyan]Ephemeral Container Sandbox — Launching Execution...[/bold cyan]\n')
     res = container_runner.run_code(code_or_file, timeout_sec=timeout)
     status_color = 'green' if res.success else 'red'
     console.print(f"[{status_color}]● Execution {('SUCCESS' if res.success else 'FAILED')} ({res.duration_ms}ms)[/{status_color}]")
@@ -659,11 +660,11 @@ def solve_cmd(goal_or_issue: str, root_dir: str, model: str, max_steps: int,
 
     if not as_json:
         console.print(Panel.fit(
-            f"[bold cyan]🎯 Task / Issue:[/] {goal_or_issue}\n"
-            f"[bold cyan]📁 Root:[/] {os.path.abspath(root_dir)}\n"
-            f"[bold cyan]🤖 Model:[/] {model}\n"
-            f"[bold cyan]🔁 Max Steps:[/] {max_steps}\n"
-            f"[bold cyan]🧪 Test Command:[/] {test_command or '(none)'}",
+            f"[bold cyan]Task / Issue:[/] {goal_or_issue}\n"
+            f"[bold cyan]Root:[/] {os.path.abspath(root_dir)}\n"
+            f"[bold cyan]Model:[/] {model}\n"
+            f"[bold cyan]Max Steps:[/] {max_steps}\n"
+            f"[bold cyan]Test Command:[/] {test_command or '(none)'}",
             title="[bold green]Saleha Autonomous Software Engineer[/]",
             border_style="green",
         ))
@@ -719,16 +720,16 @@ def solve_cmd(goal_or_issue: str, root_dir: str, model: str, max_steps: int,
         f"  • Branch : [cyan]{res.branch_name}[/]\n"
         f"  • Tests  : [{'green' if res.tests_passed else ('red' if res.tests_passed is False else 'yellow')}]{'PASSED' if res.tests_passed else ('FAILED' if res.tests_passed is False else 'not run')}[/]"
         + (f"\n  • Changes: [yellow]{res.diff_result.change_summary}[/] (Risk: {res.diff_result.risk_score}/10)" if res.diff_result else "\n  • Changes: (none)"),
-        title="[bold green]✅ Issue Resolution Result[/]" if res.success else "[bold red]❌ Resolution Incomplete[/]",
+        title="[bold green][OK] Issue Resolution Result[/]" if res.success else "[bold red][FAIL] Resolution Incomplete[/]",
         border_style=colour,
     ))
 
     if res.diff_result and res.diff_result.unified_diff:
-        console.print("\n[bold cyan]📄 Applied Unified Diff:[/]")
+        console.print("\n[bold cyan]Applied Unified Diff:[/]")
         console.print(Syntax(res.diff_result.unified_diff, "diff", theme="monokai"))
 
     if res.pr_result and res.pr_result.pr_url:
-        console.print(f"\n[bold blue]🔗 Pull Request Opened:[/] {res.pr_result.pr_url}")
+        console.print(f"\n[bold blue]Pull Request Opened:[/] {res.pr_result.pr_url}")
 
     if res.caveats:
         console.print("\n[bold yellow]Not established by this run:[/]")

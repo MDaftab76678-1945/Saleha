@@ -45,7 +45,7 @@ class SovereignClawAgent(BaseAgent):
         res = self.crawl_and_extract(prompt)
         duration = (time.perf_counter() - start) * 1000
 
-        content = f"""### 🦅 Sovereign Claw Navigation Result: {res.target_url}
+        content = f"""### Sovereign Claw Navigation Result: {res.target_url}
 - **Page Title**: {res.page_title} (HTTP {res.http_status})
 - **Elements Scanned**: {res.dom_elements_scanned} DOM nodes
 - **Actions Executed**: {len(res.action_trace)} steps ({res.execution_time_ms}ms)

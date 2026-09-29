@@ -28,7 +28,7 @@ def list_souls_cmd():
     active_name = soul_engine.get_active_soul_name()
 
     table = Table(
-        title="[bold cyan]🌌 Saleha Cognitive Personas (SoulSpec v1.0)[/bold cyan]",
+        title="[bold cyan]Saleha Cognitive Personas (SoulSpec v1.0)[/bold cyan]",
         border_style="cyan",
         header_style="bold magenta",
         show_lines=True
@@ -64,7 +64,7 @@ def use_soul_cmd(name: str):
         active = soul_engine.set_active_soul(name)
         console.print()
         console.print(Panel(
-            f"[bold green]✓ Activated Persona:[/] [bold cyan]{active.display_name}[/] ([italic yellow]{active.name}[/])\n\n"
+            f"[bold green]OK Activated Persona:[/] [bold cyan]{active.display_name}[/] ([italic yellow]{active.name}[/])\n\n"
             f"[bold white]Archetype:[/] {active.archetype}\n"
             f"[bold white]Description:[/] {active.description}\n"
             f"[bold white]Tags:[/] {', '.join(active.tags)}\n\n"
@@ -129,7 +129,7 @@ def validate_souls_cmd():
     console.print()
     if report["invalid_souls"] == 0:
         console.print(Panel(
-            f"[bold green]✓ All {report['total_souls']} SoulSpec personas are 100% valid and verified![/bold green]\n"
+            f"[bold green]OK All {report['total_souls']} SoulSpec personas are 100% valid and verified![/bold green]\n"
             f"[dim]Every package contains valid JSON manifests, non-empty SOUL.md, and conforms to markdownlint.[/dim]",
             title="[bold green]SoulSpec Integrity Verification[/]",
             border_style="green"

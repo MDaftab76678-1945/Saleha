@@ -93,19 +93,19 @@ def pr(goal, branch, output_dir, debate, push, open_remote, base, model, as_json
         if not res.success:
             raise click.exceptions.Exit(1)
         return
-    console.print(Panel.fit(f"[bold cyan]🎯 Goal:[/] {goal}\n[bold cyan]🌿 Branch:[/] {branch or generator._sanitize_branch_name(goal)}\n[bold cyan]📁 Output Dir:[/] {output_dir or 'Console Only'}\n[bold cyan]☁️ Remote Push:[/] {('Enabled' if push or open_remote else 'Disabled')}", title='[bold green]🚀 Autonomous Git CI/CD & PR Agent[/]', border_style='green'))
+    console.print(Panel.fit(f"[bold cyan]Goal:[/] {goal}\n[bold cyan]Branch:[/] {branch or generator._sanitize_branch_name(goal)}\n[bold cyan]Output Dir:[/] {output_dir or 'Console Only'}\n[bold cyan]Remote Push:[/] {('Enabled' if push or open_remote else 'Disabled')}", title='[bold green]Autonomous Git CI/CD & PR Agent[/]', border_style='green'))
     with Progress(SpinnerColumn(), TextColumn('[progress.description]{task.description}'), console=console) as progress:
         progress.add_task('[cyan]Deliberating, implementing, testing & generating PR...', total=None)
         res = generator.generate_pr(goal=goal, branch_name=branch, output_dir=output_dir, debate=debate, push=push, open_pr=open_remote, base_branch=base)
     if res.success:
-        console.print(Panel(f"[bold green]✅ Pull Request Package Ready[/]\n[bold cyan]Branch:[/] {res.branch_name}\n[bold cyan]Commit:[/] {res.commit_title}\n[bold cyan]Remote PR:[/] {res.pr_url or 'Local Only'}", border_style='green'))
+        console.print(Panel(f"[bold green][OK] Pull Request Package Ready[/]\n[bold cyan]Branch:[/] {res.branch_name}\n[bold cyan]Commit:[/] {res.commit_title}\n[bold cyan]Remote PR:[/] {res.pr_url or 'Local Only'}", border_style='green'))
         if res.output_dir:
-            console.print(f'\n[bold green]📁 Exported PULL_REQUEST.md to:[/] {res.output_dir}')
+            console.print(f'\n[bold green]Exported PULL_REQUEST.md to:[/] {res.output_dir}')
         else:
-            console.print('\n[bold cyan]📄 PULL_REQUEST.md Preview:[/]')
+            console.print('\n[bold cyan]PULL_REQUEST.md Preview:[/]')
             console.print(Markdown(res.pr_markdown[:800] + '\n\n*(Full markdown generated)*'))
     else:
-        console.print(Panel(f'[bold red]❌ PR Generation Failed:[/] {res.error}', border_style='red'))
+        console.print(Panel(f'[bold red][FAIL] PR Generation Failed:[/] {res.error}', border_style='red'))
 
 @cli.command()
 @click.option('--hard', is_flag=True, help='Hard reset instead of soft revert')
@@ -124,16 +124,16 @@ def undo(hard, as_json):
         status = git_engine.get_status_summary()
         dirty = status.get('dirty_count', 0)
         if dirty:
-            console.print(f'[bold red]⚠ --hard will permanently destroy {dirty} '
+            console.print(f'[bold red][WARN] --hard will permanently destroy {dirty} '
                           f'uncommitted change(s) in the working tree.[/]')
     result = git_engine.rollback_last_commit(soft=not hard)
     if as_json:
         click.echo(json.dumps(result, ensure_ascii=True))
         return
     if result.get('success'):
-        console.print(Panel(f"[bold green]✅ Success:[/] {result.get('message')}\n[dim]Reverted:[/] {result.get('reverted_commit')}", title='[bold green]🌿 Saleha Git Undo[/]', border_style='green'))
+        console.print(Panel(f"[bold green][OK] Success:[/] {result.get('message')}\n[dim]Reverted:[/] {result.get('reverted_commit')}", title='[bold green]Saleha Git Undo[/]', border_style='green'))
     else:
-        console.print(Panel(f"[bold red]❌ Undo Failed:[/] {result.get('error')}", title='[bold red]🌿 Saleha Git Undo[/]', border_style='red'))
+        console.print(Panel(f"[bold red][FAIL] Undo Failed:[/] {result.get('error')}", title='[bold red]Saleha Git Undo[/]', border_style='red'))
 
 @cli.command(name='pr-review')
 @click.argument('base_branch', default='main')
@@ -151,7 +151,7 @@ def pr_review_cmd(base_branch, output_file, as_json):
     if output_file:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(report.markdown_report)
-        console.print(f'\n[bold green]💾 Review saved to {output_file}[/]')
+        console.print(f'\n[bold green]Review saved to {output_file}[/]')
 
 @cli.command(name='ship')
 @click.argument('target_dir', default='.')
@@ -164,12 +164,12 @@ def ship_cmd(target_dir, auto_apply):
     """
     from saleha.core.cloud_deployer import cloud_deployer
     plan = _cmds.cloud_deployer.plan_deployment(target_dir)
-    console.print(Panel(f'[bold cyan]Target Workspace:[/] {os.path.abspath(target_dir)}\n[bold cyan]Detected Runtime Stack:[/] [bold green]{plan.stack_detected.upper()}[/]\n[bold cyan]Generated Assets:[/] {len(plan.assets)} artifacts', title='[bold green]🚢 Saleha Autonomous Cloud Deployer[/]', border_style='green'))
+    console.print(Panel(f'[bold cyan]Target Workspace:[/] {os.path.abspath(target_dir)}\n[bold cyan]Detected Runtime Stack:[/] [bold green]{plan.stack_detected.upper()}[/]\n[bold cyan]Generated Assets:[/] {len(plan.assets)} artifacts', title='[bold green]Saleha Autonomous Cloud Deployer[/]', border_style='green'))
     for asset in plan.assets:
-        console.print(f'[bold yellow]📄 {asset.relative_path}[/] - [dim]{asset.description}[/]')
+        console.print(f'[bold yellow]{asset.relative_path}[/] - [dim]{asset.description}[/]')
     if auto_apply:
         written = _cmds.cloud_deployer.apply_plan(plan, target_dir=target_dir)
-        console.print(f'\n[bold green]✅ Applied {len(written)} deployment files to workspace:[/]')
+        console.print(f'\n[bold green][OK] Applied {len(written)} deployment files to workspace:[/]')
         for w in written:
             console.print(f'  • [cyan]{w}[/]')
     else:
@@ -189,7 +189,7 @@ def changelog_cmd(version, write_file):
     console.print(Markdown(notes))
     if write_file:
         saved_p = changelog_generator.update_changelog_file(version=version)
-        console.print(f'\n[bold green]✅ Updated changelog at:[/] [cyan]{saved_p}[/]\n')
+        console.print(f'\n[bold green][OK] Updated changelog at:[/] [cyan]{saved_p}[/]\n')
 
 @cli.command(name='snapshot')
 @click.argument('paths', nargs=-1)
@@ -225,7 +225,7 @@ def rollback_cmd(snapshot_id: Optional[str]) -> None:
 def release_check_cli_cmd():
     """Validate project manifests and release readiness across all workspaces."""
     from saleha.tools.release_manager import release_manager
-    console.print('[bold cyan]📦 Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n')
+    console.print('[bold cyan]Checking Saleha Ecosystem Release Readiness...[/bold cyan]\n')
     report = release_manager.check_release_readiness()
     table = Table(title=f'Release Pre-Flight Report (v{report.version})', border_style='green' if report.success else 'red')
     table.add_column('Manifest Component', style='white')
@@ -236,7 +236,7 @@ def release_check_cli_cmd():
     table.add_row('Core CLI Entrypoint', '[green]PASS[/]')
     console.print(table)
     if report.success:
-        console.print(f'\n[bold green]✅ All {report.total_checks} workspace checks passed ({report.duration_ms}ms). Ready for release build![/bold green]\n')
+        console.print(f'\n[bold green][OK] All {report.total_checks} workspace checks passed ({report.duration_ms}ms). Ready for release build![/bold green]\n')
     else:
-        console.print(f"\n[bold red]❌ Release checks failed with issues: {', '.join(report.issues)}[/bold red]\n")
+        console.print(f"\n[bold red][FAIL] Release checks failed with issues: {', '.join(report.issues)}[/bold red]\n")
 

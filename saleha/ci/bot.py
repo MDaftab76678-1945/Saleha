@@ -86,24 +86,24 @@ class PRReviewBot:
                           polyglot: Dict[str, Any], sec: ScanReport,
                           suggestions: List[str]) -> str:
         status_badge = {
-            "APPROVED": "🟢 **APPROVED**",
-            "CHANGES_REQUESTED": "🔴 **CHANGES REQUESTED**",
-            "COMMENT": "🟡 **COMMENTS NOTED**"
+            "APPROVED": "[OK] **APPROVED**",
+            "CHANGES_REQUESTED": "[FAIL] **CHANGES REQUESTED**",
+            "COMMENT": "**COMMENTS NOTED**"
         }.get(status, status)
 
-        pr_header = f"### 🧠 Saleha AI Autonomous Review (PR #{pr_number})" if pr_number else "### 🧠 Saleha AI Autonomous CI/CD Review"
+        pr_header = f"### Saleha AI Autonomous Review (PR #{pr_number})" if pr_number else "### Saleha AI Autonomous CI/CD Review"
 
         lines = [
             pr_header,
             "",
             f"**Review Status**: {status_badge} | **Quality Score**: `{score}/100` | **Saleha**: `v{__version__}`",
             "",
-            "#### 📊 Codebase Metrics",
+            "#### Codebase Metrics",
             f"- **Files Scanned**: `{polyglot.get('total_files', 0)}` files across {', '.join(polyglot.get('languages', {}).keys()) or 'None'}",
             f"- **Lines of Code (LOC)**: `{polyglot.get('total_loc', 0)}`",
             f"- **Extracted Symbols**: `{polyglot.get('total_symbols', 0)}`",
             "",
-            "#### 🛡️ AST SAST Security Audit",
+            "#### AST SAST Security Audit",
             f"- **High Severity**: `{sec.high_count}`",
             f"- **Medium Severity**: `{sec.medium_count}`",
             f"- **Low Severity**: `{sec.low_count}`",
@@ -120,9 +120,9 @@ class PRReviewBot:
                 lines.append(f"| `{v.rule_id}` | `{v.severity.upper()}` | {loc} | {v.description} | {v.remediation} |")
             lines.append("")
         else:
-            lines.append("✅ **No security vulnerabilities found.** Safe to merge.\n")
+            lines.append("[OK] **No security vulnerabilities found.** Safe to merge.\n")
 
-        lines.append("#### 📋 Recommended Actions")
+        lines.append("#### Recommended Actions")
         for s in suggestions:
             lines.append(f"- {s}")
         lines.append("")

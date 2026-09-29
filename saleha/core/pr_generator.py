@@ -74,46 +74,46 @@ class PRGenerator:
         else:
             security_badge = "[![Security: Approved](https://img.shields.io/badge/Security-Audit%20Passed-green.svg)]()"
 
-        return f"""# 🚀 Pull Request: {goal}
+        return f"""# Pull Request: {goal}
 
 [![Type: Feature](https://img.shields.io/badge/Type-Feature-blue.svg)]()
 {status_badge}
 {security_badge}
 [![Agent: Saleha Swarm](https://img.shields.io/badge/Orchestrator-Saleha%20AI-purple.svg)]()
 
-## 📌 Executive Summary
+## Executive Summary
 This Pull Request autonomously implements and verifies **{goal}** using Saleha's Multi-Agent Engineering Swarm.
 
 ---
 
-## 🌿 Git Metadata
+## Git Metadata
 - **Branch**: `{branch_name}`
 - **Conventional Commit**: `{commit_title}`
 
 ---
 
-## 📋 Product Requirements (PRD)
+## Product Requirements (PRD)
 {team_res.prd}
 
 ---
 
-## 📐 Architecture & Low-Level Design (LLD)
+## Architecture & Low-Level Design (LLD)
 {team_res.design}
 
 ---
 
-## 🛡️ Security & Vulnerability Audit
+## Security & Vulnerability Audit
 {team_res.security_report}
 
 ---
 
-## 🧪 Test Automation & Evidence
+## Test Automation & Evidence
 ```python
 {team_res.test_code}
 ```
 
 ### Execution Status:
-- **Status**: `{'✅ PASSED' if team_res.success else '⚠️ NEEDS REVIEW'}`
+- **Status**: `{'[OK] PASSED' if team_res.success else '[WARN] NEEDS REVIEW'}`
 - **Healing Cycles**: `{team_res.attempts}`
 - **Execution Log**:
 ```text
@@ -126,7 +126,7 @@ This Pull Request autonomously implements and verifies **{goal}** using Saleha's
 
 ---
 
-## ✅ Pull Request Checklist
+## [OK] Pull Request Checklist
 - [x] Code conforms to project architecture guidelines.
 - [x] Full unit test coverage added and executed.
 - [x] Security and AST compliance verified.

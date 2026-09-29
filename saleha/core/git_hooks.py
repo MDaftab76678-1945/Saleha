@@ -19,7 +19,7 @@ PRE_COMMIT_SCRIPT_CONTENT = """#!/bin/sh
 saleha hook run
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
-    echo "\\n[Saleha Guard] ❌ Commit blocked due to validation failures. Run 'saleha fix' to repair.\\n"
+    echo "\\n[Saleha Guard] [FAIL] Commit blocked due to validation failures. Run 'saleha fix' to repair.\\n"
     exit 1
 fi
 exit 0

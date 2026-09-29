@@ -30,7 +30,7 @@ from saleha.core.dag_engine import TaskDAG
 
 
 def build_file_tree(startpath: str = ".", max_depth: int = 2) -> Tree:
-    tree = Tree(f"📁 [bold cyan]{os.path.basename(os.path.abspath(startpath)) or 'Root'}[/]")
+    tree = Tree(f"[bold cyan]{os.path.basename(os.path.abspath(startpath)) or 'Root'}[/]")
     try:
         for root, dirs, files in os.walk(startpath):
             # Ignore hidden and cache dirs
@@ -43,7 +43,7 @@ def build_file_tree(startpath: str = ".", max_depth: int = 2) -> Tree:
                     continue
                 ext = os.path.splitext(f)[1]
                 color = "green" if ext in (".py", ".ts", ".go", ".rs") else "white"
-                tree.add(f"[{color}]📄 {f}[/]")
+                tree.add(f"[{color}]{f}[/]")
     except (OSError, PermissionError):
         tree.add("[dim]Empty or inaccessible[/]")
     return tree
@@ -74,16 +74,16 @@ def build_tui_layout(active_profile: str = "agent_software_engineer",
     profile = profile_registry.get(active_profile)
     role_name = profile.name if profile else "Senior Software Engineer"
     header_text = Text()
-    header_text.append("🧠 SALEHA AI TUI CANVAS", style="bold green")
+    header_text.append("SALEHA AI TUI CANVAS", style="bold green")
     header_text.append(f"  |  v{__version__}", style="dim")
     header_text.append(f"  |  Active Persona: [{role_name}]", style="bold cyan")
     header_text.append(f"  |  Memory Items: {len(memory_store.list_all())}", style="bold yellow")
-    header_text.append("  |  Status: ⚡ READY", style="bold green")
+    header_text.append("  |  Status: READY", style="bold green")
     layout["header"].update(Panel(header_text, border_style="green"))
 
     # 2. Left Pane: File Tree Explorer
     file_tree = build_file_tree(".", max_depth=2)
-    layout["left"].update(Panel(file_tree, title="[bold cyan]📁 Workspace Explorer[/]", border_style="cyan"))
+    layout["left"].update(Panel(file_tree, title="[bold cyan]Workspace Explorer[/]", border_style="cyan"))
 
     # 3. Center Pane: Agent Chat & Code
     chat_content = Text()
@@ -92,11 +92,11 @@ def build_tui_layout(active_profile: str = "agent_software_engineer",
     ]
     for msg in messages:
         if msg["role"] == "user":
-            chat_content.append(f"\n👤 You: {msg['text']}\n", style="bold yellow")
+            chat_content.append(f"\nYou: {msg['text']}\n", style="bold yellow")
         else:
-            chat_content.append(f"\n🧠 Saleha: {msg['text']}\n", style="bold green")
+            chat_content.append(f"\nSaleha: {msg['text']}\n", style="bold green")
 
-    layout["center"].update(Panel(chat_content, title="[bold green]💬 Interactive Agent Canvas[/]", border_style="green"))
+    layout["center"].update(Panel(chat_content, title="[bold green]Interactive Agent Canvas[/]", border_style="green"))
 
     # 4. Right Pane: DAG & SAST Security Monitor
     right_table = Table(box=None, expand=True)
@@ -108,10 +108,10 @@ def build_tui_layout(active_profile: str = "agent_software_engineer",
     right_table.add_row("MCP Server", "Active (stdio/SSE)")
     right_table.add_row("Memory Store", f"{len(memory_store.list_all())} Verified Sol.")
 
-    layout["right"].update(Panel(right_table, title="[bold magenta]⚡ Engine Telemetry[/]", border_style="magenta"))
+    layout["right"].update(Panel(right_table, title="[bold magenta]Engine Telemetry[/]", border_style="magenta"))
 
     # 5. Footer Pane: Command Bar
-    footer_text = Text("⌨️ Commands: /profile <id> | /scan | /sast | /exec <code> | /mcp | /help | /exit", style="dim cyan")
+    footer_text = Text("Commands: /profile <id> | /scan | /sast | /exec <code> | /mcp | /help | /exit", style="dim cyan")
     layout["footer"].update(Panel(footer_text, border_style="dim"))
 
     return layout

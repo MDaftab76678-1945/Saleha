@@ -43,19 +43,19 @@ def memory_project_cmd(project, query, new_fact, cat):
     mem = get_project_memory(project)
     if new_fact:
         entry = mem.remember(new_fact, category=cat)
-        console.print(f'[bold green]🧠 Remembered for [{project}]:[/] {entry.content} [dim]({entry.category})[/]')
+        console.print(f'[bold green]Remembered for [{project}]:[/] {entry.content} [dim]({entry.category})[/]')
         return
     if query:
         results = mem.recall(query)
         if not results:
             console.print(f"[yellow]No memories found matching '{query}' in project '{project}'.[/]")
             return
-        console.print(f"[bold cyan]🧠 Memories for [{project}] matching '{query}':[/]")
+        console.print(f"[bold cyan]Memories for [{project}] matching '{query}':[/]")
         for r in results:
             console.print(f'  • [[bold yellow]{r.category}[/]] {r.content} [dim]({r.timestamp})[/]')
         return
     stats = mem.stats()
-    console.print(f'[bold cyan]🧠 Project Memory Stats for [{project}]:[/]')
+    console.print(f'[bold cyan]Project Memory Stats for [{project}]:[/]')
     console.print(f"  Total Entries: [bold green]{stats['total_entries']}[/]")
     for c, count in stats.get('categories', {}).items():
         console.print(f'    • {c}: {count}')
@@ -68,6 +68,6 @@ def context_board_cmd():
     Example: saleha context-board
     """
     from saleha.core.context_board import global_context_board
-    console.print(Panel('[bold magenta]📋 Saleha Swarm Context Blackboard[/bold magenta]', border_style='magenta'))
+    console.print(Panel('[bold magenta]Saleha Swarm Context Blackboard[/bold magenta]', border_style='magenta'))
     console.print(Markdown(global_context_board.export_markdown()))
 

@@ -1,12 +1,12 @@
 """
 Saleha Core: Skill Registry (New -- plugin-style extensibility)
 
-Skills yahan register hote hain, aur koi bhi caller (orchestrator, CLI)
-`find_skill(task)` bula ke poochh sakta hai "iske liye koi skill hai?".
+Skills are registered here, and any caller (orchestrator, CLI) can call
+`find_skill(task)` to ask "is there a skill for this?".
 
-Naya skill add karna:
-    from core.skill_base import Skill, SkillResult
-    from core.skill_registry import registry
+Adding a skill:
+    from saleha.core.skill_base import Skill, SkillResult
+    from saleha.core.skill_registry import registry
 
     class MySkill(Skill):
         name = "my_skill"
@@ -16,7 +16,7 @@ Naya skill add karna:
 
     registry.register(MySkill())
 
-Bas itna -- orchestrator.py ko chhedne ki zaroorat nahi.
+That is all -- orchestrator.py does not need to change.
 """
 
 from typing import List, Optional
@@ -37,26 +37,26 @@ class SkillRegistry:
         return list(self._skills)
 
     def find_skill(self, task: str) -> Optional[Skill]:
-        """Pehla skill jo is task ko handle kar sakta hai, return karta hai.
-        Koi na mile to None (caller normal pipeline pe fallback kare)."""
+        """Returns the first skill that can handle this task, or None if no
+        skill can (the caller then falls back to the normal pipeline)."""
         for skill in self._skills:
             try:
                 if skill.can_handle(task):
                     return skill
             except (TypeError, ValueError, AttributeError):
-                # Ek skill ka can_handle crash ho jaye to poora registry
-                # na tooте -- bas is skill ko skip karo
+                # One skill's can_handle crashing must not break the whole
+                # registry -- skip that skill.
                 continue
         return None
 
 
-# Global registry -- poore Saleha me yahi ek instance use hoga
+# Global registry -- the single instance used across Saleha
 registry = SkillRegistry()
 
 
 def load_builtin_skills():
-    """Saleha ke saath aane wale built-in skills load karta hai. Naye
-    built-in skill add karne ke liye bas import + register yahan jodo."""
+    """Loads the built-in skills that ship with Saleha. To add another
+    built-in skill, import it and register it here."""
     from saleha.skills.calculator_skill import CalculatorSkill
     from saleha.skills.datetime_skill import DateTimeSkill
     from saleha.skills.git_skill import GitSkill

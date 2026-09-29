@@ -69,7 +69,7 @@ class PRReviewer:
                 security_findings=[],
                 recommendations=["Ensure your branch has committed changes compared to target."],
                 merge_decision="COMMENT",
-                markdown_report="### 🧠 Saleha PR Review\n\nNo changes detected."
+                markdown_report="### Saleha PR Review\n\nNo changes detected."
             )
 
         # Extract modified files
@@ -98,29 +98,29 @@ class PRReviewer:
 
         # Generate markdown report
         md_lines = [
-            "## 🧠 Saleha AI — Automated Pull Request Review",
+            "## Saleha AI — Automated Pull Request Review",
             "",
             f"**PR Title:** {pr_title}",
             f"**Files Changed:** {len(files_list)}",
             f"**Risk Assessment:** **{risk_level}**",
             f"**Merge Recommendation:** `{decision}`",
             "",
-            "### 📋 Files Analyzed",
+            "### Files Analyzed",
         ]
         for f in files_list[:10]:
             md_lines.append(f"- `{f}`")
         if len(files_list) > 10:
             md_lines.append(f"- *...and {len(files_list) - 10} more files*")
 
-        md_lines.append("\n### 🛡️ Security & SAST Findings")
+        md_lines.append("\n### Security & SAST Findings")
         if not findings:
-            md_lines.append("✅ **Zero security vulnerabilities detected in new code.**")
+            md_lines.append("[OK] **Zero security vulnerabilities detected in new code.**")
         else:
             for f in findings:
-                sev_icon = "🔴" if f["severity"] == "high" else "🟡"
+                sev_icon = "[HIGH]" if f["severity"] == "high" else "[MEDIUM]"
                 md_lines.append(f"- {sev_icon} **[{f['rule_id']}]** `{f['message']}` (Line ~{f['line']})")
 
-        md_lines.append("\n### 💡 Recommendations")
+        md_lines.append("\n### Recommendations")
         if decision == "APPROVE":
             md_lines.append("1. All static checks and security gates passed.")
             md_lines.append("2. Ready for peer developer review and merge.")

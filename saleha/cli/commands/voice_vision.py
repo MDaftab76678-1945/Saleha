@@ -41,13 +41,13 @@ def voice_cmd(prompt: Optional[str], audio: Optional[str], wake_word: str, simul
     """
     from saleha.core.voice_assistant import VoiceAssistant
     if not prompt and (not audio) and (not simulate):
-        console.print('[bold red]❌ Error: Either prompt text, --audio, or --simulate must be provided.[/bold red]')
+        console.print('[bold red][FAIL] Error: Either prompt text, --audio, or --simulate must be provided.[/bold red]')
         sys.exit(2)
     va = VoiceAssistant(wake_word=wake_word)
     input_text = prompt or simulate or ''
     res = va.process_voice_prompt(input_text, audio_file=audio)
     if not res.success:
-        console.print(f'[bold red]❌ {res.response_text}[/bold red]')
+        console.print(f'[bold red][FAIL] {res.response_text}[/bold red]')
         sys.exit(1)
     console.print(f'[bold green]Response:[/bold green] {res.execution_result or res.response_text}')
 
@@ -55,7 +55,7 @@ def voice_cmd(prompt: Optional[str], audio: Optional[str], wake_word: str, simul
 @click.argument('spec')
 @click.option('--framework', '-f', default='react', type=click.Choice(['react', 'html', 'flutter']), help='Target UI framework')
 @click.option('--name', '-n', default='GeneratedComponent', help='Component name')
-@click.option('--image', '-i', default=None, type=click.Path(exists=True), help='Screenshot/wireframe image -- REAL vision model se analyze hota hai (llava/qwen-vl)')
+@click.option('--image', '-i', default=None, type=click.Path(exists=True), help='Screenshot/wireframe image -- analyzed by a REAL vision model (llava/qwen-vl)')
 @click.option('--output-file', '-o', default=None, help='Save generated code to file')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def vision_cmd(spec, framework, name, image, output_file, as_json):
@@ -68,14 +68,14 @@ def vision_cmd(spec, framework, name, image, output_file, as_json):
     if as_json:
         click.echo(json.dumps({'framework': res.framework, 'component_name': res.component_name, 'dependencies': res.dependencies, 'code': res.code, 'used_vision': res.used_vision, 'model_used': res.model_used, 'source': res.source_note}, ensure_ascii=True))
         return
-    source_label = f'[green]👁️ {res.source_note}[/]' if res.used_vision else f'[dim]{res.source_note}[/]'
-    console.print(Panel(f"[bold cyan]Framework:[/] {res.framework.upper()}\n[bold cyan]Component:[/] {res.component_name}\n[bold cyan]Dependencies:[/] {', '.join(res.dependencies)}\n[bold cyan]Source:[/] {source_label}", title='[bold green]🖼️ Saleha Vision UI Synthesizer[/]', border_style='green'))
+    source_label = f'[green]{res.source_note}[/]' if res.used_vision else f'[dim]{res.source_note}[/]'
+    console.print(Panel(f"[bold cyan]Framework:[/] {res.framework.upper()}\n[bold cyan]Component:[/] {res.component_name}\n[bold cyan]Dependencies:[/] {', '.join(res.dependencies)}\n[bold cyan]Source:[/] {source_label}", title='[bold green]Saleha Vision UI Synthesizer[/]', border_style='green'))
     syntax = Syntax(res.code, 'typescript' if framework == 'react' else 'dart' if framework == 'flutter' else 'html', theme='monokai', line_numbers=True)
     console.print(syntax)
     if output_file:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(res.code)
-        console.print(f'\n[bold green]💾 Saved component to:[/] {output_file}')
+        console.print(f'\n[bold green]Saved component to:[/] {output_file}')
 
 @cli.command(name='voice-live')
 @click.option('--speak', is_flag=True, default=True, help='Enable audio speech response')
@@ -86,17 +86,17 @@ def voice_live_cmd(speak):
     Example: saleha voice-live
     """
     from saleha.core.voice_live import voice_live_assistant
-    console.print('[bold green]🎙️ Saleha Voice-Live Terminal Assistant is listening...[/]')
+    console.print('[bold green]Saleha Voice-Live Terminal Assistant is listening...[/]')
     console.print("[dim]Type voice command or press Enter with speech. Type 'exit' to quit.[/]\n")
     try:
         while True:
-            prompt = click.prompt('🎤 Voice Command', default='')
+            prompt = click.prompt('Voice Command', default='')
             if not prompt or prompt.strip().lower() in ('exit', 'quit'):
                 break
             turn = voice_live_assistant.process_turn(input_text=prompt, speak=speak)
-            console.print(f'[bold cyan]🤖 Action:[/] {turn.action_summary}')
+            console.print(f'[bold cyan]Action:[/] {turn.action_summary}')
             if turn.spoken_response != turn.action_summary:
-                console.print(f'[bold green]🗣️ Spoken:[/] {turn.spoken_response}')
+                console.print(f'[bold green]Spoken:[/] {turn.spoken_response}')
     except (KeyboardInterrupt, EOFError):
         pass
     console.print('\n[yellow]Voice assistant stopped.[/]')

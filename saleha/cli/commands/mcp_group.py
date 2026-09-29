@@ -39,7 +39,7 @@ def mcp_list_cmd(category: Optional[str]):
     """List all 30+ pre-configured MCP servers."""
     from saleha.core.platform.mcp_hub import mcp_hub
     servers = mcp_hub.list_servers(category=category)
-    table = Table(title='🔌 Universal Model Context Protocol (MCP) Server Hub', border_style='cyan')
+    table = Table(title='Universal Model Context Protocol (MCP) Server Hub', border_style='cyan')
     table.add_column('Server Name', style='bold cyan')
     table.add_column('Category', style='magenta')
     table.add_column('Transport', style='yellow')
@@ -56,7 +56,7 @@ def mcp_export_cmd(platform: str, output: Optional[str]):
     """Export tailored MCP configuration for Cursor, Claude, VS Code, Windsurf, Zed, or JetBrains."""
     from saleha.core.platform.mcp_hub import mcp_hub
     target_file, config_data = mcp_hub.export_config(platform, output_path=output)
-    console.print(f'[bold green]✅ Exported {platform.upper()} MCP configuration to: [underline]{target_file}[/underline][/bold green]')
+    console.print(f'[bold green][OK] Exported {platform.upper()} MCP configuration to: [underline]{target_file}[/underline][/bold green]')
     console.print(Panel(json.dumps(config_data, indent=2)[:400] + '\n  ...', title=f'{platform.upper()} Configuration Snippet', border_style='cyan'))
 
 @mcp_group.command(name='connect')
@@ -66,15 +66,15 @@ def mcp_connect_cmd(server_name: str):
     from saleha.core.platform.mcp_hub import mcp_hub
     res = mcp_hub.connect_server(server_name)
     if res.get('success'):
-        console.print(f"[bold green]✅ {res['message']}[/bold green]")
+        console.print(f"[bold green][OK] {res['message']}[/bold green]")
     else:
-        console.print(f"[bold red]❌ Connection failed: {res.get('error')}[/bold red]")
+        console.print(f"[bold red][FAIL] Connection failed: {res.get('error')}[/bold red]")
 
 @mcp_group.command(name='serve')
 def mcp_serve_cmd():
     """Start Saleha's standard JSON-RPC 2.0 stdio MCP server."""
     from saleha.core.mcp_engine import MCPServer
     server = _cmds.MCPServer()
-    console.print('[bold green]🚀 Saleha MCP Server running over stdio (JSON-RPC 2.0)...[/bold green]')
+    console.print('[bold green]Saleha MCP Server running over stdio (JSON-RPC 2.0)...[/bold green]')
     server.run_stdio()
 
