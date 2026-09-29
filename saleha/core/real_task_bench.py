@@ -43,6 +43,7 @@ import ast
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -260,14 +261,24 @@ def ollama_host() -> str:
     return ollama_base_url()
 
 
-def generate(prompt: str, model: str, timeout: int = 180) -> str:
-    """One real completion from Ollama. Raises on transport failure."""
-    payload = json.dumps({
+def generate(prompt: str, model: str, timeout: int = 180,
+             temperature: float = 0.0, think: Optional[bool] = None,
+             seed: int = 7) -> str:
+    """One real completion from Ollama. Raises on transport failure.
+
+    `think=False` turns off a reasoning model's thinking phase (qwen3);
+    leave it None for models that have none. Sampling above temperature 0
+    needs a different `seed` per sample, or every sample is the same text.
+    """
+    body: dict = {
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": 0.0, "seed": 7},
-    }).encode()
+        "options": {"temperature": temperature, "seed": seed},
+    }
+    if think is not None:
+        body["think"] = think
+    payload = json.dumps(body).encode()
     req = urllib.request.Request(
         f"{ollama_host()}/api/generate", data=payload,
         headers={"Content-Type": "application/json"})
@@ -324,11 +335,23 @@ def extract_code(text: str) -> str:
 
 
 def run_in_subprocess(code: str, test: str, timeout: int = 15) -> Tuple[bool, str]:
-    """Execute code + test in a separate process. Never in this one."""
+    """Execute code + test in a separate process. Never in this one.
+
+    Exit code 0 alone is not a pass. `extract_code` keeps assignments, so a
+    candidate carrying `_ = sys.exit(0)` stopped the process before the first
+    assert and was graded correct (probe: a wrong `add` returning 0 passed).
+    The script now ends by writing a per-run nonce; a run that never reaches
+    the end of the tests has not passed them.
+    """
+    nonce = secrets.token_hex(8)
+    end_line = f"SALEHA_TESTS_DONE:{nonce}"
+    script = (f"{code}\n\n{test}\n\n"
+              f"import os as _saleha_end_os\n"
+              f"_saleha_end_os.write(1, b'\\n{end_line}\\n')\n")
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "candidate.py")
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(code + "\n\n" + test)
+            fh.write(script)
         try:
             proc = subprocess.run(
                 [sys.executable, "-I", "-B", path],
@@ -337,9 +360,19 @@ def run_in_subprocess(code: str, test: str, timeout: int = 15) -> Tuple[bool, st
         except subprocess.TimeoutExpired:
             return False, f"timed out after {timeout}s"
         if proc.returncode == 0:
-            return True, ""
+            if end_line in (proc.stdout or ""):
+                return True, ""
+            return False, "exited with 0 before the tests finished"
         err = (proc.stderr or proc.stdout or "").strip().splitlines()
-        return False, (err[-1] if err else f"exit {proc.returncode}")[:200]
+        if not err:
+            return False, f"exit {proc.returncode}"
+        last = err[-1]
+        if last.strip() == "AssertionError":
+            # The tests' asserts carry no message; name the one that failed.
+            source = [ln.strip() for ln in err[:-1] if ln.strip().strip("^~ ")]
+            if source and not source[-1].startswith("File "):
+                last = f"AssertionError at: {source[-1]}"
+        return False, last[:200]
 
 
 def verify_tests_can_fail(tasks: Optional[List[Task]] = None) -> List[str]:

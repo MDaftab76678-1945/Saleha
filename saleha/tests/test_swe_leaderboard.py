@@ -78,6 +78,18 @@ class RealScoringTests(unittest.TestCase):
         self.assertFalse(ok_wrong)
         self.assertTrue(err)
 
+    def test_candidate_that_exits_early_does_not_pass(self) -> None:
+        # extract_code keeps assignments, so this survives into the graded
+        # file; it used to stop the run before any assert with exit code 0.
+        reply = ("```python\ndef safe_divide(a, b):\n    return 0\n"
+                 "_done = __import__('sys').exit(0)\n```")
+        code = extract_code(reply)
+        self.assertIn("exit(0)", code)
+        task = next(t for t in TASKS if t.task_id == "safe_divide")
+        ok, err = run_in_subprocess(code, task.test)
+        self.assertFalse(ok)
+        self.assertIn("before the tests finished", err)
+
     def test_model_returning_wrong_code_scores_zero(self) -> None:
         task = next(t for t in TASKS if t.task_id == "safe_divide")
         with mock.patch("saleha.core.real_task_bench.generate",

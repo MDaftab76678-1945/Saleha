@@ -11555,3 +11555,42 @@ suite: 2730 passed, 17 skipped. Limit (stated in the module): Python has no
 private constructors -- a deliberate forger can import `_MINT`; the lazy
 `passed=True` is what is gone. Not yet migrated: other bool-verdict
 producers (cross_check, oracle_check, swarm stages) still set their own flags.
+
+## Pass 165 (2026-09-29) -- self-written lessons, measured against a placebo
+
+Idea from the Cosmic Compiler notes (memory influence score). Existing
+`causal_trace.py` measures whether an answer *changes* without a piece; this
+measures whether it becomes *correct*. New `saleha/core/memory/lesson_ledger.py`:
+harvest (TRAIN failures -> one-sentence lesson by qwen3:8b) -> screen (each
+lesson on the TRAIN tasks it did not come from, vs 3 placebo sentences) ->
+`ProvenLesson` (type-state, issued only by the screen) -> `LessonLedger` ->
+trial (HELDOUT, bare vs lessons vs same-size placebo, paired sign test).
+
+Found and fixed on the way:
+
+- Benchmark grader (`real_task_bench.run_in_subprocess`): `extract_code`
+  keeps assignments, so `_ = sys.exit(0)` ended the run before any assert
+  with exit 0 -- probe: a wrong `add` graded as a pass. The script now ends
+  with a per-run nonce line; no line, no pass. Failed asserts now name the
+  assert instead of a bare "AssertionError".
+- My own screen proved a lesson whose call on one task had failed (the
+  task was excluded instead of blocking the proof). Re-running that one
+  call: the lesson broke regex_match. A lesson with any task that did not
+  run is now "incomplete", never proven; one retry per failed call.
+
+Real run (qwen2.5-coder:3b solver, 199 calls, 21 min, 0 failed calls):
+6 lessons harvested; 5 dropped -- each broke 1-2 TRAIN tasks that pass
+without it; 1 proven ("check for empty strings and bounds before accessing
+characters": fixed topo_sort, broke none, beat every placebo).
+Held-out trial: lesson 7/12, bare 6/12, placebo 5/12; paired vs placebo
+3-1, p=0.31 -- direction positive, not significant. All six lessons
+unscreened: 7/12, same as their placebo block.
+
+Noise: three repeats of the same prompts in one session were identical
+(bare 6,6,6; lesson 7,7,7). Across sessions they were not: the same
+six-lesson prompt scored 6/12 (run 1) and 7/12 (run 2) on different tasks.
+Compare arms only within one session.
+
+Conclusion: self-written lessons do not measurably help the 3B on held-out
+tasks yet; nothing was wired into the Coder's prompt. 12 held-out tasks
+cannot resolve a one-task effect.

@@ -121,7 +121,7 @@ class Verified:
         object.__setattr__(self, "digest", digest)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        raise AttributeError("Verified is immutable")
+        raise AttributeError(f"Verified is immutable; cannot set {name} to {value!r}")
 
     def covers(self, code: str, tests: str) -> bool:
         """True only for the exact code and tests that were judged."""
