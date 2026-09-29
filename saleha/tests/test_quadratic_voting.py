@@ -1,4 +1,4 @@
-"""Unit tests for Quadratic Voting & VCG Swarm Allocator."""
+"""Unit tests for the Quadratic Voting tally."""
 
 import unittest
 from click.testing import CliRunner

@@ -1,10 +1,16 @@
 """
-Saleha Core: Quadratic Voting & VCG Swarm Resource Allocator (QuadraticVotingEngine)
+Saleha Core: Quadratic Voting tally (QuadraticVotingEngine)
 
-Implements mechanism design for democratic multi-agent swarms:
-1. Quadratic Voting (QV): Vote weight = sqrt(credits_spent), cost = votes^2.
-2. Vickrey-Clarke-Groves (VCG) Truthful Mechanism: Computes externalities for resource scheduling.
-3. Prevents vote-flooding and guarantees mathematically fair consensus.
+What this does:
+1. Each ballot carries a signed vote count; its credit cost is votes^2.
+2. A proposal's net votes is the plain sum of the signed counts; it is approved
+   when net votes reach `approval_threshold`.
+
+What this does not do: there is no per-agent credit budget (nothing rejects a
+ballot for costing too much), no vote weighting by sqrt(credits), and no
+Vickrey-Clarke-Groves mechanism or externality computation. Earlier versions of
+this docstring and the CLI claimed VCG; no such code ever existed. It is a
+tally-and-cost calculator, not a truthful allocation mechanism.
 """
 
 from dataclasses import dataclass

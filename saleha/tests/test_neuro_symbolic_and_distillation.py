@@ -1,6 +1,7 @@
 """Unit and Integration Test Suite for Neuro-Symbolic Invariant Engine and SLM Distillation Suite."""
 
 import os
+from typing import Any
 import json
 from pathlib import Path
 
@@ -147,7 +148,7 @@ class TestModelDistillationPipeline:
         pipeline = ModelDistillationPipeline()
         script_path = str(tmp_path / "train.py")
         content = pipeline.generate_training_script(script_path)
-        assert "Saleha-Coder SLM Distillation Pipeline" in content
+        assert "SFTTrainer" in content and "trainer.train()" in content
         assert os.path.exists(script_path)
 
 
@@ -160,3 +161,63 @@ class TestChatSessionNeuroSymbolicCommands:
         assert session.process_command(f"/dataset {dataset_path}") is True
         assert session.process_command("/lora-config") is True
         assert session.process_command("/score-code def test_func(x: int) -> int: return x + 1") is True
+
+
+class TestGeneratedTrainingScriptIsHonest:
+    """The generated script used to print 'Simulated Dry-Run ... 100% Validated'
+    and return True whatever was missing. It must now fail loudly instead."""
+
+    def _generate(self, tmp_path: Any) -> tuple[Any, Any]:
+        import subprocess
+        import sys
+
+        script = tmp_path / "train.py"
+        model_distillation_pipeline.generate_training_script(str(script))
+        cfg = tmp_path / "cfg.yaml"
+        model_distillation_pipeline.generate_lora_training_yaml(str(cfg))
+        text = cfg.read_text(encoding="utf-8").replace(
+            'dataset_path: "datasets/saleha_train_dataset.jsonl"',
+            f'dataset_path: "{(tmp_path / "data.jsonl").as_posix()}"',
+        )
+        cfg.write_text(text, encoding="utf-8")
+
+        def run() -> Any:
+            return subprocess.run(
+                [sys.executable, str(script), "--config", str(cfg)],
+                capture_output=True, text=True, encoding="utf-8",
+            )
+
+        return run, tmp_path / "data.jsonl"
+
+    def test_no_simulated_success_text(self) -> None:
+        src = model_distillation_pipeline.generate_training_script("scripts/.tmp_probe.py")
+        try:
+            assert "Simulated" not in src and "100% Configured" not in src
+            compile(src, "train.py", "exec")
+        finally:
+            import os
+            os.remove("scripts/.tmp_probe.py")
+
+    def test_missing_dataset_exits_nonzero_and_names_it(self, tmp_path: Any) -> None:
+        run, _data = self._generate(tmp_path)
+        res = run()
+        assert res.returncode == 1
+        assert "dataset not found" in res.stderr
+
+    def test_wrong_dataset_format_is_rejected(self, tmp_path: Any) -> None:
+        run, data = self._generate(tmp_path)
+        data.write_text('{"instruction": "x", "output": "y"}\n', encoding="utf-8")
+        res = run()
+        assert res.returncode == 1
+        assert "messages" in res.stderr
+
+    def test_missing_ml_dependencies_exit_nonzero(self, tmp_path: Any) -> None:
+        import importlib.util
+
+        if importlib.util.find_spec("trl") is not None:
+            return  # deps present here: the failure path cannot be exercised
+        run, data = self._generate(tmp_path)
+        data.write_text('{"messages": [{"role": "user", "content": "x"}]}\n', encoding="utf-8")
+        res = run()
+        assert res.returncode == 1
+        assert "missing dependency" in res.stderr

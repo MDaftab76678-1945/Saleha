@@ -477,7 +477,7 @@ def merkle_leaves_cmd(limit: int, as_json: bool) -> None:
                    'Repeat --vote for each voter. Negative counts (e.g. SecurityAgent:-2) oppose.')
 def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) -> None:
     """
-    Quadratic Voting & VCG consensus on a real proposal you supply.
+    Quadratic Voting tally on a real proposal you supply.
 
     This used to replay one fixed hardcoded scenario (same proposal, same
     two votes) on every run -- the underlying engine's math is real, but
@@ -518,7 +518,7 @@ def quadratic_vote_cmd(title: str, proposer: str, threshold: int, votes: tuple) 
     for agent, count in parsed:
         table.add_row(agent, str(count), str(count ** 2))
     console.print(table)
-    console.print(Panel(f'[bold magenta]🗳️ Quadratic Voting & VCG Allocation[/bold magenta]\n{rep.summary}', border_style='magenta'))
+    console.print(Panel(f'[bold magenta]Quadratic Voting Tally[/bold magenta]\n{rep.summary}', border_style='magenta'))
 
 
 

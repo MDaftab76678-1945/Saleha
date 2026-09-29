@@ -38,6 +38,10 @@ Shape of the work, for orientation:
   than shipped. (`saleha harness leaderboard` is a *different*, genuine
   command that ranks models from real stored run history — it was never
   fabricating and was left alone.)
+- **`saleha quadratic-vote` is not a "VCG mechanism".** It tallies signed
+  votes and charges `votes^2` credits each; there is no per-agent budget,
+  no sqrt weighting, and no Vickrey-Clarke-Groves or externality code
+  (corrected 2026-09-29). It is a voting calculator.
 - **"100% Test Suite Pass: 783/783"** was true when written and is now
   simply stale; see the current count above.
 

@@ -179,11 +179,11 @@ del _name, _module, _attr
 
 @click.group()
 @click.version_option(version=__version__, prog_name="Saleha")
-def cli():
+def cli() -> None:
     """
     Saleha - Self-Healing Multi-Agent AI Engineering Framework
     
-    Khud se pehle dusron ke liye.
+    Others before self.
     """
     pass
 
