@@ -121,6 +121,29 @@ class TeamOrchestratorTests(unittest.TestCase):
         self.assertEqual(len(payload["stages_completed"]), 5)
         self.assertEqual(payload["code"], "class Cache: pass")
 
+    def test_failing_tests_are_not_reported_as_success(self) -> None:
+        # Proven live: the combined runner used unittest.main(exit=False),
+        # which exits 0 however many tests fail, so wrong code came back
+        # success=True with "All Tests Passed". Run the built script for
+        # real and assert the failure is visible.
+        from saleha.core.harness.code_executor import CodeExecutor
+
+        code = "def add(a, b):\n    return a - b\n"
+        tests = ("import unittest\nclass T(unittest.TestCase):\n"
+                 "    def test_add(self):\n"
+                 "        self.assertEqual(add(2, 3), 5)\n")
+        combined = self.orchestrator._build_combined_test_runner(code, tests)
+        res = CodeExecutor(timeout=30).execute(combined)
+        self.assertFalse(res.success, f"failing tests exited 0:\n{res.output}\n{res.error}")
+
+    def test_empty_suite_runs_bare_code_without_a_runner_footer(self) -> None:
+        from saleha.core.harness.code_executor import CodeExecutor
+
+        combined = self.orchestrator._build_combined_test_runner(
+            "def add(a, b):\n    return a + b\n", "   \n")
+        res = CodeExecutor(timeout=30).execute(combined)
+        self.assertTrue(res.success)  # the code ran; nothing failed
+
 
 if __name__ == "__main__":
     unittest.main()

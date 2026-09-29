@@ -159,6 +159,8 @@ class CodeExecutor:
                 run_cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=effective_timeout,
                 cwd=os.path.dirname(temp_file),
             )

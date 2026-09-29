@@ -120,10 +120,10 @@ class TeamOrchestrator:
                           on_event: Optional[Callable[[Dict[str, Any]], None]] = None) -> TeamResult:
         """Executes the full multi-agent collaborative swarm pipeline.
 
-        `on_event`: optional callback jo har stage complete hote hi turant
-        fire hota hai -- {"stage": str, "content": str, "stage_index": int}.
-        Web Studio SSE isse REAL streaming karta hai (pehle poora workflow
-        chal kar events ko ek saath dump karta tha).
+        `on_event`: optional callback fired the moment each stage
+        completes -- {"stage": str, "content": str, "stage_index": int}.
+        Web Studio SSE streams for real this way (it used to run the whole
+        workflow first and dump all events at the end).
         """
         log = f"Starting Multi-Agent Team Swarm for Goal: {goal}\n" + "=" * 70 + "\n"
         stages_done = []
@@ -163,7 +163,7 @@ class TeamOrchestrator:
                     "content": content,
                     "stage_index": _event_counter["n"],
                 })
-            except Exception as cb_err:  # callback kabhi pipeline na tode
+            except Exception as cb_err:  # a callback must never break the pipeline
                 log += f"WARNING: on_event callback failed: {cb_err}\n"
 
         if debate:
@@ -336,7 +336,7 @@ Format output as:
                 if sec_debug.success and sec_debug.fixed_code:
                     extracted_code = self._extract_code(sec_debug.fixed_code) or extracted_code
                     log += "Security remediation applied by Debugger.\n"
-                    security_verdict = "WARNINGS"  # downgraded, ab verification loop decide karega
+                    security_verdict = "WARNINGS"  # downgraded; the verification loop below decides
                 else:
                     log += "Security Gate FAILED-CLOSED: unresolved HIGH vulnerabilities; skipping execution.\n"
                     stages_done.append("Test Automation")
@@ -431,7 +431,12 @@ Requirements:
                 break
 
         final_success = exec_result.success and not exec_result.blocked
-        if final_success:
+        if final_success and not extracted_tests.strip():
+            # The code ran, but there was no suite to pass: exiting 0 here
+            # means "ran without error", and saying "All Tests Passed"
+            # would be the ran==0 fake green again.
+            log += "Code ran with no test suite (ran without error -- not a test pass).\n"
+        elif final_success:
             log += f"All Tests Passed successfully in {attempts} attempt(s)!\n"
         else:
             log += f"Completed with warnings: {exec_result.error[:150] if exec_result.error else 'Unverified'}\n"
@@ -494,7 +499,13 @@ Requirements:
         return response.strip()
 
     def _build_combined_test_runner(self, code: str, tests: str) -> str:
-        """Combines implementation and tests into a unified runnable script."""
+        """Combines implementation and tests into a unified runnable script.
+
+        The exit code is truthful: unittest.main(exit=False) always exits 0,
+        which previously reported failing tests as "All Tests Passed". The
+        footer below raises SystemExit from the actual result, so a failing
+        suite exits non-zero and the healing loop sees it.
+        """
         if not tests.strip():
             return code
         return f"""# ==================== IMPLEMENTATION ====================
@@ -505,7 +516,8 @@ Requirements:
 
 if __name__ == '__main__':
     import unittest
-    unittest.main(exit=False)
+    _prog = unittest.main(exit=False)
+    raise SystemExit(0 if _prog.result.wasSuccessful() else 1)
 """
 
     def _save_deliverables(self, output_dir: str, goal: str, prd: str, design: str,
