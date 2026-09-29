@@ -11673,3 +11673,33 @@ Before -> after, fake servers + real qwen2.5-coder:3b (probe run against git sta
 Pooling itself is not a latency win here: a fresh localhost connection costs ~25-45 ms.
 Remaining editor hints in model_provider (unused `response_format`/`disable_reasoning`
 on other providers) are interface parameters, not defects. Suite 2838 passed / 17 skipped.
+
+## Pass 172 (2026-09-29) -- repair escalation and honest repair reports
+
+Two changes to the swarm's counterexample repair:
+- A failed repair now says why. `VerifiedSearch` sources can raise `NoCandidate(reason)`;
+  the summary ends "most often: <reason> (xN)". Before, a dead Ollama or a missing model
+  showed as "source produced no code" for every try.
+- After the coder model's 6 tries all fail, qwen3:8b gets 2 tries, one at a time, with
+  thinking off (`CoderAgent.generate_code(disable_reasoning=True)`, sent only when set).
+  `SALEHA_ESCALATION_MODEL` overrides the model, "" turns it off, and an explicit
+  model="mock" run never reaches it. `oracle` payload gains `repaired_by`.
+
+Measured, one repair prompt per try, same prompt for both models (repair_bench.py in the
+session scratchpad; bugs are real qwen2.5-coder:3b solutions that a hand-written brute
+force disagrees with; a fix must match it on 200 inputs and pass the hidden tests):
+  LIS bug:            3B 2/10 fixed (12 s/try)   8B thinking off 2/10 (19 s/try)
+  4 hard-bench bugs:  3B 0/24 (11 s/try)         8B thinking off 2/12 (53 s/try; both in min_window)
+  pooled:             3B 2/34 (6%)               8B 4/22 (18%)
+Small samples, and 8B fixed nothing on 3 of the 4 tasks. It is kept because it runs only
+after every 3B try failed, so the cost is bounded (2 tries, ~2 min) and only on a repair
+that was failing anyway. qwen3:8b with thinking ON did not answer within the 300 s timeout
+(1 try, 6.7 tok/s, 63% of the model on CPU), which is why the flag exists.
+Not fixed: qwen3:8b loads with a 40960 context (11 GB, 63%/37% CPU/GPU on the 6 GB card);
+a smaller num_ctx for the escalation tier would likely speed it up and is untested.
+The parallel repair still does not feed later tries the newest counterexample (the old
+sequential loop did); no measurement says it matters.
+Tests: SwarmRepairTierTests (order, escalation only after failure, thinking flag, env
+override, mock guard, the failure report), NoCandidate and summary tests, CoderThinkingSwitchTests.
+Five of the new swarm tests fail against the previous engine. Suite 2846 passed / 17 skipped.
+

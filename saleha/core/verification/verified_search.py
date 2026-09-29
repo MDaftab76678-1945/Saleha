@@ -11,7 +11,9 @@ brute-force comparison in the swarm), never by the candidate source.
 Outcomes stay distinct: a candidate whose source or verifier crashed is
 DID_NOT_RUN, a repeat of an earlier candidate is DUPLICATE, and only a
 verifier's explicit PASSED can make `found` true. An empty budget finds
-nothing; it is not a vacuous pass.
+nothing; it is not a vacuous pass. A source that cannot produce a
+candidate raises `NoCandidate` with the reason, so a report says "circuit
+open" or "model not found" rather than just "no code".
 """
 
 from __future__ import annotations
@@ -20,11 +22,16 @@ import enum
 import logging
 import threading
 import time
+from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, List, Optional, Protocol, Set
 
 logger = logging.getLogger(__name__)
+
+
+class NoCandidate(Exception):
+    """Raised by a source to say why it produced nothing. Recorded as DID_NOT_RUN with that reason."""
 
 
 class Outcome(enum.Enum):
@@ -81,12 +88,22 @@ class SearchResult:
     def attempted(self) -> int:
         return len(self.outcomes)
 
+    def most_common_problem(self) -> str:
+        """The most frequent reason a candidate did not pass, with its count when it repeats."""
+        details = Counter(o.detail for o in self.outcomes if o.outcome is not Outcome.PASSED and o.detail)
+        if not details:
+            return ""
+        detail, times = details.most_common(1)[0]  # ties go to the earliest candidate
+        return f"{detail} (x{times})" if times > 1 else detail
+
     def summary(self) -> str:
         counts = {o: sum(1 for c in self.outcomes if c.outcome is o) for o in Outcome}
         head = (f"candidate {self.winner.index + 1} passed" if self.winner
                 else "no candidate passed")
         tail = ", ".join(f"{n} {o.value}" for o, n in counts.items() if n)
-        return f"{head} ({self.attempted} of {self.budget} tried: {tail or 'none'})"
+        text = f"{head} ({self.attempted} of {self.budget} tried: {tail or 'none'})"
+        problem = "" if self.winner else self.most_common_problem()
+        return f"{text}; most often: {problem}" if problem else text
 
 
 class VerifiedSearch:
@@ -147,6 +164,8 @@ class VerifiedSearch:
 
         try:
             code = self._source(index)
+        except NoCandidate as exc:  # an expected "nothing this time", not a crash
+            return done("", Outcome.DID_NOT_RUN, str(exc) or "source produced no code")
         except Exception as exc:  # noqa: BLE001 -- a crashing source must not end the search
             logger.warning("candidate %d: source raised %s: %s", index, type(exc).__name__, exc)
             return done("", Outcome.DID_NOT_RUN, f"source raised {type(exc).__name__}: {exc}")

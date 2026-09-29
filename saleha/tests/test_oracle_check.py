@@ -1,4 +1,5 @@
 import unittest
+from typing import Any, Callable, List, Tuple
 
 from saleha.core.verification.oracle_check import differential_check, entry_point
 
@@ -125,7 +126,7 @@ class SwarmOracleTests(unittest.TestCase):
         res, qa = self._run(BUGGY, GEN, FAST)  # the one repair attempt returns the fix
         self.assertEqual(res.final_code, FAST)
         self.assertTrue(res.tests_passed, qa.output_summary)
-        self.assertIn("after fixing its failure on", qa.output_summary)
+        self.assertIn("after mock fixed its failure on", qa.output_summary)
         # Attempts run in parallel; the others find the outputs used up and
         # count as "did not run" while the fix is being verified.
         from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
@@ -138,6 +139,101 @@ class SwarmOracleTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertNotEqual(res.final_code, worse)
         self.assertIn("differs from a brute-force version", qa.output_summary)
+
+
+class SwarmRepairTierTests(unittest.TestCase):
+    """Who repairs, in which order, and what the report says when nobody can."""
+
+    GOAL = SwarmOracleTests.GOAL
+    DOWN = "Ollama at http://127.0.0.1:11434 not called: circuit open after 3 failure(s): refused"
+
+    def _run(self, repair: Callable[[str], Any]) -> Tuple[Any, Any, List[str]]:
+        """`repair(model)` answers every repair request; the other calls follow the script."""
+        from unittest.mock import patch
+
+        from saleha.agents.coder import CodeResult
+        from saleha.agents.qa_lead import QATestSuite
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
+        from saleha.tests.swarm_stubs import stub_agents
+
+        asked: List[str] = []
+        thinking_off: List[bool] = []
+
+        def generate(agent: Any, prompt: str, *args: Any, **kwargs: Any) -> Any:
+            if "This solution is WRONG" in prompt:
+                asked.append(agent.model_preference)
+                thinking_off.append(kwargs.get("disable_reasoning", False))
+                return repair(agent.model_preference)
+            if prompt.startswith("Write the simplest possible CORRECT"):
+                return CodeResult(success=True, code=ORACLE)
+            if prompt.startswith("Write a Python function `gen(rng)`"):
+                return CodeResult(success=True, code=GEN)
+            return CodeResult(success=True, code=BUGGY)
+
+        suite = QATestSuite(task=self.GOAL, framework="unittest", test_code=SwarmOracleTests.WEAK_TESTS,
+                            test_case_count=1, edge_cases_covered=[])
+        # A plain function as the class attribute, so each call sees which agent (model) asked.
+        with stub_agents(), \
+             patch("saleha.agents.coder.CoderAgent.generate_code", new=generate), \
+             patch("saleha.agents.qa_lead.QALeadAgent.generate_test_suite", return_value=suite):
+            res = SwarmPipelineEngine(escalation_model="qwen3:8b").execute_swarm(self.GOAL)
+        self.thinking_off = thinking_off
+        return res, next(s for s in res.stages if s.agent_role == "QALead"), asked
+
+    def test_failed_repair_says_why_instead_of_just_no_code(self) -> None:
+        from saleha.agents.coder import CodeResult
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine as E
+
+        res, qa, asked = self._run(lambda model: CodeResult(success=False, code="", error=self.DOWN))
+        self.assertFalse(res.success)
+        n, m = E.REPAIR_ATTEMPTS, E.ESCALATION_ATTEMPTS
+        self.assertIn(f"; repair failed -- mock: no candidate passed ({n} of {n} tried: {n} did_not_run); "
+                      f"most often: {self.DOWN} (x{n}) | qwen3:8b: no candidate passed ({m} of {m} tried: "
+                      f"{m} did_not_run); most often: {self.DOWN} (x{m})", qa.output_summary)
+        self.assertEqual(qa.payload["oracle"]["repair_attempts"], n + m)
+        self.assertEqual(len(asked), n + m)
+
+    def test_bigger_model_gets_a_turn_only_after_the_coder_model_failed(self) -> None:
+        from saleha.agents.coder import CodeResult
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine as E
+
+        res, qa, asked = self._run(lambda model: CodeResult(success=True, code=FAST if model == "qwen3:8b" else BUGGY))
+        self.assertEqual(res.final_code, FAST)
+        self.assertTrue(res.tests_passed, qa.output_summary)
+        self.assertIn("after qwen3:8b fixed its failure on", qa.output_summary)
+        self.assertEqual(qa.payload["oracle"]["repaired_by"], "qwen3:8b")
+        self.assertEqual(asked, ["mock"] * E.REPAIR_ATTEMPTS + ["qwen3:8b"])
+        self.assertEqual(self.thinking_off, [False] * E.REPAIR_ATTEMPTS + [True])
+        self.assertIn(f"mock: no candidate passed ({E.REPAIR_ATTEMPTS} of {E.REPAIR_ATTEMPTS} tried: "
+                      f"{E.REPAIR_ATTEMPTS} duplicate)", qa.payload["oracle"]["repair_search"])
+
+    def test_bigger_model_is_not_asked_when_the_coder_model_fixed_it(self) -> None:
+        from saleha.agents.coder import CodeResult
+
+        res, qa, asked = self._run(lambda model: CodeResult(success=True, code=FAST))
+        self.assertEqual(qa.payload["oracle"]["repaired_by"], "mock")
+        self.assertNotIn("qwen3:8b", asked)
+
+    def test_tiers_and_where_the_escalation_model_comes_from(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        from saleha.core.swarm.swarm_pipeline_engine import ESCALATION_MODEL
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine as E
+
+        first = ("mock", E.REPAIR_ATTEMPTS, E.REPAIR_CONCURRENCY, False)
+        self.assertEqual(E(escalation_model="qwen3:8b")._repair_tiers(),
+                         [first, ("qwen3:8b", E.ESCALATION_ATTEMPTS, 1, True)])  # thinking off for a reasoning model
+        self.assertFalse(E(escalation_model="deepseek-coder:6.7b")._repair_tiers()[1].no_thinking)
+        self.assertEqual(E(escalation_model="")._repair_tiers(), [first])
+        self.assertEqual(E(escalation_model="mock")._repair_tiers(), [first])
+        # An explicit mock run must never reach a real model.
+        self.assertEqual(E(model="mock", escalation_model="qwen3:8b")._repair_tiers(), [first])
+        with patch.dict(os.environ, {"SALEHA_ESCALATION_MODEL": "deepseek-r1:7b"}):
+            self.assertEqual(E().escalation_model, "deepseek-r1:7b")
+        with patch.dict(os.environ):
+            os.environ.pop("SALEHA_ESCALATION_MODEL", None)
+            self.assertEqual(E().escalation_model, ESCALATION_MODEL)
 
 
 if __name__ == "__main__":

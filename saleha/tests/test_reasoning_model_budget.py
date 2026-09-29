@@ -20,6 +20,7 @@ in the provider, once.
 """
 
 import unittest
+from typing import Any, Dict
 
 from saleha.core.platform.model_provider import (
     OllamaProvider,
@@ -129,6 +130,33 @@ class ProviderAppliesTheBudgetTests(unittest.TestCase):
     def test_stream_generate_also_grows_a_reasoning_budget(self) -> None:
         sent = self._options_sent("stream", "qwen3:8b", {"num_predict": 32})
         self.assertGreaterEqual(sent.get("num_predict", 0), 2048)
+
+
+class CoderThinkingSwitchTests(unittest.TestCase):
+    """CoderAgent.generate_code can turn a reasoning model's thinking off.
+
+    qwen3:8b with thinking on did not answer a repair prompt within the 300 s
+    timeout on this box; the swarm's escalation tier needs the switch.
+    """
+
+    def _sent(self, **kwargs: bool) -> Dict[str, Any]:
+        from unittest.mock import patch
+
+        from saleha.agents.coder import CoderAgent
+        from saleha.core.platform.model_provider import ProviderResponse
+
+        agent = CoderAgent(model="qwen3:8b", provider=OllamaProvider(base_url="http://ollama.test"))
+        answer = ProviderResponse(True, "```python\ndef f():\n    return 1\n```")
+        with patch.object(OllamaProvider, "generate", return_value=answer) as generate:
+            res = agent.generate_code("write f", **kwargs)
+        self.assertTrue(res.success)
+        return dict(generate.call_args.kwargs)
+
+    def test_thinking_stays_on_unless_asked(self) -> None:
+        self.assertFalse(self._sent()["disable_reasoning"])
+
+    def test_disable_reasoning_reaches_the_provider(self) -> None:
+        self.assertTrue(self._sent(disable_reasoning=True)["disable_reasoning"])
 
 
 if __name__ == "__main__":

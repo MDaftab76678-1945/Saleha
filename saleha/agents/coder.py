@@ -86,7 +86,13 @@ class CoderAgent(BaseAgent):
 
     def generate_code(self, task: str, plan: str = "", attempt: int = 1,
                       complexity_score: float = 0.0, language: str = "auto",
-                      on_token=None) -> CodeResult:
+                      on_token=None, disable_reasoning: bool = False) -> CodeResult:
+        """
+        `disable_reasoning` turns off a reasoning model's thinking (non-streaming
+        calls only). Measured on this box: qwen3:8b with thinking left on did not
+        answer a repair prompt within the 300 s timeout (6.7 tokens/s, most of
+        the model on the CPU); with it off, the same prompt took ~19 s.
+        """
         if language == "auto":
             language = self.detect_language(task)
         lang_rules = self.LANGUAGE_RULES.get(language, self.LANGUAGE_RULES["python"])
@@ -107,7 +113,11 @@ Rules:
             response: AgentResponse = self.think_stream(prompt, on_token=on_token,
                                                         complexity_score=complexity_score)
         else:
-            response = self.think(prompt, complexity_score=complexity_score)
+            # The flag is only passed when asked for: the call is otherwise unchanged.
+            if disable_reasoning:
+                response = self.think(prompt, complexity_score=complexity_score, disable_reasoning=True)
+            else:
+                response = self.think(prompt, complexity_score=complexity_score)
 
         if not response.success:
             return CodeResult(
