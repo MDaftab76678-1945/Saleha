@@ -161,6 +161,33 @@ class SwarmPipelineEngine:
         )
         return True
 
+    def _oracle_check(self, goal: str, code: str) -> Optional[Dict[str, Any]]:
+        """
+        Evidence that does not come from the same model-written tests: ask for
+        a brute-force version and an input generator, then compare outputs on
+        random inputs (verification/oracle_check). None when the goal names no
+        function (`name(`), so there is nothing to call.
+        """
+        from saleha.agents.coder import CoderAgent
+        from saleha.core.verification.oracle_check import (
+            GENERATOR_PROMPT,
+            ORACLE_PROMPT,
+            differential_check,
+            entry_point,
+        )
+        entry = entry_point(goal)
+        if entry is None:
+            return None
+        coder = CoderAgent(model=self._resolve_model("coder"))
+        oracle = coder.generate_code(ORACLE_PROMPT.format(task=goal))
+        gen = coder.generate_code(GENERATOR_PROMPT.format(task=goal, entry=entry))
+        if not (oracle.success and oracle.code.strip() and gen.success and gen.code.strip()):
+            return {"ran": False, "supported": False, "mismatch": "",
+                    "reason": "model gave no brute-force version or input generator"}
+        v = differential_check(code, oracle.code, gen.code, entry)
+        return {"ran": True, "supported": v.supported, "checked": v.checked,
+                "mismatch": v.mismatch, "reason": v.reason}
+
     def _resolve_model(self, task_role: str) -> str:
         """Dynamically resolves model: uses test mock when in test mode or explicitly requested,
         otherwise routes to real local models via smart_router."""
@@ -331,6 +358,12 @@ class SwarmPipelineEngine:
                     run = TestRunner().run_suite(source_code, test_code=suite.test_code, timeout=15)
                     tests_ran = run.ran > 0
                     tests_passed = run.passed
+                    # The tests come from the same model as the code and share
+                    # its blind spots; a concrete input where the code differs
+                    # from a brute-force version overrides their pass.
+                    oracle = self._oracle_check(goal, source_code) if tests_passed else None
+                    if oracle and oracle["mismatch"]:
+                        tests_passed = False
                     contract = QAOutputContract(
                         framework=suite.framework,
                         test_code=suite.test_code,
@@ -340,9 +373,16 @@ class SwarmPipelineEngine:
                     contract.validate()
                     if not tests_passed:
                         stage.status = "failed"
+                    if oracle and oracle["mismatch"]:
+                        verdict_text = f"tests passed, but differs from a brute-force version: {oracle['mismatch']}"
+                    elif tests_passed:
+                        verdict_text = "PASSED" + (
+                            f"; matches a brute-force version on {oracle['checked']} random inputs"
+                            if oracle and oracle["supported"] else "")
+                    else:
+                        verdict_text = "FAILED (" + run.failure_report(200) + ")"
                     stage.output_summary = (
-                        f"Ran {run.ran} model-written test(s) against the generated code: "
-                        f"{'PASSED' if tests_passed else 'FAILED (' + run.failure_report(200) + ')'}"
+                        f"Ran {run.ran} model-written test(s) against the generated code: {verdict_text}"
                     )
                     stage.payload = {
                         "test_code": suite.test_code,
@@ -352,6 +392,7 @@ class SwarmPipelineEngine:
                         # The tests come from a model too; this is not an
                         # independent check of the task.
                         "verified_by": "model-written tests",
+                        "oracle": oracle,
                     }
                     message_bus.publish(TestExecutionEvent(
                         sender_agent="QALeadAgent",

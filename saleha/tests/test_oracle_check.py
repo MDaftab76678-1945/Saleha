@@ -61,5 +61,45 @@ class OracleCheckTests(unittest.TestCase):
         self.assertIsNone(entry_point("Write a Python class `Trie` with `insert(word)`"))
 
 
+class SwarmOracleTests(unittest.TestCase):
+    """The swarm's QA stage asks for a brute-force version and compares."""
+
+    GOAL = "Write `lis_length(nums)`: length of the longest strictly increasing subsequence"
+    # Weak model-written suite: BUGGY passes it (no repeated values).
+    WEAK_TESTS = ("import unittest\nclass T(unittest.TestCase):\n"
+                  "    def test_basic(self):\n        self.assertEqual(lis_length([1, 3, 2, 4]), 3)\n")
+
+    def _run(self, code: str) -> tuple:
+        from unittest.mock import patch
+
+        from saleha.agents.coder import CodeResult
+        from saleha.agents.qa_lead import QATestSuite
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
+        from saleha.tests.swarm_stubs import stub_agents
+
+        outputs = iter([code, ORACLE, GEN])  # solution, brute-force version, generator
+        suite = QATestSuite(task=self.GOAL, framework="unittest", test_code=self.WEAK_TESTS,
+                            test_case_count=1, edge_cases_covered=[])
+        with stub_agents(), \
+             patch("saleha.agents.coder.CoderAgent.generate_code",
+                   side_effect=lambda *a, **k: CodeResult(success=True, code=next(outputs))), \
+             patch("saleha.agents.qa_lead.QALeadAgent.generate_test_suite", return_value=suite):
+            res = SwarmPipelineEngine().execute_swarm(self.GOAL)
+        return res, next(s for s in res.stages if s.agent_role == "QALead")
+
+    def test_brute_force_catches_code_the_weak_tests_pass(self) -> None:
+        res, qa = self._run(BUGGY)
+        self.assertFalse(res.tests_passed)
+        self.assertFalse(res.success)
+        self.assertIn("differs from a brute-force version", qa.output_summary)
+        self.assertTrue(qa.payload["oracle"]["mismatch"])
+
+    def test_correct_code_is_confirmed_by_brute_force(self) -> None:
+        res, qa = self._run(FAST)
+        self.assertTrue(res.tests_passed, qa.output_summary)
+        self.assertTrue(qa.payload["oracle"]["supported"])
+        self.assertIn("matches a brute-force version", qa.output_summary)
+
+
 if __name__ == "__main__":
     unittest.main()

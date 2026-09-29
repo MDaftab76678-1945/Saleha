@@ -11594,3 +11594,17 @@ Compare arms only within one session.
 Conclusion: self-written lessons do not measurably help the 3B on held-out
 tasks yet; nothing was wired into the Coder's prompt. 12 held-out tasks
 cannot resolve a one-task effect.
+
+## Pass 166 (2026-09-29) -- swarm checks its code against a brute-force version
+
+Built: the swarm QA stage, when the goal names a function (`name(`), now asks the
+model for a brute-force version plus an input generator and runs
+`verification/oracle_check.differential_check`. A concrete mismatch overrides a
+pass from the model-written tests (same model, same blind spots). "Could not
+vouch" (bad generator, no oracle) leaves the test verdict alone and says so.
+Before this, oracle_check had no caller outside its tests.
+
+Real run, qwen2.5-coder:3b, LIS task: buggy `bisect_right` version caught on
+`[-26, 75, 75, -53]` (brute force 2, candidate 3). Correct version: not vouched,
+the model generator failed 107/200 draws -- reported, not counted as a pass.
+Tests: 2 new in test_oracle_check.py, both fail with the engine change stashed.
