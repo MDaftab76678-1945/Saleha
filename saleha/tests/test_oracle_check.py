@@ -69,7 +69,7 @@ class SwarmOracleTests(unittest.TestCase):
     WEAK_TESTS = ("import unittest\nclass T(unittest.TestCase):\n"
                   "    def test_basic(self):\n        self.assertEqual(lis_length([1, 3, 2, 4]), 3)\n")
 
-    def _run(self, code: str) -> tuple:
+    def _run(self, code: str, *gens: str) -> tuple:
         from unittest.mock import patch
 
         from saleha.agents.coder import CodeResult
@@ -77,7 +77,7 @@ class SwarmOracleTests(unittest.TestCase):
         from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
         from saleha.tests.swarm_stubs import stub_agents
 
-        outputs = iter([code, ORACLE, GEN])  # solution, brute-force version, generator
+        outputs = iter([code, ORACLE, *(gens or (GEN,))])  # solution, brute-force version, generator(s)
         suite = QATestSuite(task=self.GOAL, framework="unittest", test_code=self.WEAK_TESTS,
                             test_case_count=1, edge_cases_covered=[])
         with stub_agents(), \
@@ -99,6 +99,12 @@ class SwarmOracleTests(unittest.TestCase):
         self.assertTrue(res.tests_passed, qa.output_summary)
         self.assertTrue(qa.payload["oracle"]["supported"])
         self.assertIn("matches a brute-force version", qa.output_summary)
+
+    def test_a_crashing_generator_is_replaced(self) -> None:
+        crashing = "def gen(rng):\n    raise ValueError('bad draw')\n"
+        res, qa = self._run(FAST, crashing, GEN)
+        self.assertTrue(qa.payload["oracle"]["supported"], qa.payload["oracle"])
+        self.assertEqual(qa.payload["oracle"]["generator_attempts"], 2)
 
 
 if __name__ == "__main__":

@@ -11608,3 +11608,11 @@ Real run, qwen2.5-coder:3b, LIS task: buggy `bisect_right` version caught on
 `[-26, 75, 75, -53]` (brute force 2, candidate 3). Correct version: not vouched,
 the model generator failed 107/200 draws -- reported, not counted as a pass.
 Tests: 2 new in test_oracle_check.py, both fail with the engine change stashed.
+
+## Pass 167 (2026-09-29) -- a crashing input generator is replaced, not trusted
+
+Pass 166 left correct code unvouched when the model generator crashed on 107/200
+draws. The swarm now asks for a fresh generator (up to 3) until the check either
+vouches or finds a mismatch. Real run, qwen2.5-coder:3b: buggy LIS caught on
+`[-9, 76, 89, 89]`; correct LIS matched the brute-force version on 200/200 inputs.
+New test fails with the engine change stashed.

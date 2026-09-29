@@ -100,6 +100,8 @@ class AutonomousSwarmRouter:
 class SwarmPipelineEngine:
     """Executes Dynamic Multi-Agent DAG Pipelines with Checkpointing & Session Resumption."""
 
+    GENERATOR_ATTEMPTS = 3
+
     def __init__(self, router: Optional[AutonomousSwarmRouter] = None, model: str = "auto",
                  candidates: int = 1):
         self.router = router or AutonomousSwarmRouter()
@@ -180,13 +182,24 @@ class SwarmPipelineEngine:
             return None
         coder = CoderAgent(model=self._resolve_model("coder"))
         oracle = coder.generate_code(ORACLE_PROMPT.format(task=goal))
-        gen = coder.generate_code(GENERATOR_PROMPT.format(task=goal, entry=entry))
-        if not (oracle.success and oracle.code.strip() and gen.success and gen.code.strip()):
+        if not (oracle.success and oracle.code.strip()):
             return {"ran": False, "supported": False, "mismatch": "",
-                    "reason": "model gave no brute-force version or input generator"}
-        v = differential_check(code, oracle.code, gen.code, entry)
-        return {"ran": True, "supported": v.supported, "checked": v.checked,
-                "mismatch": v.mismatch, "reason": v.reason}
+                    "reason": "model gave no brute-force version"}
+        # A 3B model's generator often crashes on part of its draws (real run:
+        # 107/200), leaving too few inputs to vouch. A fresh generator is cheap
+        # and changes nothing that was already decided.
+        result: Dict[str, Any] = {"ran": False, "supported": False, "mismatch": "",
+                                  "reason": "model gave no input generator"}
+        for attempt in range(1, self.GENERATOR_ATTEMPTS + 1):
+            gen = coder.generate_code(GENERATOR_PROMPT.format(task=goal, entry=entry))
+            if not (gen.success and gen.code.strip()):
+                continue
+            v = differential_check(code, oracle.code, gen.code, entry)
+            result = {"ran": True, "supported": v.supported, "checked": v.checked,
+                      "mismatch": v.mismatch, "reason": v.reason, "generator_attempts": attempt}
+            if v.supported or v.mismatch:
+                break
+        return result
 
     def _resolve_model(self, task_role: str) -> str:
         """Dynamically resolves model: uses test mock when in test mode or explicitly requested,
