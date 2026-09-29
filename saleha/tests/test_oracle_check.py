@@ -126,7 +126,11 @@ class SwarmOracleTests(unittest.TestCase):
         self.assertEqual(res.final_code, FAST)
         self.assertTrue(res.tests_passed, qa.output_summary)
         self.assertIn("after fixing its failure on", qa.output_summary)
-        self.assertEqual(qa.payload["oracle"]["repair_attempts"], 1)
+        # Attempts run in parallel; the others find the outputs used up and
+        # count as "did not run" while the fix is being verified.
+        from saleha.core.swarm.swarm_pipeline_engine import SwarmPipelineEngine
+        self.assertLessEqual(qa.payload["oracle"]["repair_attempts"], SwarmPipelineEngine.REPAIR_ATTEMPTS)
+        self.assertIn("passed", qa.payload["oracle"]["repair_search"])
 
     def test_a_fix_that_still_differs_is_not_accepted(self) -> None:
         worse = "def lis_length(nums):\n    return len(nums)\n"

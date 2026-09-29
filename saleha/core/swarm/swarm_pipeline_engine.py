@@ -113,7 +113,8 @@ class SwarmPipelineEngine:
     """Executes Dynamic Multi-Agent DAG Pipelines with Checkpointing & Session Resumption."""
 
     GENERATOR_ATTEMPTS = 3
-    REPAIR_ATTEMPTS = 3
+    REPAIR_ATTEMPTS = 6
+    REPAIR_CONCURRENCY = 3
 
     def __init__(self, router: Optional[AutonomousSwarmRouter] = None, model: str = "auto",
                  candidates: int = 1):
@@ -225,29 +226,47 @@ class SwarmPipelineEngine:
         model's word. None when no attempt did.
         """
         from saleha.agents.coder import CoderAgent
-        from saleha.core.harness.test_runner import TestRunner
+        from saleha.core.harness.test_runner import TestRunner, TestSuiteResult
         from saleha.core.verification.oracle_check import differential_check
+        from saleha.core.verification.verified_search import Outcome, Verification, VerifiedSearch
 
-        coder = CoderAgent(model=self._resolve_model("coder"))
+        model = self._resolve_model("coder")
         # The generated input, not the shrunk one: on qwen2.5-coder:3b (LIS bug,
         # 10 tries each) the full input led to 2 fixes, the shrunk [7, 7] to 0,
         # both together to 1. The shrunk one is for the human-readable report.
-        mismatch = oracle.get("first_mismatch") or oracle["mismatch"]
-        for attempt in range(1, self.REPAIR_ATTEMPTS + 1):
-            fix = coder.generate_code(REPAIR_PROMPT.format(task=goal, code=code, mismatch=mismatch,
-                                                           oracle=oracle["oracle_code"]))
-            if not (fix.success and fix.code.strip()) or fix.code.strip() == code.strip():
-                continue
-            run = TestRunner().run_suite(fix.code, test_code=test_code, timeout=15)
+        prompt = REPAIR_PROMPT.format(task=goal, code=code,
+                                      mismatch=oracle.get("first_mismatch") or oracle["mismatch"],
+                                      oracle=oracle["oracle_code"])
+
+        def source(_: int) -> str:
+            # One agent per call: attempts run on separate threads.
+            fix = CoderAgent(model=model).generate_code(prompt)
+            return fix.code if fix.success else ""
+
+        runs: Dict[str, TestSuiteResult] = {}
+        checked: Dict[str, int] = {}
+
+        def verifier(candidate: str) -> Verification:
+            run = TestRunner().run_suite(candidate, test_code=test_code, timeout=15)
             if not run.passed:
-                continue
-            v = differential_check(fix.code, oracle["oracle_code"], oracle["generator_code"], oracle["entry"])
+                return Verification(Outcome.FAILED, "tests: " + run.failure_report(120))
+            v = differential_check(candidate, oracle["oracle_code"], oracle["generator_code"],
+                                   oracle["entry"])
             if v.supported:
-                return {"code": fix.code, "run": run, "checked": v.checked, "attempts": attempt,
-                        "fixed_mismatch": oracle["mismatch"]}
+                runs[candidate], checked[candidate] = run, v.checked
+                return Verification(Outcome.PASSED, f"matches brute force on {v.checked} inputs")
             if v.mismatch:
-                code, mismatch = fix.code, v.first_mismatch or v.mismatch  # next attempt sees the newest counterexample
-        return None
+                return Verification(Outcome.FAILED, v.mismatch)
+            return Verification(Outcome.DID_NOT_RUN, v.reason)
+
+        search = VerifiedSearch(source, verifier, budget=self.REPAIR_ATTEMPTS,
+                                concurrency=self.REPAIR_CONCURRENCY, known=[code]).run()
+        if not search.winner:
+            return None
+        fixed = search.winner.code
+        return {"code": fixed, "run": runs[fixed], "checked": checked[fixed],
+                "attempts": search.attempted, "fixed_mismatch": oracle["mismatch"],
+                "search": search.summary()}
 
     def _resolve_model(self, task_role: str) -> str:
         """Dynamically resolves model: uses test mock when in test mode or explicitly requested,
@@ -437,7 +456,7 @@ class SwarmPipelineEngine:
                         tests_passed = run.passed
                         oracle = {**(oracle or {}), "mismatch": "", "supported": True,
                                   "checked": repair["checked"], "repaired_from": repair["fixed_mismatch"],
-                                  "repair_attempts": repair["attempts"]}
+                                  "repair_attempts": repair["attempts"], "repair_search": repair["search"]}
                     contract = QAOutputContract(
                         framework=suite.framework,
                         test_code=suite.test_code,
