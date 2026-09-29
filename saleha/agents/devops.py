@@ -20,6 +20,10 @@ class DevOpsPipelineSpec:
     github_actions_workflow: str
     nginx_conf: str
     model_used: str = ""
+    # Always True: no model is called; fixed scaffold, not a design for
+    # this project. The Dockerfile CMD runs Saleha's own web server --
+    # replace it with the project's own entrypoint.
+    is_template: bool = True
 
 
 class DevOpsAgent(BaseAgent):
@@ -33,9 +37,11 @@ class DevOpsAgent(BaseAgent):
         project_name: str,
         runtime: str = "python:3.12-slim"
     ) -> DevOpsPipelineSpec:
-        """Synthesizes complete containerization and automated deployment pipelines."""
+        """Returns a fixed deployment scaffold. No model is called."""
         dockerfile = f"""# ==============================================================================
-# Production Multi-Stage Dockerfile for: {project_name}
+# Scaffold (no model called) for: {project_name}
+# NOTE: CMD below runs Saleha's own web server. Replace it with this
+# project's own entrypoint before deploying anything.
 # ==============================================================================
 
 FROM {runtime} AS builder

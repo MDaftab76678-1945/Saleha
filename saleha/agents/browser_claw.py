@@ -47,63 +47,40 @@ class SovereignClawAgent(BaseAgent):
         res = self.crawl_and_extract(prompt)
         duration = (time.perf_counter() - start) * 1000
 
-        content = f"""### 🦅 Sovereign Claw Navigation Result: {res.target_url}
-- **Page Title**: {res.page_title} (HTTP {res.http_status})
-- **Elements Scanned**: {res.dom_elements_scanned} DOM nodes
-- **Actions Executed**: {len(res.action_trace)} steps ({res.execution_time_ms}ms)
-
-```json
-{res.extracted_data}
-```
+        content = f"""Sovereign Claw Navigation Result: {res.target_url}
+- No page was fetched: this agent has no HTTP or browser backend.
+- Actions Executed: {len(res.action_trace)} steps ({res.execution_time_ms}ms)
 """
         return AgentResponse(
             success=True,
             content=content,
-            model_used="DeepSeek-R1",
+            model_used="template (no browsing backend)",
             response_time=duration,
-            tokens_used=380,
+            tokens_used=0,
         )
 
     def crawl_and_extract(self, target_or_task: str) -> ClawExecutionResult:
-        """Executes autonomous navigation and structured DOM data extraction."""
+        """No browsing happens: returns an explicitly empty result naming
+        the URL that would be visited. The previous version returned a
+        fixed action trace, fixed metrics and sample records for every
+        input -- measurements of nothing."""
         start = time.perf_counter()
         clean = target_or_task.strip()
-        
+
         # Determine URL
         if clean.startswith("http://") or clean.startswith("https://"):
             url = clean
         else:
             url = f"https://docs.saleha.ai/search?q={urllib.parse.quote_plus(clean)}"
 
-        actions = [
-            BrowserAction(step_number=1, action_type="navigate", target_selector=url, status="OK", duration_ms=18.4),
-            BrowserAction(step_number=2, action_type="wait_for_dom", target_selector="body main", status="OK", duration_ms=6.1),
-            BrowserAction(step_number=3, action_type="extract_structured_data", target_selector="article, h1, p, table", status="OK", duration_ms=12.2),
-        ]
-
-        extracted = {
-            "source_url": url,
-            "headline": f"Autonomous Extraction for: {clean}",
-            "summary": "Successfully parsed DOM tree without security leaks or bot detection blockers.",
-            "metrics": {
-                "security_status": "TLS 1.3 Verified",
-                "content_length_bytes": 14280,
-                "structured_tables": 2,
-            },
-            "sample_records": [
-                {"id": 1, "topic": "Invariant Testing", "status": "Passing"},
-                {"id": 2, "topic": "AST Patching", "status": "Deterministic"},
-            ]
-        }
-
         duration = (time.perf_counter() - start) * 1000
         return ClawExecutionResult(
             target_url=url,
-            page_title=f"Extracted: {clean[:40]}",
-            http_status=200,
-            extracted_data=extracted,
-            action_trace=actions,
-            dom_elements_scanned=1420,
+            page_title=f"Not fetched: {clean[:40]}",
+            http_status=0,
+            extracted_data={},
+            action_trace=[],
+            dom_elements_scanned=0,
             execution_time_ms=round(duration, 2),
         )
 

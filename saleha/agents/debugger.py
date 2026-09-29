@@ -8,31 +8,31 @@ from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 @dataclass
 class DebugResult:
-	success: bool
-	diagnosis: str = ""
-	fixed_code: str = ""
-	error: str = ""
-	model_used: str = ""
+    success: bool
+    diagnosis: str = ""
+    fixed_code: str = ""
+    error: str = ""
+    model_used: str = ""
 
 
 class DebuggerAgent(BaseAgent):
-	"""Use the model to explain an error and produce a corrected code version."""
+    """Use the model to explain an error and produce a corrected code version."""
 
-	def __init__(self, model: str = "auto", provider=None):
-		super().__init__(role="Debugger", model=model, provider=provider)
-		# Function-local: saleha.core.loop's __init__ imports the deliberation
-		# engine, which imports this module -- a module-level import is a cycle.
-		from saleha.core.loop.self_healing import SelfHealingEngine
-		self.healing_engine = SelfHealingEngine()
+    def __init__(self, model: str = "auto", provider=None):
+        super().__init__(role="Debugger", model=model, provider=provider)
+        # Function-local: saleha.core.loop's __init__ imports the deliberation
+        # engine, which imports this module -- a module-level import is a cycle.
+        from saleha.core.loop.self_healing import SelfHealingEngine
+        self.healing_engine = SelfHealingEngine()
 
-	def debug_code(self, task: str, code: str, error_log: str) -> DebugResult:
-		if not code.strip():
-			return DebugResult(success=False, error="Code is empty.")
-		if not error_log.strip():
-			return DebugResult(success=False, error="Error log is empty.")
+    def debug_code(self, task: str, code: str, error_log: str) -> DebugResult:
+        if not code.strip():
+            return DebugResult(success=False, error="Code is empty.")
+        if not error_log.strip():
+            return DebugResult(success=False, error="Error log is empty.")
 
-		healing = self.healing_engine.analyze_and_heal(error_log, task)
-		prompt = f"""You are an expert Python debugger.
+        healing = self.healing_engine.analyze_and_heal(error_log, task)
+        prompt = f"""You are an expert Python debugger.
 
 Task: {task}
 Error log:
@@ -57,24 +57,24 @@ FIXED_CODE:
 the complete corrected code
 ```
 """
-		response: AgentResponse = self.think(prompt)
-		if not response.success:
-			return DebugResult(success=False, error=response.error_message, model_used=response.model_used)
+        response: AgentResponse = self.think(prompt)
+        if not response.success:
+            return DebugResult(success=False, error=response.error_message, model_used=response.model_used)
 
-		diagnosis_match = re.search(r"^DIAGNOSIS:\s*(.+)$", response.content, re.MULTILINE | re.IGNORECASE)
-		fixed_code = self._extract_code(response.content)
-		diagnosis = diagnosis_match.group(1).strip() if diagnosis_match else ""
-		if not fixed_code:
-			return DebugResult(success=False, diagnosis=diagnosis, error="Model returned no corrected code.", model_used=response.model_used)
+        diagnosis_match = re.search(r"^DIAGNOSIS:\s*(.+)$", response.content, re.MULTILINE | re.IGNORECASE)
+        fixed_code = self._extract_code(response.content)
+        diagnosis = diagnosis_match.group(1).strip() if diagnosis_match else ""
+        if not fixed_code:
+            return DebugResult(success=False, diagnosis=diagnosis, error="Model returned no corrected code.", model_used=response.model_used)
 
-		return DebugResult(
-			success=True,
-			diagnosis=diagnosis,
-			fixed_code=fixed_code,
-			model_used=response.model_used,
-		)
+        return DebugResult(
+            success=True,
+            diagnosis=diagnosis,
+            fixed_code=fixed_code,
+            model_used=response.model_used,
+        )
 
-	@staticmethod
-	def _extract_code(response: str) -> str:
-		match = re.search(r"```(?:python)?\s*(.*?)\s*```", response, re.DOTALL | re.IGNORECASE)
-		return match.group(1).strip() if match else ""
+    @staticmethod
+    def _extract_code(response: str) -> str:
+        match = re.search(r"```(?:python)?\s*(.*?)\s*```", response, re.DOTALL | re.IGNORECASE)
+        return match.group(1).strip() if match else ""

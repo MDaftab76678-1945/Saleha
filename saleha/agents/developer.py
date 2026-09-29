@@ -49,9 +49,18 @@ Requirements:
         resp: AgentResponse = self.think(prompt)
 
         code_match = re.search(r"```(?:\w+)?\n([\s\S]*?)```", resp.content or "")
-        code = code_match.group(1).strip() if code_match else (resp.content or f"# Feature: {task}\n\ndef execute():\n    return 'success'\n")
-
-        filename = f"{task.lower().replace(' ', '_')[:25]}.py" if language.lower() == "python" else f"{task.lower().replace(' ', '_')[:25]}.ts"
+        # Nothing is written to disk by this method, so files_created stays
+        # empty: claiming a filename here previously read as "file created".
+        # When the model returns no code, the fallback is an explicitly
+        # labeled placeholder, not a passing implementation.
+        if code_match:
+            code = code_match.group(1).strip()
+        elif resp.content and resp.content.strip():
+            code = resp.content.strip()
+        else:
+            code = (f"# Offline placeholder for: {task}\n# No model produced code; "
+                    "this stub does nothing.\n\ndef execute():\n    raise NotImplementedError("
+                    "\"placeholder -- no implementation generated\")\n")
 
         deps = ["pydantic", "fastapi"] if language.lower() == "python" else ["typescript", "zod"]
 
@@ -59,7 +68,7 @@ Requirements:
             task=task,
             language=language,
             source_code=code,
-            files_created=[filename],
+            files_created=[],
             dependencies=deps,
             model_used=resp.model_used
         )

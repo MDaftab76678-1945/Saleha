@@ -58,13 +58,15 @@ class TestScreenCopilotAgent:
         res = agent.execute("Fix mobile flex wrapping and low contrast buttons")
         assert res.success is True
         assert "ScreenCopilotAgent" in res.content
-        assert "Remediation Code & React JSX Patch" in res.content
+        assert "No screen was inspected" in res.content
 
     def test_inspect_screen_and_fix(self) -> None:
         result = screen_copilot.inspect_screen_and_fix("Navbar mobile breakpoint")
-        assert len(result.detected_glitches) >= 2
-        assert "RemediatedCard" in result.remediation_code_diff
-        assert result.contrast_ratio_wcag_passed is True
+        # Nothing is inspected: the old asserts (fixed glitches, fixed
+        # patch, WCAG True) pinned invented measurements.
+        assert result.detected_glitches == []
+        assert result.remediation_code_diff == ""
+        assert result.contrast_ratio_wcag_passed is False
 
 
 class TestSwarmClusterNode:

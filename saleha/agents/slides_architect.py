@@ -48,13 +48,14 @@ class SlidesArchitectAgent(BaseAgent):
         return AgentResponse(
             success=True,
             content=deck.marp_markdown,
-            model_used="DeepSeek-R1",
+            model_used="template (no model called)",
             response_time=duration,
-            tokens_used=512,
+            tokens_used=0,
         )
 
     def synthesize_deck(self, topic: str) -> SlideDeck:
-        """Synthesizes a full multi-slide deck from a topic or document."""
+        """Assembles a 4-slide starter deck. No model is called and no
+        benchmarks were run: the bullets are placeholders to replace."""
         start = time.perf_counter()
         clean_topic = topic.strip()
 
@@ -88,15 +89,14 @@ class SlidesArchitectAgent(BaseAgent):
             ),
             SlideItem(
                 slide_number=3,
-                title="Key Performance Benchmarks",
-                subtitle="Deterministic Sub-Millisecond Execution",
+                title="Key Points",
+                subtitle="What this deck covers",
                 bullet_points=[
-                    "Sub-300ms End-to-End Multi-Agent DAG Execution",
-                    "0.00% Token Waste via Write-Ahead Log Checkpoints",
-                    "256MB RAM / 1.0 CPU CGroup Container Sandboxing",
-                    "100.0% Pass Rate across 850+ Unit & Invariant Assertions",
+                    "The topic, in the audience's terms",
+                    "The main design choice and its tradeoff",
+                    "What is still unverified (no benchmarks were run)",
                 ],
-                speaker_notes="Highlight the competitive performance advantages over traditional cloud wrappers.",
+                speaker_notes="Replace these placeholder bullets with the real points.",
             ),
             SlideItem(
                 slide_number=4,

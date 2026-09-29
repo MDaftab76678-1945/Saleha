@@ -133,7 +133,9 @@ class NewPythonAgentsTests(unittest.TestCase):
         output = self.developer.develop_feature("Create user registration endpoint", language="python")
         self.assertEqual(output.language, "python")
         self.assertTrue(len(output.source_code) > 0)
-        self.assertIn(".py", output.files_created[0])
+        # Nothing is written to disk by develop_feature: an entry here
+        # previously asserted a filename, reading as "file created".
+        self.assertEqual(output.files_created, [])
 
     def test_skill_creator_agent_create_and_register_skill(self) -> None:
         res = self.skill_creator.create_and_register_skill(
@@ -141,9 +143,12 @@ class NewPythonAgentsTests(unittest.TestCase):
             domain="quantum_cryptography",
             description="Simulates BB84 protocol photon polarization states"
         )
-        self.assertTrue(res.registered_in_catalog)
+        # An untested draft must not land in the real catalog: the old
+        # assertion (registered True) pinned the pollution in place.
+        self.assertFalse(res.registered_in_catalog)
         self.assertEqual(res.domain, "quantum_cryptography")
         self.assertIn("def execute_skill", res.python_handler_snippet)
+        self.assertIn("NotImplementedError", res.python_handler_snippet)
 
     def test_web_dev_agent_build_web_application(self) -> None:
         output = self.web_dev.build_web_application("Real-Time Analytics Dashboard", framework="html5_css3")

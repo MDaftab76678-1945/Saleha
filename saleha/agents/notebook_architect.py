@@ -36,26 +36,21 @@ class NotebookArchitectAgent(BaseAgent):
         result = self.synthesize_notebook(prompt)
         duration = (time.perf_counter() - start) * 1000
 
-        content = f"""### 📓 Synthesized Interactive Notebook: {result.title}
-- **Total Cells**: {result.cell_count}
-- **Execution Engine**: Saleha Sovereign Ephemeral Sandbox
-- **Export Format**: Standard Jupyter `.ipynb` (nbformat v4.5)
-
-```json
-{result.ipynb_json[:500]}
-...
-```
+        content = f"""Synthesized starter notebook: {result.title}
+- Total Cells: {result.cell_count} (template cells -- replace with real analysis)
+- Export Format: Standard Jupyter `.ipynb` (nbformat v4.5)
 """
         return AgentResponse(
             success=True,
             content=content,
-            model_used="DeepSeek-R1",
+            model_used="template (no model called)",
             response_time=duration,
-            tokens_used=680,
+            tokens_used=0,
         )
 
     def synthesize_notebook(self, topic: str) -> NotebookSynthesisResult:
-        """Synthesizes a complete computational notebook for a given topic."""
+        """Assembles a 5-cell starter notebook. No model is called and
+        nothing is executed: cell contents are placeholders."""
         start = time.perf_counter()
         clean_topic = topic.strip() or "Autonomous Data Engineering"
 
@@ -63,57 +58,38 @@ class NotebookArchitectAgent(BaseAgent):
             NotebookCell(
                 cell_id="cell_01",
                 cell_type="markdown",
-                source=f"# 📓 {clean_topic}\n\n*Synthesized autonomously by Saleha Notebook Engine v2.8.0.*\n\n### Overview\nThis interactive computational notebook models and evaluates **{clean_topic}** with AST invariant proofs and container isolation.",
+                source=f"# {clean_topic}\n\n*Starter template: replace with real analysis.*",
             ),
             NotebookCell(
                 cell_id="cell_02",
                 cell_type="code",
-                source="""# [1/4] Environment & Invariant Initialization
-import sys
-import time
-
-print(f"🚀 Initialized Kernel: Python {sys.version.split()[0]}")
-print(f"🔒 Sandboxed Container: 256MB RAM / 1.0 CPU CGroups")""",
-                defined_variables=["sys", "time"],
+                source="""# [1/4] Setup (placeholder)
+# Replace with the real imports and configuration.
+print("setup placeholder")""",
+                defined_variables=[],
             ),
             NotebookCell(
                 cell_id="cell_03",
                 cell_type="sql",
-                source=f"""-- [2/4] High-Throughput Aggregation Query
-SELECT 
-    DATE_TRUNC(timestamp, DAY) as date,
-    COUNT(*) as total_samples,
-    ROUND(AVG(metric_score), 4) as avg_score
-FROM `saleha_telemetry.{clean_topic.lower().replace(' ', '_')}`
-GROUP BY 1
-ORDER BY 1 DESC
-LIMIT 10;""",
+                source="""-- [2/4] Query (placeholder)
+-- Replace with the real query against a real table.
+SELECT 1;""",
             ),
             NotebookCell(
                 cell_id="cell_04",
                 cell_type="code",
-                source=f"""# [3/4] Core Computation & AST-Validated Model
-class ModelPipeline:
-    def __init__(self, name: str = "{clean_topic}"):
-        self.name = name
-        self.fitted = True
-
-    def predict(self, val: float) -> float:
-        return val * 1.42
-
-pipeline = ModelPipeline()
-result = pipeline.predict(100.0)
-print(f"✅ Prediction Output: {{result}} (Model: {{pipeline.name}})")""",
-                defined_variables=["ModelPipeline", "pipeline", "result"],
-                referenced_variables=["clean_topic"],
+                source="""# [3/4] Computation (placeholder)
+# Replace with the real model or analysis.
+result = None
+print(result)""",
+                defined_variables=["result"],
+                referenced_variables=[],
             ),
             NotebookCell(
                 cell_id="cell_05",
                 cell_type="markdown",
-                source="""### 🎯 Summary & Invariant Verification
-- **AST Correctness**: 100% Deterministic (0 Syntax/Type Errors)
-- **Execution Safety**: Isolated in Ephemeral Container Sandbox
-- **Reactivity**: Dependency Graph verified across all 5 cells.""",
+                source="""### Summary (placeholder)
+- Nothing here was executed or verified. Fill in real results.""",
             ),
         ]
 

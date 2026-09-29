@@ -19,6 +19,8 @@ from saleha.agents.base_agent import BaseAgent
 class RefactorResult:
     original_code: str
     refactored_code: str
+    # True when a simplifying transform was kept -- not a measured McCabe
+    # delta. No kept transform (or a restore after a syntax break) is False.
     complexity_reduced: bool
     ast_valid: bool
     transformations_applied: List[str]
@@ -55,18 +57,31 @@ class RefactorSpecialistAgent(BaseAgent):
 
         # 4. Validate resulting AST
         ast_valid = False
+        restored = False
         try:
             ast.parse(refactored)
             ast_valid = True
         except SyntaxError:
-            refactored = code  # Fallback to original if transformation caused syntax invalidity
+            # The transforms broke the syntax: return the original and drop
+            # the transform claims with it. Reporting kept transforms for
+            # code that no longer contains them was the lie here.
+            refactored = code
+            transforms = []
+            restored = True
             ast_valid = True
+
+        if transforms:
+            claimed_transforms = transforms
+        elif restored:
+            claimed_transforms = ["No transform kept (the edit would have broken syntax); original returned"]
+        else:
+            claimed_transforms = ["No applicable transform found; code returned unchanged"]
 
         return RefactorResult(
             original_code=code,
             refactored_code=refactored,
             complexity_reduced=len(transforms) > 0,
             ast_valid=ast_valid,
-            transformations_applied=transforms or ["Applied PEP 8 code formatting and identifier clarity"],
+            transformations_applied=claimed_transforms,
             model_used=self.model_preference
         )

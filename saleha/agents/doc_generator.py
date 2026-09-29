@@ -94,7 +94,7 @@ class DocGeneratorAgent(BaseAgent):
 
         mermaid_diagram = f"""```mermaid
 graph TD
-    CLI[Saleha Unified CLI commands.py] --> Core[Saleha Core Engine]
+    CLI[Saleha Unified CLI] --> Core[Saleha Core Engine]
     CLI --> Agents[{agent_count_label}]
 
     subgraph "Agents Ecosystem"

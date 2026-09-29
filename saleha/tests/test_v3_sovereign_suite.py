@@ -102,7 +102,7 @@ class TestVoiceArchitectAgent:
     def test_synthesize_voice_commentary(self) -> None:
         result = voice_architect.synthesize_voice_commentary("Kafka EventBus Consumer")
         assert result.audio_duration_estimate_sec > 0
-        assert "hexagonal boundaries" in result.transcript
+        assert "Draft script" in result.transcript
         assert len(result.bullet_talking_points) >= 3
 
 

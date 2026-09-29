@@ -20,6 +20,8 @@ class DataPipelineSpec:
     etl_script_py: str
     target_tables: List[str]
     model_used: str = ""
+    # Always True: no model is called; fixed Postgres+pgvector scaffold.
+    is_template: bool = True
 
 
 class DataEngineerAgent(BaseAgent):
@@ -33,11 +35,14 @@ class DataEngineerAgent(BaseAgent):
         dataset_name: str,
         source_format: str = "json"
     ) -> DataPipelineSpec:
-        """Synthesizes high-throughput SQL schemas and ETL transformation code."""
+        """Returns a fixed Postgres+pgvector scaffold. No model is called:
+        the schema assumes a pgvector-enabled database and the ETL only
+        drops nulls -- adapt both to the real dataset."""
         clean_name = dataset_name.lower().replace(" ", "_")
 
         schema = f"""-- ==============================================================================
--- Schema for: {dataset_name}
+-- Scaffold (no model called) for: {dataset_name}
+-- Assumes Postgres with the pgvector extension (VECTOR, ivfflat).
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS {clean_name}_records (

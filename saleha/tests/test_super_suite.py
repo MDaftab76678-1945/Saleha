@@ -15,15 +15,17 @@ class TestDeepResearcherAgent:
         agent = DeepResearcherAgent()
         res = agent.execute("Distributed consensus in blockchain")
         assert res.success is True
-        assert "Key Empirical Findings" in res.content
-        assert res.tokens_used > 0
+        assert "No sources were fetched" in res.content
+        assert res.tokens_used == 0
 
     def test_conduct_research_structure(self) -> None:
         report = deep_researcher.conduct_research("Vector databases and ANN indexing")
         assert report.topic == "Vector databases and ANN indexing"
-        assert len(report.citations) >= 3
-        assert len(report.key_findings) >= 4
-        assert "Verified Citations" in report.full_markdown_report
+        # No sources are fetched: the old asserts (>=3 citations with
+        # hash-derived URLs, >=4 fixed findings) pinned invented academia.
+        assert report.citations == []
+        assert report.key_findings == []
+        assert "No sources were fetched" in report.full_markdown_report
         assert report.generation_time_ms >= 0
 
 
@@ -48,15 +50,16 @@ class TestSheetsAnalystAgent:
         res = agent.execute("Monthly API token usage and cost")
         assert res.success is True
         assert "Tabular Analysis" in res.content
-        assert "SELECT" in res.content
+        assert "no tabular source was provided" in res.content
 
     def test_analyze_tabular_query(self) -> None:
         res = sheets_analyst.analyze_tabular_query("Latency and Memory Spike Telemetry")
-        assert res.total_rows == 10000
-        assert len(res.columns) == 5
-        assert len(res.anomalies) >= 1
-        assert "APPROX_QUANTILES" in res.synthesized_sql_query
-        assert "Bucket Hour" in res.ascii_table_preview
+        # No tabular source is loaded: the old asserts (10000 rows, fixed
+        # anomalies at rows 482/8901) pinned an invented dataset.
+        assert res.total_rows == 0
+        assert res.columns == []
+        assert res.anomalies == []
+        assert "no tabular source" in res.synthesized_sql_query
 
 
 class TestSovereignClawAgent:
@@ -68,10 +71,12 @@ class TestSovereignClawAgent:
 
     def test_crawl_and_extract(self) -> None:
         res = browser_claw.crawl_and_extract("https://github.com/MDaftab76678-1945/Saleha")
-        assert res.http_status == 200
-        assert res.dom_elements_scanned >= 1000
-        assert len(res.action_trace) == 3
-        assert "metrics" in res.extracted_data
+        # No page is fetched: the old asserts (HTTP 200, >=1000 DOM nodes,
+        # fixed trace) pinned a fabricated browse.
+        assert res.http_status == 0
+        assert res.dom_elements_scanned == 0
+        assert res.action_trace == []
+        assert res.target_url == "https://github.com/MDaftab76678-1945/Saleha"
 
 
 class TestTaskSchedulerEngine:

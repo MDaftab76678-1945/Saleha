@@ -59,26 +59,36 @@ Provide:
         mitigations = [
             "Scale pod replicas to shed thread starvation backpressure.",
             "Restart stale database connections with exponential backoff.",
-            "Enable temporary circuit breaker on upstream external dependencies."
+            "Enable temporary circuit breaker on upstream external dependencies.",
         ]
 
-        runbook = resp.content if resp.success and resp.content else f"""# Incident Post-Mortem & Runbook ({sev})
+        if resp.success and resp.content and resp.content.strip():
+            runbook = resp.content
+            from_template = False
+        else:
+            from_template = True
+            runbook = f"""# Incident Runbook (template -- no model reviewed these logs, {sev})
 
-## Root Cause
-Connection pool exhaustion triggered under sudden traffic spike, causing cascaded timeouts.
+## What was actually observed
+The severity above comes from keyword matching on the log text, not
+from an investigation. The steps below are generic first responses,
+not a diagnosis of this incident.
 
-## Immediate Action
+## Generic first responses
 1. Flush stale Redis locks.
-2. Increment `max_connections` pool limit to 100.
-3. Deploy canary patch with active health check liveness probes.
+2. Check the connection pool limit and current usage before raising it.
+3. Deploy a canary patch with active health check liveness probes.
 """
 
         return IncidentRCA(
             severity=sev,
-            root_cause_summary=f"Incident diagnosed as {sev}: High error rate detected in subsystem logs.",
+            root_cause_summary=(f"Incident flagged as {sev} by log keyword matching. "
+                                "No root-cause investigation ran."
+                                if from_template else
+                                f"Incident diagnosed as {sev}: see runbook."),
             affected_components=components,
             mitigation_steps=mitigations,
-            slo_error_budget_impact="1.8% of monthly 99.99% error budget consumed.",
+            slo_error_budget_impact="Not measured on this incident.",
             runbook_md=runbook,
             model_used=resp.model_used
         )

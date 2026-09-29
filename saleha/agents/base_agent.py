@@ -1,10 +1,10 @@
 """
 Saleha Agents: Base Agent (v3.1 - Model Provider Abstraction)
 
-Naya vs pehle: Ollama se seedha baat karne ke bajaye ab `model_provider.py`
-ke through hota hai. Behavior bilkul same hai (same URL, same payload,
-same timeout) -- sirf ye ki agar kabhi backend badalna ho, sirf
-model_provider.py me naya provider likhna hoga, ye file chhedni nahi padegi.
+Talks to Ollama through `model_provider.py` instead of directly. Behavior
+is identical (same URL, same payload, same timeout) -- only the backend
+switch lives in one place now: to change backends, write a new provider in
+model_provider.py without touching this file.
 """
 import os
 import time
@@ -50,8 +50,8 @@ class BaseAgent:
         else:
             self.provider = provider or default_provider  # naya: pluggable backend
         self.task_counter = 0
-        # "auto" mode me runtime Ollama probing enable -- router sirf installed
-        # models choose karta hai (2026 catalog + adaptive candidate filtering).
+        # In "auto" mode the router picks only from installed models at
+        # runtime (2026 catalog + adaptive candidate filtering).
         if model == "auto":
             from saleha.core.platform.smart_router import SmartRouter
             self.router = SmartRouter(probe_runtime=True)
@@ -185,12 +185,12 @@ class BaseAgent:
                      complexity_score: float = 0.0) -> AgentResponse:
         """Token-level real-time streaming variant of think().
 
-        `on_token(str)` har token chunk par fire hota hai (Ollama NDJSON
-        stream). Response poora hoke wahi AgentResponse milti hai -- callers
-        tokens live print kar sakte hain bina downstream logic badle.
+        `on_token(str)` fires on every streamed token chunk (Ollama NDJSON
+        stream). The full AgentResponse is returned the same way, so callers
+        can print tokens live without changing downstream logic.
 
-        Provider stream support na kare to silently non-streaming generate
-        pe fallback (graceful degradation).
+        Falls back silently to non-streaming generate when the provider
+        does not support streaming (graceful degradation).
         """
         self.task_counter += 1
         start_time = time.time()
@@ -204,6 +204,25 @@ class BaseAgent:
         full_prompt = f"[UNIQUE TASK ID: {unique_task_id}]\n\n{prompt}"
         if previous_error_reflexion:
             full_prompt += f"\n\n[SALEHA SELF-HEALING INSTRUCTION]:\n{previous_error_reflexion}"
+
+        # Same context budget guard as think(): without it a long prompt is
+        # silently truncated by the runtime and nothing downstream can tell
+        # a cut answer from a real one.
+        context_trimmed_chars = 0
+        try:
+            from saleha.core.platform.context_budget import fit
+
+            fitted, budget = fit(full_prompt, selected_model,
+                                 reserve_output_tokens=1024,
+                                 window=getattr(self, "context_window", None))
+            if budget.trimmed:
+                context_trimmed_chars = budget.trimmed_chars
+                print(f"  [{self.role}] Prompt exceeded the context budget; "
+                      f"trimmed {budget.trimmed_chars} chars from the middle "
+                      f"({budget.describe()}).")
+                full_prompt = fitted
+        except Exception:
+            context_trimmed_chars = 0
 
         stream_fn = getattr(self.provider, "stream_generate", None)
         if callable(stream_fn):
@@ -242,6 +261,7 @@ class BaseAgent:
                 model_used=selected_model,
                 response_time=response_time,
                 tokens_used=tokens_used,
+                context_trimmed_chars=context_trimmed_chars,
             )
         return AgentResponse(
             success=False,
@@ -249,6 +269,7 @@ class BaseAgent:
             error_message=provider_result.error_message,
             model_used=selected_model,
             response_time=response_time,
+            context_trimmed_chars=context_trimmed_chars,
         )
 
     def run_in_pc(

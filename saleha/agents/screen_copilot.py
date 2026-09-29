@@ -34,60 +34,37 @@ class ScreenCopilotAgent(BaseAgent):
         duration = time.perf_counter() - start
 
         content = (
-            f"👁️ [ScreenCopilotAgent] Visual Layout Inspection for: \"{result.target_ui_description}\"\n\n"
-            f"🔍 **Detected UI Glitches & Invariants**:\n"
-            + "\n".join(f"- ⚠️ {g}" for g in result.detected_glitches)
-            + f"\n\n🎨 **Remediation Code & React JSX Patch**:\n```tsx\n{result.remediation_code_diff}\n```\n"
-            f"📱 **WCAG AA Contrast & Responsive Gate**: {'✅ PASS' if result.contrast_ratio_wcag_passed else '❌ FAIL'}"
+            f"[ScreenCopilotAgent] UI description received: \"{result.target_ui_description}\"\n\n"
+            f"No screen was inspected: this agent has no screenshot or browser "
+            f"backend, so there are no measured glitches and no verified fix.\n"
+            f"Remediation Code & React JSX Patch: (none -- nothing was observed)"
         )
 
         return AgentResponse(
             success=True,
             content=content,
-            model_used="Vision-Screen-Engine",
+            model_used="template (no vision backend)",
             response_time=duration,
-            tokens_used=len(content.split()) * 2,
+            tokens_used=0,
         )
 
     def inspect_screen_and_fix(self, ui_description_or_path: str) -> ScreenInspectionResult:
-        """Inspects UI layout and synthesizes pixel-perfect React/CSS fixes."""
+        """No screenshot is inspected: returns an explicitly empty result.
+
+        The previous version returned three fixed glitches, a fixed WCAG
+        verdict and a fixed patch for every input -- measurements of
+        nothing. Callers must treat an empty result as 'not checked',
+        never as clean or as failed.
+        """
         start = time.perf_counter()
-
-        glitches = [
-            "Horizontal overflow detected on viewport width < 768px (Missing max-w-full)",
-            "Text contrast ratio is 3.2:1 (Fails WCAG 2.1 AA minimum 4.5:1 requirement)",
-            "Unbounded vertical flex child causing layout jitter during async renders",
-        ]
-
-        patch_code = """// Remediated Responsive Container with WCAG AA Contrast
-export function RemediatedCard() {
-  return (
-    <div style={{
-      maxWidth: '100%',
-      overflowX: 'hidden',
-      backgroundColor: '#0c101a',
-      color: '#f8fafc', // 14.8:1 Contrast Ratio (AAA Passed)
-      padding: '1.25rem',
-      borderRadius: '12px',
-      border: '1px solid rgba(255,255,255,0.08)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '0.75rem',
-    }}>
-      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#38bdf8' }}>Verified UI Component</h3>
-      <p style={{ fontSize: '0.875rem', lineHeight: 1.6, color: '#94a3b8' }}>Layout perfectly responsive across Mobile, Tablet, and Desktop.</p>
-    </div>
-  );
-}"""
-
         duration_ms = (time.perf_counter() - start) * 1000
 
         return ScreenInspectionResult(
             target_ui_description=ui_description_or_path,
-            detected_glitches=glitches,
-            remediation_code_diff=patch_code,
-            responsive_breakpoints_checked=["375px (Mobile)", "768px (Tablet)", "1440px (Desktop)"],
-            contrast_ratio_wcag_passed=True,
+            detected_glitches=[],
+            remediation_code_diff="",
+            responsive_breakpoints_checked=[],
+            contrast_ratio_wcag_passed=False,
             inspection_time_ms=round(duration_ms, 2),
         )
 

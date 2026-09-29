@@ -23,6 +23,9 @@ class ArchitectureDesign:
     api_contracts: List[str]
     system_design_md: str
     model_used: str = ""
+    # True when no model answered and everything below is the offline
+    # template, not a design for this goal.
+    from_template: bool = False
 
 
 class ArchitectAgent(BaseAgent):
@@ -45,10 +48,29 @@ Output format:
 """
         resp: AgentResponse = self.think(prompt)
 
-        # Structured default fallback if LLM is offline or in mock mode
-        adr_content = resp.content if resp.success and resp.content else f"""# ADR: {goal}
+        if resp.success and resp.content and resp.content.strip():
+            # Components and contracts come from the model's answer: the
+            # lines it presents as components/endpoints, not a fixed list.
+            # Falls back to the template below when parsing finds nothing.
+            model_lines = [ln.strip(" -*\t") for ln in resp.content.splitlines()
+                           if ln.strip().strip("-* \t")]
+            comp_like = [ln for ln in model_lines
+                         if re.search(r"(?i)(service|gateway|repository|adapter|controller|broker|worker|api|database|cache|queue|handler|manager)", ln)]
+            ep_like = [ln for ln in model_lines
+                       if re.search(r"(GET|POST|PUT|PATCH|DELETE)\s+/\S+|endpoint|contract|/api/", ln, re.IGNORECASE)]
+            adr_content = resp.content
+            from_template = False
+        else:
+            comp_like, ep_like, adr_content = [], [], ""
+            from_template = True
 
-## Status: ACCEPTED
+        # Structured default fallback if LLM is offline or in mock mode.
+        # Labeled DRAFT template: the components below are a generic
+        # starting scaffold, not an analysis of this goal.
+        if from_template:
+            adr_content = f"""# ADR: {goal}
+
+## Status: DRAFT (offline template -- no model reviewed this goal)
 ## Architecture Pattern: Hexagonal (Ports & Adapters)
 ## Key Components:
 - API Gateway & Ingress Router
@@ -59,14 +81,14 @@ Output format:
         pattern_match = re.search(r"Pattern:\s*([^\n]+)", adr_content, re.IGNORECASE)
         pattern = pattern_match.group(1).strip() if pattern_match else "Hexagonal / Clean Architecture"
 
-        components = [
+        components = comp_like[:8] or [
             "API Ingress & Route Controller",
             "Domain Business Core Entities",
             "Persistence Repository Adapter",
             "Event Telemetry & Metric Publisher"
         ]
 
-        api_contracts = [
+        api_contracts = ep_like[:8] or [
             "POST /api/v1/commands - Execute Command Mutation",
             "GET /api/v1/queries - Fetch Read-Optimized Views",
             "GET /health - System Liveness & Readiness Probes"
@@ -79,5 +101,6 @@ Output format:
             components=components,
             api_contracts=api_contracts,
             system_design_md=adr_content,
-            model_used=resp.model_used
+            model_used=resp.model_used,
+            from_template=from_template,
         )

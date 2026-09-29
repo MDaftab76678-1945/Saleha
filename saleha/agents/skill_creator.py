@@ -37,27 +37,27 @@ class NewSkillCreatorAgent(BaseAgent):
         domain: str,
         description: str,
         keywords: Optional[List[str]] = None,
-        category: str = "engineering"
+        category: str = "engineering",
+        register: bool = False,
     ) -> CreatedSkillResult:
-        """Synthesizes an executable AgentSkill and indexes it into the SkillCatalog."""
+        """Builds a skill draft. Nothing is registered unless
+        ``register=True``: the generated handler is an untested echo stub,
+        and auto-registering it previously polluted the real catalog with
+        entries reporting ``"status": "success"`` for work never done."""
         clean_id = f"skill_{name.lower().replace(' ', '_').replace('-', '_')}"
         keys = keywords or [name.lower(), domain.lower(), "saleha", "automation"]
 
-        # 1. Python Execution Handler
+        # 1. Python Execution Handler (untested draft -- review before registering)
         py_handler = f"""# ==============================================================================
-# AgentSkill: {name} ({clean_id})
+# AgentSkill DRAFT (untested): {name} ({clean_id})
 # Domain: {domain} | Category: {category}
+# This echo stub always reports success. Implement the real logic and test
+# it before registering this skill anywhere.
 # ==============================================================================
 
 def execute_skill(context: dict) -> dict:
     \"\"\"{description}\"\"\"
-    params = context.get("params", {{}})
-    return {{
-        "status": "success",
-        "skill": "{clean_id}",
-        "domain": "{domain}",
-        "result": f"Executed {name} successfully with parameters: {{params}}"
-    }}
+    raise NotImplementedError("skill draft -- implement and test before use")
 """
 
         # 2. Markdown Skill Doc
@@ -78,23 +78,27 @@ def execute_skill(context: dict) -> dict:
 ```
 """
 
-        # 3. Register in SkillCatalog
-        new_skill = AgentSkill(
-            name=name,
-            domain=domain,
-            description=description,
-            trigger_keywords=keys,
-            input_schema={"type": "object", "properties": {"params": {"type": "object"}}},
-            output_schema={"type": "object", "properties": {"status": {"type": "string"}}},
-            tags=[domain, category]
-        )
-        skill_catalog.register_skill(new_skill)
+        # 3. Register in SkillCatalog -- only when explicitly asked, and
+        # never for an untested draft.
+        registered = False
+        if register:
+            new_skill = AgentSkill(
+                name=name,
+                domain=domain,
+                description=description,
+                trigger_keywords=keys,
+                input_schema={"type": "object", "properties": {"params": {"type": "object"}}},
+                output_schema={"type": "object", "properties": {"status": {"type": "string"}}},
+                tags=[domain, category]
+            )
+            skill_catalog.register_skill(new_skill)
+            registered = True
 
         return CreatedSkillResult(
             skill_id=clean_id,
             name=name,
             domain=domain,
-            registered_in_catalog=True,
+            registered_in_catalog=registered,
             python_handler_snippet=py_handler,
             markdown_doc=md_doc,
             keywords=keys

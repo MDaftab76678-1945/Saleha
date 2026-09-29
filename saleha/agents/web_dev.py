@@ -22,6 +22,9 @@ class WebDevOutput:
     js_logic: str
     seo_meta_tags: Dict[str, str]
     model_used: str = ""
+    # Always True: no model is called; fixed static shell, not a design
+    # for this goal.
+    is_template: bool = True
 
 
 class WebDevAgent(BaseAgent):
@@ -36,8 +39,10 @@ class WebDevAgent(BaseAgent):
         framework: str = "html_vanilla_css",
         include_3d_canvas: bool = False
     ) -> WebDevOutput:
-        """Synthesizes rich, interactive web application markup, styles, and logic."""
+        """Returns a fixed static page shell. No model is called: the same
+        dashboard card renders for every goal, so treat this as a scaffold."""
         html = f"""<!DOCTYPE html>
+<!-- Template (no model called): static scaffold, not a design for this goal. -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -55,9 +60,9 @@ class WebDevAgent(BaseAgent):
     {'<canvas id="webgl-canvas"></canvas>' if include_3d_canvas else ''}
     <section class="card-grid" id="app-root">
       <div class="glass-card">
-        <h3>Interactive Dashboard</h3>
-        <p>Real-time client-side state synchronized.</p>
-        <button id="action-btn" class="btn-primary">⚡ Execute Action</button>
+        <h3>Placeholder Panel</h3>
+        <p>Static scaffold text: replace with the real feature.</p>
+        <button id="action-btn" class="btn-primary">Action</button>
       </div>
     </section>
   </main>

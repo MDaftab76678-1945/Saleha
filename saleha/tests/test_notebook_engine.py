@@ -94,7 +94,7 @@ class TestNotebookArchitectAgent:
         agent = NotebookArchitectAgent()
         res = agent.execute("Customer Churn Prediction with XGBoost")
         assert res.success is True
-        assert "Synthesized Interactive Notebook" in res.content
+        assert "Synthesized starter notebook" in res.content
 
     def test_synthesize_notebook_structure(self) -> None:
         result = notebook_architect.synthesize_notebook("Algorithmic Trading Ring Buffer")

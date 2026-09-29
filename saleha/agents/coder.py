@@ -1,18 +1,9 @@
 """
-Saleha Agents: Coder Agent (Fixed Version)
+Saleha Agents: Coder Agent
 
-Fix vs original: `generate_code` no longer hardcodes attempts=1. It now
-accepts the attempt number it's being called as part of (from the
-self-healing retry loop) and reports it accurately, so `CodeResult.attempts`
-reflects reality instead of always showing "1 attempt" in the CLI.
-
-NOTE: I don't have the full current self_healing.py / orchestrator.py from
-the transcript, so I can't rewire the retry loop itself here. What this file
-does: (a) fixes the attempts field to actually be threaded through instead
-of hardcoded, and (b) keeps the same _extract_code robustness fix that was
-already in place. When you wire this into your orchestrator, pass the
-current attempt number into generate_code() -- see the __main__ demo below
-for the expected call pattern.
+`generate_code` takes the attempt number it is called as part of (from the
+self-healing retry loop) and reports it in `CodeResult.attempts`, so the
+count reflects retries instead of always reading "1".
 """
 
 import re
@@ -205,11 +196,8 @@ Rules:
 
 
 if __name__ == "__main__":
-    # Demonstrates the fixed attempts-tracking contract. This will fail to
-    # actually run end-to-end without base_agent.py / self_healing.py
-    # present, but shows how the orchestrator should call generate_code
-    # across retries so CodeResult.attempts is accurate.
-    print("CoderAgent fixed-version contract demo (attempts is now real, not hardcoded):")
+    # Demonstrates the attempts-tracking contract (attempts is real, not hardcoded):
+    print("CoderAgent contract demo (attempts is now real, not hardcoded):")
     print("  coder.generate_code(task, plan, attempt=1)  # first try")
     print("  coder.generate_code(task, plan, attempt=2)  # retry after failure")
     print("  -> result.attempts will correctly show 2, not always 1")

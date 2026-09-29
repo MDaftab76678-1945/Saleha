@@ -400,7 +400,10 @@ class SwarmChatSession:
     def _execute_screen_inspect_command(self, ui_desc: str) -> None:
         self.console.print(f"\n[bold cyan]👁️ Screen Copilot Inspecting Visual Layout for:[/] [yellow]\"{ui_desc}\"[/]")
         result = screen_copilot.inspect_screen_and_fix(ui_desc)
-        self.console.print(f"[bold green]✨ Visual Inspection Complete in {result.inspection_time_ms}ms (WCAG AA: PASS)![/bold green]\n")
+        if result.detected_glitches:
+            self.console.print(f"[bold green]Visual Inspection Complete in {result.inspection_time_ms}ms[/bold green]\n")
+        else:
+            self.console.print("[yellow]No screen was inspected (no vision backend): nothing checked.[/yellow]\n")
         for g in result.detected_glitches:
             self.console.print(f"[yellow]⚠️ {g}[/yellow]")
         self.console.print(Panel(result.remediation_code_diff, title="[bold cyan]Remediated React JSX & Responsive CSS[/]", border_style="cyan"))
