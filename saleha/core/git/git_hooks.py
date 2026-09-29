@@ -79,7 +79,8 @@ class GitHookManager:
                 cwd=self.repo_dir,
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=60
             )
             staged_files = [f.strip() for f in res.stdout.splitlines() if f.strip()]
         except Exception:

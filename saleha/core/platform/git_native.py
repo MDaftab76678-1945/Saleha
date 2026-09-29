@@ -52,7 +52,8 @@ class GitAutomationEngine:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                check=False
+                check=False,
+                timeout=120
             )
         except (subprocess.SubprocessError, OSError, FileNotFoundError) as e:
             return subprocess.CompletedProcess(

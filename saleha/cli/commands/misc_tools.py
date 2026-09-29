@@ -458,7 +458,8 @@ def doctor_cmd(fix: bool, as_json: bool) -> None:
         ollama_detail = "Offline or no models pulled yet (run 'ollama serve' / 'ollama pull qwen2.5-coder:3b')"
         if fix:
             try:
-                subprocess.run(['ollama', 'pull', 'qwen2.5-coder:3b'], check=False)
+                subprocess.run(['ollama', 'pull', 'qwen2.5-coder:3b'], check=False,
+                               timeout=1800)
                 installed_models = get_installed_ollama_models()
                 if installed_models:
                     ollama_status = 'PASS'

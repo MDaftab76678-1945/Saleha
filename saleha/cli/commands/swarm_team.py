@@ -168,7 +168,7 @@ def resolve_conflicts_cmd(path: Any, auto_stage: Any) -> None:
                 console.print(f'[bold green]✅ Resolved Conflicts in:[/] {fpath} ({res.summary})')
                 resolved_count += 1
                 if auto_stage:
-                    subprocess.run(['git', 'add', fpath])
+                    subprocess.run(['git', 'add', fpath], timeout=60)
             else:
                 console.print(f'[bold yellow]⚠️ Manual Review Needed:[/] {fpath} ({res.summary})')
     if resolved_count == 0:

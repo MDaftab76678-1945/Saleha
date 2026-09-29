@@ -37,7 +37,8 @@ class PRReviewer:
                 ["git", "diff", f"origin/{base_branch}...HEAD"],
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=60
             )
             if not res.stdout.strip():
                 # Fallback to local branch diff
@@ -45,7 +46,8 @@ class PRReviewer:
                     ["git", "diff", f"{base_branch}...HEAD"],
                     capture_output=True,
                     text=True,
-                    check=False
+                    check=False,
+                    timeout=60
                 )
             if not res.stdout.strip():
                 # Fallback to uncommitted working tree diff
@@ -53,7 +55,8 @@ class PRReviewer:
                     ["git", "diff", "HEAD"],
                     capture_output=True,
                     text=True,
-                    check=False
+                    check=False,
+                    timeout=60
                 )
             return res.stdout
         except Exception:

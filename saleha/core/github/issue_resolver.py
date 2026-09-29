@@ -173,14 +173,14 @@ class IssueResolver:
             branch_name = f"fix/{suffix}"
         created = subprocess.run(
             ["git", "checkout", "-b", branch_name],
-            cwd=self.cwd, capture_output=True, text=True,
+            cwd=self.cwd, capture_output=True, text=True, timeout=60,
         )
         if created.returncode == 0:
             return branch_name, ""
 
         existing = subprocess.run(
             ["git", "checkout", branch_name],
-            cwd=self.cwd, capture_output=True, text=True,
+            cwd=self.cwd, capture_output=True, text=True, timeout=60,
         )
         if existing.returncode == 0:
             return branch_name, ""
@@ -332,6 +332,7 @@ class IssueResolver:
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=60,
         )
         if status_proc.returncode != 0:
             return None
@@ -360,6 +361,7 @@ class IssueResolver:
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=60,
         )
         old_content = show_proc.stdout if show_proc.returncode == 0 and show_proc.stdout else ""
         if not old_content and show_proc.returncode != 0:
@@ -370,6 +372,7 @@ class IssueResolver:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                timeout=60,
             )
             if index_proc.returncode == 0 and index_proc.stdout:
                 old_content = index_proc.stdout
@@ -389,9 +392,11 @@ class IssueResolver:
 
         if auto_commit:
             for cf in changed_files:
-                subprocess.run(["git", "add", cf], cwd=self.cwd, capture_output=True)
+                subprocess.run(["git", "add", cf], cwd=self.cwd,
+                               capture_output=True, timeout=60)
             msg = f"fix: {issue.title}" if issue.title else f"fix: resolve issue #{issue.issue_number}"
-            subprocess.run(["git", "commit", "-m", msg], cwd=self.cwd, capture_output=True)
+            subprocess.run(["git", "commit", "-m", msg], cwd=self.cwd,
+                           capture_output=True, timeout=120)
 
         return diff_res
 

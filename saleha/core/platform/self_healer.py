@@ -133,7 +133,8 @@ class SelfHealingEngine:
                 cwd=self.root_dir,
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=600
             )
             combined = (res.stdout or "") + "\n" + (res.stderr or "")
             return res.returncode, combined

@@ -38,7 +38,8 @@ class GitHubIntegrator:
                 cwd=self.cwd,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=30
             )
             url = res.stdout.strip()
             clean_url = url[:-4] if url.endswith(".git") else url

@@ -163,6 +163,7 @@ def load_cochange_commits(repo_root: Path, known_files: Set[str], max_files: int
     proc = subprocess.run(
         ["git", "-C", str(repo_root), "log", "--no-merges", "--name-only", "--pretty=format:%x00%H"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=120,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git log failed ({proc.returncode}): {proc.stderr.strip()}")

@@ -43,7 +43,8 @@ class EnvSyncBridge:
             env=merged_env,
             capture_output=True,
             text=True,
-            check=False
+            check=False,
+            timeout=300
         )
 
 

@@ -41,7 +41,8 @@ class ModelManager:
                 ["ollama", "pull", model_name],
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
+                timeout=1800
             )
             if res.returncode == 0:
                 return True, f"Successfully pulled {model_name}"

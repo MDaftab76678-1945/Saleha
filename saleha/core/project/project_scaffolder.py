@@ -186,7 +186,7 @@ class ProjectScaffolder:
         probe = subprocess.run(
             [sys.executable, "-c",
              "import fastapi, httpx, pytest"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=60,
         )
         if probe.returncode != 0:
             missing = (probe.stderr.strip().splitlines() or ["fastapi/httpx/pytest"])[-1]

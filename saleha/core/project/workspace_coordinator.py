@@ -57,12 +57,16 @@ class WorkspaceCoordinator:
 
             try:
                 # Get current branch
-                b_proc = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=p, capture_output=True, text=True)
+                b_proc = subprocess.run(["git", "rev-parse",
+                                           "--abbrev-ref", "HEAD"], cwd=p, capture_output=True, text=True,
+                                          timeout=60)
                 if b_proc.returncode == 0:
                     branch = b_proc.stdout.strip()
 
                 # Get status
-                s_proc = subprocess.run(["git", "status", "--porcelain"], cwd=p, capture_output=True, text=True)
+                s_proc = subprocess.run(["git", "status",
+                                           "--porcelain"], cwd=p, capture_output=True, text=True,
+                                          timeout=60)
                 if s_proc.returncode == 0:
                     lines = [ln for ln in s_proc.stdout.splitlines() if ln.strip()]
                     uncommitted = len(lines)
@@ -88,7 +92,9 @@ class WorkspaceCoordinator:
         for p in repo_paths:
             name = os.path.basename(p) or "root"
             try:
-                proc = subprocess.run(["git", "checkout", "-B", branch_name], cwd=p, capture_output=True, text=True)
+                proc = subprocess.run(["git", "checkout", "-B",
+                                           branch_name], cwd=p, capture_output=True, text=True,
+                                          timeout=60)
                 results[name] = (proc.returncode == 0)
             except Exception:
                 results[name] = False
