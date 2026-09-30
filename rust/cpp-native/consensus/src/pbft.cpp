@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <openssl/sha.h>
 
-namespace nexus::consensus {
+namespace saleha::consensus {
 
 struct PBFTNode::Impl {
     uint32_t node_id;
@@ -256,4 +256,4 @@ void PBFTNetwork::process_messages() {
     }
 }
 
-} // namespace nexus::consensus
+} // namespace saleha::consensus

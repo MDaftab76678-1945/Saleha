@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS Arena Allocator
+// SALEHA Arena Allocator
 // Zero-fragmentation, O(1) allocation, bulk deallocation
 // Perfect for per-request agent execution contexts
 
@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <new>
 
-namespace nexus::memory {
+namespace saleha::memory {
 
 class ArenaAllocator {
 public:
@@ -119,4 +119,4 @@ private:
     ArenaAllocator& arena_;
 };
 
-} // namespace nexus::memory
+} // namespace saleha::memory

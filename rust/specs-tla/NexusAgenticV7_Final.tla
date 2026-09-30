@@ -1,4 +1,4 @@
-(* ── MASTER THEOREM LIST: NEXUS-AGENTIC v7.5-FINAL ── *)
+(* ── MASTER THEOREM LIST: SALEHA-AGENTIC v7.5-FINAL ── *)
 
 (* Baseline v7 Safety & Liveness *)
 THEOREM Spec => []SafetyInvariant           \* CAI gate never bypassed

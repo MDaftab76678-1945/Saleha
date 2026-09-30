@@ -151,8 +151,12 @@ def run(goal: Optional[str], model: str, profile: Optional[str], max_attempts: i
               help='Wall-clock budget for the whole run, in seconds. Raise it for larger '
                    'or reasoning models -- they spend far longer per turn.')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable transcript')
+@click.option('--repo-graph', 'repo_graph', is_flag=True,
+              help='Give the agent find_importers (who imports a file), backed by the '
+                   'saved cross-file graph in <dir>/.saleha/. Off by default: its effect on '
+                   'small models has not been measured.')
 def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
-          timeout: int, as_json: bool) -> None:
+          timeout: int, as_json: bool, repo_graph: bool) -> None:
     """Autonomous agent that thinks, uses tools, and investigates a repo.
 
     Example: saleha agent "find all API endpoints missing auth checks" --dir ./src
@@ -204,7 +208,7 @@ def agent(goal: str, root_dir: str, model: str, max_steps: int, write: bool,
     # steps, where the 3B model needed a rejection first). The experiment had
     # measured a hardcoded limit rather than the model -- and a user picking a
     # larger model hits exactly the same wall with no flag to raise it.
-    loop = _cmds.AgentLoop(agent=_cmds.BaseAgent(role='Agent', model=model), root_dir=root_dir, max_steps=max_steps, allow_write=write, timeout_sec=float(timeout))
+    loop = _cmds.AgentLoop(agent=_cmds.BaseAgent(role='Agent', model=model), root_dir=root_dir, max_steps=max_steps, allow_write=write, timeout_sec=float(timeout), enable_repo_graph=repo_graph)
     result = loop.run(goal, on_event=lambda ev: None if as_json else console.print(f"[dim]step {ev.get('step')}[/] [cyan]{ev.get('action')}[/] -> {_cmds._one_line(ev.get('observation', ''))}"))
     if as_json:
         click.echo(json.dumps({'success': result.success, 'verification': result.verification, 'final_message': result.final_message, 'error': result.error, 'steps': [{'step': s.step, 'action': s.action, 'args': s.args_preview, 'observation': s.observation[:500]} for s in result.steps]}, ensure_ascii=True))

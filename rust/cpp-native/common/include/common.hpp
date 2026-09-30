@@ -8,7 +8,7 @@
 #include <numeric>
 #include <stdexcept>
 
-namespace nexus {
+namespace saleha {
 
 // ─── Type Aliases ───
 using Timestamp = std::chrono::milliseconds;
@@ -98,4 +98,4 @@ inline uint64_t hash_vector(const std::vector<float>& v) {
     return hash;
 }
 
-} // namespace nexus
+} // namespace saleha

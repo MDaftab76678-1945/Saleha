@@ -81,6 +81,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-saleha-l1"
+version = "0.1.0"
+dependencies = [
+ "agent-common",
+ "agent-crypto",
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "agent-snn-core"
 version = "0.1.0"
 
@@ -1101,75 +1113,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nexus-consensus"
-version = "0.1.0"
-dependencies = [
- "blst",
- "ed25519-dalek",
- "rand",
- "serde",
- "serde_json",
- "sha3",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "nexus-executor"
-version = "1.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "nexus-l1"
-version = "1.0.0"
-dependencies = [
- "axum",
- "ed25519-dalek",
- "hex",
- "rand",
- "serde",
- "serde_json",
- "sha2",
- "thiserror",
- "tokio",
- "tower 0.4.13",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "nexus-l1-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "tokio",
-]
-
-[[package]]
-name = "nexus-safety"
-version = "0.1.0"
-dependencies = [
- "dashmap",
- "ndarray",
- "serde",
- "serde_json",
- "sha3",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1457,6 +1400,89 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "saleha-consensus"
+version = "0.1.0"
+dependencies = [
+ "blst",
+ "ed25519-dalek",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "saleha-executor"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "saleha-federated"
+version = "0.1.0"
+
+[[package]]
+name = "saleha-l1"
+version = "1.0.0"
+dependencies = [
+ "axum",
+ "ed25519-dalek",
+ "hex",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "saleha-l1-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "saleha-l1-oracle"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
+name = "saleha-safety"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "ndarray",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "scopeguard"

@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <memory>
 
-namespace nexus::gnn {
+namespace saleha::gnn {
 
 struct Node {
     uint32_t id;
@@ -100,4 +100,4 @@ private:
     ) const;
 };
 
-} // namespace nexus::gnn
+} // namespace saleha::gnn

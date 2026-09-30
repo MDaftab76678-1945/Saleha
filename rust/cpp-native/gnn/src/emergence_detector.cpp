@@ -6,7 +6,7 @@
 #include <queue>
 #include <unordered_set>
 
-namespace nexus::gnn {
+namespace saleha::gnn {
 
 void Graph::add_node(uint32_t id, size_t feature_dim) {
     nodes[id] = Node(id, feature_dim);
@@ -313,4 +313,4 @@ std::vector<EmergencePattern> EmergenceDetector::detect_collective_intelligence(
     return patterns;
 }
 
-} // namespace nexus::gnn
+} // namespace saleha::gnn

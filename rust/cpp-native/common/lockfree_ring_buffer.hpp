@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS Lock-Free SPSC Ring Buffer
+// SALEHA Lock-Free SPSC Ring Buffer
 // Zero-allocation, cache-line aligned, hardware-fence optimized
 
 #include <atomic>
@@ -8,7 +8,7 @@
 #include <optional>
 #include <type_traits>
 
-namespace nexus::concurrent {
+namespace saleha::concurrent {
 
 // Cache line size for false-sharing prevention
 inline constexpr std::size_t CACHE_LINE_SIZE = 64;
@@ -107,4 +107,4 @@ private:
     alignas(CACHE_LINE_SIZE) T buffer_[Capacity];
 };
 
-} // namespace nexus::concurrent
+} // namespace saleha::concurrent

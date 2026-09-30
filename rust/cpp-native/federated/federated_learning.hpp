@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS Federated Learning Engine
+// SALEHA Federated Learning Engine
 // Privacy-preserving collaborative learning across agent swarms
 
 #include <cstdint>
@@ -12,7 +12,7 @@
 #include <atomic>
 #include <expected>
 
-namespace nexus::federated {
+namespace saleha::federated {
 
 // ─── Configuration ───
 struct FederatedConfig {
@@ -187,4 +187,4 @@ public:
     );
 };
 
-} // namespace nexus::federated
+} // namespace saleha::federated

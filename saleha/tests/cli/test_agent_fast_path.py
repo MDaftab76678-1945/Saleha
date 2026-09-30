@@ -62,6 +62,14 @@ class AgentFastPathTests(unittest.TestCase):
             self._run()
         solve.assert_not_called()
 
+    def test_repo_graph_flag_reaches_the_loop_and_defaults_off(self) -> None:
+        with patch("saleha.cli.commands.core_agentic._cmds.AgentLoop") as loop:
+            self._run("--repo-graph")
+        self.assertIs(loop.call_args.kwargs["enable_repo_graph"], True)
+        with patch("saleha.cli.commands.core_agentic._cmds.AgentLoop") as loop:
+            self._run()
+        self.assertIs(loop.call_args.kwargs["enable_repo_graph"], False)
+
     def test_switch_turns_it_off(self) -> None:
         with patch.object(ts, "solve") as solve, \
                 patch("saleha.cli.commands.core_agentic._cmds.AgentLoop"), \

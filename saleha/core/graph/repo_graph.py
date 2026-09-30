@@ -33,9 +33,10 @@ deleting from it blindly would break working code.
 
 from __future__ import annotations
 
+import json
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
@@ -52,8 +53,12 @@ CODE_SUFFIXES = {
 }
 
 
+STORE_VERSION = 1
+STORE_RELATIVE_PATH = Path(".saleha") / "repo_graph.json"
+
+
 def graphify_available() -> bool:
-    """True if the optional graphify dependency is importable."""
+    """True if the graphify dependency is importable (a core dependency)."""
     try:
         import graphify.extract  # noqa: F401
     except ImportError:
@@ -80,6 +85,13 @@ class GraphStats:
     edges: int = 0
     build_seconds: float = 0.0
     relations: Dict[str, int] = field(default_factory=dict)
+    # Where this graph came from: "built" (extracted just now) or "store"
+    # (read back from disk after the manifest proved no source file changed).
+    # `reason` says why it was rebuilt when it was not loaded.
+    source: str = "built"
+    reason: str = ""
+    saved: bool = False
+    save_error: str = ""
 
     @property
     def coverage_is_complete(self) -> bool:
@@ -109,13 +121,24 @@ class RepoGraph:
         self.edges: List[Dict[str, Any]] = []
         self.stats = GraphStats()
         self._built = False
+        # Per-file (mtime_ns, size) of what the current graph was built from,
+        # and whether that was a full discovery scan. Only a full-scan graph
+        # may be persisted: a partial graph saved as "the repo graph" would
+        # read as full coverage on the next load.
+        self._manifest: Dict[str, List[int]] = {}
+        self._full_scan = False
 
     # -- discovery -----------------------------------------------------
     def discover_files(self) -> List[Path]:
         """Real source files under root, skipping build/vendor noise."""
         out: List[Path] = []
         for dirpath, dirnames, filenames in os.walk(self.root):
-            dirnames[:] = [d for d in dirnames if d not in self.excludes]
+            # Any virtualenv, whatever it is called (.venv, .venv_train,
+            # .venv_laya ...): an unlisted one put ~30k library files into the
+            # scan and the build never finished.
+            dirnames[:] = [d for d in dirnames
+                           if d not in self.excludes
+                           and not (Path(dirpath, d) / "pyvenv.cfg").is_file()]
             for fn in filenames:
                 if Path(fn).suffix.lower() in self.suffixes:
                     out.append(Path(dirpath) / fn)
@@ -136,13 +159,17 @@ class RepoGraph:
         """
         if not graphify_available():
             raise ImportError(
-                "repo_graph requires the optional 'graphifyy' package "
-                "(pip install graphifyy). Code extraction runs fully local; "
+                "repo_graph needs the 'graphifyy' package, which is a core "
+                "Saleha dependency -- this install is broken; reinstall with "
+                "`pip install -e .`. Code extraction runs fully local; "
                 "no API key is needed."
             )
         from graphify.extract import extract
 
         paths = list(files) if files is not None else self.discover_files()
+        # Taken before extraction: a file edited mid-build then shows up as
+        # changed on the next load instead of being recorded as current.
+        manifest = self._manifest_of(paths)
         t0 = time.time()
         data = extract(paths, root=self.root, cache_root=self.root,
                        parallel=parallel)
@@ -188,8 +215,134 @@ class RepoGraph:
             edges=len(self.edges), build_seconds=round(elapsed, 2),
             relations=dict(sorted(relations.items(), key=lambda kv: -kv[1])),
         )
+        self._manifest = manifest
+        self._full_scan = files is None
         self._built = True
         return self.stats
+
+    # -- persistence ---------------------------------------------------
+    def store_path(self) -> Path:
+        """Where this repo's graph lives: <root>/.saleha/repo_graph.json."""
+        return self.root / STORE_RELATIVE_PATH
+
+    def _manifest_of(self, paths: Iterable[Path]) -> Dict[str, List[int]]:
+        """(mtime_ns, size) per file, keyed by root-relative posix path.
+
+        A file that cannot be stat'ed is recorded as [-1, -1], so it differs
+        from any real stat and forces a rebuild rather than being skipped.
+        """
+        out: Dict[str, List[int]] = {}
+        for p in paths:
+            abs_p = Path(p).resolve()
+            try:
+                key = str(abs_p.relative_to(self.root))
+            except ValueError:
+                key = str(abs_p)
+            try:
+                st = abs_p.stat()
+                out[key.replace("\\", "/")] = [st.st_mtime_ns, st.st_size]
+            except OSError:
+                out[key.replace("\\", "/")] = [-1, -1]
+        return out
+
+    def changed_files(self, stored: Dict[str, List[int]]) -> List[str]:
+        """Files added, removed or modified since `stored` was recorded."""
+        current = self._manifest_of(self.discover_files())
+        keys = set(current) | set(stored)
+        return sorted(k for k in keys if current.get(k) != stored.get(k))
+
+    def save(self, path: Optional[Path] = None) -> Path:
+        """Write the built graph to disk atomically and return where.
+
+        Raises RuntimeError for a graph that was not built from a full
+        discovery scan, and lets OSError/TypeError through: a failed save must
+        be visible to the caller, never reported as saved.
+        """
+        self._require_built()
+        if not self._full_scan:
+            raise RuntimeError(
+                "refusing to persist a partial graph (build() was given an "
+                "explicit file list); only a full scan may be saved")
+        dest = Path(path) if path is not None else self.store_path()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": STORE_VERSION,
+            "root": str(self.root),
+            "saved_at": time.time(),
+            "manifest": self._manifest,
+            "stats": asdict(self.stats),
+            "nodes": self.nodes,
+            "edges": self.edges,
+        }
+        tmp = dest.with_name(dest.name + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp, dest)
+        return dest
+
+    def load(self, path: Optional[Path] = None) -> str:
+        """Load a saved graph if it is still valid. Returns "" on success,
+        otherwise the reason it was NOT loaded (missing, unreadable, wrong
+        version, other repo, or which source files changed).
+
+        Never returns a graph that is out of date with the files on disk.
+        """
+        src = Path(path) if path is not None else self.store_path()
+        if not src.is_file():
+            return "no saved graph"
+        try:
+            with open(src, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("top level is not an object")
+            if data.get("version") != STORE_VERSION:
+                return f"saved graph has version {data.get('version')!r}, expected {STORE_VERSION}"
+            if data.get("root") != str(self.root):
+                return "saved graph was built for a different root"
+            manifest = data["manifest"]
+            nodes, edges, stats = data["nodes"], data["edges"], data["stats"]
+            if not (isinstance(manifest, dict) and isinstance(nodes, list)
+                    and isinstance(edges, list) and isinstance(stats, dict)):
+                raise ValueError("wrong field types")
+        except (OSError, ValueError, KeyError) as err:
+            return f"saved graph unreadable: {err}"
+
+        changed = self.changed_files(manifest)
+        if changed:
+            head = ", ".join(changed[:3])
+            more = f" (+{len(changed) - 3} more)" if len(changed) > 3 else ""
+            return f"{len(changed)} source file(s) changed since save: {head}{more}"
+
+        self.nodes, self.edges = nodes, edges
+        self._manifest = manifest
+        self._full_scan = True
+        known = {k: v for k, v in stats.items() if k in GraphStats.__dataclass_fields__}
+        self.stats = GraphStats(**known)
+        self.stats.source = "store"
+        self.stats.reason = ""
+        self._built = True
+        return ""
+
+    def load_or_build(self, rebuild: bool = False) -> GraphStats:
+        """The one entry point for callers: reuse the saved graph when the
+        sources are unchanged, otherwise extract fresh and save it.
+
+        `stats.source` says which happened; `stats.reason` says why a rebuild
+        was needed; `stats.saved` / `stats.save_error` say whether the fresh
+        graph reached disk. A failed save does not fail the build.
+        """
+        reason = "rebuild requested" if rebuild else self.load()
+        if not reason:
+            return self.stats
+        stats = self.build()
+        stats.reason = reason
+        try:
+            self.save()
+            stats.saved = True
+        except (OSError, TypeError, ValueError, RuntimeError) as err:
+            stats.saved = False
+            stats.save_error = str(err)
+        return stats
 
     def _require_built(self) -> None:
         if not self._built:
@@ -199,7 +352,7 @@ class RepoGraph:
     @staticmethod
     def _module_key(path_or_name: str) -> str:
         """'saleha/core/agentic_loop.py' -> 'agentic_loop' (the stem)."""
-        s = str(path_or_name).replace("\\", "/").strip()
+        s = path_or_name.replace("\\", "/").strip()
         if "/" in s or s.endswith(".py"):
             s = Path(s).stem
         return s

@@ -580,6 +580,60 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn("_apply_discount", obs)
         self.assertIn("billing.py", obs)
 
+    def _write_pkg(self) -> None:
+        os.makedirs(os.path.join(self.root, "mypkg"), exist_ok=True)
+        for name, body in {
+            "__init__.py": "",
+            "engine.py": "class Engine:\n    def run(self):\n        return 1\n",
+            "driver.py": "from mypkg.engine import Engine\n\ndef go():\n    return Engine().run()\n",
+            "orphan.py": "def lonely():\n    return None\n",
+        }.items():
+            with open(os.path.join(self.root, "mypkg", name), "w", encoding="utf-8") as f:
+                f.write(body)
+
+    def test_find_importers_names_real_dependants_and_saves_the_graph(self) -> None:
+        self._write_pkg()
+        agent = ScriptedAgent([
+            _tool_call("find_importers", path="mypkg/engine.py"),
+            _finish("checked dependants"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, enable_repo_graph=True).run("who uses engine")
+        self.assertTrue(res.success, res.error)
+        obs = res.steps[0].observation
+        self.assertIn("mypkg/driver.py", obs)
+        self.assertNotIn("orphan.py", obs)
+        # The graph outlives this loop: it is on disk for the next process.
+        self.assertTrue(os.path.isfile(os.path.join(self.root, ".saleha", "repo_graph.json")))
+
+    def test_find_importers_says_when_nothing_imports_a_file(self) -> None:
+        self._write_pkg()
+        agent = ScriptedAgent([
+            _tool_call("find_importers", path="mypkg/orphan.py"),
+            _finish("checked"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, enable_repo_graph=True).run("who uses orphan")
+        obs = res.steps[0].observation
+        self.assertIn("no static importer", obs)
+        self.assertIn("does not prove it is unused", obs)
+
+    def test_find_importers_refuses_a_path_outside_the_repo(self) -> None:
+        agent = ScriptedAgent([
+            _tool_call("find_importers", path="../secret.py"),
+            _finish("checked"),
+        ])
+        res = AgentLoop(agent=agent, root_dir=self.root, enable_repo_graph=True).run("x")
+        self.assertIn("outside the repository", res.steps[0].observation)
+
+    def test_find_importers_is_not_offered_unless_enabled(self) -> None:
+        """Off by default: the default prompt must not change under small models."""
+        agent = ScriptedAgent([_tool_call("read_file", path="app.py"), _finish("ok")])
+        AgentLoop(agent=agent, root_dir=self.root).run("understand")
+        self.assertNotIn("find_importers", agent.prompts[0])
+
+        agent2 = ScriptedAgent([_tool_call("read_file", path="app.py"), _finish("ok")])
+        AgentLoop(agent=agent2, root_dir=self.root, enable_repo_graph=True).run("understand")
+        self.assertIn("find_importers", agent2.prompts[0])
+
     def test_find_callees_reports_unresolved_symbol(self) -> None:
         agent = ScriptedAgent([
             _tool_call("find_callees", symbol_name="does_not_exist_anywhere"),

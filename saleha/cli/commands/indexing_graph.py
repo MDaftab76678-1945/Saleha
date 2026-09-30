@@ -228,7 +228,8 @@ def diff_preview_cmd(file_path: Any, new_file_path: Any) -> None:
 @click.argument('target')
 @click.option('--dir', 'target_dir', default='.', help='Repository root to scan')
 @click.option('--json', 'as_json', is_flag=True, help='Print a machine-readable JSON response')
-def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
+@click.option('--rebuild', is_flag=True, help='Ignore the saved graph and extract again')
+def impact_cmd(target: Any, target_dir: Any, as_json: Any, rebuild: bool) -> None:
     """
     Show which files actually depend on a module, via a real cross-file graph.
 
@@ -242,9 +243,8 @@ def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
     from saleha.core.graph.repo_graph import RepoGraph, graphify_available
 
     if not graphify_available():
-        msg = ("cross-file graph needs the optional 'graphifyy' package "
-               "(pip install graphifyy). Code extraction is fully local; "
-               "no API key required.")
+        msg = ("cross-file graph needs the 'graphifyy' package, a core Saleha "
+               "dependency; this install is broken -- run `pip install -e .`.")
         if as_json:
             click.echo(json.dumps({'success': False, 'error': msg}))
         else:
@@ -253,9 +253,9 @@ def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
 
     graph = RepoGraph(target_dir)
     if not as_json:
-        console.print(f'[bold cyan]Building cross-file graph for[/] [yellow]{target_dir}[/] ...')
+        console.print(f'[bold cyan]Cross-file graph for[/] [yellow]{target_dir}[/] ...')
     with contextlib.redirect_stdout(io.StringIO()):
-        stats = graph.build()
+        stats = graph.load_or_build(rebuild=rebuild)
     importers = graph.importers_of(target)
 
     if as_json:
@@ -271,11 +271,26 @@ def impact_cmd(target: Any, target_dir: Any, as_json: Any) -> None:
             'nodes': stats.nodes,
             'edges': stats.edges,
             'build_seconds': stats.build_seconds,
+            'graph_source': stats.source,
+            'rebuild_reason': stats.reason,
+            'saved': stats.saved,
+            'save_error': stats.save_error,
         }, indent=2))
         return
 
-    console.print(f'[dim]{stats.files_scanned} files -> {stats.nodes} nodes, '
-                  f'{stats.edges} edges in {stats.build_seconds}s[/]')
+    if stats.source == 'store':
+        console.print(f'[dim]{stats.files_scanned} files -> {stats.nodes} nodes, '
+                      f'{stats.edges} edges (loaded from {graph.store_path()}; '
+                      f'no source file changed)[/]')
+    else:
+        console.print(f'[dim]{stats.files_scanned} files -> {stats.nodes} nodes, '
+                      f'{stats.edges} edges in {stats.build_seconds}s '
+                      f'(rebuilt: {stats.reason})[/]')
+        if stats.saved:
+            console.print(f'[dim]saved to {graph.store_path()}[/]')
+        else:
+            console.print(f'[yellow]Warning: graph was built but NOT saved: '
+                          f'{stats.save_error}[/]')
     # An absent file contributes no edges, so "no importer found" for a target
     # is only trustworthy if the files that might import it were parsed at all.
     if not stats.coverage_is_complete:

@@ -1,4 +1,4 @@
-// nexus-zkvm/guest/src/main.rs
+// saleha-zkvm/guest/src/main.rs
 // Zero-Knowledge Guest Program: Proves correct execution of MIE causal tracing
 
 #![no_main]

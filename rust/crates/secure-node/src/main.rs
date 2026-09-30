@@ -113,7 +113,7 @@ async fn blind_compute(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
-    info!("Starting NEXUS Rust FHE Secure Node...");
+    info!("Starting SALEHA Rust FHE Secure Node...");
 
     // Load configuration from environment
     let database_url = std::env::var("DATABASE_URL")
@@ -159,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start server
     let addr = "0.0.0.0:8080";
-    info!("🚀 NEXUS FHE Node listening on {}", addr);
+    info!("🚀 SALEHA FHE Node listening on {}", addr);
     
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

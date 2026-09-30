@@ -6,7 +6,7 @@
 #include <expected>
 #include <optional>
 
-namespace nexus::federated {
+namespace saleha::federated {
 
 // ─── Configuration ───
 struct FederatedConfig {
@@ -160,4 +160,4 @@ public:
     );
 };
 
-} // namespace nexus::federated
+} // namespace saleha::federated

@@ -11703,3 +11703,46 @@ Tests: SwarmRepairTierTests (order, escalation only after failure, thinking flag
 override, mock guard, the failure report), NoCandidate and summary tests, CoderThinkingSwitchTests.
 Five of the new swarm tests fail against the previous engine. Suite 2846 passed / 17 skipped.
 
+
+## Pass 173 (2026-09-30) -- graph memory made durable; Rust `nexus-*` renamed to `saleha-*`
+
+**Graph.** `graphifyy` is now a core dependency (was the `repograph` extra). `RepoGraph`
+saves to `<root>/.saleha/repo_graph.json` and `load_or_build()` reuses it only while a
+(mtime_ns, size) manifest of every source file is unchanged; otherwise it rebuilds and
+says why. Measured on this repo: 1458 files -> 17987 nodes / 37670 edges, 27 s built,
+1 s loaded. First run never finished: `.venv_laya` (30k library files) was scanned;
+discovery now skips any directory holding `pyvenv.cfg`. Persistence tests fail against
+a load() that ignores the manifest (3 red, checked).
+
+**graph_memory.py.** Ids came from the per-process-salted `hash()`, so stored memory was
+never found again and re-records duplicated; `save()` swallowed OSError; an unreadable
+store was overwritten by the next save. Now sha1 ids, atomic save that raises, unreadable
+store moved to `.corrupt-<time>`, edges deduplicated, lazy singleton. 7 of the new tests
+fail against the old file.
+
+**Agent loop.** `find_importers` tool, opt-in (`AgentLoop(enable_repo_graph=True)`,
+`saleha agent --repo-graph`). Real run, qwen2.5-coder:3b, twice: it called the tool with
+the WRONG path (`session_tracer.py`, not the one in the goal), got a correct answer for
+that path, and finished "success". The tool is right (importers_of agentic_loop.py = 11
+files); the 3B model is not reliable with it, so it stays off by default. `agent_bench`
+(single-file MBPP) cannot measure it and was not run.
+
+**Rust.** Renamed 5 workspace crates and every other `nexus-*` dir/package to `saleha-*`
+(saleha-l1, -executor, -l1-core, -safety, -consensus, -core, -benchmarks, -federated,
+-l1-oracle, ..., and `agent-nexus-l1` -> `agent-saleha-l1`; `nexus_core` ->
+`saleha-orchestrator-draft`, `crates/nexus-l1-core` -> `saleha-l1-core-draft`). Kept on
+purpose: `did:nexus:` DID prefix, BLS domain tag `NEXUS-HOTSTUFF-V7.5-CONSENSUS`,
+`NexusAgenticV7` TLA spec names, `nexus-universe` history comment. `cargo test
+--workspace`: 77 passed, 0 failed. New members: agent-saleha-l1, saleha-federated,
+saleha-l1-oracle.
+Found and fixed while making them build: `saleha-l1-oracle` returned a fixed 0.12
+anomaly score, a zero-filled "proof" and an unconditional TPM pass (every payload came
+out verified) -- now each fails with "not implemented", test asserts it; agent-saleha-l1
+`validate_block` only checked proof bytes were non-empty and returned true, and its
+`min_causal_utility` was never read -- renamed `check_structure`, limits stated, 3 tests;
+saleha-federated `aggregate` ignored `model_dimension` (hardcoded 1024).
+Not built, reasons in `rust/Cargo.toml`: benchmarks call APIs that do not exist,
+economics/genesis/l1-core-draft reference undefined types, saleha-core is Linux RDMA only,
+edge-lite prints a hardcoded "TEE attestation verified", bridge/observability/zkvm/
+secure-node need heavy deps and were not tried.
+Python suite after all of the above: 2917 passed, 18 skipped.

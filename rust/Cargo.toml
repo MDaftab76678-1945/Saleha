@@ -8,10 +8,10 @@
 resolver = "2"
 members = [
     "intent-kernel",
-    "nexus-l1",
-    "nexus-executor",
-    "nexus-l1-core",
-    "crates/nexus-safety",
+    "saleha-l1",
+    "saleha-executor",
+    "saleha-l1-core",
+    "crates/saleha-safety",
     "crates/agent-guardrails",
     "crates/agent-memory-dag",
     "crates/agent-snn-core",
@@ -20,10 +20,20 @@ members = [
     "crates/agent-crypto",
     "crates/agent-tee-core",
     "crates/agent-runtime",
-    "crates/nexus-consensus",
+    "crates/saleha-consensus",
     "crates/agent-common",
+    "crates/agent-saleha-l1",
     "crates/agent-cognition",
+    "crates/saleha-federated",
+    "crates/saleha-l1-oracle",
 ]
-# candidates to promote once they build:
-#   "crates/nexus-consensus", "crates/nexus-core", "crates/nexus-safety",
-#   "crates/agent-crypto", "crates/agent-tee-core", "crates/secure-node"
+# Not members, and why (checked with cargo check, not assumed):
+#   crates/saleha-benchmarks   benches call APIs that do not exist (PbftNode::simulate_round, ...)
+#   crates/saleha-core         no [package]; needs rdma-core-sys / io-uring (Linux only)
+#   crates/saleha-l1-economics, crates/saleha-l1-genesis, crates/saleha-l1-core-draft,
+#   saleha-orchestrator-draft  reference types defined nowhere (AgentState, cognitive_state, ...)
+#   crates/saleha-edge-lite    compiles once chrono is added, but its TEE attestation and
+#                              payload hash are hardcoded strings printed as success
+#   crates/saleha-l1-bridge, crates/saleha-l1-observability, saleha-zkvm
+#                              need halo2_proofs / risc0 / tonic, not tried
+#   crates/secure-node         needs tfhe, sqlx, reqwest, not tried

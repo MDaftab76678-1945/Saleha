@@ -4,7 +4,7 @@
 #include <numeric>
 #include <stdexcept>
 
-namespace nexus::snn {
+namespace saleha::snn {
 
 // ═══════════════════════════════════════════════
 // SIMD-Optimized CPU Implementation
@@ -146,4 +146,4 @@ SNNInferenceEngine::Backend SNNInferenceEngine::active_backend() const noexcept 
     return active_backend_;
 }
 
-} // namespace nexus::snn
+} // namespace saleha::snn

@@ -6,7 +6,7 @@
 #include <openssl/sha.h>
 #include <openssl/rsa.h>
 
-namespace nexus::consensus {
+namespace saleha::consensus {
 
 // ═══════════════════════════════════════════════
 // PBFTNode Implementation
@@ -298,4 +298,4 @@ void PBFTNetwork::process_messages() {
     }
 }
 
-} // namespace nexus::consensus
+} // namespace saleha::consensus

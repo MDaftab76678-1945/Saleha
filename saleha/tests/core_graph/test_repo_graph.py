@@ -9,6 +9,7 @@ disk (no mocks) and assert the cross-file edges are genuinely found.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -18,13 +19,8 @@ from pathlib import Path
 from saleha.core.graph.repo_graph import (
     CODE_SUFFIXES,
     DEFAULT_EXCLUDES,
+    STORE_VERSION,
     RepoGraph,
-    graphify_available,
-)
-
-requires_graphify = unittest.skipUnless(
-    graphify_available(),
-    "optional 'graphifyy' package not installed (pip install graphifyy)",
 )
 
 
@@ -59,6 +55,14 @@ class DiscoveryTests(unittest.TestCase):
         self.assertNotIn("vendor.py", found)     # node_modules excluded
         self.assertNotIn("cached.py", found)     # __pycache__ excluded
 
+    def test_any_virtualenv_is_skipped_even_if_not_listed(self) -> None:
+        """A venv with an unlisted name (.venv_laya) must not flood the scan."""
+        self._w(".venv_other/pyvenv.cfg", "home = x\n")
+        self._w(".venv_other/Lib/site-packages/lib.py", "q = 1\n")
+        found = {p.name for p in RepoGraph(self.tmp).discover_files()}
+        self.assertNotIn("lib.py", found)
+        self.assertIn("a.py", found)
+
     def test_excludes_and_suffixes_are_configurable(self) -> None:
         g = RepoGraph(self.tmp, excludes=set(), suffixes={".md"})
         found = {p.name for p in g.discover_files()}
@@ -82,7 +86,6 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIn(".rs", CODE_SUFFIXES)
 
 
-@requires_graphify
 class RealCrossFileGraphTests(unittest.TestCase):
     """Builds a real graph over real files -- the behaviour that matters."""
 
@@ -210,7 +213,151 @@ class RealCrossFileGraphTests(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
-@requires_graphify
+class PersistenceTests(unittest.TestCase):
+    """The graph survives a restart -- and is never served out of date."""
+
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.tmp = self._td.name
+        self._w("mypkg/engine.py", "class Engine:\n    def run(self):\n        return 42\n")
+        self._w("mypkg/driver.py",
+                "from mypkg.engine import Engine\n\ndef go():\n    return Engine().run()\n")
+
+    def tearDown(self) -> None:
+        self._td.cleanup()
+
+    def _w(self, rel: str, content: str) -> None:
+        p = os.path.join(self.tmp, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def test_first_call_builds_and_saves_under_dot_saleha(self) -> None:
+        g = RepoGraph(self.tmp)
+        stats = g.load_or_build()
+        self.assertEqual(stats.source, "built")
+        self.assertEqual(stats.reason, "no saved graph")
+        self.assertTrue(stats.saved, stats.save_error)
+        self.assertEqual(g.store_path(), Path(self.tmp) / ".saleha" / "repo_graph.json")
+        self.assertTrue(g.store_path().is_file())
+
+    def test_second_process_loads_the_same_graph_without_extracting(self) -> None:
+        first = RepoGraph(self.tmp)
+        built = first.load_or_build()
+
+        second = RepoGraph(self.tmp)   # a fresh object == a restart
+        loaded = second.load_or_build()
+
+        self.assertEqual(loaded.source, "store")
+        self.assertEqual((loaded.nodes, loaded.edges), (built.nodes, built.edges))
+        self.assertEqual(second.importers_of("mypkg/engine.py"),
+                         first.importers_of("mypkg/engine.py"))
+        self.assertIn("driver.py", {os.path.basename(p) for p in second.importers_of("mypkg/engine.py")})
+
+    def test_edited_file_forces_rebuild_and_names_the_file(self) -> None:
+        RepoGraph(self.tmp).load_or_build()
+        self._w("mypkg/engine.py", "class Engine:\n    def run(self):\n        return 43\n\n# edit\n")
+
+        g = RepoGraph(self.tmp)
+        stats = g.load_or_build()
+
+        self.assertEqual(stats.source, "built")
+        self.assertIn("mypkg/engine.py", stats.reason)
+
+    def test_new_importer_appears_after_a_file_is_added(self) -> None:
+        """The stale-graph trap: a saved graph must not hide a new dependant."""
+        RepoGraph(self.tmp).load_or_build()
+        self._w("mypkg/cli.py", "import mypkg.engine\n\ndef main():\n    return mypkg.engine.Engine()\n")
+
+        g = RepoGraph(self.tmp)
+        g.load_or_build()
+
+        names = {os.path.basename(p) for p in g.importers_of("mypkg/engine.py")}
+        self.assertIn("cli.py", names)
+
+    def test_deleted_file_forces_rebuild(self) -> None:
+        RepoGraph(self.tmp).load_or_build()
+        os.remove(os.path.join(self.tmp, "mypkg", "driver.py"))
+
+        g = RepoGraph(self.tmp)
+        stats = g.load_or_build()
+
+        self.assertEqual(stats.source, "built")
+        self.assertIn("mypkg/driver.py", stats.reason)
+        self.assertNotIn("driver.py", {os.path.basename(p) for p in g.importers_of("mypkg/engine.py")})
+
+    def test_corrupt_store_is_rebuilt_not_trusted(self) -> None:
+        g = RepoGraph(self.tmp)
+        g.load_or_build()
+        g.store_path().write_text("{ not json", encoding="utf-8")
+
+        stats = RepoGraph(self.tmp).load_or_build()
+
+        self.assertEqual(stats.source, "built")
+        self.assertIn("unreadable", stats.reason)
+        self.assertTrue(stats.saved)
+
+    def test_wrong_version_is_rebuilt(self) -> None:
+        g = RepoGraph(self.tmp)
+        g.load_or_build()
+        data = json.loads(g.store_path().read_text(encoding="utf-8"))
+        data["version"] = STORE_VERSION + 1
+        g.store_path().write_text(json.dumps(data), encoding="utf-8")
+
+        stats = RepoGraph(self.tmp).load_or_build()
+
+        self.assertEqual(stats.source, "built")
+        self.assertIn("version", stats.reason)
+
+    def test_store_with_missing_fields_is_rebuilt(self) -> None:
+        g = RepoGraph(self.tmp)
+        g.load_or_build()
+        g.store_path().write_text(json.dumps({"version": STORE_VERSION, "root": str(g.root)}),
+                                  encoding="utf-8")
+
+        stats = RepoGraph(self.tmp).load_or_build()
+
+        self.assertEqual(stats.source, "built")
+        self.assertIn("unreadable", stats.reason)
+
+    def test_rebuild_flag_ignores_a_valid_store(self) -> None:
+        RepoGraph(self.tmp).load_or_build()
+        stats = RepoGraph(self.tmp).load_or_build(rebuild=True)
+        self.assertEqual(stats.source, "built")
+        self.assertEqual(stats.reason, "rebuild requested")
+
+    def test_partial_graph_is_never_saved(self) -> None:
+        g = RepoGraph(self.tmp)
+        g.build(files=[Path(self.tmp) / "mypkg" / "engine.py"])
+        with self.assertRaises(RuntimeError):
+            g.save()
+        self.assertFalse(g.store_path().exists())
+
+    def test_failed_save_is_reported_not_claimed(self) -> None:
+        """The graph still works, and the stats say it was NOT saved."""
+        blocker = Path(self.tmp) / ".saleha"
+        blocker.write_text("i am a file, so .saleha/ cannot be a directory", encoding="utf-8")
+
+        g = RepoGraph(self.tmp)
+        stats = g.load_or_build()
+
+        self.assertFalse(stats.saved)
+        self.assertTrue(stats.save_error)
+        self.assertIn("driver.py", {os.path.basename(p) for p in g.importers_of("mypkg/engine.py")})
+
+    def test_store_written_for_another_root_is_not_reused(self) -> None:
+        g = RepoGraph(self.tmp)
+        g.load_or_build()
+        data = json.loads(g.store_path().read_text(encoding="utf-8"))
+        data["root"] = str(Path(self.tmp) / "somewhere_else")
+        g.store_path().write_text(json.dumps(data), encoding="utf-8")
+
+        stats = RepoGraph(self.tmp).load_or_build()
+
+        self.assertEqual(stats.source, "built")
+        self.assertIn("different root", stats.reason)
+
+
 class RealSalehaRepoTests(unittest.TestCase):
     """Regression guard on this repo itself, using the known-true answer."""
 

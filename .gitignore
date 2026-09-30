@@ -64,7 +64,7 @@ deploy_out/
 test_dynamic_ws/
 scratch/
 workspace/
-saleha-*/
+/saleha-*/
 router_history.json
 *.session.json
 saleha-release-manifest.json

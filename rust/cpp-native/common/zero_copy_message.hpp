@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS Zero-Copy Message Passing
+// SALEHA Zero-Copy Message Passing
 // Eliminates serialization overhead between Rust ↔ C++ ↔ Agent ↔ Agent
 
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace nexus::messaging {
+namespace saleha::messaging {
 
 /// Zero-copy message header (fits in one cache line)
 struct alignas(64) MessageHeader {
@@ -84,4 +84,4 @@ private:
     std::span<std::byte> buffer_;
 };
 
-} // namespace nexus::messaging
+} // namespace saleha::messaging

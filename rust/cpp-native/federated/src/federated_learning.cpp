@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <queue>
 
-namespace nexus::federated {
+namespace saleha::federated {
 
 // ═══════════════════════════════════════════════
 // ModelWeights Operations
@@ -39,7 +39,7 @@ ModelWeights& ModelWeights::operator*=(float scalar) {
 }
 
 float ModelWeights::norm() const {
-    return nexus::norm(parameters);
+    return saleha::norm(parameters);
 }
 
 void ModelWeights::clip(float max_norm) {
@@ -442,4 +442,4 @@ float DifferentialPrivacy::compute_epsilon(
     return std::sqrt(2.0f * num_rounds * std::log(1.0f / delta)) / noise_multiplier;
 }
 
-} // namespace nexus::federated
+} // namespace saleha::federated

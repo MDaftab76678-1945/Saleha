@@ -6,7 +6,7 @@
 #include <queue>
 #include <unordered_set>
 
-namespace nexus::gnn {
+namespace saleha::gnn {
 
 // ═══════════════════════════════════════════════
 // Graph Operations
@@ -362,4 +362,4 @@ std::vector<EmergencePattern> EmergenceDetector::detect_collective_intelligence(
     return patterns;
 }
 
-} // namespace nexus::gnn
+} // namespace saleha::gnn

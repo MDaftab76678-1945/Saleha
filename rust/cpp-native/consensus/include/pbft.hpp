@@ -7,7 +7,7 @@
 #include <expected>
 #include <chrono>
 
-namespace nexus::consensus {
+namespace saleha::consensus {
 
 struct PBFTConfig {
     size_t total_nodes = 4;
@@ -89,4 +89,4 @@ private:
     std::vector<PBFTMessage> message_queue_;
 };
 
-} // namespace nexus::consensus
+} // namespace saleha::consensus

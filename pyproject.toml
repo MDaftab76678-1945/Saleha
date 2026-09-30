@@ -28,7 +28,11 @@ dependencies = [
     "pydantic>=2.0.0",
     "requests>=2.31.0",
     "psutil>=5.9.0",
-    "PyYAML>=6.0.0"
+    "PyYAML>=6.0.0",
+    # Cross-file repository graph (saleha.core.graph.repo_graph / `saleha impact`),
+    # persisted under <repo>/.saleha/. Code extraction is fully local -- no API
+    # key, nothing leaves the machine.
+    "graphifyy>=0.9.55"
 ]
 
 [project.optional-dependencies]
@@ -45,11 +49,6 @@ chain = [
 ]
 formal = [
     "z3-solver>=4.12"
-]
-# Cross-file repository graph (saleha.core.graph.repo_graph / `saleha impact`).
-# Code extraction is fully local -- no API key, nothing leaves the machine.
-repograph = [
-    "graphifyy>=0.9.55"
 ]
 # Bundles saleha/cli into the standalone sidecar binary apps/desktop's Tauri
 # build launches (scripts/build_desktop_sidecar.py). Without this, running
@@ -73,10 +72,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     # Reference implementation for cyclomatic complexity. test_mech_interp.py
     # cross-checks our own counter against it; without radon that test skips.
-    "radon>=6.0.0",
-    # Cross-file repo graph. Without it, the 8 real-graph tests in
-    # test_repo_graph.py skip (the discovery tests still run).
-    "graphifyy>=0.9.55"
+    "radon>=6.0.0"
 ]
 all = [
     "playwright>=1.35.0",
@@ -88,7 +84,6 @@ all = [
     "tree-sitter-typescript>=0.21",
     "web3>=6.0.0",
     "z3-solver>=4.12",
-    "graphifyy>=0.9.55",
     "pyinstaller>=6.0",
     "fastapi>=0.110.0",
     "uvicorn>=0.29.0"

@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS SNN Engine - C++23 + CUDA
+// SALEHA SNN Engine - C++23 + CUDA
 // Leaky Integrate-and-Fire neuron simulation at hardware speed
 
 #include <cstdint>
@@ -10,7 +10,7 @@
 #include <expected>
 #include <concepts>
 
-namespace nexus::snn {
+namespace saleha::snn {
 
 // ─── Compile-time configuration ───
 template <std::floating_point T = float>
@@ -105,4 +105,4 @@ private:
     Backend active_backend_;
 };
 
-} // namespace nexus::snn
+} // namespace saleha::snn

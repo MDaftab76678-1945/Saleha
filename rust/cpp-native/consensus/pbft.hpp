@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS Practical Byzantine Fault Tolerance (PBFT)
+// SALEHA Practical Byzantine Fault Tolerance (PBFT)
 // Decentralized consensus tolerating up to f < n/3 Byzantine faults
 
 #include <cstdint>
@@ -10,7 +10,7 @@
 #include <expected>
 #include <chrono>
 
-namespace nexus::consensus {
+namespace saleha::consensus {
 
 // ─── Configuration ───
 struct PBFTConfig {
@@ -121,4 +121,4 @@ private:
     std::vector<PBFTMessage> message_queue_;
 };
 
-} // namespace nexus::consensus
+} // namespace saleha::consensus

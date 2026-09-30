@@ -28,6 +28,7 @@ from __future__ import annotations
 import contextlib
 import difflib
 import hashlib
+import io
 import json
 import os
 import re
@@ -567,6 +568,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                        '"parameters": {"type": "object", "properties": {...}}, '
                        '"auto_commit": <optional bool>}'),
         "scout_symbols": '{"query": "<symbol name or search phrase>"}',
+        "find_importers": '{"path": "<source file whose dependants you want>"}',
     }
 
     def __init__(self, agent: Any, root_dir: str = ".",
@@ -585,8 +587,15 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  progress_checklist: bool = True,
                  reproduce_first: bool = True,
                  lenient_escapes: bool = True,
-                 patch_candidates: int = 0):
+                 patch_candidates: int = 0,
+                 enable_repo_graph: bool = False):
         self.agent = agent
+        # Offers find_importers, backed by the saved cross-file graph under
+        # <root>/.saleha/. Off by default: it adds a tool to the prompt, and
+        # the defaults here were tuned against agent_bench on small models --
+        # whether one more tool helps or hurts them has not been measured.
+        self.enable_repo_graph = enable_repo_graph
+        self._repo_graph: Optional[Any] = None
         # Off only to measure what each is worth (agent_bench A/B).
         self.compact_history = compact_history
         self.progress_checklist = progress_checklist
@@ -1569,6 +1578,42 @@ Never invent tool outputs. One block per reply. Be efficient."""
         return (f"'{name}' calls: {', '.join(lines)}\n"
                 f"To inspect one, call find_symbols on its name.")
 
+    def _tool_find_importers(self, path: str) -> str:
+        """Which files import this one -- "what breaks if I change it".
+
+        Answered from the saved cross-file graph (built once, reused until a
+        source file changes). Static analysis only, and the reply says so.
+        """
+        from saleha.core.graph.repo_graph import RepoGraph, graphify_available
+        rel = (path or "").strip().replace("\\", "/")
+        if not rel:
+            return "find_importers needs a 'path' argument."
+        if self._safe_path(rel) is None:
+            return f"'{path}' is outside the repository."
+        if not graphify_available():
+            return ("cross-file graph unavailable: the graphifyy package is not "
+                    "installed, so no importer information exists (this is NOT "
+                    "'no importers').")
+        if self._repo_graph is None:
+            graph = RepoGraph(self.root_dir)
+            with contextlib.redirect_stdout(io.StringIO()):
+                graph.load_or_build()
+            self._repo_graph = graph
+        graph = self._repo_graph
+        importers = graph.importers_of(rel)
+        note = ""
+        if not graph.stats.coverage_is_complete:
+            note = (f"\nNote: {len(graph.stats.files_absent)} scanned file(s) "
+                    f"are missing from the graph, so this list may be incomplete.")
+        if not importers:
+            return (f"no static importer of {rel} found. Lazy imports inside "
+                    f"function bodies are invisible to static analysis, so this "
+                    f"does not prove it is unused.{note}")
+        shown = importers[:40]
+        more = f"\n... and {len(importers) - 40} more" if len(importers) > 40 else ""
+        return (f"{len(importers)} file(s) import {rel}:\n" + "\n".join(shown)
+                + more + note)
+
     def _tool_scout_symbols(self, query: str = "") -> str:
         """Query the System-1 AST Scout for symbol definitions, callees, and test files."""
         from saleha.core.graph.system1_scout import System1Scout
@@ -1774,6 +1819,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
             "forge_tool": self._tool_forge_tool,
             "scout_symbols": self._tool_scout_symbols,
         }
+        if self.enable_repo_graph or (self.allowed_tools and "find_importers" in self.allowed_tools):
+            tools["find_importers"] = self._tool_find_importers
 
         # Dynamic tool discovery: ingest registered tools from tool_registry
         try:
@@ -1838,6 +1885,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 "find_symbols": EvidenceKind.SEARCH_PERFORMED,
                 "find_callees": EvidenceKind.SEARCH_PERFORMED,
                 "scout_symbols": EvidenceKind.SEARCH_PERFORMED,
+                "find_importers": EvidenceKind.SEARCH_PERFORMED,
                 "write_file": EvidenceKind.FILE_MODIFIED,
                 "patch_file": EvidenceKind.FILE_MODIFIED,
                 "forge_tool": EvidenceKind.FILE_MODIFIED,
@@ -1884,7 +1932,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         reads_since_mutation_attempt = 0
         _READ_ONLY_TOOLS = ("read_file", "list_dir", "find_symbols",
                             "find_callees", "get_file_outline", "search_repo",
-                            "scout_symbols")
+                            "scout_symbols", "find_importers")
         # Last region the tools actually located (path, start, end), from
         # get_file_outline or find_symbols. A rejection that says "read the
         # exact lines" is useless if the model has to invent the numbers --

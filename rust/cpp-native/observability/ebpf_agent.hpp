@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS eBPF Observability Agent
+// SALEHA eBPF Observability Agent
 // Zero-overhead kernel-level monitoring for agent processes
 
 #include <cstdint>
@@ -9,7 +9,7 @@
 #include <chrono>
 #include <expected>
 
-namespace nexus::observability {
+namespace saleha::observability {
 
 struct ProcessMetrics {
     uint32_t pid;
@@ -94,4 +94,4 @@ private:
     std::unique_ptr<Impl> pimpl_;
 };
 
-} // namespace nexus::observability
+} // namespace saleha::observability

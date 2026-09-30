@@ -1,0 +1,13 @@
+[package]
+name = "saleha-benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[[bench]]
+name = "pbft_throughput"
+harness = false
+
+[dependencies]
+saleha-consensus = { path = "../saleha-consensus" }
+tokio = { version = "1.35", features = ["full"] }
+criterion = { version = "0.5", features = ["async_tokio"] }

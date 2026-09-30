@@ -1,5 +1,5 @@
 #pragma once
-// NEXUS GNN-based Emergent Behavior Detection
+// SALEHA GNN-based Emergent Behavior Detection
 // Detects collective patterns in agent swarm behavior
 
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include <memory>
 #include <expected>
 
-namespace nexus::gnn {
+namespace saleha::gnn {
 
 // ─── Graph Structures ───
 struct Node {
@@ -122,4 +122,4 @@ private:
     ) const;
 };
 
-} // namespace nexus::gnn
+} // namespace saleha::gnn
