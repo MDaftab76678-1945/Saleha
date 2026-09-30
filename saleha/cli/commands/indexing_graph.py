@@ -10,12 +10,13 @@ behavior for whatever this file's commands use.
 import contextlib
 import io
 import json
-from typing import Any
+from typing import Any, Dict, Optional
 
 import click
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
 from rich.table import Table
 
 from saleha.cli import commands as _cmds
@@ -111,29 +112,71 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
     console.print(Markdown(ans.answer))
 
 @cli.command(name='fix')
-@click.argument('command_or_file', default='pytest')
-@click.option('--retries', default=3, help='Max healing attempts')
-@click.option('--no-commit', is_flag=True, help='Do not auto-commit verified fix')
-def fix_cmd(command_or_file: Any, retries: Any, no_commit: Any) -> None:
+@click.argument('test_command', required=False, default=None)
+@click.option('--dir', 'root_dir', default='.', type=click.Path(exists=True, file_okay=False),
+              help='Repository to fix (default: current directory)')
+@click.option('--model', '-m', default=None, help='Model (default: qwen2.5-coder:3b, or $SALEHA_FIX_MODEL)')
+@click.option('--max-steps', default=15, type=click.IntRange(1, 40), show_default=True, help='Agent steps')
+@click.option('--timeout', default=900, type=click.IntRange(30, 7200), show_default=True,
+              help='Seconds for the whole agent run')
+@click.option('--commit', is_flag=True, help='Commit a proven fix on a new branch saleha/fix-...')
+@click.option('--receipt', 'receipt_path', default=None, type=click.Path(dir_okay=False),
+              help='Also write the proof receipt (Markdown) to this file')
+@click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
+def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], max_steps: int,
+            timeout: int, commit: bool, receipt_path: Optional[str], as_json: bool) -> None:
     """
-    Autonomous Self-Healing Loop: Runs a failing command/test, localizes fault, patches and verifies.
-    
-    Example: saleha fix "pytest saleha/tests/test_foo.py"
+    Fix the failing tests of a repo, and prove the fix.
+
+    Runs the tests; if they fail, Saleha's agent fixes the source with a local
+    model, re-runs them, and proves the fix with a receipt (the tests pass
+    with it and fail without it, and were not weakened). An unproven fix is
+    taken back out. Needs a clean git tree.
+
+    Example: saleha fix            (tests found automatically)
+             saleha fix "pytest tests/test_calc.py" --commit
     """
-    from saleha.core.platform.self_healer import self_healer
-    console.print(f'[bold cyan]🩹 Running Autonomous Self-Healer on:[/] [yellow]{command_or_file}[/]')
-    result = self_healer.auto_heal(command_or_file, max_retries=retries, auto_commit=not no_commit)
-    if result.success:
-        if result.attempts_made == 0:
-            console.print('[bold green]✅ Command is already passing! Zero errors detected.[/]')
+    from saleha.core.loop import fix_flow
+
+    def show(ev: Dict[str, Any]) -> None:
+        if as_json:
+            return
+        if ev.get('stage') == 'agent':
+            console.print(f"[dim]step {ev.get('step')}[/] [cyan]{ev.get('action')}[/] -> "
+                          f"{_cmds._one_line(ev.get('observation', ''))}")
         else:
-            console.print(f'[bold green]🎉 Healed successfully in {result.attempts_made} attempt(s)![/]')
-            if result.commit_hash:
-                console.print(f'[cyan]📦 Git Commit:[/] [yellow]{result.commit_hash}[/]')
+            console.print(f"[bold cyan]{ev.get('stage')}:[/] {ev.get('message', '')}")
+
+    argv = fix_flow.split_command(test_command) if test_command else None
+    res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
+                            timeout=float(timeout), on_event=show)
+    branch = ''
+    if commit and res.verdict == fix_flow.FIXED:
+        ok, branch = fix_flow.commit_fix(root_dir, res)
+        if not ok:
+            res.reason += f' (commit failed: {branch})'
+            branch = ''
+    if receipt_path and res.receipt_markdown:
+        with open(receipt_path, 'w', encoding='utf-8') as fh:
+            fh.write(res.receipt_markdown)
+    if as_json:
+        click.echo(json.dumps({**res.to_dict(), 'branch': branch}, ensure_ascii=True))
     else:
-        console.print(f'[bold red]❌ Healing failed:[/] {result.error}')
-        if result.diagnostics:
-            console.print(f'[dim]Faulting Location: {result.diagnostics.faulting_file}:{result.diagnostics.faulting_line}[/]')
+        from rich.markup import escape
+        colour = {'FIXED': 'green', 'ALREADY_PASSING': 'green', 'FIXED_UNPROVEN': 'yellow'}.get(res.verdict, 'red')
+        body = escape(res.reason)
+        if res.changed_files:
+            body += '\n\nChanged: ' + ', '.join(escape(p) for p in res.changed_files)
+        if branch:
+            body += f'\nCommitted on branch: {escape(branch)}'
+        body += f'\n\n{res.model} · {res.agent_steps} agent step(s) · {res.seconds}s'
+        console.print(Panel(body, title=f'[{colour}]{res.verdict}[/]', border_style=colour))
+        if res.diff and res.verdict != fix_flow.NOT_FIXED:
+            console.print(Syntax(res.diff, 'diff', theme='monokai'))
+        if res.receipt_markdown:
+            console.print(Markdown(res.receipt_markdown))
+    if not res.ok:
+        raise click.exceptions.Exit(1)
 
 @cli.command(name='search')
 @click.argument('query')

@@ -1,49 +1,134 @@
-name: 'Saleha AI Autonomous Code Reviewer & Security Auditor'
-description: '100% Local/Self-hosted AI Code Reviewer. Performs OWASP Top-10 security analysis, AST impact scoring, and auto-patch suggestions on Pull Requests.'
-author: 'Saleha AI Team'
+name: 'Saleha: fix failing tests, with proof'
+description: 'mode: fix -- when tests fail, a small open model inside the runner fixes the code, proves the fix (fails without it, passes with it, tests not weakened) and opens a PR. mode: review -- static PR review.'
+author: 'Saleha'
 branding:
   icon: 'shield'
   color: 'blue'
 
 inputs:
+  mode:
+    description: '"fix": fix failing tests and open a pull request with the proof. "review": static security and quality review of Python files.'
+    required: false
+    default: 'review'
   github-token:
-    description: 'GitHub Token for posting review comments on the Pull Request (defaults to GITHUB_TOKEN)'
+    description: 'Token for pushing the fix branch and opening the pull request (fix mode)'
     required: false
     default: ${{ github.token }}
   python-version:
-    description: 'Python version to run Saleha engine (pyproject requires >=3.12)'
+    description: 'review mode only. In fix mode the project is tested with the Python your job already set up (3.12+ needed), and Saleha itself runs in its own venv.'
     required: false
     default: '3.12'
   scan-path:
-    description: 'Directory or specific file to review'
+    description: 'review mode: directory or file to review'
     required: false
     default: '.'
   fail-on-critical:
-    description: 'Whether to fail the CI step if Critical/High OWASP vulnerabilities are detected'
+    description: 'review mode: fail the step on Critical/High findings'
     required: false
     default: 'true'
+  test-command:
+    description: 'fix mode: the test command, e.g. "python -m pytest -q tests" (default: discovered from the repo)'
+    required: false
+    default: ''
+  model:
+    description: 'fix mode: Ollama model, run on the runner itself -- your code is not sent to any AI service'
+    required: false
+    default: 'qwen2.5-coder:3b'
+  open-pr:
+    description: 'fix mode: open a pull request with a proven fix'
+    required: false
+    default: 'true'
+  max-steps:
+    description: 'fix mode: agent steps'
+    required: false
+    default: '15'
+  timeout:
+    description: 'fix mode: seconds for the agent run (CPU runners are slow; raise it for bigger models)'
+    required: false
+    default: '1500'
+
+outputs:
+  verdict:
+    description: 'fix mode: FIXED, ALREADY_PASSING, FIXED_UNPROVEN, NOT_FIXED, CANNOT_RUN or HARNESS_ERROR'
+    value: ${{ steps.report.outputs.verdict }}
+  branch:
+    description: 'fix mode: the branch holding a proven fix'
+    value: ${{ steps.report.outputs.branch }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Set up Python
+    - name: Set up Python (review)
+      if: inputs.mode != 'fix'
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install Saleha Engine
+    - name: Install Saleha in its own venv
       shell: bash
       run: |
-        python -m pip install --upgrade pip
-        pip install click rich pydantic requests psutil PyYAML
-        pip install -e ${{ github.action_path }} --no-deps
+        python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else "Saleha needs Python 3.12+ on this job, found " + sys.version.split()[0])'
+        # The project's tests run on the job's own interpreter, where its packages are.
+        echo "SALEHA_TEST_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+        python -m venv "$RUNNER_TEMP/saleha-venv"
+        SALEHA_PY="$RUNNER_TEMP/saleha-venv/bin/python"
+        [ -x "$SALEHA_PY" ] || SALEHA_PY="$RUNNER_TEMP/saleha-venv/Scripts/python.exe"
+        "$SALEHA_PY" -m pip install --quiet --upgrade pip
+        "$SALEHA_PY" -m pip install --quiet click rich pydantic requests psutil PyYAML
+        "$SALEHA_PY" -m pip install --quiet --no-deps -e "${{ github.action_path }}"
+        echo "SALEHA_PY=$SALEHA_PY" >> "$GITHUB_ENV"
 
-    - name: Execute Saleha AI Code Review
+    - name: Start a local model (fix)
+      if: inputs.mode == 'fix'
+      shell: bash
+      run: |
+        if ! command -v ollama >/dev/null; then
+          curl -fsSL https://ollama.com/install.sh | sh
+        fi
+        if ! curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+          nohup ollama serve >"$RUNNER_TEMP/ollama.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/api/tags >/dev/null && break; sleep 1; done
+        fi
+        ollama pull "${{ inputs.model }}"
+
+    - name: Fix failing tests (fix)
+      if: inputs.mode == 'fix'
+      shell: bash
+      env:
+        SALEHA_TEST_CMD: ${{ inputs.test-command }}
+      run: |
+        git config user.name "saleha-bot"
+        git config user.email "saleha-bot@users.noreply.github.com"
+        args=(fix --json --commit -m "${{ inputs.model }}" --max-steps "${{ inputs.max-steps }}" --timeout "${{ inputs.timeout }}")
+        if [ -n "$SALEHA_TEST_CMD" ]; then args+=("$SALEHA_TEST_CMD"); fi
+        "$SALEHA_PY" -c 'from saleha.cli.commands import cli; cli()' "${args[@]}" > "$RUNNER_TEMP/saleha-fix.json" || true
+
+    - name: Report (fix)
+      id: report
+      if: inputs.mode == 'fix'
+      shell: bash
+      run: |
+        "$SALEHA_PY" "${{ github.action_path }}/scripts/ci_fix_report.py" "$RUNNER_TEMP/saleha-fix.json" "$RUNNER_TEMP/saleha-pr-body.md"
+
+    - name: Open a pull request with the proven fix (fix)
+      if: inputs.mode == 'fix' && steps.report.outputs.verdict == 'FIXED' && inputs.open-pr == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BRANCH: ${{ steps.report.outputs.branch }}
+        BASE: ${{ github.head_ref || github.ref_name }}
+      run: |
+        git push origin "$BRANCH"
+        gh pr create --base "$BASE" --head "$BRANCH" \
+          --title "Saleha: fix failing tests (proven)" \
+          --body-file "$RUNNER_TEMP/saleha-pr-body.md"
+
+    - name: Execute Saleha AI Code Review (review)
       id: review
+      if: inputs.mode != 'fix'
       shell: bash
       env:
         SALEHA_SCAN_PATH: ${{ inputs.scan-path }}
         SALEHA_FAIL_ON_CRITICAL: ${{ inputs.fail-on-critical }}
       run: |
-        python "${{ github.action_path }}/scripts/run_pr_review.py"
-
+        "$SALEHA_PY" "${{ github.action_path }}/scripts/run_pr_review.py"

@@ -2150,6 +2150,32 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
         self.assertIn("def charge", obs)   # the content is still returned
 
 
+class TripleQuotedCallTests(unittest.TestCase):
+    RAW = ('```tool_call\n{"tool": "patch_file", "args": {"path": "shop/pricing.py", '
+           '"search": """def discount(total, percent):\n'
+           '    """Total after a percentage discount."""\n'
+           '    return total - total * percent / 10""", '
+           '"replace": """def discount(total, percent):\n'
+           '    """Total after a percentage discount."""\n'
+           '    return total - total * percent / 100"""}}\n```')
+
+    def test_a_python_triple_quoted_value_is_read_as_a_string(self) -> None:
+        """qwen2.5-coder:3b wrote this four times in a row in a real `saleha fix` run;
+        every reply was dropped as unparseable and the bug stayed unfixed."""
+        parsed = AgentLoop._parse_call(self.RAW)
+        assert parsed is not None
+        name, args = parsed
+        self.assertEqual(name, "patch_file")
+        self.assertEqual(args["path"], "shop/pricing.py")
+        self.assertIn('"""Total after a percentage discount."""', args["search"])
+        self.assertTrue(args["search"].endswith("percent / 10"))
+        self.assertTrue(args["replace"].endswith("percent / 100"))
+
+    def test_plain_json_is_untouched(self) -> None:
+        parsed = AgentLoop._parse_call('```tool_call\n{"tool": "read_file", "args": {"path": "a.py"}}\n```')
+        self.assertEqual(parsed, ("read_file", {"path": "a.py"}))
+
+
 class NormRelPathTests(unittest.TestCase):
     def test_a_dot_directory_keeps_its_dot(self) -> None:
         """lstrip("./") turned '.saleha/cfg.py' into 'saleha/cfg.py' -- a different

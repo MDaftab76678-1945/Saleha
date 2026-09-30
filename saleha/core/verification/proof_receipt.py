@@ -98,10 +98,16 @@ def _git(root: str, *args: str, check: bool = False) -> subprocess.CompletedProc
 
 
 def _changed_files(root: str, base: str) -> List[str]:
-    """Tracked files changed since `base` plus untracked, non-ignored files."""
+    """Tracked files changed since `base` plus untracked, non-ignored files.
+
+    Bytecode and test caches are left out: in a repo with no .gitignore the
+    test runs' own __pycache__ files were counted as changed source and test
+    files of the change being proven.
+    """
+    from saleha.core.loop.fix_flow import is_generated
     tracked = _git(root, "diff", "--name-only", base).stdout.splitlines()
     untracked = _git(root, "ls-files", "--others", "--exclude-standard").stdout.splitlines()
-    return sorted({p.strip() for p in tracked + untracked if p.strip()})
+    return sorted({p.strip() for p in tracked + untracked if p.strip() and not is_generated(p.strip())})
 
 
 def _is_test_path(rel: str) -> bool:

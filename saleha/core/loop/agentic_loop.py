@@ -277,9 +277,35 @@ def _loads_lenient(payload: str) -> Optional[Dict]:
         return parsed if isinstance(parsed, dict) else None
     except json.JSONDecodeError:
         pass
+    for candidate in (payload, _triple_quoted_to_json(payload)):
+        try:
+            parsed = json.loads(_escape_raw_controls(candidate))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
 
-    # Escape newlines and tabs that sit inside a double-quoted string. Quote
-    # state is tracked so separators between fields are left untouched.
+
+# A Python triple-quoted value where JSON wants a string. Measured
+# (qwen2.5-coder:3b, `saleha fix` on a real bug): four replies in a row
+# were `"search": """def discount(...):\n    """Docstring."""\n ..."""`, the
+# run hit the parse-retry limit and ended with nothing fixed. The closing
+# quotes are the ones followed by the next key or the closing brace, so a
+# docstring inside the value does not end it early.
+_TRIPLE_QUOTED_VALUE = re.compile(
+    r':\s*"""(.*?)"""(?=\s*(?:,\s*"[A-Za-z_]\w*"\s*:|\}))', re.DOTALL)
+
+
+def _triple_quoted_to_json(payload: str) -> str:
+    return _TRIPLE_QUOTED_VALUE.sub(lambda m: ": " + json.dumps(m.group(1)), payload)
+
+
+def _escape_raw_controls(payload: str) -> str:
+    """Escape newlines and tabs that sit inside a double-quoted string.
+
+    Quote state is tracked so separators between fields are left untouched.
+    """
     out: List[str] = []
     in_string = False
     escaped = False
@@ -305,12 +331,7 @@ def _loads_lenient(payload: str) -> Optional[Dict]:
             out.append("\\t")
             continue
         out.append(ch)
-
-    try:
-        parsed = json.loads("".join(out))
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    return "".join(out)
 
 # Concrete next action to name when a completion claim is rejected for
 # missing a given kind of evidence. Measured on qwen2.5-coder:3b: a
@@ -971,7 +992,15 @@ Never invent tool outputs. One block per reply. Be efficient."""
         Prefer a venv that lives inside root_dir itself; fall back to
         sys.executable only when none exists (root_dir is Saleha's own
         repo, or a target with no isolated venv of its own).
+
+        $SALEHA_TEST_PYTHON wins over both: in CI Saleha runs from its own
+        venv (so its dependencies never touch the project's), while the
+        project's packages live in the job's interpreter, which only the
+        caller knows.
         """
+        override = os.environ.get("SALEHA_TEST_PYTHON", "").strip()
+        if override:
+            return override
         candidates = (
             os.path.join(self.root_dir, ".venv", "Scripts", "python.exe"),
             os.path.join(self.root_dir, ".venv", "bin", "python"),
