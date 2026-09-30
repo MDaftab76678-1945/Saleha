@@ -341,7 +341,10 @@ class AgentBlackbox:
         self.blackbox_dir = self.workspace.root_path / ".blackbox"
         self.blackbox_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = self.blackbox_dir / "flight_recorder.jsonl"
-        self._prev_hash = self._get_last_hash()
+        # Read on the first write, not here: agents are built at import time,
+        # and reading every log on each start cost a full pass over megabytes.
+        self._prev_hash: Optional[str] = None
+        self._deferred: List[Tuple[str, str, Dict[str, Any], str, float]] = []
 
     def _get_last_hash(self) -> str:
         """Reads the hash of the last recorded event to maintain blockchain-style chaining."""
@@ -365,7 +368,25 @@ class AgentBlackbox:
         status: str = "SUCCESS",
     ) -> Dict[str, Any]:
         """Appends a hash-linked cryptographic event record to the flight log."""
-        timestamp = time.time()
+        pending, self._deferred = self._deferred, []
+        for ev_type, ev_stage, ev_payload, ev_status, ev_time in pending:
+            self._append(ev_type, ev_stage, ev_payload, ev_status, ev_time)
+        return self._append(event_type, stage, payload, status, time.time())
+
+    def defer(self, event_type: str, stage: str, payload: Dict[str, Any],
+              status: str = "SUCCESS") -> None:
+        """Hold an event until the first real record(), then write it first.
+
+        Agents are built at import time (module-level singletons), so a BOOT
+        record written in the constructor appended to ~25 logs on every start
+        of the CLI -- ~20 MB of nothing but BOOT lines, growing without bound.
+        """
+        self._deferred.append((event_type, stage, payload, status, time.time()))
+
+    def _append(self, event_type: str, stage: str, payload: Dict[str, Any],
+                status: str, timestamp: float) -> Dict[str, Any]:
+        if self._prev_hash is None:
+            self._prev_hash = self._get_last_hash()
         payload_serialized = json.dumps(payload, sort_keys=True)
         raw_signature = f"{self._prev_hash}:{self.agent_role}:{event_type}:{stage}:{timestamp}:{payload_serialized}"
         entry_hash = hashlib.sha256(raw_signature.encode("utf-8")).hexdigest()
@@ -497,7 +518,7 @@ class AgentPersonalComputer:
         )
         self.blackbox = AgentBlackbox(self.workspace, agent_role=role)
 
-        self.blackbox.record(
+        self.blackbox.defer(
             event_type="BOOT",
             stage="INIT",
             payload={"role": role, "workspace": str(self.workspace_root)},

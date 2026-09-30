@@ -541,6 +541,35 @@ class AgentLoopTests(unittest.TestCase):
             original = f.read()
         self.assertEqual(original, "def charge(amount):\n    return amount * 2\n")
 
+    def _write_bom_app(self) -> str:
+        path = os.path.join(self.root, "app.py")
+        with open(path, "w", encoding="utf-8-sig") as f:
+            f.write("def charge(amount):\n    return amount * 2\n")
+        return path
+
+    def test_patch_file_edits_a_file_that_starts_with_a_bom(self) -> None:
+        """Measured live (qwen2.5-coder:3b): a correct one-line fix to a BOM file was
+        rejected as "not valid Python" every time, and the run ended unfixed."""
+        path = self._write_bom_app()
+        agent = ScriptedAgent([
+            _tool_call("patch_file", path="app.py", search="amount * 2", replace="amount * 3"),
+            _finish("patched"),
+        ])
+        with patch_gate(approve_result=True):
+            res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True).run("patch charge")
+        self.assertIn("successfully patched", res.steps[0].observation)
+        with open(path, "rb") as f:
+            data = f.read()
+        self.assertTrue(data.startswith(b"\xef\xbb\xbf"), "the BOM must be kept")
+        self.assertIn(b"amount * 3", data)
+
+    def test_get_file_outline_reads_a_file_that_starts_with_a_bom(self) -> None:
+        self._write_bom_app()
+        loop = AgentLoop(agent=ScriptedAgent([]), root_dir=self.root)
+        out = loop._tool_get_file_outline("app.py")
+        self.assertNotIn("outline error", out)
+        self.assertIn("def charge()", out)
+
     def test_get_file_outline_and_find_symbols(self) -> None:
         agent = ScriptedAgent([
             _tool_call("get_file_outline", path="app.py"),
@@ -2119,6 +2148,22 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
         self.assertIn("UNSCANNED", obs)
         self.assertIn("guard boom", obs)
         self.assertIn("def charge", obs)   # the content is still returned
+
+
+class NormRelPathTests(unittest.TestCase):
+    def test_a_dot_directory_keeps_its_dot(self) -> None:
+        """lstrip("./") turned '.saleha/cfg.py' into 'saleha/cfg.py' -- a different
+        real file -- so the pre-patch snapshot could be taken of the wrong file."""
+        from saleha.core.loop.agentic_loop import _norm_rel_path
+        self.assertEqual(_norm_rel_path(".saleha/cfg.py"), ".saleha/cfg.py")
+        self.assertEqual(_norm_rel_path(".github\\workflows\\ci.yml"), ".github/workflows/ci.yml")
+        self.assertEqual(_norm_rel_path("../outside.py"), "../outside.py")
+
+    def test_leading_dot_slash_and_slash_still_go(self) -> None:
+        from saleha.core.loop.agentic_loop import _norm_rel_path
+        self.assertEqual(_norm_rel_path(" ./app.py "), "app.py")
+        self.assertEqual(_norm_rel_path(".\\src\\app.py"), "src/app.py")
+        self.assertEqual(_norm_rel_path("/src/app.py"), "src/app.py")
 
 
 class OutlineHintPathTests(unittest.TestCase):

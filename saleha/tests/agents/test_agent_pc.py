@@ -45,6 +45,23 @@ class TestAgentPCSubsystem(unittest.TestCase):
         clear_agent_pc_registry()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_building_a_pc_writes_nothing_until_it_records(self) -> None:
+        """Agents are module-level singletons, so a BOOT line written by the
+        constructor landed in ~25 logs on every CLI start (~20 MB of BOOT lines)."""
+        self.assertFalse(self.pc.blackbox.log_file.exists())
+        self.pc.blackbox.record("NOTE", "TEST", {"summary": "first real event"})
+        events = self.pc.blackbox.get_events(limit=None)
+        self.assertEqual([e["event_type"] for e in events], ["BOOT", "NOTE"])
+        self.assertEqual(self.pc.blackbox.verify_integrity()["status"], "INTACT")
+
+    def test_a_rebuilt_pc_continues_the_hash_chain(self) -> None:
+        self.pc.blackbox.record("NOTE", "TEST", {"n": 1})
+        again = AgentPersonalComputer(agent_role="test_coder", base_dir=self.workspace_path)
+        again.blackbox.record("NOTE", "TEST", {"n": 2})
+        self.assertEqual(again.blackbox.verify_integrity()["status"], "INTACT")
+        self.assertEqual([e["event_type"] for e in again.blackbox.get_events(limit=None)],
+                         ["BOOT", "NOTE", "BOOT", "NOTE"])
+
     def test_workspace_fs_jail_and_path_traversal(self) -> None:
         fs = self.pc.workspace
 

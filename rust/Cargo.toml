@@ -32,8 +32,8 @@ members = [
 #   crates/saleha-core         no [package]; needs rdma-core-sys / io-uring (Linux only)
 #   crates/saleha-l1-economics, crates/saleha-l1-genesis, crates/saleha-l1-core-draft,
 #   saleha-orchestrator-draft  reference types defined nowhere (AgentState, cognitive_state, ...)
-#   crates/saleha-edge-lite    compiles once chrono is added, but its TEE attestation and
-#                              payload hash are hardcoded strings printed as success
+#   crates/saleha-edge-lite    compiles once chrono is added; its TEE attestation, payload
+#                              hash and proof submission are stubs and say so when run
 #   crates/saleha-l1-bridge, crates/saleha-l1-observability, saleha-zkvm
 #                              need halo2_proofs / risc0 / tonic, not tried
 #   crates/secure-node         needs tfhe, sqlx, reqwest, not tried

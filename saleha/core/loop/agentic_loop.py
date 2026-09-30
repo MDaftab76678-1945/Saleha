@@ -188,8 +188,16 @@ def _read_lines_or_none(abs_p: str) -> Optional[List[str]]:
 
 
 def _norm_rel_path(p: str) -> str:
-    """Repo-relative path in one spelling: forward slashes, no leading './'."""
-    return p.strip().replace("\\", "/").lstrip("./")
+    """Repo-relative path in one spelling: forward slashes, no leading './' or '/'.
+
+    Only whole './' and '/' prefixes go: lstrip("./") also ate the dot of
+    '.saleha/cfg.py' (-> 'saleha/cfg.py', a different file) and turned
+    '../x.py' into 'x.py', inside the repo.
+    """
+    p = p.strip().replace("\\", "/")
+    while p.startswith(("./", "/")):
+        p = p[1:] if p.startswith("/") else p[2:]
+    return p
 
 
 def _is_test_path(rel_path: str) -> bool:
@@ -1427,7 +1435,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
             if path.endswith(".py"):
                 import ast
                 try:
-                    ast.parse(patched, filename=abs_p)
+                    # A UTF-8 BOM (Notepad, PowerShell 5) is legal in a .py file
+                    # but not in a str handed to ast.parse: every correct patch
+                    # to such a file was rejected as "not valid Python".
+                    ast.parse(patched.removeprefix("﻿"), filename=abs_p)
                 except SyntaxError as syn_err:
                     return (f"patch rejected: the result would not be valid "
                             f"Python ({syn_err.__class__.__name__}: "
@@ -1795,7 +1806,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             import ast
             with open(abs_p, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
-            tree = ast.parse(content, filename=abs_p)
+            tree = ast.parse(content.removeprefix("﻿"), filename=abs_p)  # BOM: see patch_file
             lines = self._outline_lines(tree.body)
             if not lines:
                 return "(no top-level classes/functions)"

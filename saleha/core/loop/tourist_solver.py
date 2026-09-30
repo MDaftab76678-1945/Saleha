@@ -79,7 +79,9 @@ class Understanding:
     test_files: List[str]
     required_names: List[str]         # names the tests import from the target
     asserts: List[str]                # assert lines, verbatim
-    current_code: str
+    current_code: str                 # "\n" line endings, no BOM
+    bom: bool = False                 # the target starts with a UTF-8 BOM
+    newline: str = "\n"               # the target's own line ending
 
 
 def _test_files(root: Path) -> List[Path]:
@@ -100,7 +102,9 @@ def understand(root_dir: str) -> Tuple[Optional[Understanding], str]:
     imports: Dict[str, List[str]] = {}
     asserts: List[str] = []
     for tf in tests:
-        src = tf.read_text(encoding="utf-8", errors="replace")
+        # utf-8-sig: a BOM (Notepad, PowerShell 5) made every such test file
+        # "not parse", so the fast path never ran on it.
+        src = tf.read_text(encoding="utf-8-sig", errors="replace")
         try:
             tree = ast.parse(src)
         except SyntaxError as exc:
@@ -126,15 +130,31 @@ def understand(root_dir: str) -> Tuple[Optional[Understanding], str]:
         for a in asserts:
             called.update(re.findall(r"\b([A-Za-z_]\w*)\s*\(", a))
         names = sorted(n for n in called if n not in _BUILTIN_NAMES)
-    current = (root / target).read_text(encoding="utf-8", errors="replace")
+    with open(root / target, "r", encoding="utf-8", errors="replace", newline="") as fh:
+        raw = fh.read()
+    current = raw.removeprefix("﻿").replace("\r\n", "\n")
     return Understanding(target, [str(t.relative_to(root)) for t in tests], names,
-                         asserts[:40], current), ""
+                         asserts[:40], current, bom=raw.startswith("﻿"),
+                         newline="\r\n" if "\r\n" in raw else "\n"), ""
+
+
+def _write_target(root: Path, u: Understanding, code: str) -> None:
+    """Write the target in its own BOM and line endings.
+
+    write_text() turned every "\\n" into "\\r\\n" on Windows, so a one-line fix
+    to an LF file became a whole-file diff, and a BOM was silently dropped.
+    """
+    text = ("﻿" if u.bom else "") + code.replace("\r\n", "\n").replace("\n", u.newline)
+    with open(root / u.target, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
 
 
 def _top_level_names(code: str) -> set:
     """Top-level def/class names; empty for code that does not parse."""
     try:
-        tree = ast.parse(code or "")
+        # BOM: ast.parse rejects it in a str, which emptied this set and so
+        # switched off the "keep every existing definition" check.
+        tree = ast.parse((code or "").removeprefix("﻿"))
     except SyntaxError:
         return set()
     return {n.name for n in tree.body
@@ -490,6 +510,7 @@ def solve(goal: str, root_dir: str = ".", think: Optional[Callable[[str, str, bo
     think = think or _ollama_think
     tests_before = _digest(root, u.test_files)
     original_target = u.current_code
+    original_bytes = (root / u.target).read_bytes()  # restored byte for byte
     # Everything the file already defines must survive a rewrite. The target
     # is the whole module the tests import; a rewrite that keeps only the
     # names the tests call would pass them while deleting the rest.
@@ -520,7 +541,7 @@ def solve(goal: str, root_dir: str = ".", think: Optional[Callable[[str, str, bo
             result.attempts[-1].detail = f"rewrite dropped existing definitions: {missing}"
             return False, (f"Your file must keep every existing definition; it dropped "
                            f"{missing}. Return the whole file with those left intact.")
-        (root / u.target).write_text(code + "\n", encoding="utf-8")
+        _write_target(root, u, code + "\n")
         ok, out = run_tests(str(root))
         if _digest(root, u.test_files) != tests_before:
             return False, "test files changed during the run -- refusing to count this"
@@ -567,7 +588,7 @@ def solve(goal: str, root_dir: str = ".", think: Optional[Callable[[str, str, bo
                     code = fixed
 
     if not ok and restore_on_failure:
-        (root / u.target).write_text(original_target, encoding="utf-8")
+        (root / u.target).write_bytes(original_bytes)
     result.success = ok
     result.verdict = "SOLVED" if ok else "FAILED"
     if ok:

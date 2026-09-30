@@ -215,10 +215,8 @@ class DocSyncTests(unittest.TestCase):
             ("saleha governance nope", "no such `saleha governance` sub-command"),
         })
 
-    def test_repo_docs_rule_table_is_current(self) -> None:
-        text = (REPO / "docs" / "SECURITY_MODEL.md").read_text(encoding="utf-8")
-        self.assertEqual(doc_sync.extract_region(text, "security-rules"),
-                         doc_sync.render_region("security-rules", REPO))
+    # docs/SECURITY_MODEL.md was emptied on purpose (2026-09-29), so there is no
+    # rule table left in the repo to keep in sync.
 
 
 class VersioningTests(unittest.TestCase):

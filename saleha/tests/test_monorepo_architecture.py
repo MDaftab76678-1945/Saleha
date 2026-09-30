@@ -14,28 +14,9 @@ class MonorepoArchitectureTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root_dir = Path(__file__).resolve().parents[2]
 
-    def test_phase0_product_brief_exists_and_complete(self) -> None:
-        brief_path = self.root_dir / "PRODUCT_BRIEF.md"
-        self.assertTrue(brief_path.exists())
-        content = brief_path.read_text(encoding="utf-8")
-        self.assertIn("Saleha AI", content)
-        # "Zero-leak" describes the real local encrypted vault (saleha/core/security/vault.py).
-        self.assertIn("Zero-leak", content)
-        # NOTE: this test previously also asserted the brief contained "LOOP_CHECK".
-        # That token appears nowhere in the codebase - it only ever existed to be
-        # asserted here, so requiring it forced a meaningless string into the doc.
-
-    def test_architecture_documentation_exists(self) -> None:
-        arch_path = self.root_dir / "ARCHITECTURE.md"
-        self.assertTrue(arch_path.exists())
-        content = arch_path.read_text(encoding="utf-8")
-        self.assertIn("Saleha", content)
-
-    def test_roadmap_documentation_exists(self) -> None:
-        roadmap_path = self.root_dir / "ROADMAP.md"
-        self.assertTrue(roadmap_path.exists())
-        content = roadmap_path.read_text(encoding="utf-8")
-        self.assertIn("Saleha", content)
+    # PRODUCT_BRIEF.md, ARCHITECTURE.md and ROADMAP.md were emptied on purpose
+    # (2026-09-29): their content was wrong and misled agents. The tests that
+    # required words in them are gone with them.
 
     def test_github_actions_ci_workflow_configured(self) -> None:
         ci_yml = self.root_dir / ".github" / "workflows" / "ci.yml"

@@ -22,8 +22,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛰️ [SALEHA EDGE] Initializing lightweight daemon on Device: drone-001...");
     
     // 1. Initialize Local TEE Binding (e.g., ARM TrustZone / Intel SGX)
-    // In prod: let tee_attestation = tEE::attest_hardware();
-    println!("✅ [SALEHA EDGE] Hardware TEE attestation verified.");
+    // Not implemented: nothing is attested, so nothing may be reported as verified.
+    println!("⚠️ [SALEHA EDGE] Hardware TEE attestation NOT performed (stub, no hardware check).");
 
     // 2. Setup Deferred Proof Queue (for offline operation)
     let (tx, mut rx) = mpsc::channel::<EdgeAction>(100);
@@ -32,10 +32,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         while let Some(action) = rx.recv().await {
             if action.requires_network {
-                println!("📡 [SALEHA EDGE] Connectivity restored. Submitting deferred ZK proof for: {}", action.action_id);
-                // In prod: submit to SALEHA Prover Market via HTTP/gRPC
-                tokio::time::sleep(Duration::from_millis(500)).await; 
-                println!("✅ [SALEHA EDGE] Proof submitted and anchored on-chain.");
+                // Not implemented: no proof is generated and nothing is sent.
+                println!("⚠️ [SALEHA EDGE] Deferred proof for {} NOT submitted (stub, no prover or network call).", action.action_id);
             }
         }
     });
@@ -52,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let action = EdgeAction {
                 action_id: format!("act-{}", chrono::Utc::now().timestamp()),
                 device_id: "drone-001".to_string(),
-                payload_hash: "sha256_mock_hash".to_string(),
+                payload_hash: "NOT_HASHED_stub".to_string(),
                 requires_network: true, // Will queue if offline, send if online
             };
             

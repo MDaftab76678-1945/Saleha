@@ -83,6 +83,30 @@ class TouristSolverTests(unittest.TestCase):
         self.assertFalse(r.success)
         self.assertEqual((self.root / "solution.py").read_text(encoding="utf-8"), "# original\n")
 
+    def test_failed_attempt_is_rolled_back_byte_for_byte(self) -> None:
+        """write_text() put the original back with "\\r\\n" on Windows: a failed fast
+        path left an LF file rewritten before the full agent even started."""
+        (self.root / "solution.py").write_bytes(b"# original\n")
+        ts.solve("add two numbers", str(self.root), think=_Scripted([BAD] * 3),
+                 restore_on_failure=True)
+        self.assertEqual((self.root / "solution.py").read_bytes(), b"# original\n")
+
+    def test_bom_files_are_understood(self) -> None:
+        """A UTF-8 BOM made the test file "not parse", so the fast path never ran."""
+        (self.root / "test_solution.py").write_bytes(b"\xef\xbb\xbf" + TESTS.encode())
+        u, why = ts.understand(str(self.root))
+        assert u is not None, why
+        self.assertEqual(u.required_names, ["add"])
+
+    def test_a_fix_keeps_the_targets_bom_and_line_endings(self) -> None:
+        (self.root / "solution.py").write_bytes(b"\xef\xbb\xbfdef add(a, b):\r\n    return a - b\r\n")
+        r = ts.solve("add two numbers", str(self.root), think=_Scripted([GOOD]))
+        self.assertTrue(r.success, r.reason)
+        data = (self.root / "solution.py").read_bytes()
+        self.assertTrue(data.startswith(b"\xef\xbb\xbf"), data[:12])
+        self.assertIn(b"return a + b\r\n", data)
+        self.assertNotIn(b"\r\r\n", data)
+
     def test_rewrite_that_drops_other_definitions_is_rejected(self) -> None:
         (self.root / "solution.py").write_text("def keep_me():\n    return 1\n", encoding="utf-8")
         r = ts.solve("add two numbers", str(self.root), think=_Scripted([GOOD] * 3))
