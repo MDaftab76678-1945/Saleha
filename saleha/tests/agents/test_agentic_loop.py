@@ -2075,6 +2075,52 @@ class AutonomousSelfBuildingTests(unittest.TestCase):
             self.assertIn('"result": 50', res.steps[1].observation)
 
 
+    def test_forge_says_so_when_the_registry_cannot_be_refreshed(self) -> None:
+        """"forged and registered" must not be claimed over a registry that failed."""
+        from saleha.core.skills.tool_forge import ToolForgeResult
+        from saleha.tools.base import tool_registry
+        forged = ToolForgeResult(
+            timestamp="2026-09-30 00:00:00", tool_name="calc_x", status="created",
+            detail="mock", tool_path="saleha/tools/calc_x.py", tests_passed=True)
+        # 1st call: start-of-run discovery (fine); 2nd: inside forge_tool; 3rd: post-forge refresh.
+        boom = RuntimeError("registry offline")
+        with patch_gate(approve_result=True), \
+             patch.dict(os.environ, {"SALEHA_FORGE_OUTSIDE": "1"}), \
+             patch("saleha.core.skills.tool_forge.ToolForge.forge_tool", return_value=forged), \
+             patch.object(tool_registry, "auto_discover", side_effect=[None, boom, boom]):
+            agent = ScriptedAgent([
+                _tool_call("forge_tool", name="calc_x", description="adds"),
+                _finish("done"),
+            ])
+            res = AgentLoop(agent=agent, root_dir=self.root, allow_write=True).run("forge calc_x")
+        obs = res.steps[0].observation
+        self.assertEqual(res.steps[0].action, "forge_tool")
+        self.assertIn("NOT callable", obs)
+        self.assertIn("registry offline", obs)
+        self.assertNotIn("successfully forged", obs)
+
+    def test_a_broken_registry_at_start_is_reported_not_hidden(self) -> None:
+        from saleha.tools.base import tool_registry
+        with patch.object(tool_registry, "auto_discover", side_effect=RuntimeError("no registry")):
+            agent = ScriptedAgent([_tool_call("read_file", path="app.py"), _finish("ok")])
+            res = AgentLoop(agent=agent, root_dir=self.root).run("read app")
+        self.assertEqual(res.steps[0].action, "tool-discovery")
+        self.assertIn("registry unavailable", res.steps[0].observation)
+        self.assertIn("no registry", res.steps[0].observation)
+
+    def test_a_failing_content_guard_marks_the_text_unscanned(self) -> None:
+        """A guard that errors must not hand back file text as if it had been scanned."""
+        with open(os.path.join(self.root, "app.py"), "w", encoding="utf-8") as f:
+            f.write("def charge(amount):" + chr(10) + "    return amount * 2" + chr(10))
+        with patch("saleha.core.security.untrusted_content.scan", side_effect=RuntimeError("guard boom")):
+            agent = ScriptedAgent([_tool_call("read_file", path="app.py"), _finish("ok")])
+            res = AgentLoop(agent=agent, root_dir=self.root).run("read app")
+        obs = res.steps[0].observation
+        self.assertIn("UNSCANNED", obs)
+        self.assertIn("guard boom", obs)
+        self.assertIn("def charge", obs)   # the content is still returned
+
+
 class OutlineHintPathTests(unittest.TestCase):
     def test_a_backslash_path_does_not_crash_the_outline_hint(self) -> None:
         """`report\\stats.py` in the rewritten hint was read by re as the escape
