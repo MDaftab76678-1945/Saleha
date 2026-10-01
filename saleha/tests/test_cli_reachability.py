@@ -93,6 +93,14 @@ class LazyImportsResolveTests(unittest.TestCase):
                     )
                     continue
                 if not hasattr(mod, name):
+                    # `from pkg import sub` also imports a submodule: an attribute the
+                    # package only gets once something imported it. Measured, run alone
+                    # this test flagged 11 working imports that pass in the full suite.
+                    try:
+                        importlib.import_module(f"{module}.{name}")
+                        continue
+                    except ImportError:
+                        pass
                     broken.append(
                         f"{path.name}:{lineno} `from {module} import {name}` "
                         f"-> {module} has no attribute '{name}'"
