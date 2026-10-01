@@ -46,12 +46,58 @@ class FixFlowTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _fix(self, responses: List[Any]) -> fix_flow.FixResult:
+    def _fix(self, responses: List[Any], candidates: int = 0) -> fix_flow.FixResult:
         return fix_flow.fix_repo(
             self.root, model="scripted", test_command=PYTEST, max_steps=8, timeout=120,
             agent_factory=lambda _m: ScriptedAgent(responses) if responses else _NoModel(),
             ledger_path=os.path.join(self.state, "ledger.jsonl"),
+            anchor_path=os.path.join(self.state, "anchors.jsonl"), candidates=candidates)
+
+    def test_escalation_tries_the_bigger_model_on_a_clean_tree(self) -> None:
+        small = ScriptedAgent([
+            _tool_call("patch_file", path="calc.py", search="a - b", replace="a * b"),
+        ] + [_finish("fixed")] * 12)
+        big = ScriptedAgent([
+            _tool_call("read_file", path="calc.py"),
+            _tool_call("patch_file", path="calc.py", search="a - b", replace="a + b"),
+            _finish("fixed"), _finish("fixed"),
+        ])
+        res = fix_flow.fix_repo(
+            self.root, model="small", escalate="big", test_command=PYTEST, max_steps=8, timeout=120,
+            agent_factory=lambda m: small if m == "small" else big, candidates=0,
+            ledger_path=os.path.join(self.state, "ledger.jsonl"),
             anchor_path=os.path.join(self.state, "anchors.jsonl"))
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        self.assertEqual(res.model, "big")
+        self.assertIn("a + b", Path(self.root, "calc.py").read_text(encoding="utf-8"))
+
+    def test_the_loop_checks_patches_against_the_failing_tests_only(self) -> None:
+        from saleha.core.loop.agentic_loop import AgentLoop
+        seen: List[Any] = []
+        real_run = AgentLoop.run
+
+        def spy(loop: AgentLoop, goal: str, on_event: Any = None) -> Any:
+            seen.append((loop.test_command_override, dict(loop.focus_ranges), loop.require_test_read))
+            return real_run(loop, goal, on_event=on_event)
+
+        from unittest.mock import patch
+        with patch.object(AgentLoop, "run", spy):
+            self._fix([_tool_call("read_file", path="calc.py")] + [_finish("x")] * 8)
+        override, focus, gate = seen[0]
+        self.assertEqual(override, PYTEST + ["test_calc.py::test_add"])
+        self.assertEqual(list(focus), ["calc.py"])
+        self.assertFalse(gate)
+
+    def test_a_drawn_candidate_patch_can_win_when_the_models_own_does_not(self) -> None:
+        res = self._fix([
+            _tool_call("read_file", path="calc.py"),
+            _tool_call("patch_file", path="calc.py", search="a - b", replace="a * b"),
+            # drawn by the candidate search after the model's own patch failed
+            _tool_call("patch_file", path="calc.py", search="a - b", replace="a + b"),
+            _finish("fixed"), _finish("fixed"), _finish("fixed"),
+        ], candidates=2)
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        self.assertIn("a + b", Path(self.root, "calc.py").read_text(encoding="utf-8"))
 
     def test_a_proven_fix_is_kept(self) -> None:
         res = self._fix([
@@ -133,10 +179,10 @@ class FixCommandTests(unittest.TestCase):
         self.assertFalse(out["ok"])
 
 
-def _ci_report_module() -> Any:
+def _ci_report_module(name: str = "ci_fix_report") -> Any:
     import importlib.util
-    path = Path(__file__).resolve().parents[3] / "scripts" / "ci_fix_report.py"
-    spec = importlib.util.spec_from_file_location("ci_fix_report", str(path))
+    path = Path(__file__).resolve().parents[3] / "scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, str(path))
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -170,12 +216,46 @@ class CiFixReportTests(unittest.TestCase):
             self.assertIn("proved the fix", Path(d, "body.md").read_text(encoding="utf-8"))
 
 
+class CiVerifyReportTests(unittest.TestCase):
+    """The GitHub Action's reading of `saleha receipt --json` (mode: verify)."""
+
+    def test_unreadable_receipt_is_a_harness_error_not_a_pass(self) -> None:
+        mod = _ci_report_module("ci_verify_report")
+        r = mod.read_receipt(os.path.join(tempfile.gettempdir(), "no-such-receipt.json"))
+        self.assertEqual(r["verdict"], "HARNESS_ERROR")
+
+    def test_multiline_json_and_an_unproven_verdict_explained(self) -> None:
+        from unittest.mock import patch
+        mod = _ci_report_module("ci_verify_report")
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            src = Path(d, "r.json")
+            src.write_text('{\n  "verdict": "UNPROVEN",\n  "reason": "tests pass with AND without the change",'
+                           '\n  "head_run": {"ran": true, "passed": true, "seconds": 1.0}\n}\n', encoding="utf-8")
+            out = Path(d, "out")
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(out), "GITHUB_STEP_SUMMARY": ""}), \
+                 patch("sys.argv", ["ci_verify_report.py", str(src), str(Path(d, "c.md"))]):
+                mod.main()
+            self.assertEqual(out.read_text(encoding="utf-8").split(), ["verdict=UNPROVEN", "ok=false"])
+            text = Path(d, "c.md").read_text(encoding="utf-8")
+            self.assertIn("do not prove this change", text)
+            self.assertIn("Tests with the change: PASS", text)
+
+
 class FixFlowHelperTests(unittest.TestCase):
     def test_failing_tests_are_read_from_the_short_summary(self) -> None:
         out = ("..F\nFAILED tests/test_x.py::test_a - assert 1 == 2\n"
                "ERROR tests/test_y.py::test_b\n1 failed, 1 error")
         self.assertEqual(fix_flow.failing_tests(out),
                          [("tests/test_x.py::test_a", "assert 1 == 2"), ("tests/test_y.py::test_b", "")])
+
+    def test_failed_subtests_count_once_per_test(self) -> None:
+        out = ("SUBFAILED(slice_args=(-1, -1, 2)) tests/test_more.py::IsliceTests::test_all\n"
+               "SUBFAILED(slice_args=(-1, -1, 3)) tests/test_more.py::IsliceTests::test_all\n"
+               "SUBFAILED(n=2) tests/test_more.py::IsliceTests::test_slicing - AssertionError: x\n"
+               "68 failed, 767 passed")
+        self.assertEqual([t for t, _ in fix_flow.failing_tests(out)],
+                         ["tests/test_more.py::IsliceTests::test_all",
+                          "tests/test_more.py::IsliceTests::test_slicing"])
 
     def test_a_windows_command_with_a_quoted_path_splits_cleanly(self) -> None:
         cmd = '"C:\\Program Files\\Py\\python.exe" -m pytest -q tests'

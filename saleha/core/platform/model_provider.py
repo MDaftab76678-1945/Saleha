@@ -19,13 +19,14 @@ and says so rather than falling back silently.
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 import requests
 
@@ -646,6 +647,30 @@ def user_env(name: str) -> str:
         return ""
 
 
+def _gemini_retry_delay(resp: Any) -> Optional[float]:
+    """Seconds a Gemini 429 asks the caller to wait (RetryInfo.retryDelay), if it says.
+
+    A per-day quota returns infinity: measured, the free tier allows 20
+    requests a day per model and still says "retryDelay: 7s", so waiting
+    7 s and asking again only burns time until the day ends.
+    """
+    try:
+        details = (resp.json().get("error") or {}).get("details") or []
+    except (ValueError, AttributeError):
+        return None
+    for d in details:
+        if isinstance(d, dict) and str(d.get("@type", "")).endswith("QuotaFailure"):
+            if any("PerDay" in str(v.get("quotaId", "")) for v in d.get("violations") or []
+                   if isinstance(v, dict)):
+                return float("inf")
+    for d in details:
+        if isinstance(d, dict) and str(d.get("@type", "")).endswith("RetryInfo"):
+            m = re.match(r"\s*([\d.]+)s\s*$", str(d.get("retryDelay", "")))
+            if m:
+                return float(m.group(1))
+    return None
+
+
 class GeminiProvider(ModelProvider):
     """Google Gemini through its REST API, with the user's GEMINI_API_KEY.
 
@@ -683,11 +708,12 @@ class GeminiProvider(ModelProvider):
             body["generationConfig"] = {"temperature": options["temperature"]}
         start = time.time()
         # 429 / 500 / 503 are usually momentary ("high demand" was measured
-        # mid-benchmark); retry twice with backoff before giving up.
+        # mid-benchmark). A per-minute quota tells how long to wait
+        # (RetryInfo.retryDelay); waiting 2-6 s against a 30 s window only
+        # spent the retries. A wait over a minute is a daily quota: give up.
         resp = None
-        for delay in (0, 2, 6):
-            if delay:
-                time.sleep(delay)
+        backoff = (2.0, 6.0, 20.0)
+        for attempt in range(len(backoff) + 1):
             try:
                 resp = requests.post(_GEMINI_URL.format(model=self.api_model(model)), json=body,
                                      headers={"x-goog-api-key": self.api_key}, timeout=self.timeout)
@@ -695,8 +721,12 @@ class GeminiProvider(ModelProvider):
                 return ProviderResponse(False, "", f"Gemini request failed: {type(exc).__name__}",
                                         response_time=time.time() - start,
                                         provider_name=self.provider_name)
-            if resp.status_code not in (429, 500, 503):
+            if resp.status_code not in (429, 500, 503) or attempt == len(backoff):
                 break
+            wait = _gemini_retry_delay(resp)
+            if wait is not None and wait > 60:
+                break
+            time.sleep(wait if wait is not None else backoff[attempt])
         assert resp is not None  # the loop always makes at least one request
         elapsed = time.time() - start
         try:
@@ -711,7 +741,8 @@ class GeminiProvider(ModelProvider):
         parts = ((candidates[0].get("content") or {}).get("parts") or []) if candidates else []
         text = "".join(str(part.get("text", "")) for part in parts if not part.get("thought"))
         if not text.strip():
-            why = (data.get("promptFeedback") or {}).get("blockReason")                 or (candidates[0].get("finishReason") if candidates else "no candidates")
+            why = ((data.get("promptFeedback") or {}).get("blockReason")
+                   or (candidates[0].get("finishReason") if candidates else "no candidates"))
             return ProviderResponse(False, "", f"Gemini returned no text ({why})",
                                     response_time=elapsed, provider_name=self.provider_name)
         tokens = int((data.get("usageMetadata") or {}).get("totalTokenCount", 0) or 0)

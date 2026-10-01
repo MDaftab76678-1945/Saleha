@@ -33,7 +33,10 @@ NOT_FIXED = "NOT_FIXED"              # no proven fix; the agent's changes were r
 FIXED_UNPROVEN = "FIXED_UNPROVEN"    # tests pass, but no receipt could prove it; changes kept
 CANNOT_RUN = "CANNOT_RUN"            # not a git repo, dirty tree, no tests, tests cannot start
 
-_FAILED_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+?)(?: - (.*))?$")
+# pytest's short summary; SUBFAILED(<params>) is how pytest 9 reports a failed
+# subtest -- measured, a bug in more-itertools failed 68 subtests and no plain
+# FAILED line, so nothing was recognised as failing and nothing localized.
+_FAILED_LINE = re.compile(r"^(?:FAILED|ERROR|SUBFAILED\(.*?\)) (\S+?)(?: - (.*))?$")
 
 
 def is_generated(path: str) -> bool:
@@ -53,6 +56,7 @@ class FixResult:
     reason: str
     test_command: List[str] = field(default_factory=list)
     failing_before: List[str] = field(default_factory=list)
+    suspects: List[str] = field(default_factory=list)      # fault localization, file:line
     changed_files: List[str] = field(default_factory=list)
     diff: str = ""
     receipt: Optional[Dict[str, Any]] = None
@@ -104,22 +108,30 @@ def split_command(cmd: str) -> List[str]:
 
 
 def failing_tests(output: str) -> List[Tuple[str, str]]:
-    """(test id, message) for each FAILED/ERROR line of pytest's short summary."""
-    found = []
+    """(test id, message) for each failing test in pytest's short summary, once per test."""
+    found: Dict[str, str] = {}
     for line in output.splitlines():
         m = _FAILED_LINE.match(line.strip())
-        if m:
-            found.append((m.group(1), (m.group(2) or "").strip()))
-    return found
+        if m and m.group(1) not in found:
+            found[m.group(1)] = (m.group(2) or "").strip()
+    return list(found.items())
 
 
-def build_goal(failing: List[Tuple[str, str]], output: str) -> str:
+def build_goal(failing: List[Tuple[str, str]], output: str, where: str = "") -> str:
     listed = "\n".join(f"- {tid}" + (f": {msg}" if msg else "") for tid, msg in failing[:10])
     tail = "\n".join(output.splitlines()[-30:])
     return ("Fix the bug: the project's tests fail. Change the source code so they pass.\n"
             + (f"Failing tests:\n{listed}\n\n" if listed else "\n")
             + f"Test output (last lines):\n{tail}\n\n"
-            "Do not edit, delete or skip the tests -- fix the code they test.")
+            + (f"{where}\n\n" if where else "")
+            + "Do not edit, delete or skip the tests -- fix the code they test.")
+
+
+def _pytest_python(argv: List[str]) -> Optional[str]:
+    """The interpreter of a `<python> -m pytest ...` command, else None."""
+    if len(argv) >= 3 and argv[1] == "-m" and argv[2] == "pytest":
+        return argv[0]
+    return None
 
 
 def _changes(root: str) -> List[Tuple[str, str]]:
@@ -182,8 +194,14 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
              timeout: float = 900.0, test_timeout: float = 600.0,
              on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
              agent_factory: Optional[Callable[[str], Any]] = None,
-             ledger_path: Optional[str] = None, anchor_path: Optional[str] = None) -> FixResult:
-    """Make the repo's failing tests pass, and prove it -- or leave the repo untouched."""
+             ledger_path: Optional[str] = None, anchor_path: Optional[str] = None,
+             localize: bool = True, candidates: int = 4,
+             escalate: Optional[str] = None) -> FixResult:
+    """Make the repo's failing tests pass, and prove it -- or leave the repo untouched.
+
+    `escalate` names a second, larger model tried when the first one's
+    attempt is not proven (the tree is clean again by then).
+    """
     t0 = time.time()
     model = model or DEFAULT_MODEL
     say = on_event or (lambda _ev: None)
@@ -193,7 +211,7 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
     def done(res: FixResult) -> FixResult:
         if junk_before is not None:
             _remove_new_junk(root, junk_before)
-        res.model, res.seconds = model, round(time.time() - t0, 1)
+        res.model, res.seconds = res.model or model, round(time.time() - t0, 1)
         return res
 
     top = _git(os.path.abspath(root_dir), "rev-parse", "--show-toplevel")
@@ -224,43 +242,79 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
     result = FixResult(NOT_FIXED, "", test_command=list(argv),
                        failing_before=[tid for tid, _ in failing])
 
+    where = ""
+    focus: Dict[str, Tuple[int, int]] = {}
+    python = _pytest_python(list(argv))
+    if localize and python and failing:
+        from saleha.core.loop import fault_localizer
+        suspects, note = fault_localizer.localize(root, python, result.failing_before,
+                                                  timeout=test_timeout)
+        result.suspects = [f"{s.file}:{s.line}" for s in suspects]
+        say({"stage": "localize", "message": ", ".join(result.suspects[:3]) or note})
+        where = fault_localizer.describe(suspects, note, root)
+        for s in reversed(suspects):          # the best suspect per file wins
+            focus[s.file] = fault_localizer.window(s)
+
     factory = agent_factory or _default_agent_factory
-    loop = AgentLoop(agent=factory(model), root_dir=root, max_steps=max_steps, allow_write=True,
-                     timeout_sec=timeout, test_timeout_sec=test_timeout)
-    run = loop.run(build_goal(failing, output),
-                   on_event=lambda ev: say({"stage": "agent", **ev}))
-    result.agent_steps = len(run.steps)
-    result.agent_message = (run.final_message or run.error or "")[:500]
-
-    changes = _changes(root)
-    result.changed_files = [p for _, p in changes]
-    if not changes:
-        result.reason = f"the agent changed nothing ({result.agent_message or 'no message'})"
-        return done(result)
-    result.diff = _git(root, "diff", "HEAD").stdout
-
     from saleha.core.verification import proof_receipt as pr
-    say({"stage": "receipt", "message": "proving the fix against HEAD"})
     ledger = ledger_path or os.path.join(os.path.expanduser("~"), ".saleha", "fix-ledger.jsonl")
-    receipt = pr.make_receipt(root, base="HEAD", test_command=list(argv), timeout=test_timeout,
-                              ledger_path=ledger, anchor_path=anchor_path)
-    result.receipt = receipt.to_dict()
-    result.receipt_markdown = pr.render_markdown(receipt)
+    goal = build_goal(failing, output, where)
+    models = [model] + ([escalate] if escalate and escalate != model else [])
+    reasons: List[str] = []
+    for attempt_model in models:
+        if attempt_model != model:
+            say({"stage": "escalate", "message": f"{models[0]} could not fix it; trying {attempt_model}"})
+        # patch_candidates: when the model's own patch leaves the tests red,
+        # more patches are drawn from the same prompt and the first one the
+        # tests turn green is kept -- the model proposes, the tests choose.
+        loop = AgentLoop(agent=factory(attempt_model), root_dir=root, max_steps=max_steps,
+                         allow_write=True, timeout_sec=timeout, test_timeout_sec=test_timeout,
+                         patch_candidates=candidates)
+        loop.focus_ranges = focus
+        if python and result.failing_before:
+            # The loop checks each patch against the failing tests only:
+            # measured, full-suite runs of more-itertools (20 s each, 68
+            # failures) took 607 s of one run. The receipt below still runs
+            # the whole suite, so a patch that breaks another test is caught
+            # there and taken back out.
+            loop.test_command_override = list(argv) + result.failing_before[:20]
+        # The receipt proves more than the loop's "read a test file" gate:
+        # measured, a verified fix was held back by that gate for 14 steps
+        # (~100 s) because the 3B model never opened the test it had made pass.
+        loop.require_test_read = False
+        run = loop.run(goal, on_event=lambda ev: say({"stage": "agent", **ev}))
+        result.model = attempt_model
+        result.agent_steps += len(run.steps)
+        result.agent_message = (run.final_message or run.error or "")[:500]
 
-    if receipt.verdict == pr.PROVEN:
-        result.verdict, result.reason = FIXED, receipt.reason
-        return done(result)
-    if receipt.verdict == pr.NOT_CHECKED and receipt.head_run is not None and receipt.head_run.passed:
-        # The tests pass with the fix; only the proof could not be run (for
-        # example a clean checkout lacks a git-ignored file the tests need).
-        result.verdict = FIXED_UNPROVEN
-        result.reason = f"tests pass with the fix, but it could not be proven: {receipt.reason}"
-        return done(result)
+        changes = _changes(root)
+        result.changed_files = [p for _, p in changes]
+        if not changes:
+            reasons.append(f"{attempt_model}: changed nothing ({result.agent_message or 'no message'})")
+            continue
+        result.diff = _git(root, "diff", "HEAD").stdout
+        say({"stage": "receipt", "message": "proving the fix against HEAD"})
+        receipt = pr.make_receipt(root, base="HEAD", test_command=list(argv), timeout=test_timeout,
+                                  ledger_path=ledger, anchor_path=anchor_path)
+        result.receipt = receipt.to_dict()
+        result.receipt_markdown = pr.render_markdown(receipt)
+        if receipt.verdict == pr.PROVEN:
+            result.verdict, result.reason = FIXED, receipt.reason
+            return done(result)
+        if receipt.verdict == pr.NOT_CHECKED and receipt.head_run is not None and receipt.head_run.passed:
+            # The tests pass with the fix; only the proof could not be run
+            # (e.g. a clean checkout lacks a git-ignored file the tests need).
+            result.verdict = FIXED_UNPROVEN
+            result.reason = f"tests pass with the fix, but it could not be proven: {receipt.reason}"
+            return done(result)
+        left = _revert(root, changes)
+        reasons.append(f"{attempt_model}: {receipt.verdict}: {receipt.reason}; its changes were reverted"
+                       + (f" (could not revert: {', '.join(left)})" if left else ""))
+        result.diff, result.changed_files = "", []
+        if left:
+            break                       # the tree is not clean: no second attempt on top of it
 
-    left = _revert(root, changes)
-    result.reason = (f"{receipt.verdict}: {receipt.reason}; the agent's changes were reverted"
-                     + (f" (could not revert: {', '.join(left)})" if left else ""))
-    result.diff = ""
+    result.reason = " | ".join(reasons)
     return done(result)
 
 

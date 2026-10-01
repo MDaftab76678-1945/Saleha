@@ -67,6 +67,9 @@ class Outcome:
     agent_steps: int
     reason: str
     exact_revert: Optional[bool]    # the fixed line equals the original line
+    model: str = ""                 # the model whose fix was kept (escalation)
+    suspects: Optional[List[str]] = None   # fault localization, file:line
+    bug_ranked: Optional[int] = None       # 1-based rank of the bug line among suspects
 
 
 def _run(argv: List[str], cwd: str, timeout: float) -> Tuple[Optional[int], str]:
@@ -181,10 +184,17 @@ def make_bugs(srcs: Dict[str, Path], per_project: int, seed: int, max_tries: int
     return bugs
 
 
+def _force_remove(func, path, _exc) -> None:
+    """rmtree helper: git marks its object files read-only, which Windows will not delete."""
+    import stat
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
 def materialize(bug: Bug, srcs: Dict[str, Path], work: Path) -> Path:
     dest = work / "bugs" / bug.id
     if dest.exists():
-        shutil.rmtree(dest, ignore_errors=True)
+        shutil.rmtree(dest, onexc=_force_remove)
     shutil.copytree(srcs[bug.project], dest, ignore=shutil.ignore_patterns(".git", "__pycache__"))
     f = dest / bug.file
     lines = f.read_bytes().split(b"\n")
@@ -197,11 +207,14 @@ def materialize(bug: Bug, srcs: Dict[str, Path], work: Path) -> Path:
     return dest
 
 
-def run_fix(bug: Bug, repo: Path, tests: str, model: str, timeout: int) -> Outcome:
+def run_fix(bug: Bug, repo: Path, tests: str, model: str, timeout: int,
+            escalate: Optional[str] = None) -> Outcome:
     test_cmd = " ".join(f'"{a}"' if " " in a else a for a in test_argv(tests))
     cmd = [sys.executable, "-c", "from saleha.cli.commands import cli; cli()", "fix",
            "--dir", str(repo), "--json", "-m", model, "--max-steps", "15",
            "--timeout", str(timeout), test_cmd]
+    if escalate:
+        cmd[-1:-1] = ["--escalate", escalate]
     t0 = time.time()
     code, out = _run(cmd, str(repo), timeout + 600)
     seconds = round(time.time() - t0, 1)
@@ -214,8 +227,11 @@ def run_fix(bug: Bug, repo: Path, tests: str, model: str, timeout: int) -> Outco
     if res.get("verdict") in ("FIXED", "FIXED_UNPROVEN"):
         fixed = (repo / bug.file).read_bytes().split(b"\n")[bug.line - 1].decode("utf-8", "replace")
         exact = fixed.rstrip("\r").strip() == bug.before.strip()
+    suspects = res.get("suspects") or []
+    target = f"{bug.file}:{bug.line}"
+    ranked = suspects.index(target) + 1 if target in suspects else None
     return Outcome(bug.id, res.get("verdict", "?"), seconds, res.get("agent_steps", 0),
-                   res.get("reason", "")[:300], exact)
+                   res.get("reason", "")[:300], exact, res.get("model", ""), suspects, ranked)
 
 
 def report(bugs: List[Bug], outcomes: List[Outcome], model: str) -> str:
@@ -230,13 +246,23 @@ def report(bugs: List[Bug], outcomes: List[Outcome], model: str) -> str:
         counts[o.verdict] = counts.get(o.verdict, 0) + 1
     lines += [f"- {k}: {v}" for k, v in sorted(counts.items())]
     if fixed:
+        by_model: Dict[str, int] = {}
+        for o in fixed:
+            by_model[o.model or "?"] = by_model.get(o.model or "?", 0) + 1
         lines += [f"- median time per proven fix: {statistics.median(o.seconds for o in fixed):.0f}s",
                   f"- proven fixes that restored the exact original line: "
-                  f"{sum(1 for o in fixed if o.exact_revert)} of {len(fixed)}"]
-    lines += ["", "| bug | file:line | mutation | verdict | time |", "|---|---|---|---|---|"]
+                  f"{sum(1 for o in fixed if o.exact_revert)} of {len(fixed)}",
+                  "- proven fixes by model: " + ", ".join(f"{m}: {n}" for m, n in sorted(by_model.items()))]
+    top1 = sum(1 for o in outcomes if o.bug_ranked == 1)
+    top5 = sum(1 for o in outcomes if o.bug_ranked)
+    lines += [f"- fault localization put the bug line first in {top1} of {n} bugs, "
+              f"in the top 5 in {top5}"]
+    lines += ["", "| bug | file:line | mutation | verdict | model | bug rank | time |",
+              "|---|---|---|---|---|---|---|"]
     for o in outcomes:
         b = by_id[o.bug]
-        lines.append(f"| {b.id} | {b.file}:{b.line} | {b.kind} | {o.verdict} | {o.seconds:.0f}s |")
+        lines.append(f"| {b.id} | {b.file}:{b.line} | {b.kind} | {o.verdict} | {o.model} | "
+                     f"{o.bug_ranked or '-'} | {o.seconds:.0f}s |")
     lines += ["", "Projects (pinned): " + ", ".join(f"{p[0]}@{p[2]}" for p in PROJECTS),
               "", "Bugs are single-line mutations kept only when the project's own tests fail "
               "with them. A fix counts only when the proof receipt says PROVEN."]
@@ -248,13 +274,16 @@ def main() -> int:
     ap.add_argument("--work", required=True, help="working directory for clones, bugs and results")
     ap.add_argument("--per-project", type=int, default=6)
     ap.add_argument("--model", default="qwen2.5-coder:3b")
+    ap.add_argument("--escalate", default=None, help="second, bigger model tried when the first fails")
     ap.add_argument("--timeout", type=int, default=600, help="seconds per saleha fix run")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--report-only", action="store_true")
     a = ap.parse_args()
     work = Path(a.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
-    bugs_file, results_file = work / "bugs.json", work / "results.jsonl"
+    config = a.model + (f"+{a.escalate}" if a.escalate else "")
+    tag = config.replace(":", "_").replace("+", "__")
+    bugs_file, results_file = work / "bugs.json", work / f"results-{tag}.jsonl"
     srcs = fetch(work)
     if bugs_file.exists():
         bugs = [Bug(**b) for b in json.loads(bugs_file.read_text(encoding="utf-8"))]
@@ -273,14 +302,14 @@ def main() -> int:
             if bug.id in done:
                 continue
             repo = materialize(bug, srcs, work)
-            o = run_fix(bug, repo, tests_of[bug.project], a.model, a.timeout)
+            o = run_fix(bug, repo, tests_of[bug.project], a.model, a.timeout, a.escalate)
             done[bug.id] = o
             with results_file.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(asdict(o)) + "\n")
             print(f"{bug.id}: {o.verdict} ({o.seconds:.0f}s)", flush=True)
     outcomes = [done[b.id] for b in bugs if b.id in done]
-    md = report(bugs, outcomes, a.model)
-    (work / "REPORT.md").write_text(md, encoding="utf-8")
+    md = report(bugs, outcomes, config)
+    (work / f"REPORT-{tag}.md").write_text(md, encoding="utf-8")
     print(md)
     return 0
 

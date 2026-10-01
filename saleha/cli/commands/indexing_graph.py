@@ -116,6 +116,8 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
 @click.option('--dir', 'root_dir', default='.', type=click.Path(exists=True, file_okay=False),
               help='Repository to fix (default: current directory)')
 @click.option('--model', '-m', default=None, help='Model (default: qwen2.5-coder:3b, or $SALEHA_FIX_MODEL)')
+@click.option('--escalate', default=None,
+              help='A bigger local model to try when the first cannot prove a fix, e.g. qwen3.5:9b')
 @click.option('--max-steps', default=15, type=click.IntRange(1, 40), show_default=True, help='Agent steps')
 @click.option('--timeout', default=900, type=click.IntRange(30, 7200), show_default=True,
               help='Seconds for the whole agent run')
@@ -123,8 +125,9 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
 @click.option('--receipt', 'receipt_path', default=None, type=click.Path(dir_okay=False),
               help='Also write the proof receipt (Markdown) to this file')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
-def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], max_steps: int,
-            timeout: int, commit: bool, receipt_path: Optional[str], as_json: bool) -> None:
+def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], escalate: Optional[str],
+            max_steps: int, timeout: int, commit: bool, receipt_path: Optional[str],
+            as_json: bool) -> None:
     """
     Fix the failing tests of a repo, and prove the fix.
 
@@ -142,14 +145,15 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], ma
         if as_json:
             return
         if ev.get('stage') == 'agent':
+            from rich.markup import escape
             console.print(f"[dim]step {ev.get('step')}[/] [cyan]{ev.get('action')}[/] -> "
-                          f"{_cmds._one_line(ev.get('observation', ''))}")
+                          f"{escape(_cmds._one_line(ev.get('observation', '')))}")
         else:
             console.print(f"[bold cyan]{ev.get('stage')}:[/] {ev.get('message', '')}")
 
     argv = fix_flow.split_command(test_command) if test_command else None
     res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
-                            timeout=float(timeout), on_event=show)
+                            timeout=float(timeout), on_event=show, escalate=escalate)
     branch = ''
     if commit and res.verdict == fix_flow.FIXED:
         ok, branch = fix_flow.commit_fix(root_dir, res)

@@ -662,6 +662,16 @@ Never invent tool outputs. One block per reply. Be efficient."""
                  patch_candidates: int = 0,
                  enable_repo_graph: bool = False) -> None:
         self.agent = agent
+        # Repo-relative path -> (first, last) line to show when that file is
+        # read whole but is too long to fit (set by fault localization).
+        self.focus_ranges: Dict[str, Tuple[int, int]] = {}
+        # The depth gate: a green repair also needs a test file read this run.
+        # `saleha fix` turns it off because its proof receipt is the stronger
+        # check (the tests must fail without the patch in a clean checkout).
+        self.require_test_read = True
+        # A test command to use instead of discovering one (saleha fix: just
+        # the failing tests, so each check takes seconds, not a full suite).
+        self.test_command_override: Optional[List[str]] = None
         # Offers find_importers, backed by the saved cross-file graph under
         # <root>/.saleha/. Off by default: it adds a tool to the prompt, and
         # the defaults here were tuned against agent_bench on small models --
@@ -897,11 +907,25 @@ Never invent tool outputs. One block per reply. Be efficient."""
         trusted_note = ""
         content: str
         try:
+            focus = self.focus_ranges.get(_norm_rel_path(path))
             if start_line or end_line:
                 ranged, err = self._read_ranged_lines(abs_p, path, start_line, end_line)
                 if err is not None or ranged is None:
                     return err or "range read failed"
                 content = ranged
+            elif focus and os.path.getsize(abs_p) > self.max_file_read_chars:
+                # Measured: qwen2.5-coder:3b re-read the head of a 5,641-line
+                # file five times, never passing a range, while the bug sat at
+                # line 3723. When the tests have already ranked a region of
+                # this file, a whole-file read shows that region instead.
+                ranged, err = self._read_ranged_lines(abs_p, path, focus[0], focus[1])
+                if err is not None or ranged is None:
+                    return err or "range read failed"
+                content = ranged
+                trusted_note = (f"[saleha] {path} is too long to show whole; these are lines "
+                                f"{focus[0]}-{focus[1]}, the region the failing tests point at "
+                                f"(each test was run under coverage). Line numbers are not part "
+                                f"of the file. For another part, pass start_line and end_line.")
             else:
                 content, trusted_note = self._read_head_with_note(abs_p, path)
         except OSError as err:
@@ -1025,6 +1049,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
         be told that plainly, not handed a default that silently tests
         nothing.
         """
+        override = getattr(self, "test_command_override", None)
+        if override:
+            return list(override), "given by the caller"
         root = self.root_dir
         python = self._python_for_root()
 
@@ -2150,7 +2177,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # paths instead of ones it had evidence for. Gating patch_file and
         # get_file_outline on this set turns "file not found" (which the
         # model was ignoring) into a hard rejection naming a real path.
-        confirmed_files: set = set()
+        # Seeded from files the caller has already confirmed by running the
+        # tests (fault localization): measured, a patch to the exact file the
+        # goal named was rejected as "not confirmed to exist".
+        confirmed_files: set = {_norm_rel_path(p) for p in self.focus_ranges}
         # Test files this run actually read (successful reads only). The
         # depth gate admits a repair-goal success only when the model
         # looked at a test.
@@ -2526,7 +2556,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                         and not (auto_test_verdict is not None
                                  and auto_test_verdict[1].startswith(
                                      "no test command found:"))):
-                    if not test_files_read:
+                    if self.require_test_read and not test_files_read:
                         observation = (
                             "REJECTED: the test suite is green, but you have "
                             "not read a single test file this run -- a green "

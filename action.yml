@@ -7,9 +7,21 @@ branding:
 
 inputs:
   mode:
-    description: '"fix": fix failing tests and open a pull request with the proof. "review": static security and quality review of Python files.'
+    description: '"fix": fix failing tests and open a pull request with the proof. "verify": prove or disprove a pull request (from anyone, or any AI) by running its tests, and comment the receipt. "review": static security and quality review of Python files.'
     required: false
     default: 'review'
+  base:
+    description: 'verify mode: the commit to compare against (default: the pull request base)'
+    required: false
+    default: ''
+  comment:
+    description: 'verify mode: post the proof receipt as a pull-request comment'
+    required: false
+    default: 'true'
+  require:
+    description: 'verify mode: fail the step unless the verdict is at least this -- "proven", "passing" (fail only when tests fail) or "none"'
+    required: false
+    default: 'passing'
   github-token:
     description: 'Token for pushing the fix branch and opening the pull request (fix mode)'
     required: false
@@ -31,9 +43,13 @@ inputs:
     required: false
     default: ''
   model:
-    description: 'fix mode: Ollama model, run on the runner itself -- your code is not sent to any AI service'
+    description: 'fix mode: the model. Default: gemini:gemini-3.8-flash when gemini-api-key is given, else qwen2.5-coder:3b run on the runner itself (your code then goes to no AI service)'
     required: false
-    default: 'qwen2.5-coder:3b'
+    default: ''
+  gemini-api-key:
+    description: 'fix mode: a Google AI Studio key (use a secret). Faster and stronger than a model on a CPU runner, but the code under repair is sent to Google.'
+    required: false
+    default: ''
   open-pr:
     description: 'fix mode: open a pull request with a proven fix'
     required: false
@@ -59,7 +75,7 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Python (review)
-      if: inputs.mode != 'fix'
+      if: inputs.mode == 'review'
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
@@ -78,8 +94,22 @@ runs:
         "$SALEHA_PY" -m pip install --quiet --no-deps -e "${{ github.action_path }}"
         echo "SALEHA_PY=$SALEHA_PY" >> "$GITHUB_ENV"
 
-    - name: Start a local model (fix)
+    - name: Choose the model (fix)
       if: inputs.mode == 'fix'
+      shell: bash
+      env:
+        MODEL_IN: ${{ inputs.model }}
+        HAS_GEMINI_KEY: ${{ inputs.gemini-api-key != '' }}
+      run: |
+        model="$MODEL_IN"
+        if [ -z "$model" ]; then
+          if [ "$HAS_GEMINI_KEY" = "true" ]; then model="gemini:gemini-3.8-flash"; else model="qwen2.5-coder:3b"; fi
+        fi
+        echo "SALEHA_MODEL=$model" >> "$GITHUB_ENV"
+        echo "Saleha will use: $model"
+
+    - name: Start a local model (fix)
+      if: inputs.mode == 'fix' && !startsWith(env.SALEHA_MODEL, 'gemini')
       shell: bash
       run: |
         if ! command -v ollama >/dev/null; then
@@ -89,17 +119,18 @@ runs:
           nohup ollama serve >"$RUNNER_TEMP/ollama.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/api/tags >/dev/null && break; sleep 1; done
         fi
-        ollama pull "${{ inputs.model }}"
+        ollama pull "$SALEHA_MODEL"
 
     - name: Fix failing tests (fix)
       if: inputs.mode == 'fix'
       shell: bash
       env:
         SALEHA_TEST_CMD: ${{ inputs.test-command }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
       run: |
         git config user.name "saleha-bot"
         git config user.email "saleha-bot@users.noreply.github.com"
-        args=(fix --json --commit -m "${{ inputs.model }}" --max-steps "${{ inputs.max-steps }}" --timeout "${{ inputs.timeout }}")
+        args=(fix --json --commit -m "$SALEHA_MODEL" --max-steps "${{ inputs.max-steps }}" --timeout "${{ inputs.timeout }}")
         if [ -n "$SALEHA_TEST_CMD" ]; then args+=("$SALEHA_TEST_CMD"); fi
         "$SALEHA_PY" -c 'from saleha.cli.commands import cli; cli()' "${args[@]}" > "$RUNNER_TEMP/saleha-fix.json" || true
 
@@ -123,9 +154,53 @@ runs:
           --title "Saleha: fix failing tests (proven)" \
           --body-file "$RUNNER_TEMP/saleha-pr-body.md"
 
+    - name: Prove the pull request (verify)
+      if: inputs.mode == 'verify'
+      shell: bash
+      env:
+        BASE_IN: ${{ inputs.base }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        SALEHA_TEST_CMD: ${{ inputs.test-command }}
+      run: |
+        base="${BASE_IN:-$PR_BASE_SHA}"
+        if [ -z "$base" ]; then echo "::error title=Saleha verify::no base commit (run on pull_request, or set base)"; exit 1; fi
+        # A shallow checkout lacks the base commit the receipt needs.
+        git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
+        args=(receipt --json --base "$base")
+        if [ -n "$SALEHA_TEST_CMD" ]; then args+=(--test-cmd "$SALEHA_TEST_CMD"); fi
+        "$SALEHA_PY" -c 'from saleha.cli.commands import cli; cli()' "${args[@]}" > "$RUNNER_TEMP/saleha-receipt.json" || true
+
+    - name: Report (verify)
+      id: verify
+      if: inputs.mode == 'verify'
+      shell: bash
+      run: |
+        "$SALEHA_PY" "${{ github.action_path }}/scripts/ci_verify_report.py" "$RUNNER_TEMP/saleha-receipt.json" "$RUNNER_TEMP/saleha-comment.md"
+
+    - name: Comment the receipt on the pull request (verify)
+      if: inputs.mode == 'verify' && inputs.comment == 'true' && github.event.pull_request.number
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: gh pr comment "${{ github.event.pull_request.number }}" --body-file "$RUNNER_TEMP/saleha-comment.md"
+
+    - name: Enforce the required verdict (verify)
+      if: inputs.mode == 'verify' && inputs.require != 'none'
+      shell: bash
+      env:
+        VERDICT: ${{ steps.verify.outputs.verdict }}
+        REQUIRE: ${{ inputs.require }}
+      run: |
+        if [ "$REQUIRE" = "proven" ] && [ "$VERDICT" != "PROVEN" ]; then
+          echo "::error title=Saleha verify::verdict $VERDICT, but this workflow requires PROVEN"; exit 1
+        fi
+        if [ "$VERDICT" = "FAILING" ] || [ "$VERDICT" = "HARNESS_ERROR" ]; then
+          echo "::error title=Saleha verify::verdict $VERDICT"; exit 1
+        fi
+
     - name: Execute Saleha AI Code Review (review)
       id: review
-      if: inputs.mode != 'fix'
+      if: inputs.mode == 'review'
       shell: bash
       env:
         SALEHA_SCAN_PATH: ${{ inputs.scan-path }}

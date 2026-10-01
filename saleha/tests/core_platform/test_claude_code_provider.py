@@ -135,6 +135,45 @@ class GeminiProviderTests(unittest.TestCase):
         self.assertTrue(res.success, res.error_message)
         slept.assert_called_once()
 
+    def test_a_per_minute_quota_waits_as_long_as_it_says(self) -> None:
+        """Waiting 2-6 s against a 32 s quota window just spent the retries."""
+        quota = {"error": {"message": "quota", "details": [
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "32s"}]}}
+        replies = [_Resp(429, quota), _Resp(200, {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})]
+        with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \
+                patch("saleha.core.platform.model_provider.time.sleep") as slept, \
+                patch("saleha.core.platform.model_provider.requests.post",
+                      lambda url, **kw: replies.pop(0)):
+            res = GeminiProvider(api_key="k").generate("gemini", "hi")
+        self.assertTrue(res.success, res.error_message)
+        slept.assert_called_once_with(32.0)
+
+    def test_a_daily_quota_is_not_waited_out(self) -> None:
+        quota = {"error": {"message": "daily quota", "details": [
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "3600s"}]}}
+        with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \
+                patch("saleha.core.platform.model_provider.time.sleep") as slept, \
+                patch("saleha.core.platform.model_provider.requests.post",
+                      lambda url, **kw: _Resp(429, quota)):
+            res = GeminiProvider(api_key="k").generate("gemini", "hi")
+        self.assertFalse(res.success)
+        self.assertIn("daily quota", res.error_message)
+        slept.assert_not_called()
+
+    def test_a_per_day_quota_is_not_retried_even_with_a_short_retry_delay(self) -> None:
+        """Measured: the free tier's 20-a-day limit still answers "retryDelay: 7s"."""
+        quota = {"error": {"message": "quota", "details": [
+            {"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [
+                {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}]},
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "7s"}]}}
+        with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \
+                patch("saleha.core.platform.model_provider.time.sleep") as slept, \
+                patch("saleha.core.platform.model_provider.requests.post",
+                      lambda url, **kw: _Resp(429, quota)):
+            res = GeminiProvider(api_key="k").generate("gemini", "hi")
+        self.assertFalse(res.success)
+        slept.assert_not_called()
+
     def test_blocked_or_empty_answer_is_not_success(self) -> None:
         with patch.dict(os.environ, {"SALEHA_LOCAL_ONLY": ""}), \
                 patch("saleha.core.platform.model_provider.requests.post",
