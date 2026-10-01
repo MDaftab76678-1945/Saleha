@@ -148,7 +148,10 @@ def rank(lines_by_test: Dict[str, Dict[str, List[int]]], outcome: Dict[str, str]
     for bucket, tests in ((ef, failed), (ep, passed)):
         for t in tests:
             for f, lines in lines_by_test[t].items():
-                rel = os.path.relpath(f, root_real).replace("\\", "/")
+                try:
+                    rel = os.path.relpath(f, root_real).replace("\\", "/")
+                except ValueError:      # another drive: certainly not in the repo
+                    continue
                 if rel.startswith("..") or is_test_file(rel):
                     continue
                 for ln in lines:
