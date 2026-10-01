@@ -51,7 +51,37 @@ class FixFlowTests(unittest.TestCase):
             self.root, model="scripted", test_command=PYTEST, max_steps=8, timeout=120,
             agent_factory=lambda _m: ScriptedAgent(responses) if responses else _NoModel(),
             ledger_path=os.path.join(self.state, "ledger.jsonl"),
-            anchor_path=os.path.join(self.state, "anchors.jsonl"), candidates=candidates)
+            anchor_path=os.path.join(self.state, "anchors.jsonl"), candidates=candidates,
+            record=os.path.join(self.state, "dataset.jsonl"))
+
+    def test_a_failure_that_does_not_repeat_is_flaky_and_nothing_changes(self) -> None:
+        flaky = ("import os\n\n\ndef test_sometimes():\n"
+                 "    marker = os.path.join(os.path.dirname(__file__), '..', 'ran-once')\n"
+                 "    first = not os.path.exists(marker)\n"
+                 "    open(marker, 'w').close()\n"
+                 "    assert not first\n")
+        Path(self.root, "calc.py").write_bytes(b"def add(a, b):\n    return a + b\n")
+        Path(self.root, "test_calc.py").write_text(flaky, encoding="utf-8")
+        _git(self.root, "commit", "-q", "-am", "flaky")
+        res = self._fix([])
+        Path(self.root, "..", "ran-once").unlink(missing_ok=True)
+        self.assertEqual(res.verdict, fix_flow.FLAKY, res.reason)
+        self.assertIn("passed on re-run 1", res.reason)
+        self.assertFalse(res.ok)
+
+    def test_a_proven_fix_is_recorded_locally_for_later_learning(self) -> None:
+        import json
+        res = self._fix([
+            _tool_call("read_file", path="calc.py"),
+            _tool_call("patch_file", path="calc.py", search="a - b", replace="a + b"),
+            _finish("fixed"), _finish("fixed"),
+        ])
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        rows = Path(self.state, "dataset.jsonl").read_text(encoding="utf-8").splitlines()
+        rec = json.loads(rows[-1])
+        self.assertEqual(rec["receipt"], "PROVEN")
+        self.assertIn("+    return a + b", rec["diff"])
+        self.assertEqual(rec["failing_tests"], ["test_calc.py::test_add"])
 
     def test_escalation_tries_the_bigger_model_on_a_clean_tree(self) -> None:
         small = ScriptedAgent([
@@ -164,6 +194,85 @@ class FixFlowTests(unittest.TestCase):
         self.assertIn("not a git repository", res.reason)
 
 
+REPRO = "from calc import add\n\n\ndef test_add_reported():\n    assert add(2, 3) == 5\n"
+
+
+class FixIssueTests(unittest.TestCase):
+    """A bug report in: a reproducing test first, then a fix proven against it."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = self._tmp.name
+        Path(self.root, "calc.py").write_bytes(
+            b"def add(a, b):\n    return a - b\n\n\ndef mul(a, b):\n    return a * b\n")
+        Path(self.root, "test_calc.py").write_bytes(
+            b"from calc import mul\n\n\ndef test_mul():\n    assert mul(2, 3) == 6\n")
+        for args in (["init", "-q"], ["config", "user.email", "t@example.com"], ["config", "user.name", "t"],
+                     ["config", "core.autocrlf", "false"], ["add", "-A"], ["commit", "-q", "-m", "init"]):
+            _git(self.root, *args)
+        self.state = os.path.join(self.root, "..", os.path.basename(self.root) + "-state")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _issue(self, *phases: List[Any]) -> fix_flow.FixResult:
+        agents = [ScriptedAgent(p) for p in phases]
+        return fix_flow.fix_issue(
+            self.root, "add(2, 3) returns -1; it should return 5", model="scripted",
+            test_command=PYTEST, max_steps=8, timeout=120, repro_attempts=len(phases) - 1 or 1,
+            agent_factory=lambda _m: agents.pop(0), candidates=0,
+            ledger_path=os.path.join(self.state, "ledger.jsonl"),
+            anchor_path=os.path.join(self.state, "anchors.jsonl"),
+            record=os.path.join(self.state, "dataset.jsonl"))
+
+    def test_report_to_reproducing_test_to_proven_fix(self) -> None:
+        res = self._issue(
+            [_tool_call("write_file", path="test_saleha_repro.py", content=REPRO), _finish("written")]
+            + [_finish("written")] * 4,
+            [_tool_call("read_file", path="calc.py"),
+             _tool_call("patch_file", path="calc.py", search="a - b", replace="a + b"),
+             _finish("fixed"), _finish("fixed")])
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        self.assertEqual(res.repro_tests, ["test_saleha_repro.py"])
+        self.assertIn("assert add(2, 3) == 5", res.repro_source)
+        self.assertEqual(sorted(res.changed_files), ["calc.py", "test_saleha_repro.py"])
+        assert res.receipt is not None
+        self.assertEqual(res.receipt["verdict"], "PROVEN")
+
+    def test_a_test_that_passes_on_the_current_code_does_not_reproduce_anything(self) -> None:
+        passing = "from calc import mul\n\n\ndef test_x():\n    assert mul(1, 1) == 1\n"
+        res = self._issue(
+            [_tool_call("write_file", path="test_saleha_repro.py", content=passing)] + [_finish("w")] * 5)
+        self.assertEqual(res.verdict, fix_flow.NOT_REPRODUCED, res.reason)
+        self.assertIn("PASSED on the current code", res.reason)
+        self.assertEqual(_git(self.root, "status", "--porcelain").strip(), "")
+
+    def test_a_reproduction_that_edits_source_is_thrown_away(self) -> None:
+        res = self._issue(
+            [_tool_call("patch_file", path="calc.py", search="a - b", replace="a + b"),
+             _tool_call("write_file", path="test_saleha_repro.py", content=REPRO)] + [_finish("w")] * 5)
+        self.assertEqual(res.verdict, fix_flow.NOT_REPRODUCED, res.reason)
+        self.assertIn("non-test files", res.reason)
+        self.assertTrue(Path(self.root, "calc.py").read_bytes().startswith(b"def add(a, b):\n    return a - b"))
+        self.assertEqual(_git(self.root, "status", "--porcelain").strip(), "")
+
+    def test_issue_urls_are_fetched_and_plain_text_passes_through(self) -> None:
+        from unittest.mock import patch
+
+        class _R:
+            status_code = 200
+
+            def json(self) -> Any:
+                return {"title": "add is wrong", "body": "add(2, 3) gives -1"}
+
+        seen: List[str] = []
+        with patch("requests.get", lambda url, **kw: (seen.append(url), _R())[1]):
+            text, err = fix_flow.issue_text("https://github.com/acme/shop/issues/42")
+        self.assertEqual((text, err), ("add is wrong\n\nadd(2, 3) gives -1", ""))
+        self.assertEqual(seen, ["https://api.github.com/repos/acme/shop/issues/42"])
+        self.assertEqual(fix_flow.issue_text("  add is broken  "), ("add is broken", ""))
+
+
 class FixCommandTests(unittest.TestCase):
     def test_the_cli_reports_a_repo_it_cannot_prove_in_json_and_exits_1(self) -> None:
         import json
@@ -247,6 +356,17 @@ class FixFlowHelperTests(unittest.TestCase):
                "ERROR tests/test_y.py::test_b\n1 failed, 1 error")
         self.assertEqual(fix_flow.failing_tests(out),
                          [("tests/test_x.py::test_a", "assert 1 == 2"), ("tests/test_y.py::test_b", "")])
+
+    def test_failures_from_other_runners(self) -> None:
+        cases = {
+            "\x1b[31m● math › adds two numbers\x1b[0m\n● Console\n": ["math › adds two numbers"],
+            " FAIL  src/math.test.ts > math > adds\n": ["src/math.test.ts > math > adds"],
+            "--- FAIL: TestAdd (0.00s)\nFAIL\n": ["TestAdd"],
+            "test tests::adds ... FAILED\ntest tests::subs ... ok\n": ["tests::adds"],
+            "not ok 2 - adds numbers\n": ["adds numbers"],
+        }
+        for out, want in cases.items():
+            self.assertEqual([t for t, _ in fix_flow.failing_tests(out)], want, out)
 
     def test_failed_subtests_count_once_per_test(self) -> None:
         out = ("SUBFAILED(slice_args=(-1, -1, 2)) tests/test_more.py::IsliceTests::test_all\n"

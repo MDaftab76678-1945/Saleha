@@ -672,6 +672,11 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # A test command to use instead of discovering one (saleha fix: just
         # the failing tests, so each check takes seconds, not a full suite).
         self.test_command_override: Optional[List[str]] = None
+        # None: guess from the goal's verbs whether the repo must change and
+        # the tests must pass. False: never a repair -- `saleha fix --issue`
+        # writes a test that must FAIL, and a bug report says "add", "fix"
+        # and "correct" all the time.
+        self.repair_goal: Optional[bool] = None
         # Offers find_importers, backed by the saved cross-file graph under
         # <root>/.saleha/. Off by default: it adds a tool to the prompt, and
         # the defaults here were tuned against agent_bench on small models --
@@ -2014,6 +2019,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
     def _run(self, goal: str, on_event: Optional[Callable[[Dict], None]] = None) -> LoopResult:
         result = LoopResult()
+        # Decided once per run; a caller can override the guess from the goal's words.
+        repair_goal = (self.repair_goal if self.repair_goal is not None
+                       else _looks_like_a_repair_goal(goal))
 
         def emit(ev: Dict) -> None:
             if on_event:
@@ -2208,7 +2216,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
         # model sees which assert fails, on which input, before it has read
         # a single file. Shown every turn; it is the fixed symptom to cure.
         repro_section = ""
-        if self.reproduce_first and self.allow_write and _looks_like_a_repair_goal(goal):
+        if self.reproduce_first and self.allow_write and repair_goal:
             # Capped: a large repo's whole suite (django, pytest itself) can
             # take longer than the run's entire budget, and a timeout here
             # would leave the model no time to work. A capped run that times
@@ -2261,7 +2269,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # min_actions_before_finish=1 was satisfied by an action that
             # cannot possibly fix anything. A repair goal's "minimum" has
             # to be an attempted edit, since reading alone never repairs.
-            if self.allow_write and _looks_like_a_repair_goal(goal):
+            if self.allow_write and repair_goal:
                 finish_ready = mutations_attempted >= self.min_actions_before_finish
                 # A verified-wrong patch is a stronger signal than "no
                 # mutation yet" -- the model already tried and the real
@@ -2292,7 +2300,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             earlier_section = (f"## Earlier steps (one line each; full output no longer shown)\n"
                                f"{earlier}\n\n") if earlier else ""
             checklist_section = ""
-            if self.progress_checklist and self.allow_write and _looks_like_a_repair_goal(goal):
+            if self.progress_checklist and self.allow_write and repair_goal:
                 checklist = _progress_checklist(source_files_read, sorted(test_files_read),
                                                 mutations_succeeded > 0, tests_after_patch)
                 checklist_section = f"## Progress (ticked by real tool results)\n{checklist}\n\n"
@@ -2423,7 +2431,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 # over a byte-identical file with its 4 tests still failing.
                 # Reading is not repairing.
                 if (self.allow_write and mutations_succeeded == 0
-                        and _looks_like_a_repair_goal(goal)):
+                        and repair_goal):
                     if located_region:
                         rel, lo, hi = located_region
                         next_call = (f"call read_file on {rel} with start_line "
@@ -2500,7 +2508,9 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 # MBPP folder tasks, 7 runs wrote a file, never ran a test, and
                 # finished "DONE" over a failing suite. Any change on disk is
                 # checked; only the depth gates below stay repair-specific.
-                if self.allow_write and mutations_succeeded > 0:
+                # The one exception is a caller that said this is NOT a repair
+                # (repair_goal=False): writing a test that must fail.
+                if self.allow_write and mutations_succeeded > 0 and self.repair_goal is not False:
                     if auto_test_verdict is None:
                         test_observation = self._tool_run_tests()
                         passed = test_observation.startswith("PASSED ")
@@ -2552,7 +2562,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 # redundant with the revert-check and harmful to transitive
                 # and data-file fixes.)
                 if (self.allow_write and mutations_succeeded > 0
-                        and _looks_like_a_repair_goal(goal)
+                        and repair_goal
                         and not (auto_test_verdict is not None
                                  and auto_test_verdict[1].startswith(
                                      "no test command found:"))):
@@ -2757,7 +2767,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             # untouched and 4 tests still failing.
             if (self.allow_write
                     and tool_name in ("patch_file", "write_file")
-                    and _looks_like_a_repair_goal(goal)
+                    and repair_goal
                     and _is_test_path(str(args.get("path", "")))):
                 observation = (
                     f"REJECTED: {args.get('path')} is a test file. The goal "
@@ -2876,7 +2886,7 @@ Never invent tool outputs. One block per reply. Be efficient."""
             else:
                 try:
                     if (tool_name == "patch_file" and self.patch_candidates > 0
-                            and self.allow_write and _looks_like_a_repair_goal(goal)):
+                            and self.allow_write and repair_goal):
                         args, raw_observation, searched_pre = self._search_patch(args, prompt)
                         # A different candidate may have won: the revert-check
                         # must then restore that file, not the model's.

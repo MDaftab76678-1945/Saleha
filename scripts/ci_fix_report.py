@@ -31,6 +31,7 @@ def summary(res: Dict[str, Any]) -> str:
         "ALREADY_PASSING": "The tests pass: nothing to fix",
         "FIXED_UNPROVEN": "Saleha made the tests pass, but could not prove the fix",
         "NOT_FIXED": "Saleha could not fix the failing tests; nothing was changed",
+        "FLAKY": "The failing tests passed on a re-run: flaky, so nothing was changed",
         "CANNOT_RUN": "Saleha could not run",
     }.get(verdict, "Saleha fix did not complete")
     parts = [f"## {head}", "", f"**Verdict:** `{verdict}` -- {res.get('reason', '')}", ""]

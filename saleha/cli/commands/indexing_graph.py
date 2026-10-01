@@ -118,6 +118,9 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
 @click.option('--model', '-m', default=None, help='Model (default: qwen2.5-coder:3b, or $SALEHA_FIX_MODEL)')
 @click.option('--escalate', default=None,
               help='A bigger local model to try when the first cannot prove a fix, e.g. qwen3.5:9b')
+@click.option('--issue', default=None,
+              help='Fix a reported bug instead: its text, a GitHub issue URL, or #N. A failing test '
+                   'that reproduces it is written first, and the fix is proven against it.')
 @click.option('--max-steps', default=15, type=click.IntRange(1, 40), show_default=True, help='Agent steps')
 @click.option('--timeout', default=900, type=click.IntRange(30, 7200), show_default=True,
               help='Seconds for the whole agent run')
@@ -126,8 +129,8 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
               help='Also write the proof receipt (Markdown) to this file')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
 def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], escalate: Optional[str],
-            max_steps: int, timeout: int, commit: bool, receipt_path: Optional[str],
-            as_json: bool) -> None:
+            issue: Optional[str], max_steps: int, timeout: int, commit: bool,
+            receipt_path: Optional[str], as_json: bool) -> None:
     """
     Fix the failing tests of a repo, and prove the fix.
 
@@ -152,8 +155,12 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
             console.print(f"[bold cyan]{ev.get('stage')}:[/] {ev.get('message', '')}")
 
     argv = fix_flow.split_command(test_command) if test_command else None
-    res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
-                            timeout=float(timeout), on_event=show, escalate=escalate)
+    if issue:
+        res = fix_flow.fix_issue(root_dir, issue, model=model, test_command=argv, max_steps=max_steps,
+                                 timeout=float(timeout), on_event=show, escalate=escalate)
+    else:
+        res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
+                                timeout=float(timeout), on_event=show, escalate=escalate)
     branch = ''
     if commit and res.verdict == fix_flow.FIXED:
         ok, branch = fix_flow.commit_fix(root_dir, res)
@@ -167,7 +174,8 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
         click.echo(json.dumps({**res.to_dict(), 'branch': branch}, ensure_ascii=True))
     else:
         from rich.markup import escape
-        colour = {'FIXED': 'green', 'ALREADY_PASSING': 'green', 'FIXED_UNPROVEN': 'yellow'}.get(res.verdict, 'red')
+        colour = {'FIXED': 'green', 'ALREADY_PASSING': 'green', 'FIXED_UNPROVEN': 'yellow',
+                  'FLAKY': 'yellow'}.get(res.verdict, 'red')
         body = escape(res.reason)
         if res.changed_files:
             body += '\n\nChanged: ' + ', '.join(escape(p) for p in res.changed_files)
@@ -177,6 +185,10 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
         console.print(Panel(body, title=f'[{colour}]{res.verdict}[/]', border_style=colour))
         if res.diff and res.verdict != fix_flow.NOT_FIXED:
             console.print(Syntax(res.diff, 'diff', theme='monokai'))
+        if res.repro_source:
+            # The proof is only as good as this test: always show it.
+            console.print(f"\n[bold cyan]The test written to reproduce the report ({escape(', '.join(res.repro_tests))}):[/]")
+            console.print(Syntax(res.repro_source, 'python', theme='monokai'))
         if res.receipt_markdown:
             console.print(Markdown(res.receipt_markdown))
     if not res.ok:
