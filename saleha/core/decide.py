@@ -12,6 +12,7 @@ Two kinds of answer, never mixed up:
 
 Questions:
   is_proven(root, base)            does the change since `base` stand on its tests?
+  is_pinned(root, base)            would the tests catch a slightly wrong version of it?
   is_flaky(root, command, runs)    does a failure repeat?
   is_real_bug(root, report)        can the reported bug be shown by a failing test?
   ask(input, question, choices)    pick one of the choices (ESTIMATED)
@@ -55,6 +56,21 @@ def is_proven(root: str = ".", base: str = "HEAD", test_command: Optional[List[s
     return Decision(f"is the change since {base} proven by its tests?", PROVEN,
                     None if r.verdict == pr.NOT_CHECKED else r.verdict, r.reason,
                     evidence=r.to_dict(), seconds=round(time.time() - t0, 1))
+
+
+def is_pinned(root: str = ".", base: str = "HEAD", test_command: Optional[List[str]] = None,
+              timeout: float = 300.0) -> Decision:
+    """PINNED / LOOSE: do the tests catch small wrong versions of the lines changed since `base`?"""
+    from saleha.core.loop.agentic_loop import discover_test_command
+    from saleha.core.verification import mutation_pin
+    t0 = time.time()
+    question = f"would the tests catch a wrong version of the change since {base}?"
+    argv = test_command or discover_test_command(root)[0]
+    if not argv:
+        return Decision(question, PROVEN, None, "no test command found")
+    rep = mutation_pin.pin(os.path.abspath(root), list(argv), base=base, timeout=timeout)
+    return Decision(question, PROVEN, None if rep.verdict == mutation_pin.NOT_CHECKED else rep.verdict,
+                    rep.reason, evidence=rep.to_dict(), seconds=round(time.time() - t0, 1))
 
 
 def is_flaky(root: str, test_command: List[str], runs: int = 5, timeout: float = 600.0) -> Decision:

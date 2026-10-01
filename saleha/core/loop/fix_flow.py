@@ -80,6 +80,7 @@ class FixResult:
     seconds: float = 0.0
     repro_tests: List[str] = field(default_factory=list)   # fix_issue: the tests it wrote
     repro_source: str = ""
+    pin: Optional[Dict[str, Any]] = None    # mutation pin of a proven fix: PINNED / LOOSE
 
     @property
     def ok(self) -> bool:
@@ -245,7 +246,8 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
              ledger_path: Optional[str] = None, anchor_path: Optional[str] = None,
              localize: bool = True, candidates: int = 4,
              escalate: Optional[str] = None, flaky_reruns: int = 2,
-             record: Any = True, given_tests: Optional[List[str]] = None) -> FixResult:
+             record: Any = True, given_tests: Optional[List[str]] = None,
+             pin_check: bool = True, harden_tests: bool = False) -> FixResult:
     """Make the repo's failing tests pass, and prove it -- or leave the repo untouched.
 
     `escalate` names a second, larger model tried when the first one's
@@ -377,6 +379,35 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
         result.receipt_markdown = pr.render_markdown(receipt)
         if receipt.verdict == pr.PROVEN:
             result.verdict, result.reason = FIXED, receipt.reason
+            if pin_check:
+                # PROVEN says the tests fail without the fix; this asks whether
+                # they would also accept a slightly wrong version of it.
+                from saleha.core.verification import mutation_pin
+                say({"stage": "pin", "message": "checking the tests pin the fix down"})
+                rep = mutation_pin.pin(root, list(argv), base="HEAD",
+                                       focused_command=loop.test_command_override, timeout=test_timeout)
+                if harden_tests and rep.verdict == mutation_pin.LOOSE:
+                    kept, notes = harden(root, [asdict(m) for m in rep.survivors], list(argv),
+                                         attempt_model, agent_factory=factory, timeout=timeout,
+                                         test_timeout=test_timeout, on_event=on_event)
+                    say({"stage": "harden", "message": "; ".join(notes)})
+                    if kept:
+                        # New tests are part of the change now: prove the whole of it again.
+                        receipt = pr.make_receipt(root, base="HEAD", test_command=list(argv),
+                                                  timeout=test_timeout, ledger_path=ledger,
+                                                  anchor_path=anchor_path)
+                        result.receipt = receipt.to_dict()
+                        result.receipt_markdown = pr.render_markdown(receipt)
+                        result.changed_files = [p for _, p in _changes(root)]
+                        result.diff = _git(root, "diff", "HEAD").stdout
+                        rep = mutation_pin.pin(root, list(argv), base="HEAD", timeout=test_timeout)
+                        result.reason = receipt.reason + f"; hardened: {'; '.join(notes)}"
+                        if receipt.verdict != pr.PROVEN:
+                            # The added tests broke the proof: take them back out.
+                            _revert(root, [(st, p) for st, p in _changes(root) if p in kept])
+                            result.reason += " -- the added tests were removed again (receipt " + receipt.verdict + ")"
+                result.pin = rep.to_dict()
+                result.reason += f". {rep.verdict}: {rep.reason}"
             if record:
                 _record_proven_fix(root, result, record if isinstance(record, str) else "")
             return done(result)
@@ -441,6 +472,70 @@ def _repro_goal(text: str, path: str, feedback: str) -> str:
             "current code, because of this bug. Read the existing tests first and copy how they "
             "import the code. Use write_file to create the file. Do not change any other file."
             + (f"\n\nYour previous attempt did not count: {feedback}" if feedback else ""))
+
+
+def harden(root: str, survivors: List[Dict[str, Any]], argv: List[str], model: str,
+           agent_factory: Optional[Callable[[str], Any]] = None, max_steps: int = 10,
+           timeout: float = 600.0, test_timeout: float = 600.0,
+           on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+           limit: int = 3) -> Tuple[List[str], List[str]]:
+    """(test files kept, notes). For each surviving mutant, a test that tells it apart from the fix.
+
+    A test is kept only when it PASSES on the code as it is and FAILS on the
+    mutant -- both run, the mutant applied and the file restored byte for byte.
+    """
+    from saleha.core.loop.agentic_loop import AgentLoop, _is_test_path
+    say = on_event or (lambda _ev: None)
+    factory = agent_factory or _default_agent_factory
+    kept: List[str] = []
+    notes: List[str] = []
+    tests_dir = "tests/" if os.path.isdir(os.path.join(root, "tests")) else ""
+    for i, m in enumerate(survivors[:limit], 1):
+        path = f"{tests_dir}test_saleha_pin_{i}.py"
+        src_path = os.path.join(root, m["file"])
+        with open(src_path, "rb") as fh:
+            original = fh.read()
+        rows = original.split(b"\n")
+        right = rows[m["line"] - 1].decode("utf-8", "replace").strip()
+        goal = (f"A proven fix is in {m['file']}, but its tests would also accept a WRONG version of line "
+                f"{m['line']}:\n  correct: {right}\n  wrong:   {m['mutated']}\n\n"
+                f"Write ONE new pytest file, {path}, with a test that PASSES on the current code and would "
+                "FAIL on the wrong version: pick inputs for which the two lines give different results. Read "
+                "the existing tests first and import the code the same way. Use write_file. Do not change "
+                "any other file.")
+        say({"stage": "harden", "message": f"{m['file']}:{m['line']} {m['kind']}"})
+        loop = AgentLoop(agent=factory(model), root_dir=root, max_steps=max_steps, allow_write=True,
+                         timeout_sec=timeout, test_timeout_sec=test_timeout)
+        loop.require_test_read = False
+        loop.repair_goal = False
+        loop.run(goal, on_event=lambda ev: say({"stage": "agent", **ev}))
+        new = [(st, p) for st, p in _changes(root) if st == "??" and _is_test_path(p) and p not in kept]
+        wrong_edits = [(st, p) for st, p in _changes(root)
+                       if st != "??" and p != m["file"] and _is_test_path(p)]
+        if not new or wrong_edits:
+            notes.append(f"{m['kind']} at {m['file']}:{m['line']}: no usable test was written")
+            _revert(root, new + wrong_edits)
+            continue
+        files = [p for _, p in new]
+        ok_now, _ = _run_tests(list(argv) + files, root, test_timeout)
+        line = rows[m["line"] - 1]
+        lead = line[:len(line) - len(line.lstrip())]
+        rows[m["line"] - 1] = lead + m["mutated"].encode() + (b"\r" if line.endswith(b"\r") else b"")
+        try:
+            with open(src_path, "wb") as fh:
+                fh.write(b"\n".join(rows))
+            on_mutant, _ = _run_tests(list(argv) + files, root, test_timeout)
+        finally:
+            with open(src_path, "wb") as fh:
+                fh.write(original)
+        if ok_now and on_mutant is False:
+            kept += files
+            notes.append(f"{m['kind']} at {m['file']}:{m['line']}: now caught by {', '.join(files)}")
+        else:
+            notes.append(f"{m['kind']} at {m['file']}:{m['line']}: the written test "
+                         + ("failed on the current code" if not ok_now else "did not catch the wrong version"))
+            _revert(root, new)
+    return kept, notes
 
 
 def reproduce(root: str, text: str, argv: List[str], model: str,

@@ -651,6 +651,17 @@ def decide_proven(root_dir: str, base: str, test_cmd: Optional[str], as_json: bo
     _show_decision(decide.is_proven(root_dir, base, _split_command(test_cmd) if test_cmd else None), as_json)
 
 
+@decide_group.command(name='pinned')
+@click.option('--dir', 'root_dir', default='.', help='Repository')
+@click.option('--base', default='HEAD', help='Mutate the lines changed since this commit')
+@click.option('--test-cmd', default=None, help='Test command (default: discovered)')
+@click.option('--json', 'as_json', is_flag=True)
+def decide_pinned(root_dir: str, base: str, test_cmd: Optional[str], as_json: bool) -> None:
+    """Would the tests catch a slightly WRONG version of the change? (PROVEN by mutants)"""
+    from saleha.core import decide
+    _show_decision(decide.is_pinned(root_dir, base, _split_command(test_cmd) if test_cmd else None), as_json)
+
+
 @decide_group.command(name='flaky')
 @click.argument('test_command')
 @click.option('--dir', 'root_dir', default='.', help='Repository')

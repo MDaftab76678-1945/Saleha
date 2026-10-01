@@ -124,12 +124,15 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
 @click.option('--max-steps', default=15, type=click.IntRange(1, 40), show_default=True, help='Agent steps')
 @click.option('--timeout', default=900, type=click.IntRange(30, 7200), show_default=True,
               help='Seconds for the whole agent run')
+@click.option('--harden', is_flag=True,
+              help='When the tests would also accept a wrong version of the fix, write tests that tell '
+                   'them apart (each kept only if it passes now and fails on the wrong version)')
 @click.option('--commit', is_flag=True, help='Commit a proven fix on a new branch saleha/fix-...')
 @click.option('--receipt', 'receipt_path', default=None, type=click.Path(dir_okay=False),
               help='Also write the proof receipt (Markdown) to this file')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
 def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], escalate: Optional[str],
-            issue: Optional[str], max_steps: int, timeout: int, commit: bool,
+            issue: Optional[str], max_steps: int, timeout: int, harden: bool, commit: bool,
             receipt_path: Optional[str], as_json: bool) -> None:
     """
     Fix the failing tests of a repo, and prove the fix.
@@ -161,10 +164,12 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
     argv = fix_flow.split_command(test_command) if test_command else None
     if issue:
         res = fix_flow.fix_issue(root_dir, issue, model=model, test_command=argv, max_steps=max_steps,
-                                 timeout=float(timeout), on_event=show, escalate=escalate)
+                                 timeout=float(timeout), on_event=show, escalate=escalate,
+                                 harden_tests=harden)
     else:
         res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
-                                timeout=float(timeout), on_event=show, escalate=escalate)
+                                timeout=float(timeout), on_event=show, escalate=escalate,
+                                harden_tests=harden)
     branch = ''
     if commit and res.verdict == fix_flow.FIXED:
         ok, branch = fix_flow.commit_fix(root_dir, res)
@@ -189,6 +194,12 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
         console.print(Panel(body, title=f'[{colour}]{res.verdict}[/]', border_style=colour))
         if res.diff and res.verdict != fix_flow.NOT_FIXED:
             console.print(Syntax(res.diff, 'diff', theme='monokai'))
+        survivors = (res.pin or {}).get('survivors') or []
+        if survivors:
+            console.print(f"\n[bold yellow]The tests would also accept {len(survivors)} wrong version(s) of this fix "
+                          f"-- a test that tells them apart would make the proof stronger:[/]")
+            for m in survivors[:8]:
+                console.print(f"  {escape(m['file'])}:{m['line']}  {escape(m['kind'])}:  {escape(m['mutated'])}")
         if res.repro_source:
             # The proof is only as good as this test: always show it.
             console.print(f"\n[bold cyan]The test written to reproduce the report ({escape(', '.join(res.repro_tests))}):[/]")

@@ -194,6 +194,63 @@ class FixFlowTests(unittest.TestCase):
         self.assertIn("not a git repository", res.reason)
 
 
+class HardenTests(unittest.TestCase):
+    """A proven but LOOSE fix gets a test that tells it from its surviving wrong version."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = self._tmp.name
+        Path(self.root, "price.py").write_bytes(b"def discount(total, percent):\n    return total\n")
+        Path(self.root, "test_price.py").write_bytes(
+            b"from price import discount\n\n\ndef test_ten():\n    assert discount(200, 10) == 180\n")
+        for args in (["init", "-q"], ["config", "user.email", "t@example.com"], ["config", "user.name", "t"],
+                     ["config", "core.autocrlf", "false"], ["add", "-A"], ["commit", "-q", "-m", "init"]):
+            _git(self.root, *args)
+        self.state = os.path.join(self.root, "..", os.path.basename(self.root) + "-state")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_a_loose_fix_is_hardened_until_pinned(self) -> None:
+        pin_test = ("import pytest\nfrom price import discount\n\n\ndef test_odd_total():\n"
+                    "    assert discount(199, 10) == pytest.approx(179.1)\n")
+        agents = [
+            ScriptedAgent([_tool_call("read_file", path="price.py"),
+                           _tool_call("patch_file", path="price.py", search="return total",
+                                      replace="return total - total * percent / 100"),
+                           _finish("fixed"), _finish("fixed")]),
+            ScriptedAgent([_tool_call("write_file", path="test_saleha_pin_1.py", content=pin_test)]
+                          + [_finish("written")] * 4),
+        ]
+        res = fix_flow.fix_repo(
+            self.root, model="scripted", test_command=PYTEST, max_steps=8, timeout=120, candidates=0,
+            agent_factory=lambda _m: agents.pop(0), harden_tests=True,
+            ledger_path=os.path.join(self.state, "ledger.jsonl"),
+            anchor_path=os.path.join(self.state, "anchors.jsonl"),
+            record=os.path.join(self.state, "dataset.jsonl"))
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        assert res.pin is not None
+        self.assertEqual(res.pin["verdict"], "PINNED", res.reason)
+        self.assertIn("now caught by test_saleha_pin_1.py", res.reason)
+        self.assertEqual(sorted(res.changed_files), ["price.py", "test_saleha_pin_1.py"])
+
+    def test_without_harden_the_survivor_is_reported(self) -> None:
+        res = fix_flow.fix_repo(
+            self.root, model="scripted", test_command=PYTEST, max_steps=8, timeout=120, candidates=0,
+            agent_factory=lambda _m: ScriptedAgent([
+                _tool_call("read_file", path="price.py"),
+                _tool_call("patch_file", path="price.py", search="return total",
+                           replace="return total - total * percent / 100"),
+                _finish("fixed"), _finish("fixed")]),
+            ledger_path=os.path.join(self.state, "ledger.jsonl"),
+            anchor_path=os.path.join(self.state, "anchors.jsonl"),
+            record=os.path.join(self.state, "dataset.jsonl"))
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        assert res.pin is not None
+        self.assertEqual(res.pin["verdict"], "LOOSE")
+        self.assertEqual([m["kind"] for m in res.pin["survivors"]], ["'/' -> '//'"])
+
+
 CART_JS = ("function applyCoupon(total, percent) {\n"
            "  if (percent < 0 || percent > 100) throw new RangeError('bad percent');\n"
            "  return total - total * percent / 10;\n"
