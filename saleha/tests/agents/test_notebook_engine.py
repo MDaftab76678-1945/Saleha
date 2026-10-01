@@ -94,11 +94,12 @@ class TestNotebookArchitectAgent:
         agent = NotebookArchitectAgent()
         res = agent.execute("Customer Churn Prediction with XGBoost")
         assert res.success is True
-        assert "Synthesized starter notebook" in res.content
+        assert "template cells" in res.content
 
     def test_synthesize_notebook_structure(self) -> None:
         result = notebook_architect.synthesize_notebook("Algorithmic Trading Ring Buffer")
         assert result.title == "Algorithmic Trading Ring Buffer"
+        assert result.from_template and not result.executed and result.verified is None
         assert result.cell_count == 5
         assert result.notebook_doc.cells[0].cell_type == "markdown"
         assert result.notebook_doc.cells[2].cell_type == "sql"

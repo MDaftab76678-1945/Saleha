@@ -10,8 +10,9 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
+from saleha.agents.artifact_check import FAIL, NOT_RUN, PASS, Check, check_safe, run_python
 from saleha.agents.base_agent import AgentResponse, BaseAgent
 
 
@@ -67,6 +68,28 @@ class QATestSuite:
     # says why. Callers must treat that as "tests did not run", never a pass.
     generated: bool = True
     error: str = ""
+    # Filled by run_suite / generate_test_suite(run=True): the suite actually
+    # executed against the code. None: not run (no tests, or run=False).
+    passed: Optional[bool] = None
+    run_detail: str = ""
+
+
+def run_suite(code: str, test_code: str, timeout: float = 60.0) -> Check:
+    """Run unittest tests that call `code` as if defined in the same module. PASS only if tests ran and passed."""
+    if not test_code.strip():
+        return Check("suite passes", NOT_RUN, "no tests")
+    if not re.search(r"\bassert|\.assert\w+\(", test_code):
+        return Check("suite passes", FAIL, "the tests assert nothing")
+    safe = check_safe(code + "\n\n" + test_code)
+    if safe.status != PASS:
+        return Check("suite passes", NOT_RUN, f"not run: {safe.detail}")
+    # The runner is ours (it imports sys); the model's code and tests were screened above.
+    runner = ("import sys, unittest\nimport suite\n"
+              "res = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(suite))\n"
+              "sys.exit(0 if res.wasSuccessful() and res.testsRun else 1)\n")
+    check, _out = run_python(runner, timeout=timeout, files={"suite.py": code + "\n\n" + test_code},
+                             name="suite passes", screen=False)
+    return check
 
 
 class QALeadAgent(BaseAgent):
@@ -75,7 +98,8 @@ class QALeadAgent(BaseAgent):
     def __init__(self, model: str = "auto"):
         super().__init__(role="QALead", model=model)
 
-    def generate_test_suite(self, task: str, code: str, framework: str = "unittest") -> QATestSuite:
+    def generate_test_suite(self, task: str, code: str, framework: str = "unittest",
+                            run: bool = False) -> QATestSuite:
         """Write unittest tests for `task` against the API in `code`. See api_summary for why only the API.
 
         `framework` is accepted for old callers and ignored: the structured
@@ -121,7 +145,7 @@ Rules:
         # claim made whatever the tests contained -- so it is left empty.
         test_count = len(re.findall(r"def test\w*", test_content))
 
-        return QATestSuite(
+        suite = QATestSuite(
             task=task,
             framework=framework,
             test_code=test_content,
@@ -129,6 +153,13 @@ Rules:
             edge_cases_covered=[],
             model_used=resp.model_used,
         )
+        if run:
+            # A failing suite says the code or the tests are wrong -- which one is
+            # not decided here; the caller sees the failure, never a pass.
+            check = run_suite(code, test_content)
+            suite.passed = {PASS: True, FAIL: False}.get(check.status)
+            suite.run_detail = check.detail
+        return suite
 
     @staticmethod
     def _extract_code(content: str) -> str:

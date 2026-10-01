@@ -38,6 +38,8 @@ class TestSlidesArchitectAgent:
 
     def test_synthesize_deck(self) -> None:
         deck = slides_architect.synthesize_deck("Microservices Hexagonal Architecture")
+        # The mock model writes no slides JSON: the starter deck, labelled and never verified.
+        assert deck.from_template and deck.verified is None
         assert len(deck.slides) == 4
         assert "marp: true" in deck.marp_markdown
         assert "<!DOCTYPE html>" in deck.html5_presentation

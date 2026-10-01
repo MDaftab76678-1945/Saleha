@@ -1,15 +1,23 @@
 """
 Saleha Agents: UI/UX Designer Agent
 
-Creates cohesive UI design systems, token palettes, typography scales,
-component hierarchies, modern glassmorphism aesthetics, and micro-interactions.
+Designs a colour palette, type scale and component CSS for a project goal,
+and checks what it designed: the palette is valid hex, the body text meets
+WCAG AA contrast on the background (4.5:1, computed -- not eyeballed), muted
+text reaches 3:1, and the CSS parses and uses the palette's variables.
+
+With no model answering, the fixed dark starter theme is returned, marked
+`is_template` -- and put through the same contrast checks.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict
+import json
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
+from saleha.agents import artifact_check as ac
 from saleha.agents.base_agent import BaseAgent
 
 
@@ -21,9 +29,52 @@ class DesignSystemSpec:
     components_css: str
     design_tokens_json: str
     model_used: str = ""
-    # Always True: no model is called; this is a fixed starter theme, not
-    # a design derived from the project goal.
+    # True when no model answered: the fixed starter theme, not a design for the goal.
     is_template: bool = True
+    checks: List[Dict[str, str]] = field(default_factory=list)
+    verified: Optional[bool] = None
+    contrast: Dict[str, float] = field(default_factory=dict)   # measured WCAG ratios
+
+
+TEMPLATE_PALETTE = {"bg": "#030712", "surface": "#0b0f19", "primary": "#00f2fe", "secondary": "#a855f7",
+                    "success": "#10b981", "text": "#f8fafc", "text_muted": "#94a3b8", "border": "#1f2937"}
+TEMPLATE_TYPE = {"font_sans": "'Plus Jakarta Sans', -apple-system, sans-serif",
+                 "font_heading": "'Space Grotesk', sans-serif", "font_mono": "'Fira Code', monospace"}
+
+
+def _template_css(goal: str, palette: Dict[str, str]) -> str:
+    variables = "\n".join(f"  --{k.replace('_', '-')}: {v};" for k, v in palette.items())
+    return (f"/* Template (no model answered): starter theme for {goal} */\n:root {{\n{variables}\n}}\n"
+            "body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }\n"
+            ".card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }\n"
+            ".btn-primary { background: var(--primary); color: var(--bg); border: none; border-radius: 12px;"
+            " padding: 12px 24px; font-weight: 700; cursor: pointer; }\n"
+            ".muted { color: var(--text-muted); }\n")
+
+
+def design_checks(palette: Dict[str, Any], css: str) -> Tuple[List[ac.Check], Dict[str, float]]:
+    checks: List[ac.Check] = []
+    bad = [k for k, v in palette.items() if not re.fullmatch(r"#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?", str(v))]
+    checks.append(ac.Check("palette is hex", ac.FAIL if bad or not palette else ac.PASS,
+                           f"not hex: {', '.join(bad)}" if bad else ("" if palette else "no palette")))
+    ratios: Dict[str, float] = {}
+    for fg, need in (("text", 4.5), ("text_muted", 3.0)):
+        if fg in palette and "bg" in palette:
+            ratio = ac.contrast(str(palette[fg]), str(palette["bg"]))
+            if ratio is not None:
+                ratios[f"{fg} on bg"] = ratio
+            checks.append(ac.Check(f"{fg} contrast >= {need}:1",
+                                   ac.PASS if ratio is not None and ratio >= need else ac.FAIL,
+                                   f"{ratio}:1" if ratio is not None else "colours are not hex"))
+        else:
+            checks.append(ac.Check(f"{fg} contrast >= {need}:1", ac.FAIL, f"palette needs `{fg}` and `bg`"))
+    checks.append(ac.check_css(css))
+    used = set(re.findall(r"var\(--([\w-]+)\)", css))
+    defined = set(re.findall(r"--([\w-]+)\s*:", css))
+    missing = sorted(used - defined)
+    checks.append(ac.Check("CSS variables defined", ac.FAIL if missing else ac.PASS,
+                           f"used but not defined: {', '.join(missing)}" if missing else ""))
+    return checks, ratios
 
 
 class DesignerAgent(BaseAgent):
@@ -32,93 +83,45 @@ class DesignerAgent(BaseAgent):
     def __init__(self, model: str = "auto"):
         super().__init__(role="Designer", model=model)
 
-    def create_design_system(
-        self,
-        project_goal: str,
-        theme_style: str = "cyber_glassmorphism"
-    ) -> DesignSystemSpec:
-        """Returns the fixed starter theme. No model is called: the palette
-        and components are identical for every goal, so treat this as a
-        scaffold to restyle, not a design for the project."""
-        palette = {
-            "bg_dark": "#030712",
-            "bg_surface": "#0b0f19",
-            "accent_primary": "#00f2fe",
-            "accent_secondary": "#a855f7",
-            "accent_success": "#10b981",
-            "text_main": "#f8fafc",
-            "text_muted": "#94a3b8",
-            "border_subtle": "rgba(255, 255, 255, 0.08)"
-        }
+    def create_design_system(self, project_goal: str, theme_style: str = "cyber_glassmorphism") -> DesignSystemSpec:
+        """A palette, type scale and component CSS for the goal; contrast and CSS checked."""
+        prompt = (
+            f"Design a UI design system for: {project_goal}\nStyle: {theme_style.replace('_', ' ')}.\n"
+            "Answer with exactly two fenced blocks.\n"
+            "1. a json block shaped like {\"palette\": {\"bg\": ..., \"surface\": ..., \"primary\": ..., "
+            "\"text\": ..., \"text_muted\": ...}, \"typography\": {\"font_sans\": ..., \"font_heading\": ..., "
+            "\"font_mono\": ...}} with 6-digit hex colours; text must reach 4.5:1 contrast on bg and text_muted 3:1\n"
+            "2. a css block: :root variables for every palette colour (--bg, --surface, --primary, --text, "
+            "--text-muted), then rules for body, .card, .btn-primary and .muted that use only those variables\n"
+            "Put only the language after each opening fence. No other text.")
 
-        typography = {
-            "font_sans": "'Plus Jakarta Sans', -apple-system, sans-serif",
-            "font_heading": "'Space Grotesk', sans-serif",
-            "font_mono": "'Fira Code', monospace"
-        }
+        def build(content: str) -> Tuple[Tuple[Dict[str, Any], Dict[str, Any], str], List[ac.Check]]:
+            blocks = ac.fenced_blocks(content)
+            raw = ac.pick(blocks, ("json",), contains=r"\"palette\"")
+            css = ac.pick(blocks, ("css",), contains=r"\{")
+            jcheck, data = ac.check_json(raw, "design tokens JSON")
+            palette = (data or {}).get("palette") if isinstance(data, dict) else None
+            typography = (data or {}).get("typography") if isinstance(data, dict) else None
+            if jcheck.status != ac.PASS or not isinstance(palette, dict):
+                return ({}, {}, css), [jcheck if jcheck.status != ac.PASS else
+                                       ac.Check("design tokens JSON", ac.FAIL, "no palette object")]
+            checks, _ratios = design_checks(palette, css)
+            return (palette, typography if isinstance(typography, dict) else {}, css), [jcheck] + checks
 
-        css_components = f"""/* ==========================================================================
-   Design System: {theme_style.title()} for {project_goal}
-   Template (no model called): fixed starter theme, restyle for the project.
-   ========================================================================== */
-
-:root {{
-  --bg-dark: {palette['bg_dark']};
-  --bg-surface: {palette['bg_surface']};
-  --accent-cyan: {palette['accent_primary']};
-  --accent-purple: {palette['accent_secondary']};
-  --accent-emerald: {palette['accent_success']};
-  --text-main: {palette['text_main']};
-  --text-muted: {palette['text_muted']};
-  --border-subtle: {palette['border_subtle']};
-}}
-
-.glass-card {{
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  padding: 24px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}}
-
-.glass-card:hover {{
-  border-color: rgba(0, 242, 254, 0.4);
-  transform: translateY(-4px);
-  box-shadow: 0 15px 35px rgba(0, 242, 254, 0.15);
-}}
-
-.btn-glow-primary {{
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-  color: #000;
-  font-weight: 700;
-  border-radius: 12px;
-  padding: 12px 24px;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 0 25px rgba(0, 242, 254, 0.35);
-  transition: all 0.2s ease;
-}}
-
-.btn-glow-primary:hover {{
-  transform: scale(1.03);
-  box-shadow: 0 0 35px rgba(0, 242, 254, 0.55);
-}}
-"""
-
-        tokens_json = """{
-  "theme": "dark",
-  "radius": "16px",
-  "blur": "16px",
-  "animation": "300ms cubic-bezier(0.16, 1, 0.3, 1)"
-}"""
-
+        result, checks, resp, _rounds = ac.produce(self, prompt, build)
+        is_template = result is None or not result[0]
+        if is_template:
+            note = ac.fallback_note(checks, result is not None)
+            palette, typography = dict(TEMPLATE_PALETTE), dict(TEMPLATE_TYPE)
+            css = _template_css(project_goal, palette)
+            checks = note + design_checks(palette, css)[0]
+        else:
+            palette, typography, css = result
+        ratios = design_checks(palette, css)[1] if palette else {}
         return DesignSystemSpec(
-            theme_name=theme_style,
-            color_palette=palette,
-            typography=typography,
-            components_css=css_components,
-            design_tokens_json=tokens_json,
-            model_used=self.model_preference
-        )
+            theme_name=theme_style, color_palette={k: str(v) for k, v in palette.items()},
+            typography={k: str(v) for k, v in typography.items()}, components_css=css,
+            design_tokens_json=json.dumps({"palette": palette, "typography": typography}, indent=2),
+            model_used="template (no usable model answer)" if is_template else resp.model_used,
+            is_template=is_template, checks=ac.as_dicts(checks),
+            verified=ac.artifact_verdict(checks), contrast=ratios)

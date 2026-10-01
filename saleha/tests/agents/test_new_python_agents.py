@@ -125,9 +125,14 @@ class NewPythonAgentsTests(unittest.TestCase):
 
     def test_designer_agent_create_design_system(self) -> None:
         spec = self.designer.create_design_system("E-Commerce Storefront", theme_style="glassmorphism")
-        self.assertIn("accent_primary", spec.color_palette)
-        self.assertIn(".glass-card", spec.components_css)
-        self.assertIn("theme", spec.design_tokens_json)
+        # No usable model answer ("mock" is no installed model): the template is returned,
+        # labelled, with the reason first, and still checked.
+        self.assertTrue(spec.is_template)
+        self.assertIn(spec.checks[0]["name"], ("model answered", "model answer used"))
+        self.assertIn(spec.checks[0]["status"], ("NOT_RUN", "FAIL"))
+        self.assertIn("text", spec.color_palette)
+        self.assertGreaterEqual(spec.contrast["text on bg"], 4.5)
+        self.assertTrue(spec.verified)
 
     def test_developer_agent_develop_feature(self) -> None:
         output = self.developer.develop_feature("Create user registration endpoint", language="python")
@@ -152,21 +157,27 @@ class NewPythonAgentsTests(unittest.TestCase):
 
     def test_web_dev_agent_build_web_application(self) -> None:
         output = self.web_dev.build_web_application("Real-Time Analytics Dashboard", framework="html5_css3")
+        self.assertTrue(output.is_template)
         self.assertIn("<!DOCTYPE html>", output.html_markup)
-        self.assertIn(".glass-card", output.css_styles)
-        self.assertIn("document.addEventListener", output.js_logic)
+        self.assertEqual(output.seo_meta_tags["title"], "Real-Time Analytics Dashboard")
+        statuses = {c["name"]: c["status"] for c in output.checks}
+        self.assertEqual(statuses["HTML well-formed"], "PASS")
+        self.assertEqual(statuses["page basics"], "PASS")
 
     def test_devops_agent_generate_pipeline(self) -> None:
         spec = self.devops.generate_devops_pipeline("saleha-backend", runtime="python:3.12-slim")
+        self.assertTrue(spec.is_template)
         self.assertIn("FROM python:3.12-slim", spec.dockerfile)
-        self.assertIn("version: '3.8'", spec.docker_compose)
-        self.assertIn("name: CI/CD Pipeline", spec.github_actions_workflow)
+        self.assertNotIn("saleha.server.web_server", spec.dockerfile, "a project is not started as Saleha")
+        self.assertTrue(spec.verified, spec.checks)
 
     def test_data_engineer_agent_build_data_pipeline(self) -> None:
-        spec = self.data_engineer.build_data_pipeline("user_activity_stream", source_format="json")
+        spec = self.data_engineer.build_data_pipeline("user_activity_stream", source_format="json",
+                                                      sample_records=[{"a": 1}, {}])
+        self.assertTrue(spec.is_template)
         self.assertIn("CREATE TABLE IF NOT EXISTS", spec.sql_schema)
-        self.assertIn("import polars as pl", spec.etl_script_py)
-        self.assertEqual(len(spec.target_tables), 1)
+        self.assertEqual(spec.target_tables, ["user_activity_stream_records"])
+        self.assertEqual(spec.sample_output, '[{"a": 1}]', "the template ETL ran on the sample")
 
 
 if __name__ == "__main__":
