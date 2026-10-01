@@ -443,6 +443,52 @@ def _repro_goal(text: str, path: str, feedback: str) -> str:
             + (f"\n\nYour previous attempt did not count: {feedback}" if feedback else ""))
 
 
+def reproduce(root: str, text: str, argv: List[str], model: str,
+              agent_factory: Optional[Callable[[str], Any]] = None, max_steps: int = 15,
+              timeout: float = 900.0, test_timeout: float = 600.0,
+              on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+              attempts: int = 2) -> Tuple[List[str], str, int]:
+    """(new test files, last feedback, agent steps).
+
+    Writes a test that fails, by an assertion, on the current code because of
+    the reported bug -- checked by running it. A test that passes, errors, or
+    comes with a source edit is taken back out and retried with the reason.
+    The files are left in the tree on success; the tree is clean on failure.
+    """
+    from saleha.core.loop.agentic_loop import AgentLoop, _is_test_path
+    say = on_event or (lambda _ev: None)
+    path = "tests/test_saleha_repro.py" if os.path.isdir(os.path.join(root, "tests")) else "test_saleha_repro.py"
+    factory = agent_factory or _default_agent_factory
+    feedback = ""
+    steps = 0
+    for attempt in range(attempts):
+        say({"stage": "reproduce", "message": f"writing a test that fails because of the report "
+                                              f"(attempt {attempt + 1})"})
+        loop = AgentLoop(agent=factory(model), root_dir=root, max_steps=max_steps, allow_write=True,
+                         timeout_sec=timeout, test_timeout_sec=test_timeout)
+        loop.require_test_read = False
+        loop.repair_goal = False      # the test it writes must fail; the loop must not "fix" that
+        run = loop.run(_repro_goal(text, path, feedback), on_event=lambda ev: say({"stage": "agent", **ev}))
+        steps += len(run.steps)
+        changes = _changes(root)
+        source = [p for _, p in changes if not _is_test_path(p)]
+        new_tests = [p for _, p in changes if _is_test_path(p)]
+        if source or not new_tests:
+            feedback = (f"it changed non-test files ({', '.join(source)})" if source
+                        else "no test file was written")
+            _revert(root, changes)
+            continue
+        passed, out = _run_tests(list(argv) + new_tests, root, test_timeout)
+        if passed is False and any(ln.startswith("FAILED ")
+                                   for ln in (_ANSI.sub("", x).strip() for x in out.splitlines())):
+            return new_tests, "", steps
+        feedback = ("the test PASSED on the current code, so it does not show the bug" if passed
+                    else "the test did not fail by an assertion -- it errored or could not run:\n"
+                         + "\n".join(out.splitlines()[-12:]))
+        _revert(root, changes)
+    return [], feedback, steps
+
+
 def fix_issue(root_dir: str, issue: str, model: Optional[str] = None,
               test_command: Optional[List[str]] = None, max_steps: int = 15,
               timeout: float = 900.0, test_timeout: float = 600.0,
@@ -470,44 +516,15 @@ def fix_issue(root_dir: str, issue: str, model: Optional[str] = None,
     text, err = issue_text(issue, root)
     if err or not text:
         return FixResult(CANNOT_RUN, err or "the bug report is empty", model=model)
-    from saleha.core.loop.agentic_loop import AgentLoop, _is_test_path, discover_test_command
+    from saleha.core.loop.agentic_loop import discover_test_command
     argv, why = (test_command, "given") if test_command else discover_test_command(root)
     if not argv or not _pytest_python(list(argv)):
         return FixResult(CANNOT_RUN, "writing a reproducing test needs a `python -m pytest` project "
                                      f"(test command: {why if not argv else ' '.join(argv)})", model=model)
-    path = "tests/test_saleha_repro.py" if os.path.isdir(os.path.join(root, "tests")) else "test_saleha_repro.py"
-    factory = agent_factory or _default_agent_factory
-    feedback = ""
-    new_tests: List[str] = []
-    steps = 0
-    for attempt in range(repro_attempts):
-        say({"stage": "reproduce", "message": f"writing a test that fails because of the report "
-                                              f"(attempt {attempt + 1})"})
-        loop = AgentLoop(agent=factory(model), root_dir=root, max_steps=max_steps, allow_write=True,
-                         timeout_sec=timeout, test_timeout_sec=test_timeout)
-        loop.require_test_read = False
-        loop.repair_goal = False      # the test it writes must fail; the loop must not "fix" that
-        run = loop.run(_repro_goal(text, path, feedback), on_event=lambda ev: say({"stage": "agent", **ev}))
-        steps += len(run.steps)
-        changes = _changes(root)
-        source = [p for _, p in changes if not _is_test_path(p)]
-        new_tests = [p for _, p in changes if _is_test_path(p)]
-        if source or not new_tests:
-            feedback = (f"it changed non-test files ({', '.join(source)})" if source
-                        else "no test file was written")
-            _revert(root, changes)
-            new_tests = []
-            continue
-        passed, out = _run_tests(list(argv) + new_tests, root, test_timeout)
-        failed_by_assert = passed is False and any(
-            ln.startswith("FAILED ") for ln in (_ANSI.sub("", x).strip() for x in out.splitlines()))
-        if failed_by_assert:
-            break
-        feedback = ("the test PASSED on the current code, so it does not show the bug" if passed
-                    else "the test did not fail by an assertion -- it errored or could not run:\n"
-                         + "\n".join(out.splitlines()[-12:]))
-        _revert(root, changes)
-        new_tests = []
+    new_tests, feedback, steps = reproduce(root, text, list(argv), model=model,
+                                           agent_factory=agent_factory, max_steps=max_steps,
+                                           timeout=timeout, test_timeout=test_timeout,
+                                           on_event=on_event, attempts=repro_attempts)
     if not new_tests:
         return FixResult(NOT_REPRODUCED, f"no test reproduced the report ({feedback}); nothing was changed",
                          test_command=list(argv), model=model, agent_steps=steps,

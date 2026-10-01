@@ -15,6 +15,7 @@ import click
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
 from rich.table import Table
 
 from saleha.cli import commands as _cmds
@@ -608,6 +609,91 @@ def receipt_cmd(root_dir: str, base: str, test_cmd: Optional[str], timeout: floa
 # `saleha verify`: the same receipt under the name people look for when they
 # want to check a change -- their own, a colleague's, or any AI's.
 cli.add_command(receipt_cmd, name='verify')
+
+
+@cli.group(name='decide')
+def decide_group() -> None:
+    """Typed answers about code: PROVEN by running something, or clearly marked ESTIMATED.
+
+    \b
+      saleha decide proven --base main          is this change proven by its tests?
+      saleha decide flaky "python -m pytest -q tests/test_x.py"
+      saleha decide bug "add(2, 3) returns -1"   can the reported bug be shown by a failing test?
+      saleha decide ask "Is this a bug report or a feature request?" --choices bug,feature --input issue.txt
+    """
+
+
+def _show_decision(d: Any, as_json: bool) -> None:
+    if as_json:
+        click.echo(json.dumps(d.to_dict(), ensure_ascii=True, default=str))
+    else:
+        from rich.markup import escape
+        colour = 'green' if d.kind == 'proven' and d.answer else ('yellow' if d.answer else 'red')
+        body = f"[bold]{escape(str(d.answer or 'UNDECIDED'))}[/]  ({d.kind})\n{escape(d.reason)}"
+        if d.probabilities:
+            body += '\n' + '  '.join(f"{escape(k)}: {v:.0%}" for k, v in d.probabilities.items())
+        src = (d.evidence or {}).get('test_source')
+        console.print(Panel(body, title=escape(d.question), border_style=colour))
+        if src:
+            console.print(Syntax(src, 'python', theme='monokai'))
+    if d.answer is None:
+        raise click.exceptions.Exit(1)
+
+
+@decide_group.command(name='proven')
+@click.option('--dir', 'root_dir', default='.', help='Repository')
+@click.option('--base', default='HEAD', help='Compare the working tree against this commit')
+@click.option('--test-cmd', default=None, help='Test command (default: discovered)')
+@click.option('--json', 'as_json', is_flag=True)
+def decide_proven(root_dir: str, base: str, test_cmd: Optional[str], as_json: bool) -> None:
+    """Is the change since --base proven by its tests? (PROVEN)"""
+    from saleha.core import decide
+    _show_decision(decide.is_proven(root_dir, base, _split_command(test_cmd) if test_cmd else None), as_json)
+
+
+@decide_group.command(name='flaky')
+@click.argument('test_command')
+@click.option('--dir', 'root_dir', default='.', help='Repository')
+@click.option('--runs', default=5, type=click.IntRange(2, 50), show_default=True)
+@click.option('--json', 'as_json', is_flag=True)
+def decide_flaky(test_command: str, root_dir: str, runs: int, as_json: bool) -> None:
+    """Does this test command fail every time, or only sometimes? (PROVEN by re-runs)"""
+    from saleha.core import decide
+    _show_decision(decide.is_flaky(root_dir, _split_command(test_command), runs=runs), as_json)
+
+
+@decide_group.command(name='bug')
+@click.argument('report')
+@click.option('--dir', 'root_dir', default='.', help='Repository (clean git tree, pytest)')
+@click.option('--model', '-m', default=None, help='Model that writes the reproducing test')
+@click.option('--keep-test', is_flag=True, help='Leave the reproducing test in the tree')
+@click.option('--json', 'as_json', is_flag=True)
+def decide_bug(report: str, root_dir: str, model: Optional[str], keep_test: bool, as_json: bool) -> None:
+    """Is a reported bug real? Proven by a test that fails because of it. REPORT: text, issue URL or #N."""
+    from saleha.core import decide
+    _show_decision(decide.is_real_bug(root_dir, report, model=model, keep_test=keep_test), as_json)
+
+
+@decide_group.command(name='ask')
+@click.argument('question')
+@click.option('--choices', required=True, help='Comma-separated answers to choose from, e.g. yes,no')
+@click.option('--input', 'input_path', default=None, help='File the question is about ("-" for stdin)')
+@click.option('--model', '-m', default=None)
+@click.option('--samples', default=5, type=click.IntRange(1, 25), show_default=True)
+@click.option('--json', 'as_json', is_flag=True)
+def decide_ask(question: str, choices: str, input_path: Optional[str], model: Optional[str], samples: int,
+               as_json: bool) -> None:
+    """Pick one of --choices about an input. ESTIMATED: the agreement of independent answers."""
+    import sys
+    from saleha.core import decide
+    text = ''
+    if input_path == '-':
+        text = sys.stdin.read()
+    elif input_path:
+        with open(input_path, 'r', encoding='utf-8', errors='replace') as fh:
+            text = fh.read()
+    opts = [c.strip() for c in choices.split(',') if c.strip()]
+    _show_decision(decide.ask(text, question, opts, model=model, samples=samples), as_json)
 
 
 @cli.command(name='verify-work')
