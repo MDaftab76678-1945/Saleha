@@ -194,6 +194,53 @@ class FixFlowTests(unittest.TestCase):
         self.assertIn("not a git repository", res.reason)
 
 
+CART_JS = ("function applyCoupon(total, percent) {\n"
+           "  if (percent < 0 || percent > 100) throw new RangeError('bad percent');\n"
+           "  return total - total * percent / 10;\n"
+           "}\n\nmodule.exports = { applyCoupon };\n")
+CART_TEST_JS = ("const test = require('node:test');\nconst assert = require('node:assert');\n"
+                "const { applyCoupon } = require('../src/cart');\n\n"
+                "test('ten percent off', () => { assert.strictEqual(applyCoupon(200, 10), 180); });\n")
+
+
+@unittest.skipUnless(__import__("shutil").which("node") and __import__("shutil").which("npm"),
+                     "needs node and npm")
+class FixJavaScriptTests(unittest.TestCase):
+    """The same flow on a node --test project: discovery, failure parsing, receipt."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = self._tmp.name
+        Path(self.root, "src").mkdir()
+        Path(self.root, "test").mkdir()
+        Path(self.root, "package.json").write_text(
+            '{"name": "cart", "version": "1.0.0", "scripts": {"test": "node --test"}}\n', encoding="utf-8")
+        Path(self.root, "src", "cart.js").write_bytes(CART_JS.encode())
+        Path(self.root, "test", "cart.test.js").write_bytes(CART_TEST_JS.encode())
+        for args in (["init", "-q"], ["config", "user.email", "t@example.com"], ["config", "user.name", "t"],
+                     ["config", "core.autocrlf", "false"], ["add", "-A"], ["commit", "-q", "-m", "init"]):
+            _git(self.root, *args)
+        self.state = os.path.join(self.root, "..", os.path.basename(self.root) + "-state")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_a_javascript_bug_is_fixed_and_proven_with_npm_test(self) -> None:
+        res = fix_flow.fix_repo(
+            self.root, model="scripted", max_steps=8, timeout=120, candidates=0,
+            agent_factory=lambda _m: ScriptedAgent([
+                _tool_call("read_file", path="src/cart.js"),
+                _tool_call("patch_file", path="src/cart.js", search="percent / 10;", replace="percent / 100;"),
+                _finish("fixed"), _finish("fixed"), _finish("fixed")]),
+            ledger_path=os.path.join(self.state, "ledger.jsonl"),
+            anchor_path=os.path.join(self.state, "anchors.jsonl"),
+            record=os.path.join(self.state, "dataset.jsonl"))
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        self.assertIn("npm", os.path.basename(res.test_command[0]).lower())
+        self.assertEqual(res.failing_before, ["ten percent off"])
+        self.assertEqual(res.changed_files, ["src/cart.js"])
+
+
 REPRO = "from calc import add\n\n\ndef test_add_reported():\n    assert add(2, 3) == 5\n"
 
 
@@ -364,6 +411,7 @@ class FixFlowHelperTests(unittest.TestCase):
             "--- FAIL: TestAdd (0.00s)\nFAIL\n": ["TestAdd"],
             "test tests::adds ... FAILED\ntest tests::subs ... ok\n": ["tests::adds"],
             "not ok 2 - adds numbers\n": ["adds numbers"],
+            "✖ ten percent off (1.0333ms)\n✖ failing tests:\n✖ ten percent off (1.0333ms)\n": ["ten percent off"],
         }
         for out, want in cases.items():
             self.assertEqual([t for t, _ in fix_flow.failing_tests(out)], want, out)

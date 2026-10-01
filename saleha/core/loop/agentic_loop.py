@@ -1095,7 +1095,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
             except json.JSONDecodeError:
                 scripts = {}
             if "test" in scripts:
-                return (["npm", "test", "--silent"],
+                # The full path: on Windows "npm" is npm.cmd, and a bare
+                # "npm" never starts (CreateProcess only adds ".exe").
+                import shutil
+                return ([shutil.which("npm") or "npm", "test", "--silent"],
                         'package.json declares a "test" script')
 
         # A tests/ directory with no config still usually means pytest.

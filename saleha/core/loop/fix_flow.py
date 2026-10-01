@@ -44,7 +44,8 @@ _OTHER_FAILED = [
     re.compile(r"^(?:FAIL|×|✗)\s+(?P<id>\S.*?\s>\s.+?)(?:\s+\d+ms)?\s*$"),  # Vitest
     re.compile(r"^--- FAIL: (?P<id>\S+)"),                             # go test
     re.compile(r"^test (?P<id>\S+) \.\.\. FAILED$"),                   # cargo test
-    re.compile(r"^not ok \d+ - (?P<id>.+?)\s*$"),                      # node:test / TAP
+    re.compile(r"^not ok \d+ - (?P<id>.+?)\s*$"),                      # TAP
+    re.compile(r"^✖\s+(?P<id>.+?)\s+\(\d+(?:\.\d+)?ms\)$"),            # node --test (spec reporter)
 ]
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 DATASET = os.environ.get("SALEHA_FIX_DATASET",
