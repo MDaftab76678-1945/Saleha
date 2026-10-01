@@ -253,6 +253,19 @@ class AgentLoopTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertIn("timed out", res.error)
 
+    def test_a_zero_budget_times_out_even_when_the_clock_has_not_moved(self) -> None:
+        # Windows CI, Python 3.12: time.time() ticks every ~15.6ms, six fast
+        # steps read an elapsed 0.0, and `0.0 > 0.0` let a zero budget run them
+        # all -- "max_steps (6) exhausted" instead of a timeout. A clock that
+        # does not move makes that case happen every time.
+        agent = ScriptedAgent([_tool_call("list_dir", path=".")] * 6)
+        loop = AgentLoop(agent=agent, root_dir=self.root, max_steps=6,
+                         timeout_sec=0.0)
+        with patch("saleha.core.loop.agentic_loop.time.time", return_value=1_000_000.0):
+            res = loop.run("take too long")
+        self.assertFalse(res.success)
+        self.assertIn("timed out", res.error)
+
     def test_cli_agent_passes_timeout_through(self) -> None:
         # The parameter existed on AgentLoop and was simply never handed over
         # by the CLI -- a silent gap no test could see. This fails if the

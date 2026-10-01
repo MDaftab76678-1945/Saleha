@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass
 from typing import List, Optional
 
+from saleha.core.sandbox.bounded_run import run_bounded
 from saleha.core.telemetry.audit_log import AuditLog
 from saleha.core.verification.security_scanner import ASTSecurityScanner
 
@@ -187,8 +188,7 @@ class PolyglotExecutor:
         TimeoutExpired escaped execute() as a crash.
         """
         try:
-            res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                                 errors="replace", timeout=self.timeout)
+            res = run_bounded(cmd, cwd, self.timeout)
         except subprocess.TimeoutExpired:
             return PolyglotExecutionResult(success=False, language=lang, exit_code=-1,
                                            error=f"Compilation timed out after {self.timeout}s.")
@@ -202,16 +202,10 @@ class PolyglotExecutor:
 
     def _run_proc(self, cmd: List[str], cwd: str, lang: str) -> PolyglotExecutionResult:
         try:
-            proc = subprocess.run(
-                cmd,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout,
-                input=""
-            )
+            # run_bounded, not subprocess.run: `go run` starts the program as its
+            # own child, and on Windows an endless one kept run() waiting past
+            # the timeout (measured: still running after 75s with timeout=20).
+            proc = run_bounded(cmd, cwd, self.timeout, input="")
             out = proc.stdout[:MAX_POLYGLOT_OUTPUT_CHARS]
             err = proc.stderr[:MAX_POLYGLOT_OUTPUT_CHARS]
             return PolyglotExecutionResult(

@@ -28,6 +28,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from saleha.core.sandbox.bounded_run import run_bounded
+
 PINNED = "PINNED"
 LOOSE = "LOOSE"
 NOT_CHECKED = "NOT_CHECKED"
@@ -154,8 +156,7 @@ def changed_lines(root: str, base: str) -> Dict[str, Set[int]]:
 def _passes(argv: List[str], root: str, timeout: float) -> Optional[bool]:
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
     try:
-        p = subprocess.run(argv, cwd=root, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, env=env)
+        p = run_bounded(argv, root, timeout, env)    # a mutant that never ends is stopped, whole tree
     except (subprocess.TimeoutExpired, OSError):
         return None
     return p.returncode == 0

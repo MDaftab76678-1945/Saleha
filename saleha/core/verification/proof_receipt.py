@@ -45,6 +45,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from saleha.core.sandbox.bounded_run import run_bounded
+
 PROVEN = "PROVEN"
 UNPROVEN = "UNPROVEN"
 FAILING = "FAILING"
@@ -125,8 +127,7 @@ def _run_tests(argv: List[str], cwd: str, timeout: float) -> TestRun:
            "PYTHONIOENCODING": "utf-8"}
     t0 = time.time()
     try:
-        p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, env=env)
+        p = run_bounded(argv, cwd, timeout, env)     # the timeout also stops what npm & co. started
     except subprocess.TimeoutExpired:
         return TestRun(True, False, None, f"timed out after {timeout:.0f}s",
                        round(time.time() - t0, 1))

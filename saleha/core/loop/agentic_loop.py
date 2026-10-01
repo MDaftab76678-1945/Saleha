@@ -40,6 +40,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
 
 from saleha.agents.base_agent import AgentResponse
 from saleha.core.platform.path_utils import safe_relpath
+from saleha.core.sandbox.bounded_run import run_bounded
 
 
 class ThinkingAgent(Protocol):
@@ -1152,15 +1153,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
 
         bounded_timeout = self._bounded_test_timeout()
         try:
-            proc = subprocess.run(
-                argv,
-                cwd=self.root_dir,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=bounded_timeout,
-            )
+            # The timeout stops what the command started too (npm -> node).
+            proc = run_bounded(argv, self.root_dir, bounded_timeout)
         except FileNotFoundError:
             return (f"test command not runnable: {argv[0]!r} is not on PATH "
                     f"(discovered because {why})")
@@ -1389,16 +1383,8 @@ Never invent tool outputs. One block per reply. Be efficient."""
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
         bounded_timeout = self._bounded_test_timeout()
         try:
-            subprocess.run(
-                [self._python_for_root(), runner, coverdir] + targets,
-                cwd=self.root_dir,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=bounded_timeout,
-                env=env,
-            )
+            run_bounded([self._python_for_root(), runner, coverdir] + targets,
+                        self.root_dir, bounded_timeout, env)
         except FileNotFoundError as err:
             return (None,
                     f"coverage skipped: interpreter not runnable ({err})")
@@ -2253,7 +2239,10 @@ Never invent tool outputs. One block per reply. Be efficient."""
                 self.scout_dossier = None
 
         for step_no in range(1, self.max_steps + 1):
-            if time.time() - start_time > self.timeout_sec:
+            # >=, not >: the budget is spent once elapsed reaches it. Python 3.12's
+            # time.time() on Windows ticks every ~15.6ms, so six fast steps read an
+            # elapsed 0.0 and `0.0 > 0.0` let a zero budget run all of them.
+            if time.time() - start_time >= self.timeout_sec:
                 result.error = f"Agent execution timed out after {self.timeout_sec}s (step {step_no})"
                 emit({"step": step_no, "action": "timeout", "observation": result.error})
                 return result

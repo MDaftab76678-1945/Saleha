@@ -17,6 +17,7 @@ import urllib.request
 from http.server import HTTPServer
 from typing import Any, Dict
 
+from saleha.core.polyglot import native_compiler as native_compiler_module
 from saleha.core.polyglot.native_compiler import native_compiler
 from saleha.core.research.spatial_coder import spatial_coder
 from saleha.core.research.webgpu_accelerator import webgpu_accelerator
@@ -44,10 +45,11 @@ class FutureEnginesTests(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
 
-    # Some routes (e.g. /api/native/compile) invoke a subprocess with its own
-    # 10s internal timeout server-side; the client timeout must exceed that
-    # or a genuinely-still-running compile reads as a client-side failure.
-    _HTTP_TIMEOUT = 15
+    # /api/native/compile runs clang then gcc server-side, within one compile
+    # budget; the client timeout must exceed that whole budget (not one
+    # compiler's 10s, as it used to) or a still-running compile reads as a
+    # client-side failure -- it did on a slow Windows CI runner.
+    _HTTP_TIMEOUT = native_compiler_module.COMPILE_BUDGET_S + 15
 
     def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         req = urllib.request.Request(
@@ -184,6 +186,33 @@ class FutureEnginesTests(unittest.TestCase):
         data = self._post("/api/native/compile", {"code": c_code, "binary_name": "api_test_app"})
         self.assertIn("success", data)
         self.assertIn("error_message", data)
+
+    def test_a_compiler_whose_children_hold_its_output_still_stops_on_time(self) -> None:
+        """On Windows, after a timeout kill, subprocess.run waited for the compiler's own
+        children (cc1, as, ld, link.exe) to close the output pipe: a CI run spent 79.7s
+        in two compiles meant to stop at 10s each."""
+        import subprocess
+        import sys
+        import time
+        from unittest import mock
+        nc = native_compiler_module
+        hang = ("import subprocess, sys, time\n"
+                "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(6)'])\n"
+                "time.sleep(60)\n")
+        real_run = subprocess.run
+
+        def a_hanging_compiler(_cmd: Any, **kw: Any) -> Any:
+            return real_run([sys.executable, "-c", hang], **kw)
+
+        t0 = time.monotonic()
+        with mock.patch.object(nc, "PER_COMPILER_S", 1.0, create=True), \
+                mock.patch.object(nc, "COMPILE_BUDGET_S", 2.0, create=True), \
+                mock.patch.object(nc.subprocess, "run", side_effect=a_hanging_compiler):
+            res = nc.native_compiler.compile_c_standalone("int main() { return 0; }\n")
+        elapsed = time.monotonic() - t0
+        self.assertFalse(res.success)
+        self.assertIn("timed out", res.error_message or "")
+        self.assertLess(elapsed, 5.0)
 
 
 if __name__ == "__main__":

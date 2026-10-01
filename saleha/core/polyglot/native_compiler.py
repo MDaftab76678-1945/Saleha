@@ -16,6 +16,9 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
+PER_COMPILER_S = 10.0     # one clang/gcc run
+COMPILE_BUDGET_S = 20.0   # all of them together: the longest a caller (the API route) waits
+
 
 @dataclass
 class NativeCompilationResult:
@@ -53,25 +56,36 @@ class NativeBinaryCompiler:
         compiler_used = None
         err_msg = None
 
+        deadline = time.monotonic() + COMPILE_BUDGET_S
         for cc in compilers:
-            try:
-                subprocess.run(
-                    [cc, "-O3", src_path, "-o", out_path],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    timeout=10,
-                )
-                compiled = True
-                compiler_used = cc
+            left = min(PER_COMPILER_S, deadline - time.monotonic())
+            if left <= 0:
+                err_msg = f"{err_msg + '; ' if err_msg else ''}{COMPILE_BUDGET_S:.0f}s compile budget used up before {cc}"
                 break
-            except FileNotFoundError:
-                err_msg = f"{cc} not found on PATH"
-            except subprocess.CalledProcessError as ex:
-                err_msg = f"{cc} failed: {ex.stderr or ex}"
-            except Exception as ex:
-                err_msg = str(ex)
+            # stderr goes to a file, not a pipe: after killing a timed-out run,
+            # subprocess.run on Windows waits for its pipes to close, and the
+            # compiler's own children (cc1, as, ld, link.exe) hold them open.
+            # A Windows CI run spent 79.7s in a test making two compiles that
+            # were each meant to stop at 10s.
+            with tempfile.TemporaryFile(dir=tmp_dir) as errf:
+                try:
+                    proc = subprocess.run([cc, "-O3", src_path, "-o", out_path],
+                                          stdout=subprocess.DEVNULL, stderr=errf, timeout=left)
+                except FileNotFoundError:
+                    err_msg = f"{cc} not found on PATH"
+                    continue
+                except subprocess.TimeoutExpired:
+                    err_msg = f"{cc} timed out after {left:.0f}s"
+                    continue
+                except Exception as ex:
+                    err_msg = f"{cc} could not run: {ex}"
+                    continue
+                if proc.returncode == 0:
+                    compiled = True
+                    compiler_used = cc
+                    break
+                errf.seek(0)
+                err_msg = f"{cc} failed: {errf.read().decode('utf-8', 'replace').strip() or proc.returncode}"
 
         compilation_time_ms = round((time.perf_counter() - start_t) * 1000, 2)
 

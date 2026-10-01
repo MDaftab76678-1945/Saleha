@@ -42,6 +42,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+from saleha.core.sandbox.bounded_run import run_bounded
+
 _BOM = b"\xef\xbb\xbf"
 _TOKEN: Dict[Any, Any] = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/", ast.FloorDiv: "//", ast.Mod: "%",
           ast.Pow: "**", ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^", ast.LShift: "<<",
@@ -553,8 +555,7 @@ def _run(argv: List[str], cwd: str, timeout: float) -> str:
     """'pass', 'fail', 'timeout' or 'error' (the command could not start)."""
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
     try:
-        p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, env=env)
+        p = run_bounded(argv, cwd, timeout, env)     # an edit that never ends is stopped, whole tree
     except subprocess.TimeoutExpired:
         return "timeout"
     except OSError:

@@ -25,6 +25,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from saleha.core.sandbox.bounded_run import run_bounded
+
 DEFAULT_MODEL = os.environ.get("SALEHA_FIX_MODEL", "qwen2.5-coder:3b")
 SEARCH = "search, no model"          # FixResult.model of a fix found by repair_search
 
@@ -103,8 +105,7 @@ def _run_tests(argv: List[str], cwd: str, timeout: float) -> Tuple[Optional[bool
     """(passed, output); passed is None when the command could not run at all."""
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
     try:
-        p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, env=env)
+        p = run_bounded(argv, cwd, timeout, env)     # the timeout also stops what npm & co. started
     except subprocess.TimeoutExpired:
         return None, f"tests timed out after {timeout:.0f}s"
     except OSError as exc:

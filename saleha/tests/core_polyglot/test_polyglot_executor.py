@@ -66,7 +66,7 @@ class PolyglotExecutorTests(unittest.TestCase):
         from saleha.core.polyglot import polyglot_executor as pe
         for lang, code in (("rust", "fn main() {}"), ("java", "class Solution {}")):
             with mock.patch.object(self.executor, "_find_compiler", return_value="compiler"), \
-                    mock.patch.object(pe.subprocess, "run",
+                    mock.patch.object(pe, "run_bounded",
                                       side_effect=subprocess.TimeoutExpired("compiler", 10)):
                 res = self.executor.execute(code, language=lang)
             self.assertFalse(res.success, lang)
@@ -76,13 +76,14 @@ class PolyglotExecutorTests(unittest.TestCase):
         """Same class of bug as the rustc test above, on the Java compile
         path. No JDK is installed on this machine to run javac for real, so
         this asserts the fix at the call site directly: javac goes through
-        _compile, which decodes as UTF-8."""
+        _compile, which runs it with run_bounded -- and run_bounded decoding
+        UTF-8 is checked by running it, in test_bounded_run.py."""
         import inspect
         src = inspect.getsource(self.executor._dispatch_execution)
         javac_call = src.split("if lang == \"java\":", 1)[1].split(
             "if lang == \"rust\":", 1)[0]
         self.assertIn("self._compile(", javac_call)
-        self.assertIn('encoding="utf-8"', inspect.getsource(self.executor._compile))
+        self.assertIn("run_bounded(", inspect.getsource(self.executor._compile))
 
 
 if __name__ == "__main__":

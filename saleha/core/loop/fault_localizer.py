@@ -28,6 +28,8 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
+from saleha.core.sandbox.bounded_run import run_bounded
+
 _PLUGIN = r'''
 import json, os, sys, threading
 _ROOT = os.path.normcase(os.path.realpath(os.environ["SALEHA_SBFL_ROOT"])).rstrip(os.sep) + os.sep
@@ -207,8 +209,7 @@ def _spectra(root: str, python: str, files: List[str], timeout: float) -> Tuple[
         argv = [python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "saleha_sbfl_plugin",
                 *files]
         try:
-            subprocess.run(argv, cwd=root, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, env=env)
+            run_bounded(argv, root, timeout, env)
         except subprocess.TimeoutExpired:
             return {}, f"traced test run timed out after {timeout:.0f}s"
         except OSError as exc:
