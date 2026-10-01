@@ -180,6 +180,10 @@ def pin(root: str, test_command: List[str], base: str = "HEAD",
         return PinReport(NOT_CHECKED, "no mutable code on the changed lines (or no Python source changed)",
                          seconds=round(time.time() - t0, 1))
     plan = plan[:max_mutants]
+    # Writes drop the file's cached .pyc too: most mutants keep the byte size,
+    # and one written in the second a .pyc was compiled ran the unmutated
+    # code -- measured, '-' -> '+' and '/' -> '*' "survived" a test they fail.
+    from saleha.core.loop.agentic_loop import _write_bytes
     mutants: List[Mutant] = []
     for rel, ln, kind, new in plan:
         path = os.path.join(root, rel)
@@ -187,8 +191,7 @@ def pin(root: str, test_command: List[str], base: str = "HEAD",
         rows[ln - 1] = new
         m = Mutant(rel, ln, kind, new.decode("utf-8", "replace").strip())
         try:
-            with open(path, "wb") as fh:
-                fh.write(b"\n".join(rows))
+            _write_bytes(path, b"\n".join(rows))
             survived = None
             if focused_command:
                 survived = _passes(focused_command, root, timeout)
@@ -198,8 +201,7 @@ def pin(root: str, test_command: List[str], base: str = "HEAD",
             m.detail = {True: "the tests still pass", False: "caught",
                         None: "the tests could not run"}[survived]
         finally:
-            with open(path, "wb") as fh:
-                fh.write(originals[rel])
+            _write_bytes(path, originals[rel])
         mutants.append(m)
     seconds = round(time.time() - t0, 1)
     ran = [m for m in mutants if m.survived is not None]

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import py_compile
 import subprocess
 import sys
 import tempfile
@@ -53,6 +55,19 @@ class FixFlowTests(unittest.TestCase):
             ledger_path=os.path.join(self.state, "ledger.jsonl"),
             anchor_path=os.path.join(self.state, "anchors.jsonl"), candidates=candidates,
             record=os.path.join(self.state, "dataset.jsonl"), search=False)
+
+    def test_a_revert_leaves_no_bytecode_that_still_runs_the_reverted_edit(self) -> None:
+        """git checkout restores the source but not __pycache__: a trusted .pyc of the
+        taken-back edit (unchecked-hash here; a same-second same-size one in practice)
+        would keep running it."""
+        src = os.path.join(self.root, "calc.py")
+        Path(src).write_bytes(b"def add(a, b):\n    return a + b\n")
+        py_compile.compile(src, cfile=importlib.util.cache_from_source(src),
+                           invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        self.assertEqual(fix_flow._revert(self.root, [(" M", "calc.py")]), [])
+        self.assertEqual(Path(src).read_bytes(), BUGGY.encode())
+        passed, out = fix_flow._run_tests(PYTEST, self.root, 120)
+        self.assertIs(passed, False, out)          # the reverted, buggy code is what runs
 
     def test_a_failure_that_does_not_repeat_is_flaky_and_nothing_changes(self) -> None:
         flaky = ("import os\n\n\ndef test_sometimes():\n"

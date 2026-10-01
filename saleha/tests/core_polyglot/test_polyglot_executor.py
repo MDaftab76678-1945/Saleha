@@ -52,19 +52,37 @@ class PolyglotExecutorTests(unittest.TestCase):
         Python-side subprocess.run calls (pass 36); this was the same gap in
         a sibling call the earlier pass didn't touch."""
         code = "fn main() { let 中文 = ; }"
-        res = self.executor.execute(code, language="rust")
+        # A cold rustc on a Windows CI runner took over 10s; this test is about
+        # the error text, not the compiler's speed.
+        res = PolyglotExecutor(timeout=120).execute(code, language="rust")
         self.assertFalse(res.success)
         self.assertIn("中文", res.error)
+
+    def test_a_compile_that_times_out_is_a_failed_result_not_a_crash(self) -> None:
+        """Measured on Windows CI: rustc outlived the timeout and TimeoutExpired
+        escaped execute(); _run_proc already turned a run timeout into a result."""
+        import subprocess
+        from unittest import mock
+        from saleha.core.polyglot import polyglot_executor as pe
+        for lang, code in (("rust", "fn main() {}"), ("java", "class Solution {}")):
+            with mock.patch.object(self.executor, "_find_compiler", return_value="compiler"), \
+                    mock.patch.object(pe.subprocess, "run",
+                                      side_effect=subprocess.TimeoutExpired("compiler", 10)):
+                res = self.executor.execute(code, language=lang)
+            self.assertFalse(res.success, lang)
+            self.assertEqual(res.error, "Compilation timed out after 10s.", lang)
 
     def test_javac_call_requests_utf8_decoding(self):
         """Same class of bug as the rustc test above, on the Java compile
         path. No JDK is installed on this machine to run javac for real, so
-        this asserts the fix at the subprocess.run call site directly."""
+        this asserts the fix at the call site directly: javac goes through
+        _compile, which decodes as UTF-8."""
         import inspect
         src = inspect.getsource(self.executor._dispatch_execution)
         javac_call = src.split("if lang == \"java\":", 1)[1].split(
             "if lang == \"rust\":", 1)[0]
-        self.assertIn('encoding="utf-8"', javac_call)
+        self.assertIn("self._compile(", javac_call)
+        self.assertIn('encoding="utf-8"', inspect.getsource(self.executor._compile))
 
 
 if __name__ == "__main__":

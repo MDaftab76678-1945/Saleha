@@ -160,12 +160,9 @@ class PolyglotExecutor:
             java_bin = self._find_compiler("java")
             if not javac_bin or not java_bin:
                 return PolyglotExecutionResult(success=False, language=lang, error="'javac'/'java' JDK not found on PATH.")
-            compile_res = subprocess.run(
-                [javac_bin, temp_file], cwd=temp_dir, capture_output=True,
-                text=True, encoding="utf-8", errors="replace",
-                timeout=self.timeout)
-            if compile_res.returncode != 0:
-                return PolyglotExecutionResult(success=False, language=lang, error=compile_res.stderr, exit_code=compile_res.returncode)
+            failed = self._compile([javac_bin, temp_file], temp_dir, lang)
+            if failed:
+                return failed
             class_name = os.path.splitext(os.path.basename(temp_file))[0]
             return self._run_proc([java_bin, class_name], temp_dir, lang)
 
@@ -175,15 +172,33 @@ class PolyglotExecutor:
             if not rustc_bin:
                 return PolyglotExecutionResult(success=False, language=lang, error="'rustc' compiler not found on PATH.")
             bin_name = os.path.join(temp_dir, "out_bin.exe" if os.name == "nt" else "out_bin")
-            compile_res = subprocess.run(
-                [rustc_bin, temp_file, "-o", bin_name], cwd=temp_dir,
-                capture_output=True, text=True, encoding="utf-8", errors="replace",
-                timeout=self.timeout)
-            if compile_res.returncode != 0:
-                return PolyglotExecutionResult(success=False, language=lang, error=compile_res.stderr, exit_code=compile_res.returncode)
+            failed = self._compile([rustc_bin, temp_file, "-o", bin_name], temp_dir, lang)
+            if failed:
+                return failed
             return self._run_proc([bin_name], temp_dir, lang)
 
         return PolyglotExecutionResult(success=False, language=lang, error=f"Unsupported execution runtime: {lang}")
+
+    def _compile(self, cmd: List[str], cwd: str, lang: str) -> Optional[PolyglotExecutionResult]:
+        """None when the compile step succeeded, else the failed result.
+
+        A compile that outlives the timeout is a failed result like any other:
+        measured on a Windows CI runner, a cold rustc took over 10s and the
+        TimeoutExpired escaped execute() as a crash.
+        """
+        try:
+            res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
+                                 errors="replace", timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            return PolyglotExecutionResult(success=False, language=lang, exit_code=-1,
+                                           error=f"Compilation timed out after {self.timeout}s.")
+        except OSError as e:
+            return PolyglotExecutionResult(success=False, language=lang, exit_code=-1,
+                                           error=f"Compiler could not run: {e}")
+        if res.returncode != 0:
+            return PolyglotExecutionResult(success=False, language=lang, error=res.stderr[:MAX_POLYGLOT_OUTPUT_CHARS],
+                                           exit_code=res.returncode)
+        return None
 
     def _run_proc(self, cmd: List[str], cwd: str, lang: str) -> PolyglotExecutionResult:
         try:

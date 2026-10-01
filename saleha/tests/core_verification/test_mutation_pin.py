@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
+import os
+import py_compile
 import subprocess
 import sys
 import tempfile
@@ -71,6 +74,17 @@ class PinTests(unittest.TestCase):
         rep = mp.pin(self.root, PYTEST)
         self.assertEqual(rep.verdict, mp.PINNED, rep.reason)
         self.assertGreater(len(rep.mutants), 3)
+
+    def test_a_cached_pyc_of_the_fix_is_not_what_the_mutants_run(self) -> None:
+        """CI went red on this: a .pyc compiled in the same second as a same-size mutant
+        is trusted, so the unmutated fix ran and '-' -> '+' "survived" test_ten. An
+        unchecked-hash .pyc is trusted every time, which makes the case deterministic."""
+        self._fix(b"    return total - total * percent / 100\n")
+        src = os.path.join(self.root, "price.py")
+        py_compile.compile(src, cfile=importlib.util.cache_from_source(src),
+                           invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        rep = mp.pin(self.root, PYTEST)
+        self.assertEqual([m.kind for m in rep.survivors], ["'/' -> '//'"], rep.reason)
 
     def test_nothing_mutable_is_not_checked(self) -> None:
         self._fix(b"    return total  # comment only\n")

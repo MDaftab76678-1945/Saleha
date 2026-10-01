@@ -578,6 +578,7 @@ def search(root: str, suspects: Sequence[Any], focused: List[str], full: Optiona
     `learned` are edits of past proven fixes. The search stops after `budget`
     seconds.
     """
+    from saleha.core.loop.agentic_loop import _write_bytes
     t0 = time.time()
     say = on_event or (lambda _ev: None)
     todo = plan(root, suspects, limit, output, learned)
@@ -599,8 +600,7 @@ def search(root: str, suspects: Sequence[Any], focused: List[str], full: Optiona
         res.tried += 1
         outcome, kept = "error", False
         try:
-            with open(path, "wb") as fh:
-                fh.write(data)
+            _write_bytes(path, data)       # and its stale .pyc (see mutation_pin.pin)
             outcome = _run(focused, root, run_timeout)
             if outcome == "pass" and full and list(full) != list(focused):
                 outcome = _run(full, root, suite_timeout)
@@ -608,8 +608,7 @@ def search(root: str, suspects: Sequence[Any], focused: List[str], full: Optiona
             kept = outcome == "pass"
         finally:
             if not kept:
-                with open(path, "wb") as fh:
-                    fh.write(original)
+                _write_bytes(path, original)
         if outcome == "error":
             res.reason = f"the tests could not be started ({' '.join(focused[:3])} ...)"
             break

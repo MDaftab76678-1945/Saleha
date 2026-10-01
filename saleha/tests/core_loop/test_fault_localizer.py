@@ -72,8 +72,40 @@ class OchiaiTests(unittest.TestCase):
                 os.unlink(link)
         self.assertEqual([(s.file, s.line) for s in got], [("shop.py", 8)])
 
+    def test_rank_with_a_file_named_through_a_symlink(self) -> None:
+        """The other way round: Windows CI's co_filename kept the 8.3 name RUNNER~1 while the
+        root was the long name, so every traced file read as outside the repo."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            Path(d, "shop.py").write_text(SRC, encoding="utf-8")
+            link = d + "_link"
+            try:
+                os.symlink(d, link, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("cannot create a symlink here")
+            try:
+                got = fl.rank({"t::fail": {os.path.join(link, "shop.py"): [8]}}, {"t::fail": "failed"},
+                              os.path.realpath(d), _is_test_path)
+            finally:
+                os.unlink(link)
+        self.assertEqual([(s.file, s.line) for s in got], [("shop.py", 8)])
+
 
 class LocalizeTests(unittest.TestCase):
+    def test_the_tracer_records_only_real_files_under_the_root(self) -> None:
+        """Measured: "<frozen abc>" and "<string>" were recorded as repo files (realpath put
+        them under the tracer's cwd, the root), and the parent's relpath of them raised
+        "path is on mount 'D:', start on mount 'C:'" on Windows CI."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            Path(d, "shop.py").write_text(SRC, encoding="utf-8")
+            Path(d, "test_shop.py").write_text(TESTS, encoding="utf-8")
+            data, err = fl._spectra(d, sys.executable, ["test_shop.py"], timeout=120)
+            self.assertEqual(err, "")
+            recorded = {f for per_test in data["lines"].values() for f in per_test}
+            real_root = os.path.normcase(os.path.realpath(d)) + os.sep
+            self.assertEqual({os.path.basename(f) for f in recorded}, {"shop.py", "test_shop.py"})
+            for f in recorded:
+                self.assertTrue(os.path.normcase(f).startswith(real_root), f)
+
     def test_the_bug_line_ranks_first_in_a_real_pytest_run(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             Path(d, "shop.py").write_text(SRC, encoding="utf-8")

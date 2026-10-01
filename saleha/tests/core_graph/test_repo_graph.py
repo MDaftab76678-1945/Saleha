@@ -257,7 +257,9 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(stats.source, "built")
         self.assertEqual(stats.reason, "no saved graph")
         self.assertTrue(stats.saved, stats.save_error)
-        self.assertEqual(g.store_path(), Path(self.tmp) / ".saleha" / "repo_graph.json")
+        # The root is kept as its real path (macOS tmp /var is /private/var; a Windows
+        # 8.3 name is expanded), so the same repo reached two ways shares one graph.
+        self.assertEqual(g.store_path(), Path(os.path.realpath(self.tmp)) / ".saleha" / "repo_graph.json")
         self.assertTrue(g.store_path().is_file())
 
     def test_second_process_loads_the_same_graph_without_extracting(self) -> None:

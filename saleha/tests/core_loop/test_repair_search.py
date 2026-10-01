@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
+import os
+import py_compile
 import sys
 import tempfile
 import unittest
@@ -145,6 +148,19 @@ class SearchTests(unittest.TestCase):
         self.assertEqual((res.found.kind, res.tried), ("'-' -> '+'", 1))
         self.assertEqual(Path(self.root, "calc.py").read_text(encoding="utf-8"), "def add(a, b):\n    return a + b\n")
         self.assertIn("no model", res.reason)
+
+    def test_a_cached_pyc_of_the_bug_does_not_hide_the_fix(self) -> None:
+        """A trusted .pyc of the buggy file (unchecked-hash: trusted every time; in
+        practice one compiled in the same second as a same-size edit) ran the bug
+        under every candidate, so '-' -> '+' was tried and rejected."""
+        self._write("calc.py", "def add(a, b):\n    return a - b\n")
+        self._write("test_calc.py", "from calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n")
+        src = os.path.join(self.root, "calc.py")
+        py_compile.compile(src, cfile=importlib.util.cache_from_source(src),
+                           invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+        res = repair_search.search(self.root, [_s("calc.py", 2)], PYTEST)
+        assert res.found is not None, res.reason
+        self.assertEqual(res.found.kind, "'-' -> '+'")
 
     def test_an_edit_that_breaks_other_tests_is_rejected_and_the_search_goes_on(self) -> None:
         self._write("grade.py", 'def grade(score):\n    return "pass" if score > 51 else "fail"\n')

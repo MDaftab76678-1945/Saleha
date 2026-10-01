@@ -54,6 +54,16 @@ class TraceLocalizerTests(unittest.TestCase):
     def test_paths_outside_the_repo_are_ignored(self) -> None:
         self.assertEqual(self.where("    at f (/elsewhere/math.js:3:1)\n"), [])
 
+    def test_a_windows_drive_letter_stays_part_of_go_and_rust_frames(self) -> None:
+        """Without it a Go frame read as \\w\\pkg\\calc.go, which Python 3.12 on Windows
+        resolves against the current drive -- D: on CI -- and the frame was lost."""
+        from saleha.core.loop.trace_localizer import _FRAMES
+        paths = [m.group("path") for rx, _last in _FRAMES
+                 for line in ("\tC:\\w\\pkg\\calc.go:4 +0x1d", "  --> C:\\w\\src\\lib.rs:12:5")
+                 for m in rx.finditer(line)]
+        self.assertIn("C:\\w\\pkg\\calc.go", paths)
+        self.assertIn("C:\\w\\src\\lib.rs", paths)
+
     def test_a_root_reached_through_a_symlink_still_gives_repo_relative_paths(self) -> None:
         """macOS tmp is /var -> /private/var: frames name the real path, the root is the link."""
         link = self.root + "_link"

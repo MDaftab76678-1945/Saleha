@@ -26,21 +26,28 @@ import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 _PLUGIN = r'''
 import json, os, sys, threading
-_ROOT = os.path.normcase(os.path.realpath(os.environ["SALEHA_SBFL_ROOT"]))
+_ROOT = os.path.normcase(os.path.realpath(os.environ["SALEHA_SBFL_ROOT"])).rstrip(os.sep) + os.sep
 _OUT = os.environ["SALEHA_SBFL_OUT"]
 _results = {}
 _current = None
 _outcome = {}
 
+# The real path of a file under the repo, else None. Recorded as the real path,
+# resolved here where cwd is the repo: measured on Windows CI, co_filename kept
+# the 8.3 short name (RUNNER~1) the parent's root does not, and "<frozen abc>"
+# resolved under cwd into the repo, then against the parent's cwd on D:.
 def _mine(filename):
+    if filename.startswith("<"):
+        return None
     try:
-        return os.path.normcase(os.path.realpath(filename)).startswith(_ROOT)
+        real = os.path.realpath(filename)
     except (OSError, ValueError):
-        return False
+        return None
+    return real if os.path.normcase(real).startswith(_ROOT) else None
 
 _mon = getattr(sys, "monitoring", None)
 if _mon is not None:
@@ -51,10 +58,12 @@ if _mon is not None:
         _mon = None
 if _mon is not None:
     def _on_line(code, line):
-        if _current is not None and _mine(code.co_filename):
-            _current.setdefault(code.co_filename, set()).add(line)
-            return _mon.DISABLE
-        return _mon.DISABLE if _current is not None else None
+        if _current is None:
+            return None
+        real = _mine(code.co_filename)
+        if real:
+            _current.setdefault(real, set()).add(line)
+        return _mon.DISABLE
     _mon.register_callback(_TOOL, _mon.events.LINE, _on_line)
 
     def _start():
@@ -65,8 +74,10 @@ if _mon is not None:
         _mon.set_events(_TOOL, 0)
 else:
     def _tracer(frame, event, arg):
-        if event == "line" and _current is not None and _mine(frame.f_code.co_filename):
-            _current.setdefault(frame.f_code.co_filename, set()).add(frame.f_lineno)
+        if event == "line" and _current is not None:
+            real = _mine(frame.f_code.co_filename)
+            if real:
+                _current.setdefault(real, set()).add(frame.f_lineno)
         return _tracer
 
     def _start():
@@ -142,14 +153,16 @@ def rank(lines_by_test: Dict[str, Dict[str, List[int]]], outcome: Dict[str, str]
     passed = [t for t, o in outcome.items() if o == "passed" and t in lines_by_test]
     if not failed:
         return []
-    root_real = os.path.realpath(root)   # frames are realpath'd; a symlinked root would never match
+    # Both sides real paths: a root reached through a symlink (macOS /var) or an
+    # 8.3 short name (Windows RUNNER~1) otherwise puts every file outside it.
+    root_real = os.path.realpath(root)
     ef: Dict[Tuple[str, int], int] = {}
     ep: Dict[Tuple[str, int], int] = {}
     for bucket, tests in ((ef, failed), (ep, passed)):
         for t in tests:
             for f, lines in lines_by_test[t].items():
                 try:
-                    rel = os.path.relpath(f, root_real).replace("\\", "/")
+                    rel = os.path.relpath(os.path.realpath(f), root_real).replace("\\", "/")
                 except ValueError:      # another drive: certainly not in the repo
                     continue
                 if rel.startswith("..") or is_test_file(rel):
@@ -178,6 +191,38 @@ def rank(lines_by_test: Dict[str, Dict[str, List[int]]], outcome: Dict[str, str]
     return out
 
 
+def _spectra(root: str, python: str, files: List[str], timeout: float) -> Tuple[Dict[str, Any], str]:
+    """(data, error) of one traced run of `files`: {"lines": {test: {real path: [line]}},
+    "outcome": {test: outcome}}. The temp dir is removed whatever happens."""
+    tmp = tempfile.mkdtemp(prefix="saleha-sbfl-")
+    try:
+        plugin_dir = os.path.join(tmp, "plugin")
+        os.makedirs(plugin_dir)
+        with open(os.path.join(plugin_dir, "saleha_sbfl_plugin.py"), "w", encoding="utf-8") as fh:
+            fh.write(_PLUGIN)
+        out_path = os.path.join(tmp, "spectra.json")
+        env = {**os.environ, "SALEHA_SBFL_ROOT": root, "SALEHA_SBFL_OUT": out_path,
+               "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8",
+               "PYTHONPATH": plugin_dir + os.pathsep + os.environ.get("PYTHONPATH", "")}
+        argv = [python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "saleha_sbfl_plugin",
+                *files]
+        try:
+            subprocess.run(argv, cwd=root, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=timeout, env=env)
+        except subprocess.TimeoutExpired:
+            return {}, f"traced test run timed out after {timeout:.0f}s"
+        except OSError as exc:
+            return {}, f"traced test run could not start: {exc}"
+        try:
+            with open(out_path, "r", encoding="utf-8") as fh:
+                return json.load(fh), ""
+        except (OSError, ValueError) as exc:
+            return {}, f"no coverage data ({exc})"
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def localize(root: str, python: str, failing_ids: List[str], timeout: float = 300.0,
              top: int = 5) -> Tuple[List[Suspect], str]:
     """(suspects, note). Suspects is empty, and the note says why, when nothing could be ranked."""
@@ -186,32 +231,9 @@ def localize(root: str, python: str, failing_ids: List[str], timeout: float = 30
     files = [f for f in files if os.path.isfile(os.path.join(root, f))]
     if not files:
         return [], "no failing test files to trace"
-    tmp = tempfile.mkdtemp(prefix="saleha-sbfl-")
-    plugin_dir = os.path.join(tmp, "plugin")
-    os.makedirs(plugin_dir)
-    with open(os.path.join(plugin_dir, "saleha_sbfl_plugin.py"), "w", encoding="utf-8") as fh:
-        fh.write(_PLUGIN)
-    out_path = os.path.join(tmp, "spectra.json")
-    env = {**os.environ, "SALEHA_SBFL_ROOT": root, "SALEHA_SBFL_OUT": out_path,
-           "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8",
-           "PYTHONPATH": plugin_dir + os.pathsep + os.environ.get("PYTHONPATH", "")}
-    argv = [python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "saleha_sbfl_plugin",
-            *files]
-    try:
-        subprocess.run(argv, cwd=root, capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=timeout, env=env)
-    except subprocess.TimeoutExpired:
-        return [], f"traced test run timed out after {timeout:.0f}s"
-    except OSError as exc:
-        return [], f"traced test run could not start: {exc}"
-    try:
-        with open(out_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, ValueError) as exc:
-        return [], f"no coverage data ({exc})"
-    finally:
-        import shutil
-        shutil.rmtree(tmp, ignore_errors=True)
+    data, err = _spectra(root, python, files, timeout)
+    if err:
+        return [], err
     suspects = rank(data.get("lines", {}), data.get("outcome", {}), root, _is_test_path, top=top)
     n_failed = sum(1 for o in data.get("outcome", {}).values() if o == "failed")
     n_passed = sum(1 for o in data.get("outcome", {}).values() if o == "passed")

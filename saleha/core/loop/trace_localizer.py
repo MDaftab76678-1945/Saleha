@@ -30,9 +30,11 @@ _FRAMES = [
     (re.compile(r"(?:\bat\s+(?:[^\s(]+\s+)?\(?|❯\s+)(?:file://)?"
                 r"(?P<path>/?[A-Za-z]:[\\/][^\s():]+?|[^\s():]+?):(?P<line>\d+):\d+\)?"), False),
     # Rust: "--> src/lib.rs:12:5", "panicked at src/lib.rs:12:5"
-    (re.compile(r"(?:-->|panicked at)\s+(?P<path>[^\s:]+\.rs):(?P<line>\d+):\d+"), False),
-    # Go: "\t/abs/path/x.go:12 +0x1d" and "x_test.go:12: message"
-    (re.compile(r"(?P<path>[^\s:]+\.go):(?P<line>\d+)"), False),
+    (re.compile(r"(?:-->|panicked at)\s+(?P<path>(?:[A-Za-z]:(?=[\\/]))?[^\s:]+\.rs):(?P<line>\d+):\d+"), False),
+    # Go: "\t/abs/path/x.go:12 +0x1d" and "x_test.go:12: message". The optional
+    # drive keeps "C:" on Windows: without it the frame read as "\Users\...",
+    # which Python 3.12 resolves against the current drive (D: on CI).
+    (re.compile(r"(?P<path>(?:[A-Za-z]:(?=[\\/]))?[^\s:]+\.go):(?P<line>\d+)"), False),
     # Java/Kotlin: "at pkg.Cls.method(Cls.java:12)"
     (re.compile(r"\bat\s+[\w.$<>]+\((?P<path>[\w$]+\.(?:java|kt)):(?P<line>\d+)\)"), False),
 ]

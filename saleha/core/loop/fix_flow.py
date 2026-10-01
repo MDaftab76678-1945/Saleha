@@ -235,10 +235,13 @@ def _remove_new_junk(root: str, before: set) -> None:
 
 def _revert(root: str, changes: List[Tuple[str, str]]) -> List[str]:
     """Put the tree back to HEAD for the given changes; returns what could not be reverted."""
+    from saleha.core.loop.agentic_loop import _drop_bytecode
     failed = []
     tracked = [p for st, p in changes if st != "??"]
     if tracked and _git(root, "checkout", "HEAD", "--", *tracked).returncode != 0:
         failed += tracked
+    for p in tracked:       # a same-size restore in the same second would run the reverted code
+        _drop_bytecode(os.path.join(root, p))
     for st, p in changes:
         if st == "??":
             try:
@@ -538,7 +541,7 @@ def harden(root: str, survivors: List[Dict[str, Any]], argv: List[str], model: s
     A test is kept only when it PASSES on the code as it is and FAILS on the
     mutant -- both run, the mutant applied and the file restored byte for byte.
     """
-    from saleha.core.loop.agentic_loop import AgentLoop, _is_test_path
+    from saleha.core.loop.agentic_loop import AgentLoop, _is_test_path, _write_bytes
     say = on_event or (lambda _ev: None)
     factory = agent_factory or _default_agent_factory
     kept: List[str] = []
@@ -576,12 +579,10 @@ def harden(root: str, survivors: List[Dict[str, Any]], argv: List[str], model: s
         lead = line[:len(line) - len(line.lstrip())]
         rows[m["line"] - 1] = lead + m["mutated"].encode() + (b"\r" if line.endswith(b"\r") else b"")
         try:
-            with open(src_path, "wb") as fh:
-                fh.write(b"\n".join(rows))
+            _write_bytes(src_path, b"\n".join(rows))     # and its stale .pyc (see mutation_pin.pin)
             on_mutant, _ = _run_tests(list(argv) + files, root, test_timeout)
         finally:
-            with open(src_path, "wb") as fh:
-                fh.write(original)
+            _write_bytes(src_path, original)
         if ok_now and on_mutant is False:
             kept += files
             notes.append(f"{m['kind']} at {m['file']}:{m['line']}: now caught by {', '.join(files)}")
