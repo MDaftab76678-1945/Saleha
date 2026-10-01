@@ -56,6 +56,22 @@ class OchiaiTests(unittest.TestCase):
         self.assertEqual(got[0].function, "discount")
         self.assertEqual(got[0].span, (5, 8))
 
+    def test_rank_with_a_root_reached_through_a_symlink(self) -> None:
+        """The tracer records real paths; a symlinked root must not push them all out as '..'."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            Path(d, "shop.py").write_text(SRC, encoding="utf-8")
+            link = d + "_link"
+            try:
+                os.symlink(d, link, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("cannot create a symlink here")
+            try:
+                src = os.path.realpath(os.path.join(d, "shop.py"))
+                got = fl.rank({"t::fail": {src: [8]}}, {"t::fail": "failed"}, link, _is_test_path)
+            finally:
+                os.unlink(link)
+        self.assertEqual([(s.file, s.line) for s in got], [("shop.py", 8)])
+
 
 class LocalizeTests(unittest.TestCase):
     def test_the_bug_line_ranks_first_in_a_real_pytest_run(self) -> None:

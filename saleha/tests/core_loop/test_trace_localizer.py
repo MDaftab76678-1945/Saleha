@@ -54,6 +54,19 @@ class TraceLocalizerTests(unittest.TestCase):
     def test_paths_outside_the_repo_are_ignored(self) -> None:
         self.assertEqual(self.where("    at f (/elsewhere/math.js:3:1)\n"), [])
 
+    def test_a_root_reached_through_a_symlink_still_gives_repo_relative_paths(self) -> None:
+        """macOS tmp is /var -> /private/var: frames name the real path, the root is the link."""
+        link = self.root + "_link"
+        try:
+            os.symlink(self.root, link, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("cannot create a symlink here")
+        try:
+            out = f"      at add ({os.path.realpath(os.path.join(self.root, 'src', 'math.js'))}:3:10)\n"
+            self.assertEqual([(s.file, s.line) for s in suspects_from_output(link, out)], [("src/math.js", 3)])
+        finally:
+            os.unlink(link)
+
 
 if __name__ == "__main__":
     unittest.main()

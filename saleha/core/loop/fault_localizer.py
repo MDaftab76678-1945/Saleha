@@ -142,12 +142,13 @@ def rank(lines_by_test: Dict[str, Dict[str, List[int]]], outcome: Dict[str, str]
     passed = [t for t, o in outcome.items() if o == "passed" and t in lines_by_test]
     if not failed:
         return []
+    root_real = os.path.realpath(root)   # frames are realpath'd; a symlinked root would never match
     ef: Dict[Tuple[str, int], int] = {}
     ep: Dict[Tuple[str, int], int] = {}
     for bucket, tests in ((ef, failed), (ep, passed)):
         for t in tests:
             for f, lines in lines_by_test[t].items():
-                rel = os.path.relpath(f, root).replace("\\", "/")
+                rel = os.path.relpath(f, root_real).replace("\\", "/")
                 if rel.startswith("..") or is_test_file(rel):
                     continue
                 for ln in lines:

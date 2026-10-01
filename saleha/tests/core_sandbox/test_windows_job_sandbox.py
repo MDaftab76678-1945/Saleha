@@ -5,6 +5,8 @@ Validates execution safety, wall-clock timeout killing, and memory limits.
 
 from __future__ import annotations
 
+import unittest
+
 from saleha.core.sandbox.windows_job_sandbox import IS_WINDOWS, WindowsJobSandbox
 
 
@@ -35,6 +37,8 @@ class TestWindowsJobSandbox:
         assert res.timed_out is True
         assert "CRITICAL_TIMEOUT" in res.error
 
+    @unittest.skipUnless(IS_WINDOWS, "the memory cap is a Win32 Job Object; WindowsJobSandbox "
+                                     "enforces nothing on POSIX, so this would only measure the OS")
     def test_memory_limit_exhaustion_detected(self) -> None:
         # Create a sandbox with strict 15MB limit and attempt to allocate 100MB
         strict_sandbox = WindowsJobSandbox(memory_limit_mb=15, timeout_ms=3000)

@@ -59,7 +59,7 @@ def _resolve(root: str, raw: str) -> Optional[str]:
     except (OSError, ValueError):
         return None
     if os.path.isfile(full) and os.path.normcase(full).startswith(root_n + os.sep):
-        return os.path.relpath(full, root).replace("\\", "/")
+        return os.path.relpath(full, os.path.realpath(root)).replace("\\", "/")
     if "/" not in path:            # Java frames name only the file: find it once in the repo
         for dirpath, dirnames, files in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in ("node_modules", ".git", "build", "target")]

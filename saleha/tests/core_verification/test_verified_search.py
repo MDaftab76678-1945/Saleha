@@ -142,7 +142,13 @@ class VerifiedSearchTests(unittest.TestCase):
         elapsed = time.perf_counter() - t0
         self.assertEqual(peak[0], 3)
         self.assertEqual(res.attempted, 6)
-        self.assertLess(elapsed, 0.25)  # sequential would be >= 0.30
+        # Measured against the same six sleeps run one at a time on this machine,
+        # not a fixed 0.25s: a loaded macOS runner took 0.35s for the overlapped
+        # run, slower than an idle box's sequential 0.30s.
+        t1 = time.perf_counter()
+        VerifiedSearch(source, passes_if("never"), budget=6, concurrency=1).run()
+        sequential = time.perf_counter() - t1
+        self.assertLess(elapsed, sequential * 0.75)
 
     def test_running_attempts_finish_but_only_one_winner(self) -> None:
         res = VerifiedSearch(lambda i: f"c{i}", lambda code: Verification(Outcome.PASSED),

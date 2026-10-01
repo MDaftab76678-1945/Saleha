@@ -212,6 +212,25 @@ class RealCrossFileGraphTests(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_a_root_reached_through_a_symlink_still_represents_its_files(self) -> None:
+        """macOS tmp is /var -> /private/var: files resolve to the real path, the root was the link."""
+        real = tempfile.mkdtemp()
+        link = real + "_link"
+        try:
+            try:
+                os.symlink(real, link, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("cannot create a symlink here")
+            with open(os.path.join(real, "real.py"), "w") as f:
+                f.write("def hello():\n    return 1\n")
+            stats = RepoGraph(link).build()
+            self.assertEqual(stats.files_scanned, 1)
+            self.assertEqual(stats.files_absent, [])
+        finally:
+            if os.path.islink(link):
+                os.unlink(link)
+            shutil.rmtree(real, ignore_errors=True)
+
 
 class PersistenceTests(unittest.TestCase):
     """The graph survives a restart -- and is never served out of date."""

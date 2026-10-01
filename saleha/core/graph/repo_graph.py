@@ -114,7 +114,10 @@ class RepoGraph:
     def __init__(self, root_dir: str = ".",
                  excludes: Optional[Set[str]] = None,
                  suffixes: Optional[Set[str]] = None) -> None:
-        self.root = Path(os.path.abspath(root_dir))
+        # realpath, not abspath: every file path below is .resolve()d, so a root
+        # reached through a symlink (macOS tmp is /var -> /private/var) would
+        # make relative_to() fail and drop every file from the graph.
+        self.root = Path(os.path.realpath(root_dir))
         self.excludes = set(excludes) if excludes is not None else set(DEFAULT_EXCLUDES)
         self.suffixes = set(suffixes) if suffixes is not None else set(CODE_SUFFIXES)
         self.nodes: List[Dict[str, Any]] = []

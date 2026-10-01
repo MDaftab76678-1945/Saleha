@@ -118,7 +118,7 @@ def plan_bump(root: Path = REPO_ROOT) -> BumpPlan:
     current = read_project_version(root)
     if current is None or not _SEMVER_RE.match(current):
         return BumpPlan(current, None, "none", None, reason="pyproject.toml has no X.Y.Z version")
-    since = _git(root, "log", "-n1", "--format=%H", "-G", r"^version\s*=", "--", "pyproject.toml")
+    since = _git(root, "log", "-n1", "--format=%H", "-G", r"^version[[:space:]]*=", "--", "pyproject.toml")
     if since.returncode != 0:
         return BumpPlan(current, None, "none", None,
                         reason=f"git log failed: {since.stderr.strip()[:200]}")
