@@ -226,6 +226,23 @@ class FixFlowTests(unittest.TestCase):
         self.assertIn(fix_flow.SEARCH, res.reason)
         self.assertEqual(_git(self.root, "status", "--porcelain").strip(), "")
 
+    def test_a_past_proven_fix_is_replayed_from_the_local_dataset_unless_memory_is_off(self) -> None:
+        import json
+        Path(self.root, "calc.py").write_bytes(b"def key(name):\n    return name.lower()\n")
+        Path(self.root, "test_calc.py").write_bytes(
+            "from calc import key\n\n\ndef test_german():\n    assert key('Straße') == 'strasse'\n".encode())
+        _git(self.root, "commit", "-q", "-am", "lower is not enough")
+        os.makedirs(self.state, exist_ok=True)
+        diff = ("--- a/other.py\n+++ b/other.py\n@@ -1 +1 @@\n-    return s.lower()\n+    return s.casefold()\n")
+        Path(self.state, "dataset.jsonl").write_text(json.dumps({"receipt": "PROVEN", "diff": diff}) + "\n",
+                                                     encoding="utf-8")
+        off = self._search_fix(use_model=False, memory=False)
+        self.assertEqual(off.verdict, fix_flow.NOT_FIXED, off.reason)
+        res = self._search_fix(use_model=False)
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        assert res.search is not None
+        self.assertIn("learned from a past proven fix", res.search["found"]["kind"])
+
     def test_not_a_git_repo_cannot_be_proven(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as bare:
             res = fix_flow.fix_repo(bare, test_command=PYTEST, agent_factory=lambda _m: _NoModel())

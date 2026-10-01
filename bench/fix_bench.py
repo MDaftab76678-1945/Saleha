@@ -215,7 +215,7 @@ def run_fix(bug: Bug, repo: Path, tests: str, model: str, timeout: int,
     test_cmd = " ".join(f'"{a}"' if " " in a else a for a in test_argv(tests))
     cmd = [sys.executable, "-c", "from saleha.cli.commands import cli; cli()", "fix",
            "--dir", str(repo), "--json", "-m", model, "--max-steps", "15",
-           "--timeout", str(timeout), test_cmd]
+           "--timeout", str(timeout), "--no-memory", test_cmd]
     if escalate:
         cmd[-1:-1] = ["--escalate", escalate]
     if not search:

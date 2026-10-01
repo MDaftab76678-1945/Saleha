@@ -146,7 +146,7 @@ def main() -> int:
             continue
         test_cmd = " ".join(f'"{x}"' if " " in x else x for x in argv)
         cmd = [sys.executable, "-c", "from saleha.cli.commands import cli; cli()", "fix", "--dir", str(repo),
-               "--json", "--timeout", str(a.timeout), test_cmd]
+               "--json", "--timeout", str(a.timeout), "--no-memory", test_cmd]
         cmd[-1:-1] = ["--no-model"] if a.no_model else ["-m", a.model]
         t0 = time.time()
         out = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace",

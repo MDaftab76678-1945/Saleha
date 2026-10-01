@@ -132,13 +132,16 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
                    'and go straight to the model')
 @click.option('--no-model', is_flag=True,
               help='Only the model-free search: never call a model, so no Ollama or API key is needed')
+@click.option('--no-memory', is_flag=True,
+              help="Do not replay the edits of this machine's past proven fixes")
 @click.option('--commit', is_flag=True, help='Commit a proven fix on a new branch saleha/fix-...')
 @click.option('--receipt', 'receipt_path', default=None, type=click.Path(dir_okay=False),
               help='Also write the proof receipt (Markdown) to this file')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
 def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], escalate: Optional[str],
             issue: Optional[str], max_steps: int, timeout: int, harden: bool, no_search: bool,
-            no_model: bool, commit: bool, receipt_path: Optional[str], as_json: bool) -> None:
+            no_model: bool, no_memory: bool, commit: bool, receipt_path: Optional[str],
+            as_json: bool) -> None:
     """
     Fix the failing tests of a repo, and prove the fix.
 
@@ -175,11 +178,13 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
     if issue:
         res = fix_flow.fix_issue(root_dir, issue, model=model, test_command=argv, max_steps=max_steps,
                                  timeout=float(timeout), on_event=show, escalate=escalate,
-                                 harden_tests=harden, search=not no_search, use_model=not no_model)
+                                 harden_tests=harden, search=not no_search, use_model=not no_model,
+                                memory=not no_memory)
     else:
         res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
                                 timeout=float(timeout), on_event=show, escalate=escalate,
-                                harden_tests=harden, search=not no_search, use_model=not no_model)
+                                harden_tests=harden, search=not no_search, use_model=not no_model,
+                                memory=not no_memory)
     branch = ''
     if commit and res.verdict == fix_flow.FIXED:
         ok, branch = fix_flow.commit_fix(root_dir, res)

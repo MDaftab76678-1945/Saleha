@@ -263,7 +263,7 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
              escalate: Optional[str] = None, flaky_reruns: int = 2,
              record: Any = True, given_tests: Optional[List[str]] = None,
              pin_check: bool = True, harden_tests: bool = False, search: bool = True,
-             use_model: bool = True, search_budget: float = 180.0) -> FixResult:
+             use_model: bool = True, search_budget: float = 180.0, memory: bool = True) -> FixResult:
     """Make the repo's failing tests pass, and prove it -- or leave the repo untouched.
 
     `escalate` names a second, larger model tried when the first one's
@@ -271,7 +271,8 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
     tests are re-run `flaky_reruns` times first; a pass means FLAKY. `record`
     appends each proven fix to the local dataset (a path string overrides it).
     `search` first tries the small edits of repair_search, with no model;
-    `use_model=False` stops there.
+    `use_model=False` stops there. `memory` lets the search replay the
+    edits of past proven fixes kept in the local dataset.
     """
     t0 = time.time()
     model = model or DEFAULT_MODEL
@@ -377,7 +378,9 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
                 root, search_lines, focused or list(argv), list(argv),
                 run_timeout=min(test_timeout, max(10.0, 4 * focused_seconds)),
                 suite_timeout=min(test_timeout, max(30.0, 3 * suite_seconds)),
-                budget=search_budget, on_event=say, output=output)
+                budget=search_budget, on_event=say, output=output,
+                learned=repair_search.learned_edits(record if isinstance(record, str) else DATASET)
+                if memory else ())
             result.search = found.to_dict()
             result.model = SEARCH
             say({"stage": "search", "message": found.reason})

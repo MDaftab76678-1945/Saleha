@@ -84,6 +84,48 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(repair_search.plan(self.root, [_s("app.js", 1), _s("bad.py", 1), _s("gone.py", 3)]), [])
 
 
+def _record(path: Path, old: str, new: str, receipt: str = "PROVEN", file: str = "app/names.py") -> None:
+    import json
+    diff = (f"diff --git a/{file} b/{file}\n--- a/{file}\n+++ b/{file}\n@@ -1,2 +1,2 @@\n"
+            f" def key(name):\n-{old}\n+{new}\n")
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"receipt": receipt, "diff": diff}) + "\n")
+
+
+class MemoryTests(unittest.TestCase):
+    """Past proven fixes teach the search: their one-line changes are replayed where the text recurs."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.root = self._tmp.name
+        self.dataset = Path(self.root, "fixes.jsonl")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_only_proven_one_line_source_changes_are_learned(self) -> None:
+        _record(self.dataset, "    return name.lower()", "    return name.casefold()")
+        _record(self.dataset, "    return name.strip()", "    return name.rstrip()", receipt="FAILING")
+        _record(self.dataset, "    assert key(1)", "    assert key(2)", file="tests/test_names.py")
+        _record(self.dataset, "    if a < b:", "    if a <= b:")          # the built-in edits cover it
+        self.dataset.open("a", encoding="utf-8").write("not json\n")
+        self.assertEqual(repair_search.learned_edits(str(self.dataset)), [("lower", "casefold")])
+        self.assertEqual(repair_search.learned_edits(str(Path(self.root, "missing.jsonl"))), [])
+
+    def test_a_learned_edit_fixes_what_no_built_in_edit_can(self) -> None:
+        Path(self.root, "names.py").write_bytes(b"def key(name):\n    return name.lower()\n")
+        Path(self.root, "test_names.py").write_bytes(
+            "from names import key\n\n\ndef test_german():\n    assert key('Straße') == 'strasse'\n".encode())
+        miss = repair_search.search(self.root, [_s("names.py", 2)], PYTEST)
+        self.assertIsNone(miss.found, "without the memory no small edit fixes it")
+        _record(self.dataset, "    return text.lower()", "    return text.casefold()")
+        res = repair_search.search(self.root, [_s("names.py", 2)], PYTEST,
+                                   learned=repair_search.learned_edits(str(self.dataset)))
+        assert res.found is not None, res.reason
+        self.assertEqual((res.found.after, res.tried), ("return name.casefold()", 1))
+        self.assertIn("learned from a past proven fix", res.found.kind)
+
+
 class SearchTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)

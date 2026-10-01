@@ -16,6 +16,10 @@ and, read from the failing run's own output, first of all:
     raising the exception a test expects ("ValueError not raised", "DID NOT
     RAISE") put at the top of the suspect function, for each parameter
 
+and the one-line changes of this machine's past proven fixes, replayed
+where the same text appears again: every proven fix teaches the search one
+more edit, with no model and no training.
+
 Each candidate is written into the file and the failing tests run; when they
 pass, the whole suite runs, and the first candidate it passes stays in the
 tree for the proof receipt to prove like any model's fix. Every other
@@ -409,6 +413,80 @@ def _hinted(src: _Source, line: int, names: List[Tuple[str, str]], raises: List[
     return out
 
 
+_TOKENS = re.compile(r"\w+|[^\w\s]+")     # a run of symbols is one token: `<=`, not `<` then `=`
+
+
+def _fragment(old: str, new: str) -> Optional[Tuple[str, str]]:
+    """The smallest differing span of two versions of a line, by tokens: ('<', '<=')."""
+    a = [(m.start(), m.end()) for m in _TOKENS.finditer(old)]
+    b = [(m.start(), m.end()) for m in _TOKENS.finditer(new)]
+    ta, tb = [old[i:j] for i, j in a], [new[i:j] for i, j in b]
+    pre = 0
+    while pre < min(len(ta), len(tb)) and ta[pre] == tb[pre]:
+        pre += 1
+    suf = 0
+    while suf < min(len(ta), len(tb)) - pre and ta[-1 - suf] == tb[-1 - suf]:
+        suf += 1
+    if pre == len(ta) - suf:
+        return None                      # nothing removed: an insertion has no text to find again
+    frm = old[a[pre][0]:a[len(ta) - suf - 1][1]]
+    to = new[b[pre][0]:b[len(tb) - suf - 1][1]] if pre < len(tb) - suf else ""
+    if len(frm) > 60 or frm == to:
+        return None
+    if not re.search(r"[A-Za-z_]", frm + to) and len(frm) <= 2 and len(to) <= 2:
+        return None                      # an operator or digit swap: the built-in edits try those anyway
+    return frm, to
+
+
+def learned_edits(path: str, limit: int = 200) -> List[Tuple[str, str]]:
+    """(old text, new text) from the one-line source changes of past PROVEN fixes, newest first."""
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            records = fh.read().splitlines()
+    except OSError:
+        return []
+    out: List[Tuple[str, str]] = []
+    for raw in reversed(records):
+        try:
+            rec = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(rec, dict) or rec.get("receipt") != "PROVEN":
+            continue
+        current, minus, plus = "", [], []
+        for line in (str(rec.get("diff", "")) + "\n@@").splitlines():
+            if line.startswith("+++ "):
+                current = line[6:] if line.startswith("+++ b/") else ""
+            elif line.startswith("-") and not line.startswith("---"):
+                minus.append(line[1:])
+            elif line.startswith("+"):
+                plus.append(line[1:])
+            else:
+                name = current.rsplit("/", 1)[-1]
+                if len(minus) == 1 and len(plus) == 1 and current.endswith(".py") \
+                        and not name.startswith("test_") and "/tests/" not in f"/{current}":
+                    frag = _fragment(minus[0], plus[0])
+                    if frag and frag not in out:
+                        out.append(frag)
+                minus, plus = [], []
+        if len(out) >= limit:
+            break
+    return out[:limit]
+
+
+def _learned(src: _Source, line: int, learned: Sequence[Tuple[str, str]]) -> List[Edit]:
+    row = src.rows[line - 1]
+    out: List[Edit] = []
+    for frm, to in learned:
+        pattern = (r"(?<!\w)" if frm[0].isalnum() or frm[0] == "_" else "") + re.escape(frm) \
+            + (r"(?!\w)" if frm[-1].isalnum() or frm[-1] == "_" else "")
+        for m in re.finditer(pattern.encode(), row):
+            out.append((line, 1, f"'{frm}' -> '{to}' (learned from a past proven fix)",
+                        row[:m.start()] + to.encode() + row[m.end():], {}))
+    return out
+
+
 def _load(root: str, rel: str) -> Optional[_Source]:
     try:
         with open(os.path.join(root, rel), "rb") as fh:
@@ -421,8 +499,8 @@ def _load(root: str, rel: str) -> Optional[_Source]:
         return None
 
 
-def plan(root: str, suspects: Sequence[Any], limit: int = 400,
-         output: str = "") -> List[Tuple[Candidate, bytes]]:
+def plan(root: str, suspects: Sequence[Any], limit: int = 400, output: str = "",
+         learned: Sequence[Tuple[str, str]] = ()) -> List[Tuple[Candidate, bytes]]:
     """(candidate, the whole edited file) in the order they are tried.
 
     The edits the failing run's `output` points to come first. Then suspects
@@ -435,6 +513,7 @@ def plan(root: str, suspects: Sequence[Any], limit: int = 400,
     done = set()
     names, raises = hints(output)
     hinted_files = set()
+    tried = set()
     for rank, s in enumerate(suspects):
         rel = str(s.file).replace("\\", "/")
         if not rel.endswith(".py") or (rel, s.line) in done:
@@ -446,7 +525,8 @@ def plan(root: str, suspects: Sequence[Any], limit: int = 400,
         src = sources[rel]
         if src is None or not 0 < s.line <= len(src.rows):
             continue
-        edits: List[Edit] = [(s.line, prio, kind, new, {}) for prio, kind, new in src.edits(s.line)]
+        edits: List[Edit] = _learned(src, s.line, learned) + \
+            [(s.line, prio, kind, new, {}) for prio, kind, new in src.edits(s.line)]
         if (names or raises) and rel not in hinted_files:
             # Once per file: the misspelt name may sit on any line of it, and
             # the guard goes in the function of the best suspect in it.
@@ -454,6 +534,9 @@ def plan(root: str, suspects: Sequence[Any], limit: int = 400,
             edits = _hinted(src, s.line, names, raises) + edits
         for i, (line, prio, kind, new, more) in enumerate(edits):
             data = src.data(line, new, more)
+            if (rel, data) in tried:
+                continue                 # the same file reached by two kinds of edit: run it once
+            tried.add((rel, data))
             try:
                 ast.parse(data[len(_BOM):] if src.bom else data)
             except (SyntaxError, ValueError):
@@ -487,16 +570,17 @@ _SAID = {"fail": "the failing tests still fail", "timeout": "timed out (a loop t
 def search(root: str, suspects: Sequence[Any], focused: List[str], full: Optional[List[str]] = None,
            run_timeout: float = 60.0, suite_timeout: float = 600.0, budget: float = 180.0,
            limit: int = 400, on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-           output: str = "") -> SearchResult:
+           output: str = "", learned: Sequence[Tuple[str, str]] = ()) -> SearchResult:
     """Try the small edits at the suspect lines; the first one the tests accept stays in the tree.
 
     `focused` runs the failing tests, `full` the whole suite (skipped when it
-    is the same command); `output` is the failing run's, read for hints. The
-    search stops after `budget` seconds.
+    is the same command); `output` is the failing run's, read for hints;
+    `learned` are edits of past proven fixes. The search stops after `budget`
+    seconds.
     """
     t0 = time.time()
     say = on_event or (lambda _ev: None)
-    todo = plan(root, suspects, limit, output)
+    todo = plan(root, suspects, limit, output, learned)
     res = SearchResult(None, len(todo), 0, 0.0, "")
     if not todo:
         res.reason = "no small edit to try on the suspect lines"
