@@ -56,9 +56,10 @@ class TestScreenCopilotAgent:
     def test_screen_copilot_execution(self) -> None:
         agent = ScreenCopilotAgent()
         res = agent.execute("Fix mobile flex wrapping and low contrast buttons")
-        assert res.success is True
+        # A description is not markup: nothing is inspected, and that is not a success.
+        assert res.success is False
         assert "ScreenCopilotAgent" in res.content
-        assert "No screen was inspected" in res.content
+        assert "Nothing inspected" in res.content
 
     def test_inspect_screen_and_fix(self) -> None:
         result = screen_copilot.inspect_screen_and_fix("Navbar mobile breakpoint")

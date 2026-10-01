@@ -97,7 +97,7 @@ class TestVoiceArchitectAgent:
         res = agent.execute("Microservices Hexagonal ADR")
         assert res.success is True
         assert "VoiceArchitectAgent" in res.content
-        assert "Verbal Audio Transcript" in res.content
+        assert "Key Talking Points" in res.content
 
     def test_synthesize_voice_commentary(self) -> None:
         result = voice_architect.synthesize_voice_commentary("Kafka EventBus Consumer")

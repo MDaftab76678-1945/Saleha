@@ -14,8 +14,9 @@ class TestDeepResearcherAgent:
     def test_execute_agent_response(self) -> None:
         agent = DeepResearcherAgent()
         res = agent.execute("Distributed consensus in blockchain")
-        assert res.success is True
-        assert "No sources were fetched" in res.content
+        # The test suite has no network: no sources, so no report -- and not a success.
+        assert res.success is False
+        assert "No sources could be fetched" in res.content
         assert res.tokens_used == 0
 
     def test_conduct_research_structure(self) -> None:
@@ -25,7 +26,7 @@ class TestDeepResearcherAgent:
         # hash-derived URLs, >=4 fixed findings) pinned invented academia.
         assert report.citations == []
         assert report.key_findings == []
-        assert "No sources were fetched" in report.full_markdown_report
+        assert "No sources could be fetched" in report.full_markdown_report
         assert report.generation_time_ms >= 0
 
 
@@ -50,9 +51,9 @@ class TestSheetsAnalystAgent:
     def test_execute_agent_response(self) -> None:
         agent = SheetsAnalystAgent()
         res = agent.execute("Monthly API token usage and cost")
-        assert res.success is True
+        assert res.success is False
         assert "Tabular Analysis" in res.content
-        assert "no tabular source was provided" in res.content
+        assert "no table was loaded" in res.content
 
     def test_analyze_tabular_query(self) -> None:
         res = sheets_analyst.analyze_tabular_query("Latency and Memory Spike Telemetry")
@@ -61,23 +62,24 @@ class TestSheetsAnalystAgent:
         assert res.total_rows == 0
         assert res.columns == []
         assert res.anomalies == []
-        assert "no tabular source" in res.synthesized_sql_query
+        assert not res.loaded and "no table given" in res.error
 
 
 class TestSovereignClawAgent:
     def test_execute_agent_response(self) -> None:
         agent = SovereignClawAgent()
         res = agent.execute("https://docs.saleha.ai")
-        assert res.success is True
-        assert "Sovereign Claw Navigation Result" in res.content
+        # No network under the test suite: not fetched, and said so.
+        assert res.success is False
+        assert "Not fetched" in res.content
 
     def test_crawl_and_extract(self) -> None:
         res = browser_claw.crawl_and_extract("https://github.com/MDaftab76678-1945/Saleha")
-        # No page is fetched: the old asserts (HTTP 200, >=1000 DOM nodes,
-        # fixed trace) pinned a fabricated browse.
-        assert res.http_status == 0
+        # No network under the test suite: the one step that ran (navigate) is in
+        # the trace with its failure; nothing was extracted.
+        assert res.http_status == 0 and not res.fetched
         assert res.dom_elements_scanned == 0
-        assert res.action_trace == []
+        assert [a.action_type for a in res.action_trace] == ["navigate"]
         assert res.target_url == "https://github.com/MDaftab76678-1945/Saleha"
 
 

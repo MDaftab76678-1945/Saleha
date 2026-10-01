@@ -99,7 +99,11 @@ class NewPythonAgentsTests(unittest.TestCase):
         logs = "[ERROR] Database connection pool OOM panic: max limit reached"
         rca = self.sre.diagnose_incident(logs)
         self.assertEqual(rca.severity, "SEV-1")
-        self.assertGreaterEqual(len(rca.mitigation_steps), 1)
+        self.assertIn("oom", rca.severity_reason.lower())
+        # No model answered ("mock" is no installed model): no steps are invented.
+        self.assertTrue(rca.from_template)
+        self.assertEqual(rca.mitigation_steps, [])
+        self.assertNotIn("ERROR", rca.affected_components, "a log level is not a component")
         self.assertIn("Runbook", rca.runbook_md)
 
     def test_finops_optimizer_agent_compress(self) -> None:
@@ -119,7 +123,9 @@ class NewPythonAgentsTests(unittest.TestCase):
         legacy_code = "from typing import List, Dict, Union\ndef process(data: List[str], flag: bool) -> Union[int, str]:\n    if flag == True:\n        return len(data)\n    return 'empty'"
         res = self.refactor.refactor_code("modernize types", legacy_code)
         self.assertTrue(res.ast_valid)
-        self.assertTrue(res.complexity_reduced)
+        # Measured now: modernising type hints removes no branch.
+        self.assertEqual((res.complexity_before, res.complexity_after, res.complexity_reduced), (1, 1, False))
+        self.assertIn("if flag == True", res.refactored_code, "the behaviour-changing rewrite is gone")
         self.assertIn("list[str]", res.refactored_code)
         self.assertIn("int | str", res.refactored_code)
 

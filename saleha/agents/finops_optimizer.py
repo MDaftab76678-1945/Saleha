@@ -1,15 +1,17 @@
 """
 Saleha Agents: FinOps & Token Optimizer Agent
 
-Compresses context windows by 40-70%, prunes AST boilerplate, aligns static prompt prefixes
-for 100% KV-cache reuse, and audits operational cloud expenses.
+Makes a prompt or code smaller without changing its meaning -- blank-line
+runs collapsed, `# TODO:` lines dropped, and for Python the imports nothing
+uses removed (kept only if the result still compiles) -- and reports only
+the techniques that changed something. Token counts are estimates (chars/4).
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 from saleha.agents.base_agent import BaseAgent
 
@@ -42,6 +44,40 @@ class FinOpsOptimizationResult:
         return round(self.savings_per_call_usd * self.projection_call_volume, 2)
 
 
+def drop_unused_imports(code: str) -> Tuple[str, List[str]]:
+    """(code without its unused top-level imports, names dropped). Unchanged unless the result compiles."""
+    import ast
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code, []
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    used |= {n.value.id for n in ast.walk(tree) if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)}
+    exported = {elt.value for n in tree.body if isinstance(n, ast.Assign)
+                for t in n.targets if isinstance(t, ast.Name) and t.id == "__all__"
+                for elt in getattr(n.value, "elts", []) if isinstance(elt, ast.Constant)}
+    rows = code.split("\n")
+    dropped: List[str] = []
+    for node in tree.body:
+        if not isinstance(node, (ast.Import, ast.ImportFrom)) or node.lineno != node.end_lineno:
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            continue
+        names = [(a.asname or a.name).split(".")[0] for a in node.names]
+        if any(n == "*" for n in names) or any(n in used or n in exported for n in names):
+            continue
+        dropped += names
+        rows[node.lineno - 1] = ""
+    if not dropped:
+        return code, []
+    new = re.sub(r"\n{3,}", "\n\n", "\n".join(rows)).strip()
+    try:
+        compile(new, "<finops>", "exec")
+    except SyntaxError:
+        return code, []
+    return new, dropped
+
+
 class FinOpsOptimizerAgent(BaseAgent):
     """Lead FinOps & Token Economics Optimization Agent."""
 
@@ -49,24 +85,31 @@ class FinOpsOptimizerAgent(BaseAgent):
         super().__init__(role="FinOpsOptimizer", model=model)
 
     def compress_and_optimize(self, text_or_code: str) -> FinOpsOptimizationResult:
-        """Compresses token footprint and strips syntactic bloat with zero semantic loss."""
+        """Smaller text with the same meaning: blank runs, TODO lines and (Python) unused imports removed."""
         orig_tokens = max(1, len(text_or_code) // 4)
+        # Only what was actually done is listed. This used to name four
+        # techniques for every input -- "Prefix KV-Cache Alignment" and
+        # "Context Window Budget Compression" among them -- none of which
+        # this method implements.
+        techniques: List[str] = []
 
-        # 1. Strip redundant multi-line blank spaces & trailing whitespace
+        # 1. Collapse runs of blank lines
         cleaned = re.sub(r"\n\s*\n\s*\n+", "\n\n", text_or_code)
-        # 2. Strip single-line non-essential comments in boilerplate
-        cleaned = re.sub(r"^\s*#\s+TODO:.*$", "", cleaned, flags=re.MULTILINE)
-        cleaned = cleaned.strip()
+        if cleaned != text_or_code:
+            techniques.append("blank-line collapse")
+        # 2. Strip `# TODO:` comment lines
+        stripped = re.sub(r"^\s*#\s+TODO:.*$", "", cleaned, flags=re.MULTILINE)
+        if stripped != cleaned:
+            techniques.append("TODO comment removal")
+        cleaned = stripped.strip()
+        # 3. Python only: drop imports nothing uses -- kept only when the result still compiles
+        pruned, dropped = drop_unused_imports(cleaned)
+        if dropped:
+            cleaned = pruned
+            techniques.append(f"unused import removal ({', '.join(dropped)})")
 
         opt_tokens = max(1, len(cleaned) // 4)
         savings_pct = max(0.0, round(((orig_tokens - opt_tokens) / orig_tokens) * 100, 2))
-
-        techniques = [
-            "AST Comment & Whitespace Minification",
-            "Prefix KV-Cache Alignment",
-            "Context Window Budget Compression",
-            "Dead Import Elimination"
-        ]
 
         # What is actually known: how many estimated tokens this one call
         # saved. Nothing here measures how often the caller runs.
