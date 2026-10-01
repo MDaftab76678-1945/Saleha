@@ -9,7 +9,7 @@ Provides pluggable model provider backends:
    names starting with "claude-code" (e.g. "claude-code:sonnet").
    GeminiProvider: Google Gemini API with a GEMINI_API_KEY (free AI Studio
    key). Selected by model names starting with "gemini" (e.g. "gemini",
-   "gemini:gemini-3.5-flash", "gemini-2.5-pro").
+   "gemini:gemini-3.8-flash", "gemini-3.1-pro-preview").
 4. FallbackChainProvider: Tries primary local provider, then gracefully falls back to cloud API or heuristic safe generator.
 5. MockProvider: Deterministic zero-latency provider for unit and integration testing.
 
@@ -623,7 +623,8 @@ class ClaudeCodeProvider(ModelProvider):
 
 
 GEMINI_PREFIX = "gemini"
-GEMINI_DEFAULT_MODEL = os.environ.get("SALEHA_GEMINI_MODEL", "gemini-3.5-flash")
+# Measured 2026-10-01 on a small fix prompt: gemini-3.8-flash 3.6 s, gemini-3.5-flash 9.7 s.
+GEMINI_DEFAULT_MODEL = os.environ.get("SALEHA_GEMINI_MODEL", "gemini-3.8-flash")
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
