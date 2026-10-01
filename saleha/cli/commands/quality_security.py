@@ -605,6 +605,11 @@ def receipt_cmd(root_dir: str, base: str, test_cmd: Optional[str], timeout: floa
         raise click.exceptions.Exit(1)
 
 
+# `saleha verify`: the same receipt under the name people look for when they
+# want to check a change -- their own, a colleague's, or any AI's.
+cli.add_command(receipt_cmd, name='verify')
+
+
 @cli.command(name='verify-work')
 @click.argument('ledger', default='.saleha/work.jsonl')
 @click.option('--dir', 'root_dir', default='.', help='Repository the claims are about')

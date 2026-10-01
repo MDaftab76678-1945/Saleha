@@ -139,8 +139,12 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
     with it and fail without it, and were not weakened). An unproven fix is
     taken back out. Needs a clean git tree.
 
-    Example: saleha fix            (tests found automatically)
-             saleha fix "pytest tests/test_calc.py" --commit
+    \b
+    Examples:
+      saleha fix                                      tests found automatically
+      saleha fix "python -m pytest tests/test_calc.py" --commit
+      saleha fix --issue https://github.com/owner/repo/issues/7
+      saleha fix -m gemini:gemini-3.8-flash           a cloud model instead
     """
     from saleha.core.loop import fix_flow
 
