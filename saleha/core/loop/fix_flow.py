@@ -26,6 +26,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 DEFAULT_MODEL = os.environ.get("SALEHA_FIX_MODEL", "qwen2.5-coder:3b")
+SEARCH = "search, no model"          # FixResult.model of a fix found by repair_search
 
 FIXED = "FIXED"                      # receipt PROVEN; changes kept
 ALREADY_PASSING = "ALREADY_PASSING"  # nothing to fix
@@ -81,6 +82,7 @@ class FixResult:
     repro_tests: List[str] = field(default_factory=list)   # fix_issue: the tests it wrote
     repro_source: str = ""
     pin: Optional[Dict[str, Any]] = None    # mutation pin of a proven fix: PINNED / LOOSE
+    search: Optional[Dict[str, Any]] = None  # the model-free repair search, when it ran
 
     @property
     def ok(self) -> bool:
@@ -176,6 +178,19 @@ def build_goal(failing: List[Tuple[str, str]], output: str, where: str = "") -> 
             + "Do not edit, delete or skip the tests -- fix the code they test.")
 
 
+def focused_command(argv: List[str], test_ids: List[str], root: str) -> List[str]:
+    """The pytest command narrowed to `test_ids`.
+
+    The command's own test paths are dropped first: measured, `pytest tests
+    tests/test_x.py::test_a` runs every test under tests/, not one.
+    """
+    takes_value = {"-p", "-k", "-m", "-c", "-o", "--rootdir", "--confcutdir", "--deselect", "--ignore"}
+    kept = [a for i, a in enumerate(argv)
+            if i < 3 or a.startswith("-") or argv[i - 1] in takes_value
+            or not os.path.exists(os.path.join(root, a.split("::", 1)[0]))]
+    return kept + list(test_ids)
+
+
 def _pytest_python(argv: List[str]) -> Optional[str]:
     """The interpreter of a `<python> -m pytest ...` command, else None."""
     if len(argv) >= 3 and argv[1] == "-m" and argv[2] == "pytest":
@@ -247,13 +262,16 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
              localize: bool = True, candidates: int = 4,
              escalate: Optional[str] = None, flaky_reruns: int = 2,
              record: Any = True, given_tests: Optional[List[str]] = None,
-             pin_check: bool = True, harden_tests: bool = False) -> FixResult:
+             pin_check: bool = True, harden_tests: bool = False, search: bool = True,
+             use_model: bool = True, search_budget: float = 180.0) -> FixResult:
     """Make the repo's failing tests pass, and prove it -- or leave the repo untouched.
 
     `escalate` names a second, larger model tried when the first one's
     attempt is not proven (the tree is clean again by then). The failing
     tests are re-run `flaky_reruns` times first; a pass means FLAKY. `record`
     appends each proven fix to the local dataset (a path string overrides it).
+    `search` first tries the small edits of repair_search, with no model;
+    `use_model=False` stops there.
     """
     t0 = time.time()
     model = model or DEFAULT_MODEL
@@ -285,7 +303,9 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
         return done(FixResult(CANNOT_RUN, f"no test command found: {why}"))
 
     say({"stage": "baseline", "message": f"running {' '.join(argv)}"})
+    t_suite = time.time()
     passed, output = _run_tests(argv, root, test_timeout)
+    suite_seconds = time.time() - t_suite
     if passed is None:
         return done(FixResult(CANNOT_RUN, output, test_command=list(argv)))
     if passed:
@@ -299,9 +319,14 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
 
     # A failure that does not repeat is not a bug to fix: changing code to
     # "fix" a flaky test would be a guess the receipt cannot catch.
-    rerun = list(argv) + (result.failing_before[:20] if python and result.failing_before else [])
+    focused = focused_command(list(argv), result.failing_before[:20], root) \
+        if python and result.failing_before else None
+    rerun = focused or list(argv)
+    focused_seconds = suite_seconds
     for i in range(flaky_reruns):
+        t_run = time.time()
         again, _out = _run_tests(rerun, root, test_timeout)
+        focused_seconds = time.time() - t_run
         if again:
             result.verdict = FLAKY
             result.reason = (f"the failing tests passed on re-run {i + 1} of {flaky_reruns}: they are "
@@ -315,14 +340,16 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
     note = ""
     if localize and python and failing:
         suspects, note = fault_localizer.localize(root, python, result.failing_before,
-                                                  timeout=test_timeout)
+                                                  timeout=test_timeout, top=10 if search else 5)
     if localize and not suspects:
         # No pytest, or coverage ranked nothing: the run's own stack frames
         # still say where it failed (Jest, Vitest, go, cargo, Python).
         from saleha.core.loop import trace_localizer
-        suspects = trace_localizer.suspects_from_output(root, output)
+        suspects = trace_localizer.suspects_from_output(root, output, top=10 if search else 5)
         if suspects:
             note = "the source frames of the failing run's stack traces"
+    # The search tries up to 10 lines; the model is shown the top 5, as before.
+    search_lines, suspects = suspects, suspects[:5]
     if suspects:
         result.suspects = [f"{s.file}:{s.line}" for s in suspects]
         where = fault_localizer.describe(suspects, note, root)
@@ -336,32 +363,53 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
     ledger = ledger_path or os.path.join(os.path.expanduser("~"), ".saleha", "fix-ledger.jsonl")
     goal = build_goal(failing, output, where)
     models = [model] + ([escalate] if escalate and escalate != model else [])
+    # The search goes first: a one-edit bug is fixed in seconds, with no model.
+    attempts = ([SEARCH] if search and search_lines else []) + (models if use_model else [])
     reasons: List[str] = []
-    for attempt_model in models:
-        if attempt_model != model:
-            say({"stage": "escalate", "message": f"{models[0]} could not fix it; trying {attempt_model}"})
-        # patch_candidates: when the model's own patch leaves the tests red,
-        # more patches are drawn from the same prompt and the first one the
-        # tests turn green is kept -- the model proposes, the tests choose.
-        loop = AgentLoop(agent=factory(attempt_model), root_dir=root, max_steps=max_steps,
-                         allow_write=True, timeout_sec=timeout, test_timeout_sec=test_timeout,
-                         patch_candidates=candidates)
-        loop.focus_ranges = focus
-        if python and result.failing_before:
-            # The loop checks each patch against the failing tests only:
-            # measured, full-suite runs of more-itertools (20 s each, 68
-            # failures) took 607 s of one run. The receipt below still runs
-            # the whole suite, so a patch that breaks another test is caught
-            # there and taken back out.
-            loop.test_command_override = list(argv) + result.failing_before[:20]
-        # The receipt proves more than the loop's "read a test file" gate:
-        # measured, a verified fix was held back by that gate for 14 steps
-        # (~100 s) because the 3B model never opened the test it had made pass.
-        loop.require_test_read = False
-        run = loop.run(goal, on_event=lambda ev: say({"stage": "agent", **ev}))
-        result.model = attempt_model
-        result.agent_steps += len(run.steps)
-        result.agent_message = (run.final_message or run.error or "")[:500]
+    if search and not search_lines:
+        reasons.append(f"{SEARCH}: no suspect lines to search ({note or 'nothing localized'})")
+    for attempt_model in attempts:
+        if attempt_model == SEARCH:
+            from saleha.core.loop import repair_search
+            say({"stage": "search", "message": f"trying small edits at {len(search_lines)} suspect line(s), "
+                                                "no model"})
+            found = repair_search.search(
+                root, search_lines, focused or list(argv), list(argv),
+                run_timeout=min(test_timeout, max(10.0, 4 * focused_seconds)),
+                suite_timeout=min(test_timeout, max(30.0, 3 * suite_seconds)),
+                budget=search_budget, on_event=say, output=output)
+            result.search = found.to_dict()
+            result.model = SEARCH
+            say({"stage": "search", "message": found.reason})
+            if not found.found:
+                reasons.append(f"{SEARCH}: {found.reason}")
+                continue
+            result.agent_message = found.reason
+        else:
+            if attempt_model != model:
+                say({"stage": "escalate", "message": f"{models[0]} could not fix it; trying {attempt_model}"})
+            # patch_candidates: when the model's own patch leaves the tests red,
+            # more patches are drawn from the same prompt and the first one the
+            # tests turn green is kept -- the model proposes, the tests choose.
+            loop = AgentLoop(agent=factory(attempt_model), root_dir=root, max_steps=max_steps,
+                             allow_write=True, timeout_sec=timeout, test_timeout_sec=test_timeout,
+                             patch_candidates=candidates)
+            loop.focus_ranges = focus
+            if focused:
+                # The loop checks each patch against the failing tests only:
+                # measured, full-suite runs of more-itertools (20 s each, 68
+                # failures) took 607 s of one run. The receipt below still runs
+                # the whole suite, so a patch that breaks another test is caught
+                # there and taken back out.
+                loop.test_command_override = focused
+            # The receipt proves more than the loop's "read a test file" gate:
+            # measured, a verified fix was held back by that gate for 14 steps
+            # (~100 s) because the 3B model never opened the test it had made pass.
+            loop.require_test_read = False
+            run = loop.run(goal, on_event=lambda ev: say({"stage": "agent", **ev}))
+            result.model = attempt_model
+            result.agent_steps += len(run.steps)
+            result.agent_message = (run.final_message or run.error or "")[:500]
 
         changes = _changes(root)
         result.changed_files = [p for _, p in changes]
@@ -385,10 +433,11 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
                 from saleha.core.verification import mutation_pin
                 say({"stage": "pin", "message": "checking the tests pin the fix down"})
                 rep = mutation_pin.pin(root, list(argv), base="HEAD",
-                                       focused_command=loop.test_command_override, timeout=test_timeout)
-                if harden_tests and rep.verdict == mutation_pin.LOOSE:
+                                       focused_command=focused, timeout=test_timeout)
+                if harden_tests and use_model and rep.verdict == mutation_pin.LOOSE:
                     kept, notes = harden(root, [asdict(m) for m in rep.survivors], list(argv),
-                                         attempt_model, agent_factory=factory, timeout=timeout,
+                                         model if attempt_model == SEARCH else attempt_model,
+                                         agent_factory=factory, timeout=timeout,
                                          test_timeout=test_timeout, on_event=on_event)
                     say({"stage": "harden", "message": "; ".join(notes)})
                     if kept:
@@ -424,6 +473,8 @@ def fix_repo(root_dir: str = ".", model: Optional[str] = None,
         if left:
             break                       # the tree is not clean: no second attempt on top of it
 
+    if not use_model:
+        reasons.append("no model was asked (--no-model)")
     result.reason = " | ".join(reasons)
     return done(result)
 
@@ -608,6 +659,9 @@ def fix_issue(root_dir: str, issue: str, model: Optional[str] = None,
     if _changes(root):
         return FixResult(CANNOT_RUN, "the working tree has uncommitted changes; commit or stash them first",
                          model=model)
+    if not fix_kwargs.get("use_model", True):
+        return FixResult(CANNOT_RUN, "a bug report needs a model to write the reproducing test; "
+                                     "drop --no-model", model=model)
     text, err = issue_text(issue, root)
     if err or not text:
         return FixResult(CANNOT_RUN, err or "the bug report is empty", model=model)

@@ -43,7 +43,7 @@ inputs:
     required: false
     default: ''
   model:
-    description: 'fix mode: the model. Default: gemini:gemini-3.8-flash when gemini-api-key is given, else qwen2.5-coder:3b run on the runner itself (your code then goes to no AI service)'
+    description: 'fix mode: the model. Default: gemini:gemini-3.8-flash when gemini-api-key is given, else qwen2.5-coder:3b run on the runner itself (your code then goes to no AI service). none: no model at all -- only the search of small edits (comparison, operator, off-by-one ...), so nothing is downloaded'
     required: false
     default: ''
   gemini-api-key:
@@ -109,7 +109,7 @@ runs:
         echo "Saleha will use: $model"
 
     - name: Start a local model (fix)
-      if: inputs.mode == 'fix' && !startsWith(env.SALEHA_MODEL, 'gemini')
+      if: inputs.mode == 'fix' && !startsWith(env.SALEHA_MODEL, 'gemini') && env.SALEHA_MODEL != 'none'
       shell: bash
       run: |
         if ! command -v ollama >/dev/null; then
@@ -131,6 +131,7 @@ runs:
         git config user.name "saleha-bot"
         git config user.email "saleha-bot@users.noreply.github.com"
         args=(fix --json --commit -m "$SALEHA_MODEL" --max-steps "${{ inputs.max-steps }}" --timeout "${{ inputs.timeout }}")
+        if [ "$SALEHA_MODEL" = "none" ]; then args=(fix --json --commit --no-model); fi
         if [ -n "$SALEHA_TEST_CMD" ]; then args+=("$SALEHA_TEST_CMD"); fi
         "$SALEHA_PY" -c 'from saleha.cli.commands import cli; cli()' "${args[@]}" > "$RUNNER_TEMP/saleha-fix.json" || true
 

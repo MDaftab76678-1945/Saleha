@@ -127,17 +127,23 @@ def rag_cmd(question: Any, path: Any, as_json: Any) -> None:
 @click.option('--harden', is_flag=True,
               help='When the tests would also accept a wrong version of the fix, write tests that tell '
                    'them apart (each kept only if it passes now and fails on the wrong version)')
+@click.option('--no-search', is_flag=True,
+              help='Skip the model-free search of small edits (operator, comparison, off-by-one ...) '
+                   'and go straight to the model')
+@click.option('--no-model', is_flag=True,
+              help='Only the model-free search: never call a model, so no Ollama or API key is needed')
 @click.option('--commit', is_flag=True, help='Commit a proven fix on a new branch saleha/fix-...')
 @click.option('--receipt', 'receipt_path', default=None, type=click.Path(dir_okay=False),
               help='Also write the proof receipt (Markdown) to this file')
 @click.option('--json', 'as_json', is_flag=True, help='Machine-readable result')
 def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], escalate: Optional[str],
-            issue: Optional[str], max_steps: int, timeout: int, harden: bool, commit: bool,
-            receipt_path: Optional[str], as_json: bool) -> None:
+            issue: Optional[str], max_steps: int, timeout: int, harden: bool, no_search: bool,
+            no_model: bool, commit: bool, receipt_path: Optional[str], as_json: bool) -> None:
     """
     Fix the failing tests of a repo, and prove the fix.
 
-    Runs the tests; if they fail, Saleha's agent fixes the source with a local
+    Runs the tests; if they fail, Saleha first tries small edits at the lines
+    the tests point to (no model), then its agent fixes the source with a local
     model, re-runs them, and proves the fix with a receipt (the tests pass
     with it and fail without it, and were not weakened). An unproven fix is
     taken back out. Needs a clean git tree.
@@ -148,13 +154,17 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
       saleha fix "python -m pytest tests/test_calc.py" --commit
       saleha fix --issue https://github.com/owner/repo/issues/7
       saleha fix -m gemini:gemini-3.8-flash           a cloud model instead
+      saleha fix --no-model                           no model at all: small edits only
     """
     from saleha.core.loop import fix_flow
 
     def show(ev: Dict[str, Any]) -> None:
         if as_json:
             return
-        if ev.get('stage') == 'agent':
+        if ev.get('stage') == 'try':
+            from rich.markup import escape
+            console.print(f"[dim]  try {escape(ev.get('message', ''))}[/]")
+        elif ev.get('stage') == 'agent':
             from rich.markup import escape
             console.print(f"[dim]step {ev.get('step')}[/] [cyan]{ev.get('action')}[/] -> "
                           f"{escape(_cmds._one_line(ev.get('observation', '')))}")
@@ -165,11 +175,11 @@ def fix_cmd(test_command: Optional[str], root_dir: str, model: Optional[str], es
     if issue:
         res = fix_flow.fix_issue(root_dir, issue, model=model, test_command=argv, max_steps=max_steps,
                                  timeout=float(timeout), on_event=show, escalate=escalate,
-                                 harden_tests=harden)
+                                 harden_tests=harden, search=not no_search, use_model=not no_model)
     else:
         res = fix_flow.fix_repo(root_dir, model=model, test_command=argv, max_steps=max_steps,
                                 timeout=float(timeout), on_event=show, escalate=escalate,
-                                harden_tests=harden)
+                                harden_tests=harden, search=not no_search, use_model=not no_model)
     branch = ''
     if commit and res.verdict == fix_flow.FIXED:
         ok, branch = fix_flow.commit_fix(root_dir, res)

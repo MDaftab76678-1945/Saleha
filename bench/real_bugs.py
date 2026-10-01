@@ -12,6 +12,7 @@ Most of these commits are from August-September 2026, so a model trained
 before then has not seen the fix.
 
     python bench/real_bugs.py --work DIR [--model qwen2.5-coder:3b]
+    python bench/real_bugs.py --work DIR --no-model    # the model-free search alone
 """
 
 from __future__ import annotations
@@ -55,6 +56,8 @@ class Result:
     source_files_upstream: List[str]
     changed_by_saleha: List[str]
     pin: str = ""
+    model: str = ""         # who made the kept fix: a model, or the search
+    search: str = ""        # what the model-free search did
 
 
 def _git(cwd: str, *args: str, check: bool = True) -> str:
@@ -113,11 +116,12 @@ def main() -> int:
     ap.add_argument("--work", required=True)
     ap.add_argument("--model", default="qwen2.5-coder:3b")
     ap.add_argument("--timeout", type=int, default=600)
+    ap.add_argument("--no-model", action="store_true", help="only the model-free search of small edits")
     ap.add_argument("--prepare-only", action="store_true", help="build the bug repos and check they fail")
     a = ap.parse_args()
     work = Path(a.work).resolve()
     (work / "src").mkdir(parents=True, exist_ok=True)
-    tag = a.model.replace(":", "_")
+    tag = "no-model" if a.no_model else a.model.replace(":", "_")
     results_file = work / f"real-results-{tag}.jsonl"
     done = set()
     if results_file.exists():
@@ -142,7 +146,8 @@ def main() -> int:
             continue
         test_cmd = " ".join(f'"{x}"' if " " in x else x for x in argv)
         cmd = [sys.executable, "-c", "from saleha.cli.commands import cli; cli()", "fix", "--dir", str(repo),
-               "--json", "-m", a.model, "--timeout", str(a.timeout), test_cmd]
+               "--json", "--timeout", str(a.timeout), test_cmd]
+        cmd[-1:-1] = ["--no-model"] if a.no_model else ["-m", a.model]
         t0 = time.time()
         out = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace",
                              timeout=a.timeout + 900).stdout
@@ -150,14 +155,15 @@ def main() -> int:
         res = json.loads(line)
         r = Result(bug, subject, res.get("verdict", "HARNESS_ERROR"), round(time.time() - t0, 1),
                    str(res.get("reason", ""))[:300], tests, sources, res.get("changed_files") or [],
-                   str((res.get("pin") or {}).get("verdict", "")))
+                   str((res.get("pin") or {}).get("verdict", "")), str(res.get("model", "")),
+                   str((res.get("search") or {}).get("reason", "")))
         with results_file.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(asdict(r)) + "\n")
         print(f"{bug}: {r.verdict} ({r.seconds:.0f}s) -- {subject}", flush=True)
     rows = [json.loads(ln) for ln in results_file.read_text(encoding="utf-8").splitlines() if ln] \
         if results_file.exists() else []
     fixed = sum(1 for r in rows if r["verdict"] == "FIXED")
-    print(f"\n{fixed} of {len(rows)} real bugs fixed and proven ({a.model})")
+    print(f"\n{fixed} of {len(rows)} real bugs fixed and proven ({tag})")
     return 0
 
 

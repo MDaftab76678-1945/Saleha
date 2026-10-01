@@ -52,7 +52,7 @@ class FixFlowTests(unittest.TestCase):
             agent_factory=lambda _m: ScriptedAgent(responses) if responses else _NoModel(),
             ledger_path=os.path.join(self.state, "ledger.jsonl"),
             anchor_path=os.path.join(self.state, "anchors.jsonl"), candidates=candidates,
-            record=os.path.join(self.state, "dataset.jsonl"))
+            record=os.path.join(self.state, "dataset.jsonl"), search=False)
 
     def test_a_failure_that_does_not_repeat_is_flaky_and_nothing_changes(self) -> None:
         flaky = ("import os\n\n\ndef test_sometimes():\n"
@@ -94,7 +94,7 @@ class FixFlowTests(unittest.TestCase):
         ])
         res = fix_flow.fix_repo(
             self.root, model="small", escalate="big", test_command=PYTEST, max_steps=8, timeout=120,
-            agent_factory=lambda m: small if m == "small" else big, candidates=0,
+            agent_factory=lambda m: small if m == "small" else big, candidates=0, search=False,
             ledger_path=os.path.join(self.state, "ledger.jsonl"),
             anchor_path=os.path.join(self.state, "anchors.jsonl"))
         self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
@@ -186,6 +186,45 @@ class FixFlowTests(unittest.TestCase):
         self.assertTrue((cache / "other.cpython-312.pyc").exists(), "caches found there stay")
         self.assertEqual(_git(self.root, "status", "--porcelain", "--untracked-files=all").split(),
                          ["M", "calc.py", "??", "__pycache__/other.cpython-312.pyc"])
+
+    def _search_fix(self, agent: Any = None, **kw: Any) -> fix_flow.FixResult:
+        return fix_flow.fix_repo(
+            self.root, model="scripted", test_command=PYTEST, max_steps=8, timeout=120, candidates=0,
+            agent_factory=lambda _m: agent or _NoModel(),
+            ledger_path=os.path.join(self.state, "ledger.jsonl"),
+            anchor_path=os.path.join(self.state, "anchors.jsonl"),
+            record=os.path.join(self.state, "dataset.jsonl"), **kw)
+
+    def test_a_one_edit_bug_is_fixed_and_proven_without_any_model(self) -> None:
+        res = self._search_fix()          # _NoModel: calling the agent fails the test
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        self.assertEqual((res.model, res.agent_steps), (fix_flow.SEARCH, 0))
+        assert res.receipt is not None and res.search is not None
+        self.assertEqual(res.receipt["verdict"], "PROVEN")
+        self.assertEqual(res.search["found"]["kind"], "'-' -> '+'")
+        self.assertEqual(Path(self.root, "calc.py").read_bytes(), b"def add(a, b):\n    return a + b\n")
+
+    def test_when_the_search_misses_the_model_still_gets_its_turn(self) -> None:
+        Path(self.root, "calc.py").write_bytes(b"def add(a, b):\n    return a\n")
+        _git(self.root, "commit", "-q", "-am", "needs new code")
+        agent = ScriptedAgent([_tool_call("read_file", path="calc.py"),
+                               _tool_call("patch_file", path="calc.py", search="return a", replace="return a + b"),
+                               _finish("fixed"), _finish("fixed")])
+        res = self._search_fix(agent)
+        self.assertEqual(res.verdict, fix_flow.FIXED, res.reason)
+        self.assertEqual(res.model, "scripted")
+        assert res.search is not None
+        self.assertIsNone(res.search["found"])
+        self.assertGreaterEqual(res.search["tried"], 1)
+
+    def test_no_model_stops_after_the_search_and_leaves_the_tree_clean(self) -> None:
+        Path(self.root, "calc.py").write_bytes(b"def add(a, b):\n    return a\n")
+        _git(self.root, "commit", "-q", "-am", "needs new code")
+        res = self._search_fix(use_model=False)       # _NoModel would fail the test if asked
+        self.assertEqual(res.verdict, fix_flow.NOT_FIXED, res.reason)
+        self.assertIn("no model was asked", res.reason)
+        self.assertIn(fix_flow.SEARCH, res.reason)
+        self.assertEqual(_git(self.root, "status", "--porcelain").strip(), "")
 
     def test_not_a_git_repo_cannot_be_proven(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as bare:
@@ -324,7 +363,7 @@ class FixIssueTests(unittest.TestCase):
         return fix_flow.fix_issue(
             self.root, "add(2, 3) returns -1; it should return 5", model="scripted",
             test_command=PYTEST, max_steps=8, timeout=120, repro_attempts=len(phases) - 1 or 1,
-            agent_factory=lambda _m: agents.pop(0), candidates=0,
+            agent_factory=lambda _m: agents.pop(0), candidates=0, search=False,
             ledger_path=os.path.join(self.state, "ledger.jsonl"),
             anchor_path=os.path.join(self.state, "anchors.jsonl"),
             record=os.path.join(self.state, "dataset.jsonl"))
@@ -360,6 +399,12 @@ class FixIssueTests(unittest.TestCase):
         self.assertTrue(Path(self.root, "calc.py").read_bytes().startswith(b"def add(a, b):\n    return a - b"))
         self.assertEqual(_git(self.root, "status", "--porcelain").strip(), "")
 
+    def test_a_report_without_a_model_cannot_be_reproduced(self) -> None:
+        res = fix_flow.fix_issue(self.root, "add is wrong", test_command=PYTEST, use_model=False,
+                                 agent_factory=lambda _m: _NoModel())
+        self.assertEqual(res.verdict, fix_flow.CANNOT_RUN)
+        self.assertIn("--no-model", res.reason)
+
     def test_issue_urls_are_fetched_and_plain_text_passes_through(self) -> None:
         from unittest.mock import patch
 
@@ -377,7 +422,36 @@ class FixIssueTests(unittest.TestCase):
         self.assertEqual(fix_flow.issue_text("  add is broken  "), ("add is broken", ""))
 
 
+class FocusedCommandTests(unittest.TestCase):
+    def test_the_commands_test_paths_are_dropped_before_the_ids_are_added(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            Path(root, "tests").mkdir()
+            argv = ["py", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-k", "tests", "tests"]
+            self.assertEqual(fix_flow.focused_command(argv, ["tests/test_x.py::test_a"], root),
+                             ["py", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-k", "tests",
+                              "tests/test_x.py::test_a"])
+
+
 class FixCommandTests(unittest.TestCase):
+    def test_no_model_fixes_a_one_edit_bug_from_the_command_line(self) -> None:
+        import json
+
+        from click.testing import CliRunner
+
+        from saleha.cli.commands import cli
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as root:
+            Path(root, "calc.py").write_bytes(BUGGY.encode())
+            Path(root, "test_calc.py").write_bytes(TEST.encode())
+            for args in (["init", "-q"], ["config", "user.email", "t@example.com"], ["config", "user.name", "t"],
+                         ["config", "core.autocrlf", "false"], ["add", "-A"], ["commit", "-q", "-m", "init"]):
+                _git(root, *args)
+            cmd = f'"{sys.executable}" -m pytest -q -p no:cacheprovider'
+            res = CliRunner().invoke(cli, ["fix", "--dir", root, "--json", "--no-model", cmd])
+            out = json.loads(res.output.strip().splitlines()[-1])
+        self.assertEqual(out["verdict"], "FIXED", out["reason"])
+        self.assertEqual(out["model"], fix_flow.SEARCH)
+        self.assertEqual(res.exit_code, 0, res.output)
+
     def test_the_cli_reports_a_repo_it_cannot_prove_in_json_and_exits_1(self) -> None:
         import json
 

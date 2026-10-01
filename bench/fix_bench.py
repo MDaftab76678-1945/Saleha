@@ -12,9 +12,12 @@ and were not weakened.
 
 What this measures: single-line injected bugs that the tests locate. It is
 not SWE-bench: real bugs span files and need understanding an operator swap
-does not.
+does not. The model-free repair search tries the same kinds of one-token
+edit these bugs are made of, so its fixes here are expected and say little
+about real bugs: the report counts them apart, `--no-search` measures the
+model alone, and bench/real_bugs.py measures the search on real bugs.
 
-    python bench/fix_bench.py --work DIR [--per-project 6] [--model qwen2.5-coder:3b]
+    python bench/fix_bench.py --work DIR [--per-project 6] [--model qwen2.5-coder:3b] [--no-search]
     python bench/fix_bench.py --work DIR --report-only
 """
 
@@ -208,13 +211,15 @@ def materialize(bug: Bug, srcs: Dict[str, Path], work: Path) -> Path:
 
 
 def run_fix(bug: Bug, repo: Path, tests: str, model: str, timeout: int,
-            escalate: Optional[str] = None) -> Outcome:
+            escalate: Optional[str] = None, search: bool = True) -> Outcome:
     test_cmd = " ".join(f'"{a}"' if " " in a else a for a in test_argv(tests))
     cmd = [sys.executable, "-c", "from saleha.cli.commands import cli; cli()", "fix",
            "--dir", str(repo), "--json", "-m", model, "--max-steps", "15",
            "--timeout", str(timeout), test_cmd]
     if escalate:
         cmd[-1:-1] = ["--escalate", escalate]
+    if not search:
+        cmd[-1:-1] = ["--no-search"]
     t0 = time.time()
     code, out = _run(cmd, str(repo), timeout + 600)
     seconds = round(time.time() - t0, 1)
@@ -253,6 +258,11 @@ def report(bugs: List[Bug], outcomes: List[Outcome], model: str) -> str:
                   f"- proven fixes that restored the exact original line: "
                   f"{sum(1 for o in fixed if o.exact_revert)} of {len(fixed)}",
                   "- proven fixes by model: " + ", ".join(f"{m}: {n}" for m, n in sorted(by_model.items()))]
+        searched = sum(1 for o in fixed if o.model.startswith("search"))
+        if searched:
+            lines += [f"- {searched} of the {len(fixed)} came from the model-free search, which tries the same "
+                      "kinds of one-token edit these bugs were injected with: expected here, and no measure "
+                      "of real bugs (see bench/real_bugs.py)"]
     top1 = sum(1 for o in outcomes if o.bug_ranked == 1)
     top5 = sum(1 for o in outcomes if o.bug_ranked)
     lines += [f"- fault localization put the bug line first in {top1} of {n} bugs, "
@@ -278,10 +288,11 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=600, help="seconds per saleha fix run")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument("--no-search", action="store_true", help="the model alone, without the model-free search")
     a = ap.parse_args()
     work = Path(a.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
-    config = a.model + (f"+{a.escalate}" if a.escalate else "")
+    config = a.model + (f"+{a.escalate}" if a.escalate else "") + ("+no-search" if a.no_search else "")
     tag = config.replace(":", "_").replace("+", "__")
     bugs_file, results_file = work / "bugs.json", work / f"results-{tag}.jsonl"
     srcs = fetch(work)
@@ -302,7 +313,7 @@ def main() -> int:
             if bug.id in done:
                 continue
             repo = materialize(bug, srcs, work)
-            o = run_fix(bug, repo, tests_of[bug.project], a.model, a.timeout, a.escalate)
+            o = run_fix(bug, repo, tests_of[bug.project], a.model, a.timeout, a.escalate, not a.no_search)
             done[bug.id] = o
             with results_file.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(asdict(o)) + "\n")
