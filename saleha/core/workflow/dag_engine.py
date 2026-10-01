@@ -28,6 +28,9 @@ class TaskNode:
     result: str = ""
     error: str = ""
     duration: float = 0.0
+    # From ProfileAgent.work: the answer's code/config blocks checked by program.
+    checks: List[Dict[str, str]] = field(default_factory=list)
+    verified: Optional[bool] = None
 
 
 @dataclass
@@ -149,6 +152,17 @@ class TaskDAG:
         full_prompt = f"Task: {node.title}\nGoal Context: {self.goal}\n\nInstructions:\n{node.prompt}"
         if dep_contexts:
             full_prompt += "\n\n" + "\n\n".join(dep_contexts)
+
+        work = getattr(agent, "work", None)
+        if callable(work):
+            done = work(full_prompt)
+            node.duration = round(time.time() - start, 3)
+            node.checks, node.verified = done.checks, done.verified
+            if done.success and done.content:
+                node.status, node.result = "COMPLETED", done.content
+            else:
+                node.status, node.error = "FAILED", done.error or "Agent generation failed."
+            return node
 
         resp: AgentResponse = agent.think(full_prompt)
         node.duration = round(time.time() - start, 3)

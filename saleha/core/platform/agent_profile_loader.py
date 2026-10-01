@@ -260,6 +260,38 @@ class ProfileAgent(BaseAgent):
         )
 
 
+    def work(self, task: str) -> "ProfileWork":
+        """The persona's answer, checked by program: every code/config block valid, no placeholders.
+
+        A failing answer is shown its failures and asked for once more.
+        `verified` is None for prose-only answers (nothing to check), never True.
+        """
+        from saleha.agents import artifact_check as ac
+
+        def build(content: str) -> Any:
+            return content, ac.check_answer(content, no_placeholders=True)
+
+        content, checks, resp, rounds = ac.produce(self, task, build)
+        prose_only = len(checks) == 1 and checks[0].name == "answer has content" and checks[0].status == ac.PASS
+        return ProfileWork(
+            profile_id=self.profile.id, content=content or "", success=content is not None,
+            model_used=resp.model_used, checks=ac.as_dicts(checks), repair_rounds=rounds,
+            verified=None if (content is None or prose_only) else ac.verdict(checks),
+            error="" if content is not None else (resp.error_message or "no answer"))
+
+
+@dataclass
+class ProfileWork:
+    profile_id: str
+    content: str
+    success: bool
+    model_used: str = ""
+    checks: List[Dict[str, str]] = field(default_factory=list)
+    verified: Optional[bool] = None
+    repair_rounds: int = 0
+    error: str = ""
+
+
 # Global profile registry instance
 profile_registry = AgentProfileRegistry()
 

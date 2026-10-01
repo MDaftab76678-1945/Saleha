@@ -420,6 +420,49 @@ def contrast(fg: str, bg: str) -> Optional[float]:
     return round((hi + 0.05) / (lo + 0.05), 2)
 
 
+_PLACEHOLDER = re.compile(r"(?im)^\s*(?:#|//)\s*(?:TODO|FIXME)\b|NotImplementedError|your code here|"
+                          r"<placeholder>|^\s*\.\.\.\s*$|^\s*pass\s*#\s*(?:todo|implement)")
+
+
+def check_answer(content: str, no_placeholders: bool = True) -> List[Check]:
+    """Checks for a free-form answer: every fenced block checked by its language.
+
+    Used for the persona agents, whose answers can be anything: prose is
+    left alone, but code, JSON, YAML, SQL, HTML, JavaScript and Dockerfiles
+    in it must be valid, and code must not be a placeholder.
+    """
+    if not (content or "").strip():
+        return [Check("answer has content", FAIL, "empty answer")]
+    checks: List[Check] = []
+    for i, (info, body) in enumerate(fenced_blocks(content), 1):
+        lang = (info.split() or [""])[0]
+        tag = f"block {i} ({lang or 'text'})"
+        if lang in ("python", "py"):
+            c = check_python(body, tag)
+        elif lang == "json":
+            c = check_json(body, tag)[0]
+        elif lang in ("yaml", "yml"):
+            c = check_yaml(body, tag)
+        elif lang in ("javascript", "js"):
+            c = check_js(body)
+            c.name = tag
+        elif lang in ("html",):
+            c = check_html(body)[0]
+            c.name = tag
+        elif lang in ("dockerfile", "docker"):
+            c = check_dockerfile(body)
+            c.name = tag
+        elif lang == "sql":
+            bad = [s for s in sql_statements(body) if not s.upper().startswith(_SQL_START) or not balanced(s, "()")]
+            c = Check(tag, FAIL if bad else PASS, f"not valid SQL: {bad[0][:60]}" if bad else "")
+        else:
+            continue
+        checks.append(c)
+        if no_placeholders and lang not in ("json", "yaml", "yml", "sql") and _PLACEHOLDER.search(body):
+            checks.append(Check(f"{tag} complete", FAIL, "a placeholder is left in the code"))
+    return checks or [Check("answer has content", PASS, "prose only, nothing to run")]
+
+
 # -- the loop -----------------------------------------------------------------
 
 MODEL_NOTES = ("model answered", "model answer used")
