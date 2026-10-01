@@ -72,7 +72,11 @@ dev = [
     "pytest-asyncio>=0.21.0",
     # Reference implementation for cyclomatic complexity. test_mech_interp.py
     # cross-checks our own counter against it; without radon that test skips.
-    "radon>=6.0.0"
+    "radon>=6.0.0",
+    # test_fast_inference.py, test_async_ollama.py and fake_ollama.py import
+    # aiohttp at module level; without it pytest aborts at collection (CI
+    # run 36820449612 went red on exactly this, all six matrix jobs).
+    "aiohttp>=3.9"
 ]
 all = [
     "playwright>=1.35.0",
