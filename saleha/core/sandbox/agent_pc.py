@@ -25,7 +25,23 @@ from saleha.core.sandbox.windows_job_sandbox import SandboxRunResult, WindowsJob
 from saleha.sandbox.ast_security_verifier import ASTContractAuditor
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_AGENT_PC_ROOT = REPO_ROOT / ".saleha" / "agent_pcs"
+
+
+def _default_agent_pc_root(repo_root: Path) -> Path:
+    """Where an agent's PC lives when no base dir is given.
+
+    A source checkout keeps them in <checkout>/.saleha, as before. For an
+    installed package parents[3] is site-packages: no place for agent files,
+    and read-only in a container or a system install, where importing
+    saleha.agents (it builds browser_claw) crashed on it. There they go under
+    ~/.saleha, with the rest of Saleha's local state.
+    """
+    if (repo_root / "pyproject.toml").is_file():
+        return repo_root / ".saleha" / "agent_pcs"
+    return Path.home() / ".saleha" / "agent_pcs"
+
+
+DEFAULT_AGENT_PC_ROOT = _default_agent_pc_root(REPO_ROOT)
 
 
 @dataclass

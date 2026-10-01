@@ -320,5 +320,62 @@ class TestAgentPCSubsystem(unittest.TestCase):
         self.assertIn("designer", roles)
 
 
+class TestInstalledPackageRoot(unittest.TestCase):
+    """agent_pc.py loaded from an installed layout: <site>/saleha/core/sandbox/.
+
+    Its parents[3] is then site-packages; the module is loaded from a copy
+    there, so the default root is the one the real import computes.
+    """
+
+    def setUp(self) -> None:
+        import importlib.util
+        import os
+
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        base = Path(self.tmp.name)
+        self.site = base / "site-packages"
+        self.home = base / "home"
+        self.home.mkdir()
+        here = self.site / "saleha" / "core" / "sandbox"
+        here.mkdir(parents=True)
+        src = Path(__file__).resolve().parents[2] / "core" / "sandbox" / "agent_pc.py"
+        shutil.copy(src, here / "agent_pc.py")
+        self._env = {k: os.environ.get(k) for k in ("HOME", "USERPROFILE")}
+        os.environ["HOME"] = os.environ["USERPROFILE"] = str(self.home)
+        spec = importlib.util.spec_from_file_location("_installed_agent_pc", here / "agent_pc.py")
+        assert spec is not None and spec.loader is not None
+        self.mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = self.mod     # its dataclasses look their module up there
+        spec.loader.exec_module(self.mod)
+
+    def tearDown(self) -> None:
+        import os
+
+        sys.modules.pop("_installed_agent_pc", None)
+        for key, value in self._env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        self.tmp.cleanup()
+
+    def test_default_root_is_under_home_not_site_packages(self) -> None:
+        root = self.mod.DEFAULT_AGENT_PC_ROOT.resolve()
+        self.assertEqual(root, (self.home / ".saleha" / "agent_pcs").resolve())
+
+    def test_a_pc_writes_nothing_into_site_packages(self) -> None:
+        pc = self.mod.AgentPersonalComputer(agent_role="browser_claw")
+        self.assertFalse((self.site / ".saleha").exists())
+        self.assertEqual(pc.workspace_root.resolve(),
+                         (self.home / ".saleha" / "agent_pcs" / "browser_claw").resolve())
+
+    def test_a_source_checkout_keeps_its_own_root(self) -> None:
+        checkout = Path(self.tmp.name) / "checkout"
+        checkout.mkdir()
+        (checkout / "pyproject.toml").write_text("[project]\nname = 'saleha'\n", encoding="utf-8")
+        self.assertEqual(self.mod._default_agent_pc_root(checkout),
+                         checkout / ".saleha" / "agent_pcs")
+
+
 if __name__ == "__main__":
     unittest.main()
